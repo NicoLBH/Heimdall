@@ -3,16 +3,13 @@ import { renderProjectsList } from "./views/projects-list.js";
 import { renderProjectLayout } from "./views/project-layout.js";
 
 function parseHash() {
-  const hash = location.hash.replace("#", "");
-
-  const parts = hash.split("/");
-
-  return parts;
+  const hash = location.hash.replace(/^#/, "").trim();
+  if (!hash) return ["dashboard"];
+  return hash.split("/");
 }
 
 function route() {
   const parts = parseHash();
-
   const root = document.getElementById("app");
 
   if (!root) return;
