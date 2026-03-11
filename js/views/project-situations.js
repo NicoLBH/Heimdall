@@ -38,7 +38,7 @@ function normalizeVerdict(verdict) {
 function verdictTone(verdict) {
   const v = normalizeVerdict(verdict);
   if (["KO", "WARNING", "D", "DEFAVORABLE"].includes(v)) return "negative";
-  if (["OK", "S", "FAVORABLE"].includes(v)) return "positive";
+  if (["OK", "S", "FAVORABLE", "F", "HM", "PM", "SO"].includes(v)) return "positive";
   return "neutral";
 }
 
@@ -47,10 +47,16 @@ function verdictLabel(verdict) {
 }
 
 function verdictBadgeClass(verdict) {
-  const tone = verdictTone(verdict);
-  if (tone === "negative") return "badge badge--danger";
-  if (tone === "positive") return "badge badge--success";
-  return "badge";
+  const v = verdictLabel(verdict);
+  const safe = v.replace(/[^A-Z0-9_-]/g, "");
+
+  if (["F", "D", "S", "HM", "PM", "SO"].includes(safe)) {
+    return `verdict-badge verdict-${safe}`;
+  }
+  if (safe === "OK") return "verdict-badge verdict-F";
+  if (safe === "KO") return "verdict-badge verdict-D";
+  if (safe === "WARNING") return "verdict-badge verdict-S";
+  return "verdict-badge";
 }
 
 function verdictPill(verdict) {
@@ -122,7 +128,7 @@ function situationMatchesFilters(situation, query, verdictFilter) {
     query
   );
 
-  if (situationTextMatch) return true;
+  if (situationTextMatch && verdictFilter === "ALL") return true;
 
   for (const sujet of situation.sujets || []) {
     const sujetTextMatch = matchSearch(
@@ -150,7 +156,7 @@ function situationMatchesFilters(situation, query, verdictFilter) {
     }
   }
 
-  return false;
+  return situationTextMatch;
 }
 
 function getFilteredSituations() {
@@ -302,9 +308,9 @@ function chevron(isOpen, isVisible = true) {
 }
 
 function rowSelectedClass(kind, id) {
-  if (kind === "situation" && store.situationsView.selectedSituationId === id && !store.situationsView.selectedSujetId && !store.situationsView.selectedAvisId) return " subissue-row--selected";
-  if (kind === "sujet" && store.situationsView.selectedSujetId === id && !store.situationsView.selectedAvisId) return " subissue-row--selected";
-  if (kind === "avis" && store.situationsView.selectedAvisId === id) return " subissue-row--selected";
+  if (kind === "situation" && store.situationsView.selectedSituationId === id && !store.situationsView.selectedSujetId && !store.situationsView.selectedAvisId) return " selected subissue-row--selected";
+  if (kind === "sujet" && store.situationsView.selectedSujetId === id && !store.situationsView.selectedAvisId) return " selected subissue-row--selected";
+  if (kind === "avis" && store.situationsView.selectedAvisId === id) return " selected subissue-row--selected";
   return "";
 }
 
@@ -395,8 +401,30 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
   `;
 }
 
+function renderWelcomeHtml() {
+  return `
+    <div id="issuesTable" class="gh-issues emptyState">
+      <h1><b>WELCOME</b><h2> to RAPSOBOT Prouf Of Concept</h2>🎉</h1>
+      <h3>Comment ça marche</h3>
+      <span>Saississez dans le menu de gauche la "vérité" de votre projet : les données d'entrée validées par humain comme étant vraies... sinon comment distinguer le vrai du faux dans un document !</span><br>
+      <span>Chargez votre document pdf</span><br>
+      <span>Et cliquez sur le bouton "Run anlysis"</span><br>
+      <span>... et soyez patient : les analyses peuvent prendre entre 1 à 6 minutes selon la taille du pdf</span><br><br>
+      <h3>Limites du PoC</h3>
+      <span>Le seul Référentiel pris en charge est l'<b>Eurocode 8</b> avec son Annexe Nationale <b>Française</b> et l'Arrêté du 22 octobre 2010.</span><br>
+      <span>Seules les <b>Notes de Calcul</b> au format pdf sont prises en charge (pas de plans, pas de modèle 3D...</span><br>
+      <span>Et cliquez sur le bouton "Run anlysis"</span><br><br>
+      --- Please Envoy Now 🎈 ---
+    </div>
+  `;
+}
+
 function renderTableHtml(filteredSituations) {
   const displayDepth = String(store.situationsView.displayDepth || "situations").toLowerCase();
+
+  if (!(store.situationsView.data || []).length) {
+    return renderWelcomeHtml();
+  }
 
   if (!filteredSituations.length) {
     return `<div class="issues-table"><div class="issues-table__body"><div style="padding:24px;color:var(--muted);">Aucun résultat pour les filtres actuels.</div></div></div>`;
@@ -468,11 +496,20 @@ function getSituationSummary(situation) {
 function renderDetailsTitleHtml(selection) {
   if (!selection) {
     return `
-      <div class="details-title-wrap details-title--expanded">
-        <div class="details-title-row details-title-row--main">
-          <div class="details-title-maincol">
-            <div class="details-title-topline"><span class="details-title-text">Détail</span></div>
+      <div class="details-head">
+        <div class="details-head-left">
+          <div class="details-kicker mono">DÉTAILS</div>
+          <div class="details-title-wrap details-title--expanded">
+            <div class="details-title-row details-title-row--main">
+              <div class="details-title-maincol">
+                <div class="details-title-topline"><span class="details-title-text">Sélectionner un élément</span></div>
+              </div>
+            </div>
           </div>
+        </div>
+        <div class="details-head-right">
+          <div class="details-meta mono" id="detailsMeta">—</div>
+          <button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Agrandir" title="Agrandir">⤢</button>
         </div>
       </div>
     `;
@@ -505,35 +542,45 @@ function renderDetailsTitleHtml(selection) {
   }
 
   return `
-    <div class="details-title-wrap details-title--expanded">
-      <div class="details-title-row details-title-row--main">
-        <div class="details-title-maincol">
-          <div class="details-title-topline">
-            <span class="details-title-text">${titleText}</span>
-            <span class="details-title-id mono">${idHtml}</span>
+    <div class="details-head">
+      <div class="details-head-left">
+        <div class="details-kicker mono">DÉTAILS</div>
+        <div class="details-title-wrap details-title--expanded">
+          <div class="details-title-row details-title-row--main">
+            <div class="details-title-maincol">
+              <div class="details-title-topline">
+                <span class="details-title-text">${titleText}</span>
+                <span class="details-title-id mono">${idHtml}</span>
+              </div>
+              <div class="details-title-bottomline">
+                ${badgeHtml}
+                ${probsHtml}
+                ${verdictHtml}
+              </div>
+            </div>
           </div>
-          <div class="details-title-bottomline">
-            ${badgeHtml}
-            ${probsHtml}
-            ${verdictHtml}
+        </div>
+
+        <div class="details-title-wrap details-title--compact">
+          <div class="details-title-compact">
+            <div class="details-title-compact-col1">${badgeHtml}</div>
+            <div class="details-title-compact-col2">
+              <div class="details-title-compact-top">
+                <span class="details-title-text">${titleText}</span>
+                <span class="details-title-id mono">${idHtml}</span>
+              </div>
+              <div class="details-title-compact-bottom">
+                ${probsHtml}
+                ${barOnlyHtml}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="details-title-wrap details-title--compact">
-      <div class="details-title-compact">
-        <div class="details-title-compact-col1">${badgeHtml}</div>
-        <div class="details-title-compact-col2">
-          <div class="details-title-compact-top">
-            <span class="details-title-text">${titleText}</span>
-            <span class="details-title-id mono">${idHtml}</span>
-          </div>
-          <div class="details-title-compact-bottom">
-            ${probsHtml}
-            ${barOnlyHtml}
-          </div>
-        </div>
+      <div class="details-head-right">
+        <div class="details-meta mono" id="detailsMeta">${escapeHtml(idHtml || "—")}</div>
+        <button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Agrandir" title="Agrandir">⤢</button>
       </div>
     </div>
   `;
@@ -680,9 +727,9 @@ function renderDetailsHtml() {
   if (!selection) {
     return {
       titleHtml: renderDetailsTitleHtml(null),
-      bodyHtml: `<div style="padding:20px;color:var(--muted);">Aucun élément sélectionné.</div>`,
-      modalTitle: "Détail",
-      modalMeta: ""
+      bodyHtml: `<div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>`,
+      modalTitle: "Sélectionner un élément",
+      modalMeta: "—"
     };
   }
 
@@ -802,24 +849,33 @@ function bindModalEvents() {
 }
 
 function initRightSplitter(root) {
-  const page = root.querySelector(".gh-page--2col");
+  const page = root.classList.contains("gh-page--2col") ? root : root.querySelector(".gh-page--2col");
   const details = root.querySelector(".gh-panel--details");
-  if (!page || !details || page.querySelector(".gh-splitter")) return;
+  if (!page || !details) return;
+
+  const existingSplitter = page.querySelector(":scope > .gh-splitter");
+  if (existingSplitter) existingSplitter.remove();
 
   const splitter = document.createElement("div");
   splitter.className = "gh-splitter";
   splitter.setAttribute("role", "separator");
   splitter.setAttribute("aria-orientation", "vertical");
   splitter.setAttribute("aria-label", "Redimensionner la section Détails");
-  details.parentNode.insertBefore(splitter, details);
+  page.insertBefore(splitter, details);
 
-  const MAX_W = 750;
-  const rectW = Math.round(details.getBoundingClientRect().width || 0);
-  const cssVar = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--rightW"), 10);
-  const minWidth = Math.max(280, rectW >= 80 ? rectW : (Number.isFinite(cssVar) && cssVar > 0 ? cssVar : 420));
+  const MIN_W = 320;
+  const MAX_W = 820;
+
+  function currentRightWidth() {
+    const rectW = Math.round(details.getBoundingClientRect().width || 0);
+    const cssVar = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--rightW"), 10);
+    if (rectW >= 120) return rectW;
+    if (Number.isFinite(cssVar) && cssVar > 0) return cssVar;
+    return 420;
+  }
 
   function setRightWidth(px) {
-    const clamped = Math.max(minWidth, Math.min(MAX_W, Math.round(px)));
+    const clamped = Math.max(MIN_W, Math.min(MAX_W, Math.round(px)));
     document.documentElement.style.setProperty("--rightW", `${clamped}px`);
   }
 
@@ -850,7 +906,7 @@ function initRightSplitter(root) {
     dragging = true;
     document.body.classList.add("is-resizing");
     startX = (event.touches && event.touches[0]) ? event.touches[0].clientX : event.clientX;
-    startW = Math.round(details.getBoundingClientRect().width || minWidth);
+    startW = currentRightWidth();
     if (event.cancelable) event.preventDefault();
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -860,7 +916,21 @@ function initRightSplitter(root) {
 
   splitter.addEventListener("mousedown", onDown);
   splitter.addEventListener("touchstart", onDown, { passive: false });
-  setRightWidth(minWidth);
+  setRightWidth(currentRightWidth());
+}
+
+function bindDetailsScroll(root) {
+  const detailsBody = root.querySelector("#situationsDetailsHost");
+  const detailsPanel = root.querySelector(".gh-panel--details");
+  if (!detailsBody || !detailsPanel || detailsBody.dataset.scrollBound === "1") return;
+  detailsBody.dataset.scrollBound = "1";
+
+  const syncCompactState = () => {
+    detailsPanel.classList.toggle("details-scrolled", detailsBody.scrollTop > 12);
+  };
+
+  detailsBody.addEventListener("scroll", syncCompactState, { passive: true });
+  syncCompactState();
 }
 
 function bindSituationsEvents(root) {
@@ -879,9 +949,14 @@ function bindSituationsEvents(root) {
     rerenderPanels();
   });
 
-  root.querySelector("#detailsExpand")?.addEventListener("click", openDetailsModal);
-
   root.addEventListener("click", (event) => {
+    const expandBtn = event.target.closest("#detailsExpand");
+    if (expandBtn) {
+      event.preventDefault();
+      openDetailsModal();
+      return;
+    }
+
     const toggleSituation = event.target.closest(".js-toggle-situation");
     if (toggleSituation) {
       event.preventDefault();
@@ -938,142 +1013,65 @@ export function renderProjectSituations(root) {
   }
 
   root.innerHTML = `
-  <section class="gh-panel gh-panel--results" aria-label="Results">
-    <div class="gh-panel__head gh-panel__head--tight">
-      <div class="results-bar">
-        <div class="results-bar__left">
-          <h2 class="gh-panel__title">Results</h2>
-          <div class="gh-filters gh-filters--inline">
-            <label class="gh-filter gh-filter--inline">
-              <span>Verdict</span>
-              <select id="verdictFilter" class="gh-input gh-input--sm">
-                <option value="ALL">All</option>
-                <option value="F">F</option>
-                <option value="D">D</option>
-                <option value="S">S</option>
-                <option value="HM">HM</option>
-                <option value="PM">PM</option>
-                <option value="SO">SO</option>
-              </select>
-            </label>
-            <label class="gh-filter gh-filter--inline">
-              <span>Search</span>
-              <input id="searchBox" class="gh-input gh-input--sm" type="text" placeholder="topic / EC8 / mot-clé…" />
-            </label>
-          </div>
-        </div>
+    <section class="gh-panel gh-panel--results" aria-label="Results">
+      <div class="gh-panel__head gh-panel__head--tight">
+        <div class="results-bar">
+          <div class="results-bar__left">
+            <h2 class="gh-panel__title">Results</h2>
+            <div class="gh-filters gh-filters--inline">
+              <label class="gh-filter gh-filter--inline">
+                <span>Verdict</span>
+                <select id="verdictFilter" class="gh-input gh-input--sm">
+                  <option value="ALL">All</option>
+                  <option value="F">F</option>
+                  <option value="D">D</option>
+                  <option value="S">S</option>
+                  <option value="HM">HM</option>
+                  <option value="PM">PM</option>
+                  <option value="SO">SO</option>
+                  <option value="OK">OK</option>
+                  <option value="KO">KO</option>
+                  <option value="WARNING">WARNING</option>
+                </select>
+              </label>
 
-        <div class="results-bar__right">
-          <div class="issues-totals mono" id="issuesTotals">—</div>
-        </div>
-      </div>
-    </div>
-    <div id="issuesTable" class="gh-issues emptyState">
-      <h1><B>WELCOME</B><h2> to RAPSOBOT Prouf Of Concept</h2>🎉</h1>
-      <h3>Comment ça marche</h3>
-      <span>Saississez dans le menu de gauche la "vérité" de votre projet : les données d'entrée validées par humain comme étant vraies... sinon comment distinguer le vrai du faux dans un document !</span> </br>
-      <span>Chargez votre document pdf</span></br>
-      <span>Et cliquez sur le bouton "Run anlysis"</span></br>
-      <span>... et soyez patient : les analyses peuvent prendre entre 1 à 6 minutes selon la taille du pdf</span></br></br>
-      <h3>Limites du PoC</h3>
-      <span>Le seul Référentiel pris en charge est l'<B>Eurocode 8</B> avec son Annexe Nationale <B>Française</B> et l'Arrêté du 22 octobre 2010.</span> </br>
-      <span>Seules les <B>Notes de Calcul</B> au format pdf sont prises en charge (pas de plans, pas de modèle 3D...</span></br>
-      <span>Et cliquez sur le bouton "Run anlysis"</span></br></br>
-      --- Please Envoy Now 🎈 ---
-    </div>
-  </section>
-  
-  <!-- RIGHT: Details / Discussion -->
-  <section class="gh-panel gh-panel--details" aria-label="Details">
-    <div class="gh-panel__head gh-panel__head--tight">
-      <div class="details-head">
-        <div class="details-head-left">
-          <div class="details-kicker mono">DÉTAILS</div>
-          <h2 class="gh-panel__title" id="detailsTitle">Sélectionner un élément</h2>
-        </div>
-        <div class="details-head-right">
-          <div class="details-meta mono" id="detailsMeta">—</div>
-          <button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Agrandir" title="Agrandir">⤢</button>
-        </div>
-      </div>
-    </div>
-    <div class="details-body" id="detailsBody">
-      <div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>
-    </div>
-  </section>
-  
-  <!-- Details fullscreen modal -->
-  <div id="detailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Détails">
-    <div class="modal__inner">
-      <div class="modal__head">
-        <div class="modal__head-left">
-          <div class="details-kicker mono">DÉTAILS</div>
-          <div class="modal__title" id="detailsTitleModal">Sélectionner un élément</div>
-        </div>
-        <div class="modal__head-right">
-          <div class="details-meta mono" id="detailsMetaModal">—</div>
-          <button id="detailsClose" class="icon-btn icon-btn--sm" aria-label="Fermer" title="Fermer">✕</button>
-        </div>
-      </div>
-      <div class="modal__body" id="detailsBodyModal"></div>
-    </div>
-  </div>
+              <label class="gh-filter gh-filter--inline">
+                <span>Search</span>
+                <input id="situationsSearch" class="gh-input gh-input--sm" type="text" placeholder="topic / EC8 / mot-clé…" />
+              </label>
 
-
-
-
-<!-- archive...
-    <div class="gh-page gh-page--2col">
-      <section class="gh-panel gh-panel--results">
-        <div class="gh-panel__head gh-panel__head--tight">
-          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <strong>Results</strong>
-              <label class="mono" for="verdictFilter">Verdict</label>
-              <select id="verdictFilter" class="gh-input gh-input--sm">
-                <option value="ALL">All</option>
-                <option value="OK">OK</option>
-                <option value="KO">KO</option>
-                <option value="WARNING">WARNING</option>
-              </select>
+              <label class="gh-filter gh-filter--inline">
+                <span>Affichage</span>
+                <select id="displayDepth" class="gh-input gh-input--sm">
+                  <option value="situations">Situations</option>
+                  <option value="sujets">Sujets</option>
+                  <option value="avis">Avis</option>
+                </select>
+              </label>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label class="mono" for="situationsSearch">Search</label>
-              <input id="situationsSearch" class="gh-input" type="text" placeholder="topic / EC8 / mot-clé...">
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label class="mono" for="displayDepth">Affichage</label>
-              <select id="displayDepth" class="gh-input gh-input--sm">
-                <option value="situations">Situations</option>
-                <option value="sujets">Sujets</option>
-                <option value="avis">Avis</option>
-              </select>
-            </div>
-            <div id="situationsHeaderCounts" class="mono" style="margin-left:auto;"></div>
-          </div>
-        </div>
-
-        <div class="gh-page gh-page--2col" style="grid-template-columns:minmax(0,1fr) var(--rightW, 420px);gap:16px;padding:0;align-items:start;">
-          <div class="gh-panel" style="overflow:hidden;">
-            <div id="situationsTableHost"></div>
           </div>
 
-          <aside class="gh-panel gh-panel--details">
-            <div class="gh-panel__head gh-panel__head--tight">
-              <div id="situationsDetailsTitle" style="width:100%;"></div>
-              <button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Ouvrir en plein écran">⤢</button>
-            </div>
-            <div id="situationsDetailsHost" class="details-body"></div>
-          </aside>
+          <div class="results-bar__right">
+            <div class="issues-totals mono" id="situationsHeaderCounts">—</div>
+          </div>
         </div>
-      </section>
-    </div>
-  -->
+      </div>
+
+      <div id="situationsTableHost"></div>
+    </section>
+
+    <section class="gh-panel gh-panel--details" aria-label="Details">
+      <div class="gh-panel__head gh-panel__head--tight" id="situationsDetailsTitle"></div>
+      <div class="details-body" id="situationsDetailsHost">
+        <div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>
+      </div>
+    </section>
   `;
 
   rerenderPanels();
   bindSituationsEvents(root);
   bindModalEvents();
+  bindDetailsScroll(root);
   initRightSplitter(root);
   updateDetailsModal();
 }
