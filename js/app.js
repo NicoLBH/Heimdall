@@ -1,5 +1,6 @@
 import { initRouter } from "./router.js";
 import { store } from "./store.js";
+import { runAnalysis, resetAnalysisUi } from "./services/analysis-runner.js";
 
 function initGlobalNav() {
   const menuBtn = document.getElementById("menuBtn");
@@ -48,6 +49,18 @@ function bootstrap() {
   initGlobalNav();
   initRouter();
 
+  // --- Run analysis button ---
+  const runBtn = document.getElementById("runAnalysisBtnTop");
+  if (runBtn) {
+    runBtn.addEventListener("click", runAnalysis);
+  }
+
+  // --- Reset button ---
+  const resetBtn = document.getElementById("resetBtnTop");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", resetAnalysisUi);
+  }
+  
   if (!location.hash) {
     location.hash = "#project/demo/situations";
   }
