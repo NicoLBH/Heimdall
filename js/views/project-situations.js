@@ -802,7 +802,7 @@ function bindModalEvents() {
 }
 
 function initRightSplitter(root) {
-  const page = root.querySelector(".gh-page--3col");
+  const page = root.querySelector(".gh-page--2col");
   const details = root.querySelector(".gh-panel--details");
   if (!page || !details || page.querySelector(".gh-splitter")) return;
 
@@ -938,7 +938,7 @@ export function renderProjectSituations(root) {
   }
 
   root.innerHTML = `
-    <div class="gh-page gh-page--3col" style="padding-top:0;">
+    <div class="gh-page gh-page--2col" style="padding-top:0;">
       <section class="gh-panel gh-panel--results" style="grid-column:1 / span 3;">
         <div class="gh-panel__head">
           <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
@@ -968,7 +968,7 @@ export function renderProjectSituations(root) {
           </div>
         </div>
 
-        <div class="gh-page gh-page--3col" style="grid-template-columns:minmax(0,1fr) var(--rightW, 420px);gap:16px;padding:0;align-items:start;">
+        <div class="gh-page gh-page--2col" style="grid-template-columns:minmax(0,1fr) var(--rightW, 420px);gap:16px;padding:0;align-items:start;">
           <div class="gh-panel" style="overflow:hidden;">
             <div id="situationsTableHost"></div>
           </div>
