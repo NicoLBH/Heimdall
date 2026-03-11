@@ -2,7 +2,7 @@
    restored DOM contract with legacy CSS
 */
 
-import { getStore } from "../store.js";
+import { store } from "../store.js";
 
 let selected = null;
 
