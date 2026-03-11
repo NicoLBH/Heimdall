@@ -1,5 +1,9 @@
 import { store } from "../store.js";
 
+/* =========================================================
+   Legacy DOM / archive parity helpers
+========================================================= */
+
 function ensureSituationsLegacyDomStyle() {
   if (document.getElementById("situations-legacy-dom-style")) return;
 
@@ -43,9 +47,18 @@ function escapeHtml(value) {
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
-    '"': "&quot;",
+    "\"": "&quot;",
     "'": "&#39;"
   }[char]));
+}
+
+function mdToHtml(text) {
+  const safe = escapeHtml(text || "");
+  return safe
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\n/g, "<br>");
 }
 
 function firstNonEmpty(...values) {
@@ -55,6 +68,23 @@ function firstNonEmpty(...values) {
     }
   }
   return "";
+}
+
+function fmtTs(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return String(ts);
+  return d.toLocaleString("fr-FR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function nowIso() {
+  return new Date().toISOString();
 }
 
 function issueIcon(status = "open") {
@@ -80,14 +110,22 @@ function verdictLabel(verdict) {
 function verdictBadgeClass(verdict) {
   const v = verdictLabel(verdict);
   const safe = v.replace(/[^A-Z0-9_-]/g, "");
-
-  if (["F", "D", "S", "HM", "PM", "SO"].includes(safe)) {
-    return `verdict-badge verdict-${safe}`;
-  }
+  if (["F", "D", "S", "HM", "PM", "SO"].includes(safe)) return `verdict-badge verdict-${safe}`;
   if (safe === "OK") return "verdict-badge verdict-F";
   if (safe === "KO") return "verdict-badge verdict-D";
   if (safe === "WARNING") return "verdict-badge verdict-S";
   return "verdict-badge";
+}
+
+function verdictDotClass(verdict) {
+  const v = normalizeVerdict(verdict);
+  if (v === "F" || v === "OK") return "dot dot--green";
+  if (v === "S" || v === "WARNING") return "dot dot--yellow";
+  if (v === "D" || v === "KO") return "dot dot--red";
+  if (v === "HM") return "dot dot--purple";
+  if (v === "PM") return "dot dot--blue";
+  if (v === "SO") return "dot dot--gray";
+  return "dot";
 }
 
 function verdictPill(verdict) {
@@ -96,18 +134,18 @@ function verdictPill(verdict) {
 
 function priorityBadge(priority = "P3") {
   const p = String(priority || "P3").toUpperCase();
-  const cls =
-    p === "P1"
-      ? "badge badge--p1"
-      : p === "P2"
-        ? "badge badge--p2"
-        : "badge badge--p3";
+  const cls = p === "P1" ? "badge badge--p1" : p === "P2" ? "badge badge--p2" : "badge badge--p3";
   return `<span class="${cls}">${escapeHtml(p)}</span>`;
 }
 
 function statePill(status = "open") {
   const isOpen = String(status || "open").toLowerCase() !== "closed";
   return `<span class="gh-state ${isOpen ? "gh-state--open" : "gh-state--closed"}">${isOpen ? "Open" : "Closed"}</span>`;
+}
+
+function chevron(isOpen, isVisible = true) {
+  if (!isVisible) return `<span class="chev chev--spacer"></span>`;
+  return `<span class="chev">${isOpen ? "▾" : "▸"}</span>`;
 }
 
 function matchSearch(parts, query) {
@@ -117,6 +155,159 @@ function matchSearch(parts, query) {
     .map((part) => String(part).toLowerCase())
     .join(" ");
   return haystack.includes(query);
+}
+
+/* =========================================================
+   Local archive-like human store / overlays
+========================================================= */
+
+const HUMAN_STORE_KEY = "rapsobot-human-store-v2";
+
+function ensureViewUiState() {
+  const v = store.situationsView;
+  if (!v.rightExpandedSujets) v.rightExpandedSujets = new Set();
+  if (typeof v.rightSubissuesOpen !== "boolean") v.rightSubissuesOpen = true;
+  if (typeof v.commentPreviewMode !== "boolean") v.commentPreviewMode = false;
+  if (typeof v.helpMode !== "boolean") v.helpMode = false;
+  if (!v.tempAvisVerdict) v.tempAvisVerdict = "F";
+  if (!v.tempAvisVerdictFor) v.tempAvisVerdictFor = null;
+}
+
+function currentRunKey() {
+  return firstNonEmpty(
+    store.ui?.runId,
+    store.situationsView?.rawResult?.run_id,
+    store.situationsView?.rawResult?.runId,
+    "default-run"
+  );
+}
+
+function loadHumanStore() {
+  try {
+    const raw = localStorage.getItem(HUMAN_STORE_KEY);
+    if (!raw) return { runs: {} };
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : { runs: {} };
+  } catch {
+    return { runs: {} };
+  }
+}
+
+function saveHumanStore(data) {
+  try {
+    localStorage.setItem(HUMAN_STORE_KEY, JSON.stringify(data));
+  } catch {
+    // no-op
+  }
+}
+
+function getRunBucket() {
+  const all = loadHumanStore();
+  const key = currentRunKey();
+  if (!all.runs[key]) {
+    all.runs[key] = {
+      comments: [],
+      activities: [],
+      decisions: {
+        avis: {},
+        sujet: {},
+        situation: {}
+      }
+    };
+    saveHumanStore(all);
+  }
+  return { all, key, bucket: all.runs[key] };
+}
+
+function persistRunBucket(mutator) {
+  const { all, key, bucket } = getRunBucket();
+  mutator(bucket);
+  all.runs[key] = bucket;
+  saveHumanStore(all);
+}
+
+function addComment(entityType, entityId, message, options = {}) {
+  persistRunBucket((bucket) => {
+    bucket.comments.push({
+      ts: nowIso(),
+      entity_type: entityType,
+      entity_id: entityId,
+      type: "COMMENT",
+      actor: options.actor || "Human",
+      agent: options.agent || "human",
+      message: String(message || "")
+    });
+  });
+}
+
+function addActivity(entityType, entityId, kind, message = "", meta = {}, options = {}) {
+  persistRunBucket((bucket) => {
+    bucket.activities.push({
+      ts: nowIso(),
+      entity_type: entityType,
+      entity_id: entityId,
+      type: "ACTIVITY",
+      kind,
+      actor: options.actor || "Human",
+      agent: options.agent || "human",
+      message: String(message || ""),
+      meta: meta || {}
+    });
+  });
+}
+
+function setDecision(entityType, entityId, decision, note = "") {
+  persistRunBucket((bucket) => {
+    bucket.decisions[entityType] = bucket.decisions[entityType] || {};
+    bucket.decisions[entityType][entityId] = {
+      ts: nowIso(),
+      actor: "Human",
+      decision: String(decision || ""),
+      note: String(note || "")
+    };
+  });
+}
+
+function getDecision(entityType, entityId) {
+  const { bucket } = getRunBucket();
+  return bucket?.decisions?.[entityType]?.[entityId] || null;
+}
+
+function getEffectiveAvisVerdict(avisId) {
+  const avis = getNestedAvis(avisId);
+  const decision = getDecision("avis", avisId);
+  const d = String(decision?.decision || "").toUpperCase();
+  if (d.startsWith("VALIDATED_")) return d.replace("VALIDATED_", "");
+  return normalizeVerdict(avis?.verdict) || "-";
+}
+
+function getEffectiveSujetStatus(sujetId) {
+  const sujet = getNestedSujet(sujetId);
+  const decision = getDecision("sujet", sujetId);
+  const d = String(decision?.decision || "").toUpperCase();
+  if (d === "CLOSED") return "closed";
+  if (d === "REOPENED") return "open";
+  return firstNonEmpty(sujet?.status, "open").toLowerCase();
+}
+
+function getEffectiveSituationStatus(situationId) {
+  const situation = getNestedSituation(situationId);
+  const decision = getDecision("situation", situationId);
+  const d = String(decision?.decision || "").toUpperCase();
+  if (d === "CLOSED") return "closed";
+  if (d === "REOPENED") return "open";
+  return firstNonEmpty(situation?.status, "open").toLowerCase();
+}
+
+/* =========================================================
+   Data access
+========================================================= */
+
+function getFilteredSituations() {
+  const verdictFilter = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
+  const query = String(store.situationsView.search || "").trim().toLowerCase();
+  const situations = store.situationsView.data || [];
+  return situations.filter((situation) => situationMatchesFilters(situation, query, verdictFilter));
 }
 
 function avisMatchesFilters(avis, query, verdictFilter) {
@@ -141,7 +332,7 @@ function avisMatchesFilters(avis, query, verdictFilter) {
 
   if (!matchesSearch) return false;
   if (verdictFilter === "ALL") return true;
-  return normalizeVerdict(avis.verdict) === verdictFilter;
+  return normalizeVerdict(getEffectiveAvisVerdict(avis.id)) === verdictFilter;
 }
 
 function situationMatchesFilters(situation, query, verdictFilter) {
@@ -179,7 +370,7 @@ function situationMatchesFilters(situation, query, verdictFilter) {
 
     if (sujetTextMatch) {
       if (verdictFilter === "ALL") return true;
-      if ((sujet.avis || []).some((avis) => normalizeVerdict(avis.verdict) === verdictFilter)) return true;
+      if ((sujet.avis || []).some((avis) => normalizeVerdict(getEffectiveAvisVerdict(avis.id)) === verdictFilter)) return true;
     }
 
     for (const avis of sujet.avis || []) {
@@ -190,21 +381,12 @@ function situationMatchesFilters(situation, query, verdictFilter) {
   return situationTextMatch;
 }
 
-function getFilteredSituations() {
-  const verdictFilter = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
-  const query = String(store.situationsView.search || "").trim().toLowerCase();
-  const situations = store.situationsView.data || [];
-  return situations.filter((situation) => situationMatchesFilters(situation, query, verdictFilter));
-}
-
 function getVisibleCounts(filteredSituations) {
   let sujets = 0;
   let avis = 0;
   for (const situation of filteredSituations) {
     sujets += (situation.sujets || []).length;
-    for (const sujet of situation.sujets || []) {
-      avis += (sujet.avis || []).length;
-    }
+    for (const sujet of situation.sujets || []) avis += (sujet.avis || []).length;
   }
   return { situations: filteredSituations.length, sujets, avis };
 }
@@ -233,9 +415,7 @@ function getNestedAvis(avisId) {
 
 function getSituationBySujetId(problemId) {
   for (const situation of store.situationsView.data || []) {
-    if ((situation.sujets || []).some((sujet) => sujet.id === problemId)) {
-      return situation;
-    }
+    if ((situation.sujets || []).some((sujet) => sujet.id === problemId)) return situation;
   }
   return null;
 }
@@ -243,9 +423,7 @@ function getSituationBySujetId(problemId) {
 function getSituationByAvisId(avisId) {
   for (const situation of store.situationsView.data || []) {
     for (const sujet of situation.sujets || []) {
-      if ((sujet.avis || []).some((avis) => avis.id === avisId)) {
-        return situation;
-      }
+      if ((sujet.avis || []).some((avis) => avis.id === avisId)) return situation;
     }
   }
   return null;
@@ -254,9 +432,7 @@ function getSituationByAvisId(avisId) {
 function getSujetByAvisId(avisId) {
   for (const situation of store.situationsView.data || []) {
     for (const sujet of situation.sujets || []) {
-      if ((sujet.avis || []).some((avis) => avis.id === avisId)) {
-        return sujet;
-      }
+      if ((sujet.avis || []).some((avis) => avis.id === avisId)) return sujet;
     }
   }
   return null;
@@ -279,64 +455,85 @@ function getActiveSelection() {
   return firstSituation ? { type: "situation", item: firstSituation } : null;
 }
 
+/* =========================================================
+   Effective counts / title helpers
+========================================================= */
+
+function verdictCountsObject() {
+  return { F: 0, S: 0, D: 0, HM: 0, PM: 0, SO: 0 };
+}
+
 function problemVerdictStats(problem) {
-  const avis = problem?.avis || [];
-  let d = 0;
-  let s = 0;
-  for (const item of avis) {
-    const verdict = normalizeVerdict(item.verdict);
-    if (["KO", "WARNING", "D", "DEFAVORABLE"].includes(verdict)) d += 1;
-    else s += 1;
+  const counts = verdictCountsObject();
+  for (const item of problem?.avis || []) {
+    const v = String(getEffectiveAvisVerdict(item.id) || "").toUpperCase();
+    if (counts[v] !== undefined) counts[v] += 1;
   }
-  const total = Math.max(avis.length, 1);
-  return {
-    d,
-    s,
-    total: avis.length,
-    dPct: Math.round((d / total) * 100),
-    sPct: Math.round((s / total) * 100)
-  };
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return { counts, total };
 }
 
 function situationVerdictStats(situation) {
-  let d = 0;
-  let s = 0;
-  let total = 0;
+  const counts = verdictCountsObject();
   for (const sujet of situation?.sujets || []) {
-    const stats = problemVerdictStats(sujet);
-    d += stats.d;
-    s += stats.s;
-    total += stats.total;
+    for (const avis of sujet.avis || []) {
+      const v = String(getEffectiveAvisVerdict(avis.id) || "").toUpperCase();
+      if (counts[v] !== undefined) counts[v] += 1;
+    }
   }
-  const safeTotal = Math.max(total, 1);
-  return {
-    d,
-    s,
-    total,
-    dPct: Math.round((d / safeTotal) * 100),
-    sPct: Math.round((s / safeTotal) * 100)
-  };
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return { counts, total };
 }
 
-function verdictBar(stats) {
+function buildVerdictBarHtml(counts, options = {}) {
+  const legend = options.legend !== false;
+  const total = Object.values(counts || {}).reduce((a, b) => a + b, 0) || 1;
+  const order = ["F", "S", "D", "HM", "PM", "SO"];
+
+  const segs = order.map((v) => {
+    const c = Number(counts?.[v] || 0);
+    if (!c) return "";
+    const pct = (c / total) * 100;
+    return `<span class="verdict-bar__seg verdict-bar__seg--${v.toLowerCase()}" style="width:${pct.toFixed(2)}%"></span>`;
+  }).join("");
+
+  const bar = `<div class="verdict-bar">${segs || `<span class="verdict-bar__seg verdict-bar__seg--empty" style="width:100%"></span>`}</div>`;
+
+  if (!legend) {
+    return `<div class="subissues-counts subissues-counts--verdicts">${bar}</div>`;
+  }
+
+  const legendHtml = order.map((v) => {
+    const c = Number(counts?.[v] || 0);
+    if (!c) return "";
+    const pct = total ? (c / total) * 100 : 0;
+    return `
+      <span class="verdict-legend__item">
+        <span class="${verdictDotClass(v)}" aria-hidden="true"></span>
+        <span class="verdict-legend__count">${c} <b>${escapeHtml(v)}</b></span>
+        <span class="verdict-legend__pct">(${pct.toFixed(0)}%)</span>
+      </span>
+    `;
+  }).join("");
+
   return `
     <div class="subissues-counts subissues-counts--verdicts">
-      <div class="verdict-legend">
-        <span><span class="dot dot--red"></span>${stats.d} D (${stats.dPct}%)</span>
-        <span><span class="dot dot--yellow"></span>${stats.s} S (${stats.sPct}%)</span>
-      </div>
-      <div class="verdict-bar">
-        <span class="verdict-bar__red" style="width:${stats.dPct}%"></span>
-        <span class="verdict-bar__yellow" style="width:${stats.sPct}%"></span>
-      </div>
+      ${bar}
+      <div class="verdict-legend">${legendHtml}</div>
     </div>
   `;
 }
 
-function chevron(isOpen, isVisible = true) {
-  if (!isVisible) return `<span class="chev chev--spacer"></span>`;
-  return `<span class="chev">${isOpen ? "▾" : "▸"}</span>`;
+function problemsCountsHtml(situation) {
+  const problems = situation?.sujets || [];
+  const totalPb = problems.length;
+  const closedPb = problems.filter((x) => String(getEffectiveSujetStatus(x.id) || "closed").toLowerCase() !== "open").length;
+  return `<div class="subissues-counts subissues-counts--problems"><span>${closedPb} sur ${totalPb}</span></div>`;
 }
+
+/* =========================================================
+   Table render
+========================================================= */
 
 function rowSelectedClass(kind, id) {
   if (kind === "situation" && store.situationsView.selectedSituationId === id && !store.situationsView.selectedSujetId && !store.situationsView.selectedAvisId) return " selected subissue-row--selected";
@@ -348,11 +545,13 @@ function rowSelectedClass(kind, id) {
 function renderSituationRow(situation) {
   const expanded = store.situationsView.expandedSituations.has(situation.id);
   const hasSujets = (situation.sujets || []).length > 0;
+  const effStatus = getEffectiveSituationStatus(situation.id);
+
   return `
     <div class="issue-row issue-row--sit click js-row-situation${rowSelectedClass("situation", situation.id)}" data-situation-id="${escapeHtml(situation.id)}">
       <div class="cell cell-theme lvl0">
         <span class="js-toggle-situation" data-situation-id="${escapeHtml(situation.id)}">${chevron(expanded, hasSujets)}</span>
-        ${issueIcon(situation.status)}
+        ${issueIcon(effStatus)}
         <span class="theme-text theme-text--sit">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</span>
       </div>
       <div class="cell cell-verdict"></div>
@@ -366,11 +565,13 @@ function renderSituationRow(situation) {
 function renderSujetRow(sujet) {
   const expanded = store.situationsView.expandedSujets.has(sujet.id);
   const hasAvis = (sujet.avis || []).length > 0;
+  const effStatus = getEffectiveSujetStatus(sujet.id);
+
   return `
     <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl1">
         <span class="js-toggle-sujet" data-sujet-id="${escapeHtml(sujet.id)}">${chevron(expanded, hasAvis)}</span>
-        ${issueIcon(sujet.status)}
+        ${issueIcon(effStatus)}
         <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
       </div>
       <div class="cell cell-verdict"></div>
@@ -382,13 +583,14 @@ function renderSujetRow(sujet) {
 }
 
 function renderAvisRow(avis) {
+  const effVerdict = getEffectiveAvisVerdict(avis.id);
   return `
     <div class="issue-row issue-row--avis click js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
       <div class="cell cell-theme lvl2">
         <span class="chev chev--spacer"></span>
         <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
       </div>
-      <div class="cell cell-verdict">${verdictPill(avis.verdict)}</div>
+      <div class="cell cell-verdict">${verdictPill(effVerdict)}</div>
       <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
@@ -397,12 +599,14 @@ function renderAvisRow(avis) {
 }
 
 function renderFlatSujetRow(sujet, situationId) {
+  const effStatus = getEffectiveSujetStatus(sujet.id);
   const parentLabel = situationId ? `<span class="mono subissues-inline-count">${escapeHtml(situationId)}</span>` : "";
+
   return `
     <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
-        ${issueIcon(sujet.status)}
+        ${issueIcon(effStatus)}
         <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
         ${parentLabel}
       </div>
@@ -415,16 +619,18 @@ function renderFlatSujetRow(sujet, situationId) {
 }
 
 function renderFlatAvisRow(avis, sujetId, situationId) {
+  const effVerdict = getEffectiveAvisVerdict(avis.id);
   const lineage = [situationId, sujetId].filter(Boolean).join(" · ");
+
   return `
     <div class="issue-row issue-row--avis click js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
-        ${issueIcon(avis.status)}
+        ${issueIcon("open")}
         <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
         ${lineage ? `<span class="mono subissues-inline-count">${escapeHtml(lineage)}</span>` : ""}
       </div>
-      <div class="cell cell-verdict">${verdictPill(avis.verdict)}</div>
+      <div class="cell cell-verdict">${verdictPill(effVerdict)}</div>
       <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
@@ -435,17 +641,12 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
 function renderWelcomeHtml() {
   return `
     <div id="issuesTable" class="gh-issues emptyState">
-      <h1><b>WELCOME</b><h2> to RAPSOBOT Prouf Of Concept</h2>🎉</h1>
+      <h1><b>WELCOME</b><h2> to RAPSOBOT Proof Of Concept</h2>🎉</h1>
       <h3>Comment ça marche</h3>
-      <span>Saississez dans le menu de gauche la "vérité" de votre projet : les données d'entrée validées par humain comme étant vraies... sinon comment distinguer le vrai du faux dans un document !</span><br>
-      <span>Chargez votre document pdf</span><br>
-      <span>Et cliquez sur le bouton "Run anlysis"</span><br>
-      <span>... et soyez patient : les analyses peuvent prendre entre 1 à 6 minutes selon la taille du pdf</span><br><br>
-      <h3>Limites du PoC</h3>
-      <span>Le seul Référentiel pris en charge est l'<b>Eurocode 8</b> avec son Annexe Nationale <b>Française</b> et l'Arrêté du 22 octobre 2010.</span><br>
-      <span>Seules les <b>Notes de Calcul</b> au format pdf sont prises en charge (pas de plans, pas de modèle 3D...</span><br>
-      <span>Et cliquez sur le bouton "Run anlysis"</span><br><br>
-      --- Please Envoy Now 🎈 ---
+      <span>Saisissez dans le menu de gauche la "vérité" de votre projet.</span><br>
+      <span>Chargez votre document pdf.</span><br>
+      <span>Et cliquez sur le bouton "Run analysis".</span><br><br>
+      --- Please Enjoy Now 🎈 ---
     </div>
   `;
 }
@@ -453,9 +654,7 @@ function renderWelcomeHtml() {
 function renderTableHtml(filteredSituations) {
   const displayDepth = String(store.situationsView.displayDepth || "situations").toLowerCase();
 
-  if (!(store.situationsView.data || []).length) {
-    return renderWelcomeHtml();
-  }
+  if (!(store.situationsView.data || []).length) return renderWelcomeHtml();
 
   if (!filteredSituations.length) {
     return `
@@ -471,16 +670,12 @@ function renderTableHtml(filteredSituations) {
 
   if (displayDepth === "sujets") {
     for (const situation of filteredSituations) {
-      for (const sujet of situation.sujets || []) {
-        rows.push(renderFlatSujetRow(sujet, situation.id));
-      }
+      for (const sujet of situation.sujets || []) rows.push(renderFlatSujetRow(sujet, situation.id));
     }
   } else if (displayDepth === "avis") {
     for (const situation of filteredSituations) {
       for (const sujet of situation.sujets || []) {
-        for (const avis of sujet.avis || []) {
-          rows.push(renderFlatAvisRow(avis, sujet.id, situation.id));
-        }
+        for (const avis of sujet.avis || []) rows.push(renderFlatAvisRow(avis, sujet.id, situation.id));
       }
     }
   } else {
@@ -490,9 +685,7 @@ function renderTableHtml(filteredSituations) {
         for (const sujet of situation.sujets || []) {
           rows.push(renderSujetRow(sujet));
           if (store.situationsView.expandedSujets.has(sujet.id)) {
-            for (const avis of sujet.avis || []) {
-              rows.push(renderAvisRow(avis));
-            }
+            for (const avis of sujet.avis || []) rows.push(renderAvisRow(avis));
           }
         }
       }
@@ -514,6 +707,10 @@ function renderTableHtml(filteredSituations) {
     </div>
   `;
 }
+
+/* =========================================================
+   Details / summary / metadata
+========================================================= */
 
 function getAvisSummary(avis) {
   const raw = avis?.raw || {};
@@ -542,86 +739,466 @@ function renderMetaItem(label, valueHtml) {
 function renderCommentCard(agentName, bodyText, initial = "S") {
   return `
     <div class="gh-comment">
-      <div class="gh-avatar" aria-hidden="true">
-        <span class="gh-avatar-initial">${escapeHtml(initial)}</span>
-      </div>
+      <div class="gh-avatar" aria-hidden="true"><span class="gh-avatar-initial">${escapeHtml(initial)}</span></div>
       <div class="gh-comment-box">
         <div class="gh-comment-header">
           <div class="gh-comment-author mono">${escapeHtml(agentName)}</div>
         </div>
-        <div class="gh-comment-body">${escapeHtml(bodyText).replace(/\n/g, "<br>")}</div>
+        <div class="gh-comment-body">${mdToHtml(bodyText)}</div>
       </div>
     </div>
   `;
 }
 
-function renderThreadBlock(selection) {
-  const item = selection?.item || {};
-  const actor = escapeHtml(firstNonEmpty(item.agent, "system"));
-  const message =
-    selection?.type === "avis"
-      ? getAvisSummary(item)
-      : selection?.type === "sujet"
-        ? getSujetSummary(item)
-        : getSituationSummary(item);
+function getThreadForSelection() {
+  const selection = getActiveSelection();
+  if (!selection) return [];
 
-  return `
-    <div class="gh-timeline-title mono" style="display:none">Discussion</div>
-    <div class="thread gh-thread">
-      <div class="thread-item" data-thread-kind="event" data-thread-idx="0">
+  const { bucket } = getRunBucket();
+  const events = [];
+  const comments = Array.isArray(bucket?.comments) ? bucket.comments : [];
+  const activities = Array.isArray(bucket?.activities) ? bucket.activities : [];
+
+  if (selection.type === "situation") {
+    const s = selection.item;
+    events.push({
+      ts: firstNonEmpty(store.situationsView?.rawResult?.updated_at, nowIso()),
+      type: "SYSTEM",
+      entity_type: "situation",
+      entity_id: s.id,
+      actor: "System",
+      agent: firstNonEmpty(s.agent, "system"),
+      message: `${firstNonEmpty(s.title, s.id)}\npriority=${firstNonEmpty(s.priority, "P3")}\nsujets=${(s.sujets || []).length}`
+    });
+
+    for (const a of activities) {
+      if (a.entity_type === "situation" && a.entity_id === s.id) events.push(a);
+    }
+    for (const c of comments) {
+      if (c.entity_type === "situation" && c.entity_id === s.id) events.push(c);
+    }
+  }
+
+  if (selection.type === "sujet") {
+    const p = selection.item;
+    const s = getSituationBySujetId(p.id);
+
+    if (s) {
+      events.push({
+        ts: firstNonEmpty(store.situationsView?.rawResult?.updated_at, nowIso()),
+        type: "SYSTEM",
+        entity_type: "situation",
+        entity_id: s.id,
+        actor: "System",
+        agent: firstNonEmpty(s.agent, "system"),
+        message: `${firstNonEmpty(s.title, s.id)}\npriority=${firstNonEmpty(s.priority, "P3")}\nsujets=${(s.sujets || []).length}`
+      });
+    }
+
+    events.push({
+      ts: firstNonEmpty(store.situationsView?.rawResult?.updated_at, nowIso()),
+      type: "SYSTEM",
+      entity_type: "sujet",
+      entity_id: p.id,
+      actor: "System",
+      agent: firstNonEmpty(p.agent, "system"),
+      message: `${firstNonEmpty(p.title, p.id)}\npriority=${firstNonEmpty(p.priority, "P3")}\navis=${(p.avis || []).length}`
+    });
+
+    for (const a of activities) {
+      if ((a.entity_type === "sujet" && a.entity_id === p.id) || (s && a.entity_type === "situation" && a.entity_id === s.id && String(a.meta?.problem_id || "") === String(p.id))) {
+        events.push(a);
+      }
+    }
+    for (const c of comments) {
+      if (c.entity_type === "sujet" && c.entity_id === p.id) events.push(c);
+    }
+  }
+
+  if (selection.type === "avis") {
+    const a = selection.item;
+    const p = getSujetByAvisId(a.id);
+    const s = getSituationByAvisId(a.id);
+
+    if (s) {
+      events.push({
+        ts: firstNonEmpty(store.situationsView?.rawResult?.updated_at, nowIso()),
+        type: "SYSTEM",
+        entity_type: "situation",
+        entity_id: s.id,
+        actor: "System",
+        agent: firstNonEmpty(s.agent, "system"),
+        message: `${firstNonEmpty(s.title, s.id)}`
+      });
+    }
+
+    if (p) {
+      events.push({
+        ts: firstNonEmpty(store.situationsView?.rawResult?.updated_at, nowIso()),
+        type: "SYSTEM",
+        entity_type: "sujet",
+        entity_id: p.id,
+        actor: "System",
+        agent: firstNonEmpty(p.agent, "system"),
+        message: `${firstNonEmpty(p.title, p.id)}`
+      });
+    }
+
+    events.push({
+      ts: firstNonEmpty(store.situationsView?.rawResult?.updated_at, nowIso()),
+      type: "SYSTEM",
+      entity_type: "avis",
+      entity_id: a.id,
+      actor: "System",
+      agent: firstNonEmpty(a.agent, "system"),
+      message: `${firstNonEmpty(a.title, a.id)}\nverdict=${firstNonEmpty(a.verdict, "-")}\nagent=${firstNonEmpty(a.agent, "system")}\n\n${firstNonEmpty(a.raw?.message, a.raw?.summary, "")}`
+    });
+
+    for (const act of activities) {
+      if (p && act.entity_type === "sujet" && act.entity_id === p.id) {
+        if (act.kind === "avis_verdict_changed") {
+          if (String(act.meta?.avis_id || "") === String(a.id)) events.push(act);
+        } else if (act.kind === "issue_closed" || act.kind === "issue_reopened") {
+          if (String(act.meta?.problem_id || "") === String(p.id)) events.push(act);
+        }
+      }
+    }
+    for (const c of comments) {
+      if (c.entity_type === "avis" && c.entity_id === a.id) events.push(c);
+    }
+  }
+
+  return events.sort((x, y) => String(x.ts || "").localeCompare(String(y.ts || "")));
+}
+
+function renderThreadBlock() {
+  const thread = getThreadForSelection();
+  if (!thread.length) return "";
+
+  const html = thread.map((e, idx) => {
+    const type = String(e.type || "").toUpperCase();
+
+    if (type === "COMMENT") {
+      const agent = String(e.agent || "human").toLowerCase();
+      const isHuman = agent === "human";
+      const displayName = isHuman ? "Human" : firstNonEmpty(e.actor, e.agent, "Agent");
+      const avatarHtml = isHuman
+        ? `<div class="gh-avatar gh-avatar--human" aria-hidden="true"><span class="gh-avatar-initial">H</span></div>`
+        : `<div class="gh-avatar" aria-hidden="true"><span class="gh-avatar-initial">${escapeHtml(String(displayName).slice(0, 2).toUpperCase())}</span></div>`;
+
+      return `
+        <div class="thread-item thread-item--comment thread-item--comment--flush" data-thread-kind="comment" data-thread-idx="${idx}">
+          <div class="thread-wrapper">
+            <div class="gh-comment">
+              ${avatarHtml}
+              <div class="gh-comment-box">
+                <div class="gh-comment-header">
+                  <div class="gh-comment-author mono">${escapeHtml(displayName)}</div>
+                  <div class="mono-small">${escapeHtml(fmtTs(e.ts))}</div>
+                </div>
+                <div class="gh-comment-body">${mdToHtml(e.message || "")}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (type === "ACTIVITY") {
+      let verb = "updated";
+      let targetHtml = "";
+      const kind = String(e.kind || "").toLowerCase();
+
+      if (kind === "issue_closed") {
+        verb = "closed";
+        targetHtml = e.meta?.problem_id ? `sujet ${escapeHtml(String(e.meta.problem_id))}` : "issue";
+      } else if (kind === "issue_reopened") {
+        verb = "reopened";
+        targetHtml = e.meta?.problem_id ? `sujet ${escapeHtml(String(e.meta.problem_id))}` : "issue";
+      } else if (kind === "avis_verdict_changed") {
+        verb = "changed verdict";
+        targetHtml = e.meta?.avis_id
+          ? `avis ${escapeHtml(String(e.meta.avis_id))} → ${escapeHtml(String(e.meta?.to || ""))}`
+          : escapeHtml(String(e.meta?.to || ""));
+      }
+
+      const note = String(e.message || "").trim();
+      const noteHtml = note ? `<div class="tl-note">${mdToHtml(note)}</div>` : "";
+
+      return `
+        <div class="thread-item thread-item--activity thread-item--comment--flush" data-thread-kind="activity" data-thread-idx="${idx}">
+          <div class="thread-wrapper">
+            <div class="tl-activity">
+              <span class="tl-ico-wrap">${kind === "avis_verdict_changed" ? verdictPill(e.meta?.to || "") : statePill(kind === "issue_closed" ? "closed" : "open")}</span>
+              <div class="tl-activity__text mono">
+                <span class="tl-author-name">${escapeHtml(firstNonEmpty(e.actor, "Human"))}</span>
+                <span class="mono-small"> ${escapeHtml(verb)} ${targetHtml} </span>
+                <span class="mono-small">at ${escapeHtml(fmtTs(e.ts))}</span>
+              </div>
+            </div>
+            ${noteHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="thread-item" data-thread-kind="event" data-thread-idx="${idx}">
         <div class="thread-badge__subissue"></div>
         <div class="thread-wrapper">
           <div class="thread-item__head">
             <div class="mono">
-              <span>${actor}</span>
+              <span>${escapeHtml(e.actor || "System")}</span>
               <span> attached this to </span>
-              <span>${escapeHtml(selection?.type || "item")} n° ${escapeHtml(item.id || "—")}</span>
+              <span>${escapeHtml(e.entity_type || "")} n° ${escapeHtml(e.entity_id || "")}</span>
+              <span>·</span>
+              <span> (agent=${escapeHtml(e.agent || "system")})</span>
+              <div class="mono">in ${escapeHtml(fmtTs(e.ts || ""))}</div>
             </div>
           </div>
-          <div class="thread-item__body">${escapeHtml(message)}</div>
+          <div class="thread-item__body">${escapeHtml(e.message || "")}</div>
         </div>
       </div>
-    </div>
-  `;
-}
+    `;
+  }).join("");
 
-function renderHumanActionBlock() {
   return `
-    <div class="human-action">
-      <div class="comment-general-block">
-        <div class="gh-timeline-title mono">Add a comment</div>
-        <div class="comment-box gh-comment-boxwrap">
-          <div class="comment-editor">
-            <textarea class="textarea" placeholder="Réponse humaine (Markdown) — mentionne @rapso pour demander l’avis de l’agent." disabled></textarea>
-          </div>
-        </div>
-        <div class="actions-row actions-row--details" style="margin-top:10px;">
-          <button class="gh-btn gh-btn--help-mode" type="button" disabled>Help</button>
-          <button class="gh-btn gh-btn--comment is-disabled" type="button" disabled>Comment</button>
-        </div>
-      </div>
-    </div>
+    <div class="gh-timeline-title mono" style="display:none">Discussion</div>
+    <div class="thread gh-thread">${html}</div>
   `;
 }
 
-function renderSubIssuesPanel({ title, count, rightMetaHtml, bodyHtml }) {
+function renderSubIssuesPanel({ title, leftMetaHtml = "", rightMetaHtml = "", bodyHtml = "" }) {
+  ensureViewUiState();
+  const isOpen = !!store.situationsView.rightSubissuesOpen;
   return `
     <div class="details-subissues">
       <div class="subissues-head">
-        <div class="subissues-head-left">
-          <span class="chev">▾</span>
+        <div class="subissues-head-left click" data-action="toggle-subissues">
+          <span class="chev">${isOpen ? "▾" : "▸"}</span>
           <span class="subissues-title">${escapeHtml(title)}</span>
-          <span class="subissues-count mono">${escapeHtml(count)}</span>
+          ${leftMetaHtml || ""}
         </div>
         <div class="subissues-head-right">
           ${rightMetaHtml || ""}
         </div>
       </div>
-      <div class="subissues-body">
+      <div class="subissues-body ${isOpen ? "" : "hidden"}">
         ${bodyHtml || ""}
       </div>
     </div>
   `;
+}
+
+function renderCommentBox(selection) {
+  ensureViewUiState();
+  const item = selection?.item || null;
+  if (!item) return "";
+
+  const type = selection.type;
+  const issueStatus =
+    type === "avis"
+      ? "open"
+      : type === "sujet"
+        ? getEffectiveSujetStatus(item.id)
+        : getEffectiveSituationStatus(item.id);
+
+  const isIssueOpen = String(issueStatus || "open").toLowerCase() === "open";
+  const activeVerdict = String(store.situationsView.tempAvisVerdict || "F").toUpperCase();
+  const previewMode = !!store.situationsView.commentPreviewMode;
+  const helpMode = !!store.situationsView.helpMode;
+
+  const verdicts = ["F", "S", "D", "HM", "PM", "SO"];
+  const verdictSwitch = `
+    <div class="verdict-switch" role="group" aria-label="Verdict">
+      ${verdicts.map((v) => `<button class="verdict-switch__btn ${v === activeVerdict ? "is-active" : ""}" data-action="set-verdict" data-verdict="${v}" type="button">${v}</button>`).join("")}
+    </div>
+  `;
+
+  return `
+    <div class="human-action">
+      <div class="comment-general-block">
+        <div class="gh-timeline-title mono">Add a comment</div>
+        <div class="comment-box gh-comment-boxwrap ${helpMode ? "gh-comment-box--help" : ""}">
+          <div class="comment-tabs ${helpMode ? "gh-comment-header--help" : ""}" role="tablist" aria-label="Comment tabs">
+            <button class="comment-tab ${!previewMode ? "is-active" : ""}" data-action="tab-write" type="button">Write</button>
+            <button class="comment-tab ${previewMode ? "is-active" : ""}" data-action="tab-preview" type="button">Preview</button>
+          </div>
+
+          <div class="comment-editor ${previewMode ? "hidden" : ""}">
+            <textarea
+              id="humanCommentBox"
+              class="textarea"
+              placeholder="${helpMode ? "Help (éphémère) — décrivez l’écran / l’action souhaitée." : "Réponse humaine (Markdown) — mentionne @rapso pour demander l’avis de l’agent."}"
+            ></textarea>
+          </div>
+
+          <div class="comment-editor ${previewMode ? "" : "hidden"}">
+            <div class="comment-preview" id="humanCommentPreview"></div>
+          </div>
+        </div>
+
+        <div class="actions-row actions-row--details" style="margin-top:10px;">
+          <div class="rapso-mention-hint">
+            <span>Astuce : mentionne <span class="mono">@rapso</span> dans ton commentaire.</span>
+          </div>
+
+          <div class="actions-row__right" style="display:flex; align-items:center; gap:8px; justify-content:flex-end; flex:0 0 auto;">
+            <button class="gh-btn gh-btn--help-mode ${helpMode ? "is-on" : ""}" data-action="toggle-help" type="button">Help</button>
+
+            ${type === "avis"
+              ? `${verdictSwitch}<button class="gh-btn" data-action="avis-validate" type="button">Validate</button>`
+              : (isIssueOpen
+                  ? `<button class="gh-btn gh-btn--issue-action" data-action="issue-close" type="button"><span class="gh-btn__label">Close</span></button>`
+                  : `<button class="gh-btn gh-btn--issue-action" data-action="issue-reopen" type="button"><span class="gh-btn__label">Reopen issue</span></button>`)}
+
+            <button class="gh-btn gh-btn--comment" data-action="add-comment" type="button">Comment</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDetailedMetaForSelection(selection) {
+  if (!selection) return "";
+
+  const item = selection.item;
+  const raw = item.raw || {};
+  const decision = getDecision(selection.type, item.id);
+
+  const common = [
+    renderMetaItem("ID", `<span class="mono">${escapeHtml(item.id)}</span>`),
+    renderMetaItem("Title", escapeHtml(firstNonEmpty(item.title, item.id))),
+    renderMetaItem("Agent", `<span class="mono">${escapeHtml(firstNonEmpty(item.agent, raw.agent, "system"))}</span>`),
+    renderMetaItem("Priority", priorityBadge(firstNonEmpty(item.priority, raw.priority, "P3"))),
+    renderMetaItem("Run", `<span class="mono">${escapeHtml(currentRunKey())}</span>`),
+    renderMetaItem("Historique humain", decision ? `<span class="mono">${escapeHtml(decision.decision)} · ${escapeHtml(fmtTs(decision.ts))}</span>` : "—")
+  ];
+
+  if (selection.type === "avis") {
+    const sujet = getSujetByAvisId(item.id);
+    const situation = getSituationByAvisId(item.id);
+    const entries = [
+      ...common,
+      renderMetaItem("Situation parent", `<span class="mono">${escapeHtml(situation?.id || "—")}</span>`),
+      renderMetaItem("Sujet parent", `<span class="mono">${escapeHtml(sujet?.id || "—")}</span>`),
+      renderMetaItem("Verdict effectif", verdictPill(getEffectiveAvisVerdict(item.id))),
+      renderMetaItem("Verdict source", verdictPill(firstNonEmpty(raw.verdict, item.verdict, "-"))),
+      renderMetaItem("Severity", `<span class="mono">${escapeHtml(firstNonEmpty(raw.severity, "—"))}</span>`),
+      renderMetaItem("Source", `<span class="mono">${escapeHtml(firstNonEmpty(raw.source, "—"))}</span>`)
+    ];
+    return entries.join("");
+  }
+
+  if (selection.type === "sujet") {
+    const situation = getSituationBySujetId(item.id);
+    const stats = problemVerdictStats(item);
+    const entries = [
+      ...common,
+      renderMetaItem("Situation parent", `<span class="mono">${escapeHtml(situation?.id || "—")}</span>`),
+      renderMetaItem("Status effectif", statePill(getEffectiveSujetStatus(item.id))),
+      renderMetaItem("Status source", statePill(firstNonEmpty(raw.status, item.status, "open"))),
+      renderMetaItem("Avis", `<span class="mono">${escapeHtml(String((item.avis || []).length))}</span>`),
+      renderMetaItem("Verdicts", buildVerdictBarHtml(stats.counts, { legend: true }))
+    ];
+    return entries.join("");
+  }
+
+  const stats = situationVerdictStats(item);
+  const entries = [
+    ...common,
+    renderMetaItem("Status effectif", statePill(getEffectiveSituationStatus(item.id))),
+    renderMetaItem("Status source", statePill(firstNonEmpty(raw.status, item.status, "open"))),
+    renderMetaItem("Sujets", `<span class="mono">${escapeHtml(String((item.sujets || []).length))}</span>`),
+    renderMetaItem("Verdicts", buildVerdictBarHtml(stats.counts, { legend: true }))
+  ];
+  return entries.join("");
+}
+
+function renderSubIssuesForSujet(sujet) {
+  ensureViewUiState();
+  const stats = problemVerdictStats(sujet);
+  const rows = (sujet.avis || []).map((avis) => {
+    const effVerdict = getEffectiveAvisVerdict(avis.id);
+    return `
+      <div class="issue-row issue-row--avis click js-row-avis" data-avis-id="${escapeHtml(avis.id)}">
+        <div class="cell cell-theme cell-theme--full lvl0">
+          <span class="chev chev--spacer"></span>
+          <span class="${verdictDotClass(effVerdict)}" aria-hidden="true"></span>
+          <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const body = `
+    <div class="issues-table subissues-table">
+      <div class="issues-table__body">
+        ${rows || `<div class="emptyState">Aucun avis.</div>`}
+      </div>
+    </div>
+  `;
+
+  return renderSubIssuesPanel({
+    title: "Avis rattachés",
+    leftMetaHtml: `<div class="subissues-counts subissues-counts--total"><span class="mono">${(sujet.avis || []).length}</span></div>`,
+    rightMetaHtml: buildVerdictBarHtml(stats.counts, { legend: true }),
+    bodyHtml: body
+  });
+}
+
+function renderSubIssuesForSituation(situation) {
+  ensureViewUiState();
+
+  const rows = [];
+  for (const sujet of situation.sujets || []) {
+    const open = store.situationsView.rightExpandedSujets.has(sujet.id);
+    const hasAvis = (sujet.avis || []).length > 0;
+    const effStatus = getEffectiveSujetStatus(sujet.id);
+
+    rows.push(`
+      <div class="issue-row issue-row--pb click js-sub-right-select-sujet" data-sujet-id="${escapeHtml(sujet.id)}">
+        <div class="cell cell-theme cell-theme--full lvl0">
+          <span class="js-sub-right-toggle-sujet" data-sujet-id="${escapeHtml(sujet.id)}">${chevron(open, hasAvis)}</span>
+          ${issueIcon(effStatus)}
+          <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
+          <span class="subissues-inline-count mono">${(sujet.avis || []).length} avis</span>
+        </div>
+      </div>
+    `);
+
+    if (open) {
+      for (const avis of sujet.avis || []) {
+        const effVerdict = getEffectiveAvisVerdict(avis.id);
+        rows.push(`
+          <div class="issue-row issue-row--avis click js-row-avis" data-avis-id="${escapeHtml(avis.id)}">
+            <div class="cell cell-theme cell-theme--full lvl1">
+              <span class="chev chev--spacer"></span>
+              <span class="${verdictDotClass(effVerdict)}" aria-hidden="true"></span>
+              <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
+            </div>
+          </div>
+        `);
+      }
+    }
+  }
+
+  const stats = situationVerdictStats(situation);
+  const body = `
+    <div class="issues-table subissues-table">
+      <div class="issues-table__body">
+        ${rows.join("") || `<div class="emptyState">Aucun sujet.</div>`}
+      </div>
+    </div>
+  `;
+
+  return renderSubIssuesPanel({
+    title: "Sujets rattachés",
+    leftMetaHtml: problemsCountsHtml(situation),
+    rightMetaHtml: buildVerdictBarHtml(stats.counts, { legend: true }),
+    bodyHtml: body
+  });
 }
 
 function renderDetailsTitleHtml(selection) {
@@ -652,30 +1229,29 @@ function renderDetailsTitleHtml(selection) {
   }
 
   const item = selection.item;
-  const titleTextHtml = escapeHtml(firstNonEmpty(item.title, item.id, "Détail"));
-  const idHtml = escapeHtml(item.id || "");
-
   let badgeHtml = "";
   let probsHtml = "";
   let verdictHtml = "";
   let barOnlyHtml = "";
 
-  if (selection.type === "situation") {
-    const stats = situationVerdictStats(item);
-    badgeHtml = statePill(item.status);
-    probsHtml = `<div class="subissues-counts subissues-counts--problems"><span>${(item.sujets || []).length} sujets</span></div>`;
-    verdictHtml = verdictBar(stats);
-    barOnlyHtml = verdictBar(stats);
+  if (selection.type === "avis") {
+    badgeHtml = verdictPill(getEffectiveAvisVerdict(item.id));
+    probsHtml = `<div class="subissues-counts subissues-counts--problems"><span>${escapeHtml(firstNonEmpty(item.agent, "system"))}</span></div>`;
   } else if (selection.type === "sujet") {
     const stats = problemVerdictStats(item);
-    badgeHtml = statePill(item.status);
-    probsHtml = `<div class="subissues-counts subissues-counts--problems"><span>${(item.avis || []).length} avis</span></div>`;
-    verdictHtml = verdictBar(stats);
-    barOnlyHtml = verdictBar(stats);
+    badgeHtml = statePill(getEffectiveSujetStatus(item.id));
+    verdictHtml = buildVerdictBarHtml(stats.counts, { legend: true });
+    barOnlyHtml = buildVerdictBarHtml(stats.counts, { legend: false });
   } else {
-    badgeHtml = verdictPill(item.verdict);
-    probsHtml = `<div class="subissues-counts subissues-counts--problems"><span>${escapeHtml(firstNonEmpty(item.agent, "system"))}</span></div>`;
+    const stats = situationVerdictStats(item);
+    badgeHtml = statePill(getEffectiveSituationStatus(item.id));
+    probsHtml = problemsCountsHtml(item);
+    verdictHtml = buildVerdictBarHtml(stats.counts, { legend: true });
+    barOnlyHtml = buildVerdictBarHtml(stats.counts, { legend: false });
   }
+
+  const titleTextHtml = escapeHtml(firstNonEmpty(item.title, item.id, "Détail"));
+  const idHtml = escapeHtml(item.id || "");
 
   return `
     <div class="details-head">
@@ -700,9 +1276,7 @@ function renderDetailsTitleHtml(selection) {
 
           <div class="details-title-wrap details-title--compact">
             <div class="details-title-compact">
-              <div class="details-title-compact-col1">
-                ${badgeHtml}
-              </div>
+              <div class="details-title-compact-col1">${badgeHtml}</div>
               <div class="details-title-compact-col2">
                 <div class="details-title-compact-top">
                   <span class="details-title-text">${titleTextHtml}</span>
@@ -726,111 +1300,42 @@ function renderDetailsTitleHtml(selection) {
   `;
 }
 
-function renderSituationDetails(selection) {
-  const situation = selection.item;
-  const stats = situationVerdictStats(situation);
-  const sujets = situation.sujets || [];
+function renderDetailsBody(selection) {
+  if (!selection) {
+    return `<div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>`;
+  }
 
-  const subIssuesHtml = renderSubIssuesPanel({
-    title: "Sujets rattachés",
-    count: `${sujets.length}`,
-    rightMetaHtml: verdictBar(stats),
-    bodyHtml: sujets.map((sujet) => `
-      <div class="issue-row issue-row--pb click js-row-sujet" data-sujet-id="${escapeHtml(sujet.id)}">
-        <div class="cell cell-theme cell-theme--full lvl0">
-          <span class="chev chev--spacer"></span>
-          ${issueIcon(sujet.status)}
-          <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
-          <span class="subissues-inline-count mono">${(sujet.avis || []).length} avis</span>
+  const item = selection.item;
+  let descCard = "";
+  let subIssuesHtml = "";
+
+  if (selection.type === "avis") {
+    descCard = renderCommentCard(firstNonEmpty(item.agent, "system"), getAvisSummary(item), "A");
+  } else if (selection.type === "sujet") {
+    descCard = renderCommentCard(firstNonEmpty(item.agent, "system"), getSujetSummary(item), "P");
+    subIssuesHtml = renderSubIssuesForSujet(item);
+  } else {
+    descCard = renderCommentCard(firstNonEmpty(item.agent, "system"), getSituationSummary(item), "S");
+    subIssuesHtml = renderSubIssuesForSituation(item);
+  }
+
+  const threadHtml = renderThreadBlock();
+  const commentBoxHtml = renderCommentBox(selection);
+  const metaHtml = renderDetailedMetaForSelection(selection);
+
+  return `
+    <div class="details-grid">
+      <div class="details-main">
+        <div class="gh-timeline">
+          ${descCard}
+          ${subIssuesHtml}
+          ${threadHtml}
+          ${commentBoxHtml}
         </div>
       </div>
-    `).join("")
-  });
-
-  return `
-    <div class="details-grid">
-      <div class="details-main">
-        ${renderCommentCard(firstNonEmpty(situation.agent, "system"), getSituationSummary(situation), "S")}
-        ${subIssuesHtml}
-        ${renderThreadBlock(selection)}
-        ${renderHumanActionBlock()}
-      </div>
-
       <aside class="details-meta-col">
         <div class="meta-title">Metadata</div>
-        ${renderMetaItem("ID", `<span class="mono">${escapeHtml(situation.id)}</span>`)}
-        ${renderMetaItem("Status", statePill(situation.status))}
-        ${renderMetaItem("Priority", priorityBadge(situation.priority))}
-        ${renderMetaItem("Sujets", String(sujets.length))}
-        ${renderMetaItem("Verdicts", `<span class="mono">D=${stats.d} · S=${stats.s}</span>`)}
-      </aside>
-    </div>
-  `;
-}
-
-function renderSujetDetails(selection) {
-  const sujet = selection.item;
-  const stats = problemVerdictStats(sujet);
-  const avisList = sujet.avis || [];
-  const parentSituation = getSituationBySujetId(sujet.id);
-
-  const subIssuesHtml = renderSubIssuesPanel({
-    title: "Avis rattachés",
-    count: `${avisList.length}`,
-    rightMetaHtml: verdictBar(stats),
-    bodyHtml: avisList.map((avis) => `
-      <div class="issue-row issue-row--avis click js-row-avis" data-avis-id="${escapeHtml(avis.id)}">
-        <div class="cell cell-theme cell-theme--full lvl0">
-          <span class="chev chev--spacer"></span>
-          ${issueIcon(avis.status)}
-          <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
-          <span class="subissues-inline-count mono">${escapeHtml(avis.id)}</span>
-        </div>
-      </div>
-    `).join("")
-  });
-
-  return `
-    <div class="details-grid">
-      <div class="details-main">
-        ${renderCommentCard(firstNonEmpty(sujet.agent, "system"), getSujetSummary(sujet), "P")}
-        ${subIssuesHtml}
-        ${renderThreadBlock(selection)}
-        ${renderHumanActionBlock()}
-      </div>
-
-      <aside class="details-meta-col">
-        <div class="meta-title">Metadata</div>
-        ${renderMetaItem("ID", `<span class="mono">${escapeHtml(sujet.id)}</span>`)}
-        ${renderMetaItem("Situation parent", `<span class="mono">${escapeHtml(parentSituation?.id || "—")}</span>`)}
-        ${renderMetaItem("Status", statePill(sujet.status))}
-        ${renderMetaItem("Priority", priorityBadge(sujet.priority))}
-        ${renderMetaItem("Avis", String(avisList.length))}
-      </aside>
-    </div>
-  `;
-}
-
-function renderAvisDetails(selection) {
-  const avis = selection.item;
-  const sujet = getSujetByAvisId(avis.id);
-  const situation = getSituationByAvisId(avis.id);
-
-  return `
-    <div class="details-grid">
-      <div class="details-main">
-        ${renderCommentCard(firstNonEmpty(avis.agent, "system"), getAvisSummary(avis), "A")}
-        ${renderThreadBlock(selection)}
-        ${renderHumanActionBlock()}
-      </div>
-
-      <aside class="details-meta-col">
-        <div class="meta-title">Metadata</div>
-        ${renderMetaItem("ID", `<span class="mono">${escapeHtml(avis.id)}</span>`)}
-        ${renderMetaItem("Situation parent", `<span class="mono">${escapeHtml(situation?.id || "—")}</span>`)}
-        ${renderMetaItem("Sujet parent", `<span class="mono">${escapeHtml(sujet?.id || "—")}</span>`)}
-        ${renderMetaItem("Verdict", verdictPill(avis.verdict))}
-        ${renderMetaItem("Agent", escapeHtml(firstNonEmpty(avis.agent, "system")))}
+        ${metaHtml}
       </aside>
     </div>
   `;
@@ -838,27 +1343,17 @@ function renderAvisDetails(selection) {
 
 function renderDetailsHtml() {
   const selection = getActiveSelection();
-  if (!selection) {
-    return {
-      titleHtml: renderDetailsTitleHtml(null),
-      bodyHtml: `<div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>`,
-      modalTitle: "Sélectionner un élément",
-      modalMeta: "—"
-    };
-  }
-
-  let bodyHtml = "";
-  if (selection.type === "avis") bodyHtml = renderAvisDetails(selection);
-  else if (selection.type === "sujet") bodyHtml = renderSujetDetails(selection);
-  else bodyHtml = renderSituationDetails(selection);
-
   return {
     titleHtml: renderDetailsTitleHtml(selection),
-    bodyHtml,
-    modalTitle: firstNonEmpty(selection.item.title, selection.item.id, "Détail"),
-    modalMeta: firstNonEmpty(selection.item.id, "")
+    bodyHtml: renderDetailsBody(selection),
+    modalTitle: selection ? firstNonEmpty(selection.item.title, selection.item.id, "Détail") : "Sélectionner un élément",
+    modalMeta: selection ? firstNonEmpty(selection.item.id, "") : "—"
   };
 }
+
+/* =========================================================
+   Modal / rerender / selection
+========================================================= */
 
 function updateDetailsModal() {
   const modal = document.getElementById("detailsModal");
@@ -874,6 +1369,8 @@ function updateDetailsModal() {
 
   if (store.situationsView.detailsModalOpen) modal.classList.remove("hidden");
   else modal.classList.add("hidden");
+
+  wireDetailsInteractive(body);
 }
 
 function openDetailsModal() {
@@ -887,6 +1384,8 @@ function closeDetailsModal() {
 }
 
 function rerenderPanels() {
+  ensureViewUiState();
+
   const filteredSituations = getFilteredSituations();
   const counts = getVisibleCounts(filteredSituations);
   const tableHost = document.getElementById("situationsTableHost");
@@ -908,6 +1407,7 @@ function rerenderPanels() {
   if (detailsTitleHost) detailsTitleHost.innerHTML = details.titleHtml;
   if (detailsHost) detailsHost.innerHTML = details.bodyHtml;
 
+  wireDetailsInteractive(detailsHost);
   updateDetailsModal();
 }
 
@@ -943,8 +1443,198 @@ function selectAvis(avisId) {
   store.situationsView.selectedAvisId = avisId;
   if (situation?.id) store.situationsView.expandedSituations.add(situation.id);
   if (sujet?.id) store.situationsView.expandedSujets.add(sujet.id);
+  store.situationsView.tempAvisVerdictFor = avisId;
+  store.situationsView.tempAvisVerdict = getEffectiveAvisVerdict(avisId) || "F";
   rerenderPanels();
 }
+
+/* =========================================================
+   Details actions (archive-like)
+========================================================= */
+
+function currentDecisionTarget() {
+  const sel = getActiveSelection();
+  if (!sel) return null;
+  return { type: sel.type, id: sel.item.id, item: sel.item };
+}
+
+function applyCommentAction(root) {
+  const target = currentDecisionTarget();
+  if (!target) return;
+
+  const ta = root.querySelector("#humanCommentBox");
+  if (!ta) return;
+
+  const message = String(ta.value || "").trim();
+  if (!message) return;
+
+  if (store.situationsView.helpMode) {
+    addComment(target.type, target.id, `[HELP]\n${message}`, { actor: "Human", agent: "human" });
+  } else {
+    addComment(target.type, target.id, message, { actor: "Human", agent: "human" });
+
+    if (/@rapso\b/i.test(message)) {
+      addComment(
+        target.type,
+        target.id,
+        `Réponse automatique de RAPSOBOT : prise en compte de la demande « ${message.replace(/@rapso/gi, "").trim() || "analyse demandée"} ».`,
+        { actor: "RAPSOBOT", agent: "specialist_ps" }
+      );
+    }
+  }
+
+  ta.value = "";
+  store.situationsView.commentPreviewMode = false;
+  rerenderPanels();
+}
+
+function applyValidateAvis() {
+  const target = currentDecisionTarget();
+  if (!target || target.type !== "avis") return;
+
+  const avisId = target.id;
+  const verdict = String(store.situationsView.tempAvisVerdict || "F").toUpperCase();
+  setDecision("avis", avisId, `VALIDATED_${verdict}`, "");
+
+  const sujet = getSujetByAvisId(avisId);
+  if (sujet) {
+    addActivity("sujet", sujet.id, "avis_verdict_changed", "", { avis_id: avisId, to: verdict }, { actor: "Human", agent: "human" });
+  }
+
+  rerenderPanels();
+}
+
+function applyIssueCloseOrReopen(nextStatus) {
+  const target = currentDecisionTarget();
+  if (!target || target.type === "avis") return;
+
+  if (target.type === "sujet") {
+    setDecision("sujet", target.id, nextStatus === "closed" ? "CLOSED" : "REOPENED", "");
+    const situation = getSituationBySujetId(target.id);
+    if (situation) {
+      addActivity(
+        "situation",
+        situation.id,
+        nextStatus === "closed" ? "issue_closed" : "issue_reopened",
+        "",
+        { problem_id: target.id },
+        { actor: "Human", agent: "human" }
+      );
+    }
+  } else {
+    setDecision("situation", target.id, nextStatus === "closed" ? "CLOSED" : "REOPENED", "");
+    addActivity(
+      "situation",
+      target.id,
+      nextStatus === "closed" ? "issue_closed" : "issue_reopened",
+      "",
+      {},
+      { actor: "Human", agent: "human" }
+    );
+  }
+
+  rerenderPanels();
+}
+
+function syncCommentPreview(root) {
+  const ta = root.querySelector("#humanCommentBox");
+  const preview = root.querySelector("#humanCommentPreview");
+  if (!preview) return;
+  preview.innerHTML = mdToHtml(ta?.value || "");
+}
+
+function wireDetailsInteractive(root) {
+  if (!root) return;
+
+  const commentTextarea = root.querySelector("#humanCommentBox");
+  if (commentTextarea) {
+    commentTextarea.addEventListener("input", () => {
+      if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
+    });
+    commentTextarea.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+        ev.preventDefault();
+        applyCommentAction(root);
+      }
+    });
+  }
+
+  root.querySelectorAll("[data-action='toggle-subissues']").forEach((btn) => {
+    btn.onclick = () => {
+      store.situationsView.rightSubissuesOpen = !store.situationsView.rightSubissuesOpen;
+      rerenderPanels();
+    };
+  });
+
+  root.querySelectorAll(".js-sub-right-toggle-sujet").forEach((btn) => {
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      const sujetId = String(btn.dataset.sujetId || "");
+      if (!sujetId) return;
+      if (store.situationsView.rightExpandedSujets.has(sujetId)) store.situationsView.rightExpandedSujets.delete(sujetId);
+      else store.situationsView.rightExpandedSujets.add(sujetId);
+      rerenderPanels();
+    };
+  });
+
+  root.querySelectorAll(".js-sub-right-select-sujet").forEach((btn) => {
+    btn.onclick = () => {
+      const sujetId = String(btn.dataset.sujetId || "");
+      if (sujetId) selectSujet(sujetId);
+    };
+  });
+
+  root.querySelectorAll("[data-action='tab-write']").forEach((btn) => {
+    btn.onclick = () => {
+      store.situationsView.commentPreviewMode = false;
+      rerenderPanels();
+    };
+  });
+
+  root.querySelectorAll("[data-action='tab-preview']").forEach((btn) => {
+    btn.onclick = () => {
+      store.situationsView.commentPreviewMode = true;
+      rerenderPanels();
+    };
+  });
+
+  root.querySelectorAll("[data-action='toggle-help']").forEach((btn) => {
+    btn.onclick = () => {
+      store.situationsView.helpMode = !store.situationsView.helpMode;
+      rerenderPanels();
+    };
+  });
+
+  root.querySelectorAll("[data-action='add-comment']").forEach((btn) => {
+    btn.onclick = () => applyCommentAction(root);
+  });
+
+  root.querySelectorAll("[data-action='set-verdict']").forEach((btn) => {
+    btn.onclick = (ev) => {
+      ev.preventDefault();
+      const v = String(btn.dataset.verdict || "").toUpperCase();
+      if (!v) return;
+      store.situationsView.tempAvisVerdict = v;
+      rerenderPanels();
+    };
+  });
+
+  root.querySelectorAll("[data-action='avis-validate']").forEach((btn) => {
+    btn.onclick = () => applyValidateAvis();
+  });
+
+  root.querySelectorAll("[data-action='issue-close']").forEach((btn) => {
+    btn.onclick = () => applyIssueCloseOrReopen("closed");
+  });
+
+  root.querySelectorAll("[data-action='issue-reopen']").forEach((btn) => {
+    btn.onclick = () => applyIssueCloseOrReopen("open");
+  });
+}
+
+/* =========================================================
+   Panel / modal events
+========================================================= */
 
 let modalEventsBound = false;
 function bindModalEvents() {
@@ -956,9 +1646,7 @@ function bindModalEvents() {
     if (event.target?.id === "detailsModal") closeDetailsModal();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && store.situationsView.detailsModalOpen) {
-      closeDetailsModal();
-    }
+    if (event.key === "Escape" && store.situationsView.detailsModalOpen) closeDetailsModal();
   });
 }
 
@@ -1115,8 +1803,13 @@ function bindSituationsEvents(root) {
   });
 }
 
+/* =========================================================
+   Public render
+========================================================= */
+
 export function renderProjectSituations(root) {
   ensureSituationsLegacyDomStyle();
+  ensureViewUiState();
 
   const data = store.situationsView.data || [];
   const firstSituationId = data[0]?.id || null;
