@@ -971,27 +971,6 @@ function bindGlobal(){
 
 }
 
-
-/* ===============================
-   MAIN RENDER
-================================ */
-
-export function renderProjectSituations(root){
-
-  ensureGlobalTopbarAliases();
-
-  renderSituationsShell(root);
-
-  syncStateFromStore();
-
-  bindFilters();
-  bindPagination();
-  bindGlobal();
-
-  renderMiddle();
-  renderDetails();
-
-}
 /* ===============================
    STORE SYNC (UI -> store)
 ================================ */
@@ -1241,9 +1220,7 @@ export function renderProjectSituations(root) {
   ensureAssistantOverlayMounted();
 
   syncStateFromStore();
-  renderMiddle();
-  renderDetails();
-  renderCounts();
+  rerenderAll();
 
   bindFilters();
   bindPagination();
