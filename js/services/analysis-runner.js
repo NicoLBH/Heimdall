@@ -19,7 +19,7 @@ function setRunMeta(runId) {
   store.ui.runId = runId || "";
   const node = el("runMetaTop");
   if (node) {
-    node.textContent = runId ? `run_id: ${runId}` : "";
+    node.textContent = runId ? `run_id=${runId}` : "";
   }
 }
 
