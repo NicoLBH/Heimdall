@@ -115,11 +115,11 @@ const state = {
 
   // persistent expansions
   expandedSituations: new Set(), // situation_id
-  expandedProblems: new Set(),   // problem_id
+  expandedSujets: new Set(),   // problem_id
 
   // selection for right panel
   selectedSituationId: null,
-  selectedProblemId: null,
+  selectedSujetId: null,
   selectedAvisId: null,
 
   verdictFilter: "ALL",
@@ -137,7 +137,7 @@ const state = {
 
   // right panel: sub-issues table (below description)
   rightSubissuesOpen: true,
-  rightExpandedProblems: new Set(),
+  rightexpandedSujets: new Set(),
 
   // details actions
   tempAvisVerdict: null,
@@ -146,10 +146,10 @@ const state = {
   drilldown: {
     isOpen: false,
     selectedSituationId: null,
-    selectedProblemId: null,
+    selectedSujetId: null,
     selectedAvisId: null,
     rightSubissuesOpen: true,
-    rightExpandedProblems: new Set(),
+    rightexpandedSujets: new Set(),
     tempAvisVerdict: null,
     tempAvisVerdictFor: null,
   },
@@ -782,7 +782,7 @@ function buildUiSnapshot({ scope = "unknown", type = null, id = null } = {}) {
     },
     selection: {
       situation_id: state.selectedSituationId || null,
-      sujet_id: state.selectedProblemId || null,
+      sujet_id: state.selectedSujetId || null,
       avis_id: state.selectedAvisId || null,
       type: type || null,
       id: id || null,
@@ -1773,7 +1773,7 @@ function findAvis(id) {
 /* ===== Selection behavior (right panel) ===== */
 function selectSituation(sid) {
   state.selectedSituationId = sid || null;
-  state.selectedProblemId = null;
+  state.selectedSujetId = null;
   state.selectedAvisId = null;
   renderMiddle();
 }
@@ -1786,7 +1786,7 @@ function selectProblem(pid) {
   const sid = parents.problemToSituation.get(pid) || null;
 
   state.selectedSituationId = sid;
-  state.selectedProblemId = pid;
+  state.selectedSujetId = pid;
   state.selectedAvisId = null;
   renderMiddle();
 }
@@ -1799,7 +1799,7 @@ function selectAvis(aid) {
   const sid = parents.avisToSituation.get(aid) || null;
 
   state.selectedSituationId = sid;
-  state.selectedProblemId = pid;
+  state.selectedSujetId = pid;
   state.selectedAvisId = aid;
   renderMiddle();
 }
@@ -1816,7 +1816,7 @@ function getThreadForSelection() {
   const events = [];
 
   const s = findSituation(state.selectedSituationId);
-  const p = findProblem(state.selectedProblemId);
+  const p = findProblem(state.selectedSujetId);
   const a = findAvis(state.selectedAvisId);
 
   // keep a per-avis temporary verdict selection for the Validate action
@@ -1949,7 +1949,7 @@ function renderDetails(opts) {
   // selection override (drilldown must not mutate main selection)
   // If no explicit override is provided, use the selection stored in the corresponding UI state.
   const selSid = (opts.selection && ("sid" in opts.selection)) ? opts.selection.sid : uiState.selectedSituationId;
-  const selPid = (opts.selection && ("pid" in opts.selection)) ? opts.selection.pid : uiState.selectedProblemId;
+  const selPid = (opts.selection && ("pid" in opts.selection)) ? opts.selection.pid : uiState.selectedSujetId;
   const selAid = (opts.selection && ("aid" in opts.selection)) ? opts.selection.aid : uiState.selectedAvisId;
 
   const setTitleHtml = (html) => {
@@ -2145,7 +2145,7 @@ function renderDetails(opts) {
       const avisFiltered = applyAvisFilters(avisAll);
 
       const hasAvis = avisFiltered.length > 0;
-      const open = hasAvis && uiState.rightExpandedProblems.has(pbId);
+      const open = hasAvis && uiState.rightexpandedSujets.has(pbId);
       const chev = hasAvis ? (open ? "▾" : "▸") : "";
       const chevHtml = hasAvis
         ? `<span class="chev click" data-action="right-toggle-pb" data-pb="${escapeHtml(pbId)}">${chev}</span>`
@@ -2915,8 +2915,8 @@ wireHost(host);
         ev.stopPropagation();
         const pid = node.getAttribute("data-pb");
         if (!pid) return;
-        if (uiState.rightExpandedProblems.has(pid)) uiState.rightExpandedProblems.delete(pid);
-        else uiState.rightExpandedProblems.add(pid);
+        if (uiState.rightexpandedSujets.has(pid)) uiState.rightexpandedSujets.delete(pid);
+        else uiState.rightexpandedSujets.add(pid);
         renderDetails({ target });
       };
     });
@@ -2987,7 +2987,7 @@ function setDisplayDepth(depth) {
 
   if (state.displayDepth === "situations") {
     state.expandedSituations = new Set();
-    state.expandedProblems = new Set();
+    state.expandedSujets = new Set();
   } else if (state.displayDepth === "sujets") {
     // Expand all situations that have at least one sujet
     const sids = [];
@@ -2997,7 +2997,7 @@ function setDisplayDepth(depth) {
       }
     }
     state.expandedSituations = new Set(sids);
-    state.expandedProblems = new Set(); // keep avis collapsed
+    state.expandedSujets = new Set(); // keep avis collapsed
   } else {
     // avis => expand everything (situations + sujets)
     const sids = [];
@@ -3013,7 +3013,7 @@ function setDisplayDepth(depth) {
       }
     }
     state.expandedSituations = new Set(sids);
-    state.expandedProblems = new Set(pids);
+    state.expandedSujets = new Set(pids);
   }
 
   // Reset paging when changing depth (especially for avis)
@@ -3251,7 +3251,7 @@ const sitPrioHtml = sitHasFilteredAvis
   ? `<span class="${badgePriority(s.priority)}">${escapeHtml(s.priority || "")}</span>`
   : `<span class="${badgePriority(s.priority)}" style="visibility:hidden">${escapeHtml(s.priority || "P3")}</span>`;
 
-const sitSelCls = (state.selectedSituationId === s.situation_id && !state.selectedProblemId && !state.selectedAvisId) ? " subissue-row--selected" : "";
+const sitSelCls = (state.selectedSituationId === s.situation_id && !state.selectedSujetId && !state.selectedAvisId) ? " subissue-row--selected" : "";
 
         rows.push(`
       <div class="issue-row issue-row--sit click${sitSelCls}" data-action="select-sit" data-sit="${escapeHtml(s.situation_id)}">
@@ -3271,7 +3271,7 @@ const sitSelCls = (state.selectedSituationId === s.situation_id && !state.select
 
       for (const pb of problems) {
         const hasAvis = (pb.avis_ids || []).length > 0;
-        const pbOpen = hasAvis && state.expandedProblems.has(pb.problem_id);
+        const pbOpen = hasAvis && state.expandedSujets.has(pb.problem_id);
         const pbChev = hasAvis ? (pbOpen ? "▾" : "▸") : "";
         const pbChevHtml = hasAvis ? `<span class="chev click" data-action="toggle-pb" data-pb="${escapeHtml(pb.problem_id)}">${pbChev}</span>` : `<span class="chev chev--spacer"></span>`;
         
@@ -3280,7 +3280,7 @@ const pbPrioHtml = pbHasFilteredAvis
   ? `<span class="${badgePriority(pb.priority)}">${escapeHtml(pb.priority || "")}</span>`
   : `<span class="${badgePriority(pb.priority)}" style="visibility:hidden">${escapeHtml(pb.priority || "P3")}</span>`;
 
-const pbSelCls = (state.selectedProblemId === pb.problem_id && !state.selectedAvisId) ? " subissue-row--selected" : "";
+const pbSelCls = (state.selectedSujetId === pb.problem_id && !state.selectedAvisId) ? " subissue-row--selected" : "";
 
                 rows.push(`
           <div class="issue-row issue-row--pb click${pbSelCls}" data-action="select-pb" data-pb="${escapeHtml(pb.problem_id)}">
@@ -3371,8 +3371,8 @@ const pbSelCls = (state.selectedProblemId === pb.problem_id && !state.selectedAv
       const hasAvis = (pObj?.avis_ids || []).length > 0;
 
       if (hasAvis) {
-        if (state.expandedProblems.has(pid)) state.expandedProblems.delete(pid);
-        else state.expandedProblems.add(pid);
+        if (state.expandedSujets.has(pid)) state.expandedSujets.delete(pid);
+        else state.expandedSujets.add(pid);
         renderMiddle();
       }
     };
@@ -3583,13 +3583,13 @@ try {
 
       state.data = final;
       state.expandedSituations = new Set();
-      state.expandedProblems = new Set();
+      state.expandedSujets = new Set();
       state.page = 1;
 
       const firstSit = final.situations?.[0]?.situation_id || null;
       if (firstSit) state.expandedSituations.add(firstSit);
       state.selectedSituationId = firstSit;
-      state.selectedProblemId = null;
+      state.selectedSujetId = null;
       state.selectedAvisId = null;
 
       showBanner("info", "");
@@ -3670,13 +3670,13 @@ async function run() {
         Array.isArray(final.situations) && Array.isArray(final.problems) && Array.isArray(final.avis)) {
       state.data = final;
       state.expandedSituations = new Set();
-      state.expandedProblems = new Set();
+      state.expandedSujets = new Set();
       state.page = 1;
 
       const firstSit = final.situations?.[0]?.situation_id || null;
       if (firstSit) state.expandedSituations.add(firstSit);
       state.selectedSituationId = firstSit;
-      state.selectedProblemId = null;
+      state.selectedSujetId = null;
       state.selectedAvisId = null;
 
       showBanner("info", "");
@@ -3718,20 +3718,20 @@ function resetUI() {
 
   state.data = null;
   state.expandedSituations = new Set();
-  state.expandedProblems = new Set();
+  state.expandedSujets = new Set();
 
   state.selectedSituationId = null;
-  state.selectedProblemId = null;
+  state.selectedSujetId = null;
   state.selectedAvisId = null;
 
 
   // drilldown
   closeDrilldown();
   state.drilldown.selectedSituationId = null;
-  state.drilldown.selectedProblemId = null;
+  state.drilldown.selectedSujetId = null;
   state.drilldown.selectedAvisId = null;
   state.drilldown.rightSubissuesOpen = true;
-  state.drilldown.rightExpandedProblems = new Set();
+  state.drilldown.rightexpandedSujets = new Set();
   state.drilldown.tempAvisVerdict = null;
   state.drilldown.tempAvisVerdictFor = null;
 
@@ -4148,7 +4148,7 @@ function drilldownSelectSituation(sid) {
   const d = state.data;
   if (!d || !sid) return;
   state.drilldown.selectedSituationId = sid;
-  state.drilldown.selectedProblemId = null;
+  state.drilldown.selectedSujetId = null;
   state.drilldown.selectedAvisId = null;
   openDrilldown();
 }
@@ -4160,7 +4160,7 @@ function drilldownSelectProblem(pid) {
   const sid = parents.problemToSituation.get(pid) || null;
 
   state.drilldown.selectedSituationId = sid;
-  state.drilldown.selectedProblemId = pid;
+  state.drilldown.selectedSujetId = pid;
   state.drilldown.selectedAvisId = null;
   openDrilldown();
 }
@@ -4173,7 +4173,7 @@ function drilldownSelectAvis(aid) {
   const sid = parents.avisToSituation.get(aid) || null;
 
   state.drilldown.selectedSituationId = sid;
-  state.drilldown.selectedProblemId = pid;
+  state.drilldown.selectedSujetId = pid;
   state.drilldown.selectedAvisId = aid;
   openDrilldown();
 }
