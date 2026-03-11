@@ -18,13 +18,18 @@ function initGlobalNav() {
       globalNav.classList.add("hidden");
       return;
     }
+
     if (e.target === globalNav) {
       globalNav.classList.add("hidden");
     }
   });
 
   document.addEventListener("click", (e) => {
-    if (!globalNav.classList.contains("hidden") && !globalNav.contains(e.target) && e.target !== menuBtn) {
+    if (
+      !globalNav.classList.contains("hidden") &&
+      !globalNav.contains(e.target) &&
+      e.target !== menuBtn
+    ) {
       globalNav.classList.add("hidden");
     }
   });
@@ -34,25 +39,33 @@ function initGlobalNav() {
   });
 }
 
+function initTopActions() {
+  const runBtn = document.getElementById("runBtnTop");
+  const resetBtn = document.getElementById("resetBtnTop");
+
+  if (runBtn) {
+    runBtn.addEventListener("click", runAnalysis);
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", resetAnalysisUi);
+  }
+}
+
 function bootstrap() {
   console.log("RAPSOBOT V2 boot");
+
   store.user = {
     name: "demo"
   };
+
   initGlobalNav();
+  initTopActions();
   initRouter();
+
   if (!location.hash) {
     location.hash = "#dashboard";
   }
 }
 
-function initTopActions() {
-  const runBtn = document.getElementById("runBtnTop");
-  const resetBtn = document.getElementById("resetBtnTop");
-
-  if (runBtn) runBtn.addEventListener("click", runAnalysis);
-  if (resetBtn) resetBtn.addEventListener("click", resetAnalysisUi);
-}
-
 bootstrap();
-initTopActions();
