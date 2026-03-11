@@ -102,7 +102,7 @@
 
 // RAPSOBOT PoC UI — lighter middle list + persistent expand + right details with parent context
 // Expected from webhook:
-// { status, run_id, situations[], problems[], avis[] }
+// { status, runAnalysis_id, situations[], problems[], avis[] }
 
 const qs = new URLSearchParams(location.search);
 
@@ -272,7 +272,7 @@ function setSystemStatus(kind, label, meta) {
   el("sysLabel").textContent = label || "";
   el("sysMeta").textContent = meta || "—";
   const dot = el("sysDot");
-  const colors = { idle: "var(--muted)", running: "var(--accent)", done: "var(--success)", error: "var(--danger)" };
+  const colors = { idle: "var(--muted)", runAnalysisning: "var(--accent)", done: "var(--success)", error: "var(--danger)" };
   dot.style.background = colors[kind] || colors.idle;
 }
 
@@ -294,8 +294,8 @@ function showBanner(kind, msg) {
 }
 
 
-function setRunMeta(run_id) {
-  el("runMetaTop").textContent = run_id ? `run_id=${run_id}` : "";
+function setrunAnalysisMeta(runAnalysis_id) {
+  el("runAnalysisMetaTop").textContent = runAnalysis_id ? `runAnalysis_id=${runAnalysis_id}` : "";
 }
 function setIssuesTotals(d) {
   const node = el("issuesTotals");
@@ -462,11 +462,11 @@ function paginate(list) {
 
 /* ===== Local “discussion” store (human actions) ===== */
 function nowIso() { return new Date().toISOString(); }
-function runKey() { return state.data?.run_id || "no_run"; }
+function runAnalysisKey() { return state.data?.runAnalysis_id || "no_runAnalysis"; }
 
-function runIdToIso(runId) {
-  const s = String(runId || "");
-  // Common patterns: RUN-<epoch_ms> or just <epoch_ms>
+function runAnalysisIdToIso(runAnalysisId) {
+  const s = String(runAnalysisId || "");
+  // Common patterns: runAnalysis-<epoch_ms> or just <epoch_ms>
   const m = s.match(/(\d{12,17})/);
   if (m) {
     const n = Number(m[1]);
@@ -500,14 +500,14 @@ function fmtDateTime(ts) {
 function loadHumanStore() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { runs: {} };
-  } catch { return { runs: {} }; }
+    return raw ? JSON.parse(raw) : { runAnalysiss: {} };
+  } catch { return { runAnalysiss: {} }; }
 }
 function saveHumanStore(store) { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
-function ensureRunBucket(store) {
-  const rk = runKey();
-  store.runs[rk] ||= { decisions: {}, comments: [] };
-  return store.runs[rk];
+function ensurerunAnalysisBucket(store) {
+  const rk = runAnalysisKey();
+  store.runAnalysiss[rk] ||= { decisions: {}, comments: [] };
+  return store.runAnalysiss[rk];
 }
 function entityKey(type, id) { return `${type}:${id}`; }
 
@@ -543,7 +543,7 @@ function pushActivity(bucket, ev) {
 function logActivityToEntity(entity_type, entity_id, kind, message, meta, opts) {
   if (!entity_type || !entity_id) return;
   const store = loadHumanStore();
-  const bucket = ensureRunBucket(store);
+  const bucket = ensurerunAnalysisBucket(store);
   pushActivity(bucket, {
     ts: (opts && opts.ts) ? String(opts.ts) : nowIso(),
     actor: (opts && opts.actor) ? String(opts.actor) : "RAPSOBOT",
@@ -560,7 +560,7 @@ function logActivityToEntity(entity_type, entity_id, kind, message, meta, opts) 
 
 function setDecision(type, id, decision, note, opts) {
   const store = loadHumanStore();
-  const bucket = ensureRunBucket(store);
+  const bucket = ensurerunAnalysisBucket(store);
 
   const k = entityKey(type, id);
   const prev = bucket.decisions[k] || null;
@@ -631,7 +631,7 @@ function setDecision(type, id, decision, note, opts) {
 
 function addComment(type, id, message) {
   const store = loadHumanStore();
-  const bucket = ensureRunBucket(store);
+  const bucket = ensurerunAnalysisBucket(store);
 
   bucket.comments.push({
     ts: nowIso(),
@@ -650,7 +650,7 @@ function addComment(type, id, message) {
 
 function addAgentComment(type, id, message, agentName = "specialist_ps", meta = {}) {
   const store = loadHumanStore();
-  const bucket = ensureRunBucket(store);
+  const bucket = ensurerunAnalysisBucket(store);
 
   bucket.comments.push({
     ts: nowIso(),
@@ -670,7 +670,7 @@ function addAgentComment(type, id, message, agentName = "specialist_ps", meta = 
 function updateAgentCommentByRequestId(requestId, newMessage, extraMeta = {}) {
   if (!requestId) return false;
   const store = loadHumanStore();
-  const bucket = ensureRunBucket(store);
+  const bucket = ensurerunAnalysisBucket(store);
   const list = bucket.comments || [];
   // Find last matching pending comment
   for (let i = list.length - 1; i >= 0; i--) {
@@ -691,8 +691,8 @@ function updateAgentCommentByRequestId(requestId, newMessage, extraMeta = {}) {
 function loadAssistStore() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ASSIST);
-    return raw ? JSON.parse(raw) : { runs: {} };
-  } catch { return { runs: {} }; }
+    return raw ? JSON.parse(raw) : { runAnalysiss: {} };
+  } catch { return { runAnalysiss: {} }; }
 }
 function saveAssistStore(store) { localStorage.setItem(STORAGE_KEY_ASSIST, JSON.stringify(store)); }
 
@@ -711,14 +711,14 @@ async function loadAssistantConfig() {
   }
 }
 
-function ensureAssistRunBucket(store) {
-  const rk = runKey();
-  store.runs[rk] ||= { chat: [] };
-  return store.runs[rk];
+function ensureAssistrunAnalysisBucket(store) {
+  const rk = runAnalysisKey();
+  store.runAnalysiss[rk] ||= { chat: [] };
+  return store.runAnalysiss[rk];
 }
 function pushAssistChat(ev) {
   const store = loadAssistStore();
-  const bucket = ensureAssistRunBucket(store);
+  const bucket = ensureAssistrunAnalysisBucket(store);
   bucket.chat.push({
     ts: ev.ts || nowIso(),
     role: ev.role || "user", // user | assistant | system
@@ -731,13 +731,13 @@ function pushAssistChat(ev) {
 }
 function getAssistChat() {
   const store = loadAssistStore();
-  const bucket = store.runs?.[runKey()];
+  const bucket = store.runAnalysiss?.[runAnalysisKey()];
   return bucket?.chat || [];
 }
 
 function getPendingAssistantActions() {
   const store = loadAssistStore();
-  const bucket = ensureAssistRunBucket(store);
+  const bucket = ensureAssistrunAnalysisBucket(store);
   return bucket.pending_actions || null;
 }
 
@@ -748,7 +748,7 @@ function hasPendingAssistantActions() {
 
 function setPendingAssistantActions(pending) {
   const store = loadAssistStore();
-  const bucket = ensureAssistRunBucket(store);
+  const bucket = ensureAssistrunAnalysisBucket(store);
   bucket.pending_actions = pending || null;
   saveAssistStore(store);
 }
@@ -898,7 +898,7 @@ function buildRapsoContextBundle(type, id, humanMessage) {
   // ===== Thread local (10 derniers messages max, scope strict) =====
   const thread_recent = (() => {
     const store = loadHumanStore();
-    const bucket = store.runs?.[runKey()];
+    const bucket = store.runAnalysiss?.[runAnalysisKey()];
     const events = (bucket?.comments || [])
       .filter((e) => String(e?.type || "").toUpperCase() === "COMMENT")
       .filter((e) => String(e?.entity_type || "") === String(type) && String(e?.entity_id || "") === String(id))
@@ -1040,7 +1040,7 @@ function buildRapsoContextBundle(type, id, humanMessage) {
   }
 
   return {
-    run_id: d.run_id || null,
+    runAnalysis_id: d.runAnalysis_id || null,
     agent: "specialist_ps",
     scope,
     cadre,
@@ -1320,7 +1320,7 @@ async function askHelpEphemeral({ rootEl, type, id, humanMessage, scope = "detai
 function buildRapsoAssistantContext(userMessage) {
   const d = state.data;
   if (!d) return {
-    run_id: null,
+    runAnalysis_id: null,
     selection: { only_verdicts: ["F","S","D","HM","PM","SO"] },
     project: { situations: [] },
     user_message: String(userMessage || "").trim(),
@@ -1373,7 +1373,7 @@ function buildRapsoAssistantContext(userMessage) {
   });
 
   return {
-    run_id: d.run_id || null,
+    runAnalysis_id: d.runAnalysis_id || null,
     selection: { only_verdicts: ["F","S","D","HM","PM","SO"] },
     project: { situations },
     execution_policy: {
@@ -1621,7 +1621,7 @@ async function askRapsoAssistant({ userMessage, meta = {} }) {
 
     // Update pending message
     const store = loadAssistStore();
-    const bucket = ensureAssistRunBucket(store);
+    const bucket = ensureAssistrunAnalysisBucket(store);
     const list = bucket.chat || [];
     for (let i = list.length - 1; i >= 0; i--) {
       const ev = list[i];
@@ -1658,7 +1658,7 @@ async function askRapsoAssistant({ userMessage, meta = {} }) {
     const errMsg = e?.message || String(e);
     // Update pending to error
     const store = loadAssistStore();
-    const bucket = ensureAssistRunBucket(store);
+    const bucket = ensureAssistrunAnalysisBucket(store);
     const list = bucket.chat || [];
     for (let i = list.length - 1; i >= 0; i--) {
       const ev = list[i];
@@ -1675,7 +1675,7 @@ async function askRapsoAssistant({ userMessage, meta = {} }) {
 }
 function getDecision(type, id) {
   const store = loadHumanStore();
-  const bucket = store.runs?.[runKey()];
+  const bucket = store.runAnalysiss?.[runAnalysisKey()];
   return bucket?.decisions?.[entityKey(type, id)] || null;
 }
 
@@ -1810,7 +1810,7 @@ function getThreadForSelection() {
   if (!d) return [];
 
   const store = loadHumanStore();
-  const bucket = store.runs?.[runKey()];
+  const bucket = store.runAnalysiss?.[runAnalysisKey()];
   const humanEvents = bucket?.comments || [];
 
   const events = [];
@@ -1834,7 +1834,7 @@ function getThreadForSelection() {
 
   if (s) {
     events.push({
-      ts: runIdToIso(d.run_id),
+      ts: runAnalysisIdToIso(d.runAnalysis_id),
       actor: "System",
       agent: inferAgent(s),
       type: "SITUATION",
@@ -1845,7 +1845,7 @@ function getThreadForSelection() {
   }
   if (p) {
     events.push({
-      ts: runIdToIso(d.run_id),
+      ts: runAnalysisIdToIso(d.runAnalysis_id),
       actor: "System",
       agent: inferAgent(p),
       type: "SUJET",
@@ -1856,7 +1856,7 @@ function getThreadForSelection() {
   }
   if (a) {
     events.push({
-      ts: runIdToIso(d.run_id),
+      ts: runAnalysisIdToIso(d.runAnalysis_id),
       actor: "System",
       agent: inferAgent(a),
       type: "AVIS",
@@ -3137,7 +3137,7 @@ function renderMiddle() {
           2. Chargez votre document PDF (notes de calcul)
         </p>
         <p>
-          3. Cliquez sur <b>"Run analysis"</b>
+          3. Cliquez sur <b>"runAnalysis analysis"</b>
         </p>
         <p style="color:var(--muted)">
           ⏳ Les analyses peuvent prendre entre 1 et 3 minutes selon la taille du PDF.
@@ -3159,7 +3159,7 @@ function renderMiddle() {
                    └─ Structuration finale : Situation → Sujet → Avis
         </p>
         <p>
-          Chaque <b>run</b> est <b>horodaté</b> et associé à un <b>run_id</b> pour faciliter la traçabilité et
+          Chaque <b>runAnalysis</b> est <b>horodaté</b> et associé à un <b>runAnalysis_id</b> pour faciliter la traçabilité et
           la relecture.
         </p>
 
@@ -3404,7 +3404,7 @@ const pbSelCls = (state.selectedSujetId === pb.problem_id && !state.selectedAvis
 
 /* ===== Network helpers (timeout + delayed status message) ===== */
 const FETCH_TIMEOUT_MS = 180_000;      // 3 minutes
-const SLOW_NOTICE_MS   = 25_000;       // show "still running" message after 25s
+const SLOW_NOTICE_MS   = 25_000;       // show "still runAnalysisning" message after 25s
 
 function isAbortError(e) {
   return e && (e.name === "AbortError" || String(e).includes("AbortError"));
@@ -3443,11 +3443,11 @@ const SUPABASE_URL = "https://smsizuijtrqogupgjnyj.supabase.co";
 // ⚠️ Replace with your *publishable/anon* key (often starts with "sb_publishable_...").
 const SUPABASE_ANON_KEY = "sb_publishable_0JlI9Nc1tyGmjuBZX9Oznw_Zlnfq6gC";
 
-async function fetchRunRowFromSupabase(runId) {
+async function fetchrunAnalysisRowFromSupabase(runAnalysisId) {
   // Build URL via URLSearchParams to avoid encoding / quoting pitfalls.
-  const u = new URL(`${SUPABASE_URL}/rest/v1/rapsobot_runs`);
-  u.searchParams.set("select", "run_id,status,phase,phase_progress,phase_msg,payload,updated_at");
-  u.searchParams.set("run_id", `eq.${runId}`);
+  const u = new URL(`${SUPABASE_URL}/rest/v1/rapsobot_runAnalysiss`);
+  u.searchParams.set("select", "runAnalysis_id,status,phase,phase_progress,phase_msg,payload,updated_at");
+  u.searchParams.set("runAnalysis_id", `eq.${runAnalysisId}`);
   u.searchParams.set("limit", "1");
 
   const res = await fetch(u.toString(), {
@@ -3468,7 +3468,7 @@ async function fetchRunRowFromSupabase(runId) {
   const rows = await res.json();
 
   // If nothing matches, return UNKNOWN (caller will keep polling).
-  // (This usually means run_id mismatch or the row hasn't been inserted yet.)
+  // (This usually means runAnalysis_id mismatch or the row hasn't been inserted yet.)
   return (rows && rows[0]) ? rows[0] : { status: "UNKNOWN", payload: null };
 }
 
@@ -3528,19 +3528,19 @@ function normalizeStatusResponse(data) {
   return data || {};
 }
 
-async function pollRunStatus({ statusUrl, runId }) {
+async function pollrunAnalysisStatus({ statusUrl, runAnalysisId }) {
   const t0 = Date.now();
   let tries = 0;
 
   while (Date.now() - t0 < POLL_MAX_MS) {
     tries++;
-    setSystemStatus("running", "En cours d’analyse", "IN_PROGRESS");
+    setSystemStatus("runAnalysisning", "En cours d’analyse", "IN_PROGRESS");
     showBanner("info", `Analyse en cours… pol #${tries} · status: IN_PROGRESS`);
 
 
 let data = null;
 try {
-  data = await fetchRunRowFromSupabase(runId);
+  data = await fetchrunAnalysisRowFromSupabase(runAnalysisId);
 } catch (e) {
   // Network/API hiccup during polling → keep waiting
   showBanner("info", `Analyse en cours… pol #${tries} · status: RECOVERING`);
@@ -3553,7 +3553,7 @@ try {
     const status = String(data?.status || "").toUpperCase();
     if (status === "UNKNOWN") {
       // Helpful diagnostics (open DevTools → Console)
-      console.debug("[RAPSOBOT] Supabase returned UNKNOWN for runId:", runId);
+      console.debug("[RAPSOBOT] Supabase returned UNKNOWN for runAnalysisId:", runAnalysisId);
     }
     const payload = data?.payload || null;
 
@@ -3572,7 +3572,7 @@ try {
       : `Analyse en cours… pol #${tries} · ${meta}`;
     
     showBanner("info", bannerMsg);
-    setSystemStatus("running", "En cours d’analyse", meta);
+    setSystemStatus("runAnalysisning", "En cours d’analyse", meta);
 
 
     // READY + payload => render
@@ -3593,14 +3593,14 @@ try {
       state.selectedAvisId = null;
 
       showBanner("info", "");
-      setRunMeta(runId);
+      setrunAnalysisMeta(runAnalysisId);
       setSystemStatus("done", "Terminé", status);
       setDisplayDepth(state.displayDepth || "situations");
       return true;
     }
 
-    // Still running
-    setRunMeta(runId);
+    // Still runAnalysisning
+    setrunAnalysisMeta(runAnalysisId);
 
 
     await new Promise(r => setTimeout(r, computePollDelayMs(tries, progress)));
@@ -3613,12 +3613,12 @@ try {
 }
 
 
-/* ===== Run / Reset / Sidebar ===== */
-async function run() {
-  // Clear prior UI states, but do NOT fail fast visually: long runs are expected.
+/* ===== runAnalysis / Reset / Sidebar ===== */
+async function runAnalysis() {
+  // Clear prior UI states, but do NOT fail fast visually: long runAnalysiss are expected.
   showBanner("info", "");
-  setRunMeta("");
-  setSystemStatus("running", "En cours d’analyse", "POST /webhook");
+  setrunAnalysisMeta("");
+  setSystemStatus("runAnalysisning", "En cours d’analyse", "POST /webhook");
 
   const inp = readInputs();
   if (!inp.pdfFile) {
@@ -3635,27 +3635,27 @@ async function run() {
     referential: inp.referential,
   };
 
-  // Client-side run_id so we can poll even if the POST fails.
-  const runId = `RUN-${Date.now()}`;
-  setRunMeta(runId);
+  // Client-side runAnalysis_id so we can poll even if the POST fails.
+  const runAnalysisId = `runAnalysis-${Date.now()}`;
+  setrunAnalysisMeta(runAnalysisId);
   const statusUrl = STATUS_URL_PROD;
   const startUrl = START_URL_PROD;
-  // Show a gentle notice if the request is still running after a while.
+  // Show a gentle notice if the request is still runAnalysisning after a while.
   let slowTimer = null;
   slowTimer = setTimeout(() => {
     showBanner("info", "Analyse en cours… (cela peut prendre 1–3 minutes selon le PDF).");
-    setSystemStatus("running", "En cours d’analyse", "toujours en cours…");
+    setSystemStatus("runAnalysisning", "En cours d’analyse", "toujours en cours…");
   }, SLOW_NOTICE_MS);
 
   // Start the POST, but do NOT depend on it for rendering (we will poll).
   try {
     const form = new FormData();
-    form.append("run_id", runId);
+    form.append("runAnalysis_id", runAnalysisId);
     form.append("user_reference", JSON.stringify(user_reference));
     form.append("pdf", inp.pdfFile, inp.pdfFile.name);
 
     // If the server returns final_result immediately, we render.
-    // If it returns ACK {run_id, status:IN_PROGRESS}, we poll.
+    // If it returns ACK {runAnalysis_id, status:IN_PROGRESS}, we poll.
     const res = await fetchWithTimeout(startUrl, { method: "POST", body: form }, FETCH_TIMEOUT_MS);
     const text = await res.text();
 
@@ -3680,7 +3680,7 @@ async function run() {
       state.selectedAvisId = null;
 
       showBanner("info", "");
-      setRunMeta(final.run_id || runId);
+      setrunAnalysisMeta(final.runAnalysis_id || runAnalysisId);
       setSystemStatus("done", "Terminé", final.status || "OK");
       setDisplayDepth(state.displayDepth || "situations");
       return;
@@ -3688,32 +3688,32 @@ async function run() {
 
     // Case B: ACK pattern → poll
     showBanner("info", "Analyse en cours… (ack reçu, récupération du résultat)");
-    setSystemStatus("running", "En cours d’analyse", "ACK reçu");
-    await pollRunStatus({ statusUrl, runId });
+    setSystemStatus("runAnalysisning", "En cours d’analyse", "ACK reçu");
+    await pollrunAnalysisStatus({ statusUrl, runAnalysisId });
   } catch (e) {
     // POST failed locally → still try to poll (workflow might have started).
     const msg = e?.message || String(e);
 
     if (isAbortError(e)) {
       showBanner("info", "Analyse en cours… (timeout navigateur). Je tente de récupérer le résultat via le statut…");
-      setSystemStatus("running", "En cours d’analyse", "timeout POST → polling");
+      setSystemStatus("runAnalysisning", "En cours d’analyse", "timeout POST → polling");
     } else if (String(msg).toLowerCase().includes("failed to fetch")) {
       showBanner("info", "Connexion instable : le POST a échoué côté navigateur. Je tente de récupérer le résultat via le statut…");
-      setSystemStatus("running", "En cours d’analyse", "POST KO → polling");
+      setSystemStatus("runAnalysisning", "En cours d’analyse", "POST KO → polling");
     } else {
       showError(`POST webhook en erreur: ${msg}. Je tente quand même la récupération via le statut…`);
-      setSystemStatus("running", "En cours d’analyse", "POST erreur → polling");
+      setSystemStatus("runAnalysisning", "En cours d’analyse", "POST erreur → polling");
     }
 
-    await pollRunStatus({ statusUrl, runId });
+    await pollrunAnalysisStatus({ statusUrl, runAnalysisId });
   } finally {
     if (slowTimer) clearTimeout(slowTimer);
   }
 }
 
-function resetUI() {
+function resetAnalysisUi() {
   showBanner("info", "");
-  setRunMeta("");
+  setrunAnalysisMeta("");
   setSystemStatus("idle", "Idle", "—");
 
   state.data = null;
@@ -4268,8 +4268,8 @@ function initRightSplitter() {
 
 
 function wireEvents() {
-  el("runBtnTop").onclick = run;
-  el("resetBtnTop").onclick = resetUI;
+  el("runAnalysisBtnTop").onclick = runAnalysis;
+  el("resetBtnTop").onclick = resetAnalysisUi;
   if (el("sidebarToggle")) el("sidebarToggle").onclick = toggleSidebar;
   if (el("sidebarToggleFloating")) el("sidebarToggleFloating").onclick = toggleSidebar;
 
@@ -4348,4 +4348,4 @@ applyQueryParamsToForm();
 ensureDrilldownDom();
 wireEvents();
 initRightSplitter();
-resetUI();
+resetAnalysisUi();
