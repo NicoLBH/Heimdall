@@ -1,4 +1,4 @@
-import { getStore } from "../store.js";
+import { store } from "../store.js";
 
 export function renderProjectIdentity(root) {
   const form = store.projectForm;
