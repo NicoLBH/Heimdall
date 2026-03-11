@@ -7,9 +7,14 @@ export const store = {
   ui: {
     runId: "",
     systemStatus: {
-      state: "idle",   // idle | running | done | error
+      state: "idle",
       label: "Idle",
       meta: "—"
+    },
+    assistant: {
+      isOpen: false,
+      messages: [],
+      draft: ""
     }
   },
 
@@ -24,6 +29,7 @@ export const store = {
 
   situationsView: {
     data: [],
+    rawResult: null,
     expandedSituations: new Set(),
     expandedSujets: new Set(),
     selectedSituationId: null,
@@ -33,6 +39,7 @@ export const store = {
     search: "",
     displayDepth: "situations",
     page: 1,
-    pageSize: 80
+    pageSize: 80,
+    detailsModalOpen: false
   }
 };
