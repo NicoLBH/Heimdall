@@ -1,4 +1,4 @@
-export const getStore = {
+export const store = {
   user: null,
   projects: [],
   currentProject: null,
