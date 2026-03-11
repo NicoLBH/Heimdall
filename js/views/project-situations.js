@@ -938,9 +938,65 @@ export function renderProjectSituations(root) {
   }
 
   root.innerHTML = `
-    <div class="gh-page gh-page--2col" style="padding-top:0;">
-      <section class="gh-panel gh-panel--results" style="grid-column:1 / span 3;">
-        <div class="gh-panel__head">
+  <section class="gh-panel gh-panel--results" aria-label="Results">
+    <div class="gh-panel__head gh-panel__head--tight">
+      <div class="results-bar">
+        <div class="results-bar__left">
+          <h2 class="gh-panel__title">Results</h2>
+          <div class="gh-filters gh-filters--inline">
+            <label class="gh-filter gh-filter--inline">
+              <span>Verdict</span>
+              <select id="verdictFilter" class="gh-input gh-input--sm">
+                <option value="ALL">All</option>
+                <option value="F">F</option>
+                <option value="D">D</option>
+                <option value="S">S</option>
+                <option value="HM">HM</option>
+                <option value="PM">PM</option>
+                <option value="SO">SO</option>
+              </select>
+            </label>
+            <label class="gh-filter gh-filter--inline">
+              <span>Search</span>
+              <input id="searchBox" class="gh-input gh-input--sm" type="text" placeholder="topic / EC8 / mot-clé…" />
+            </label>
+          </div>
+        </div>
+
+        <div class="results-bar__right">
+          <div class="issues-totals mono" id="issuesTotals">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- RIGHT: Details / Discussion -->
+  <section class="gh-panel gh-panel--details" aria-label="Details">
+    <div class="gh-panel__head gh-panel__head--tight">
+      <div class="details-head">
+        <div class="details-head-left">
+          <div class="details-kicker mono">DÉTAILS</div>
+          <h2 class="gh-panel__title" id="detailsTitle">Sélectionner un élément</h2>
+        </div>
+        <div class="details-head-right">
+          <div class="details-meta mono" id="detailsMeta">—</div>
+          <button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Agrandir" title="Agrandir">⤢</button>
+        </div>
+      </div>
+    </div>
+    <div class="details-body" id="detailsBody">
+      <div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>
+    </div>
+  </section>
+
+
+
+
+
+<!-- archive...
+    <div class="gh-page gh-page--2col">
+      <section class="gh-panel gh-panel--results">
+        <div class="gh-panel__head gh-panel__head--tight">
           <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
             <div style="display:flex;align-items:center;gap:10px;">
               <strong>Results</strong>
@@ -983,6 +1039,7 @@ export function renderProjectSituations(root) {
         </div>
       </section>
     </div>
+  -->
   `;
 
   rerenderPanels();
