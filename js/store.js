@@ -33,10 +33,10 @@ export const store = {
     rawResult: null,
 
     expandedSituations: new Set(),
-    expandedProblems: new Set(),
+    expandedSujets: new Set(),
 
     selectedSituationId: null,
-    selectedProblemId: null,
+    selectedSujetId: null,
     selectedAvisId: null,
 
     verdictFilter: "ALL",
