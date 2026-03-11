@@ -17,7 +17,7 @@ function el(id) {
 
 function setRunMeta(runId) {
   store.ui.runId = runId || "";
-  const node = el("runMetaTop");
+  const node = el("runAnalysisMetaTop");
   if (node) {
     node.textContent = runId ? `run_id=${runId}` : "";
   }
