@@ -1,4 +1,4 @@
-import { getStore } from "../store.js";
+import { store } from "../store.js";
 
 export function renderProjectDocuments(root) {
   const fileLabel = store.projectForm.pdfFile?.name
