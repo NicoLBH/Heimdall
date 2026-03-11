@@ -1473,7 +1473,20 @@ body.drilldown-open .drilldown__inner {
   overflow:auto;
   padding:16px;
 }
-
+.global-nav{
+  z-index: 10;
+  position: absolute;
+  background-color: var(--headbg);
+  width: 320px;
+  height: 100%;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+  border-right: solid 1px var(--border);
+}
+.global-nav__panel{
+  flex-direction: column;
+  display: flex;
+}
 
 /* refacto restore helpers 
 .gh-input{background:var(--panel);border:1px solid var(--border2);color:var(--fg);border-radius:8px;padding:8px 10px;min-height:36px;}
