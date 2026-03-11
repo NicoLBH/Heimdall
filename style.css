@@ -135,7 +135,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
 /* Layout */
 .gh-page{
   position:fixed;
-  top:calc(var(--header-h) + 44px);
+  top:calc(var(--header-h) + 34px);
   left:0;
   right:0;
   bottom:0;
