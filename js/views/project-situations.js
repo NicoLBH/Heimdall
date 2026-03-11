@@ -968,6 +968,19 @@ export function renderProjectSituations(root) {
         </div>
       </div>
     </div>
+    <div id="issuesTable" class="gh-issues emptyState">
+      <h1><B>WELCOME</B><h2> to RAPSOBOT Prouf Of Concept</h2>🎉</h1>
+      <h3>Comment ça marche</h3>
+      <span>Saississez dans le menu de gauche la "vérité" de votre projet : les données d'entrée validées par humain comme étant vraies... sinon comment distinguer le vrai du faux dans un document !</span> </br>
+      <span>Chargez votre document pdf</span></br>
+      <span>Et cliquez sur le bouton "Run anlysis"</span></br>
+      <span>... et soyez patient : les analyses peuvent prendre entre 1 à 6 minutes selon la taille du pdf</span></br></br>
+      <h3>Limites du PoC</h3>
+      <span>Le seul Référentiel pris en charge est l'<B>Eurocode 8</B> avec son Annexe Nationale <B>Française</B> et l'Arrêté du 22 octobre 2010.</span> </br>
+      <span>Seules les <B>Notes de Calcul</B> au format pdf sont prises en charge (pas de plans, pas de modèle 3D...</span></br>
+      <span>Et cliquez sur le bouton "Run anlysis"</span></br></br>
+      --- Please Envoy Now 🎈 ---
+    </div>
   </section>
   
   <!-- RIGHT: Details / Discussion -->
@@ -988,7 +1001,23 @@ export function renderProjectSituations(root) {
       <div class="emptyState">Sélectionne une situation / un sujet / un avis pour afficher les détails.</div>
     </div>
   </section>
-
+  
+  <!-- Details fullscreen modal -->
+  <div id="detailsModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Détails">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div class="modal__head-left">
+          <div class="details-kicker mono">DÉTAILS</div>
+          <div class="modal__title" id="detailsTitleModal">Sélectionner un élément</div>
+        </div>
+        <div class="modal__head-right">
+          <div class="details-meta mono" id="detailsMetaModal">—</div>
+          <button id="detailsClose" class="icon-btn icon-btn--sm" aria-label="Fermer" title="Fermer">✕</button>
+        </div>
+      </div>
+      <div class="modal__body" id="detailsBodyModal"></div>
+    </div>
+  </div>
 
 
 
