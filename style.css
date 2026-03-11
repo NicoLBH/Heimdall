@@ -22,7 +22,7 @@
   --font:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
   --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
 
-  --header-h:64px;
+  --header-h:52px;
   --control-xlarge-paddingBlock: .875rem;
   --base-size-48: 3rem;
 }
@@ -1415,7 +1415,7 @@ body.drilldown-open .drilldown__inner {
    ========================= */
 .project-tabs{
   position:fixed;
-  top:64px; /* juste sous le header */
+  top:var(--header-h);
   left:0;
   right:0;
   height:44px;
