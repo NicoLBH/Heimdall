@@ -2,7 +2,7 @@
    restored DOM contract with legacy CSS
 */
 
-import { getStore } from "../store.js";
+import { store } from "../store.js";
 
 let selected = null;
 
@@ -65,7 +65,7 @@ rerender();
 
 function rerender(){
 
-const store = getStore();
+const store = store();
 const body = document.getElementById("situationsBody");
 
 body.innerHTML = "";
