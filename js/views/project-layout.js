@@ -19,7 +19,7 @@ export function renderProjectLayout(root, projectId, tab) {
         `).join("")}
       </div>
 
-      <div id="project-content"></div>
+      <div id="project-content" class="gh-page gh-page--2col"></div>
     </div>
   `;
 
