@@ -1,8 +1,5 @@
 import { store } from "../store.js";
-import {
-  ASK_LLM_URL_PROD,
-  ASSIST_LLM_URL_PROD
-} from "../constants.js";
+import { ASK_LLM_URL_PROD } from "../constants.js";
 
 /* =========================================================
    Legacy DOM / archive parity helpers
@@ -2635,98 +2632,6 @@ function openDrilldownFromAvis(avisId) {
   openDrilldown();
 }
 
-function renderAssistantOverlayMessages(overlay) {
-  const thread = overlay?.querySelector?.("#assist-thread");
-  if (!thread) return;
-  thread.innerHTML = `
-    <div class="assist-empty">
-      <div class="assist-empty__title">Aucun échange pour l’instant</div>
-      <div class="assist-empty__sub">Vous pouvez piloter le projet et demander des synthèses contextualisées.</div>
-    </div>
-  `;
-}
-
-function openAssistantOverlay() {
-  ensureAssistantOverlayDom();
-  const overlay = document.getElementById("assist-overlay");
-  if (!overlay) return;
-  overlay.classList.add("is-open");
-  overlay.setAttribute("aria-hidden", "false");
-  renderAssistantOverlayMessages(overlay);
-}
-
-function closeAssistantOverlay() {
-  const overlay = document.getElementById("assist-overlay");
-  if (!overlay) return;
-  overlay.classList.remove("is-open");
-  overlay.setAttribute("aria-hidden", "true");
-}
-
-function ensureAssistantOverlayDom() {
-  if (document.getElementById("assist-overlay")) return;
-  const overlay = document.createElement("div");
-  overlay.id = "assist-overlay";
-  overlay.className = "assist-overlay";
-  overlay.setAttribute("aria-hidden", "true");
-  overlay.innerHTML = `
-    <div class="assist-panel" role="dialog" aria-modal="true" aria-label="Assistant privé Rapso">
-      <div class="assist-panel__head">
-        <div class="assist-head__left">
-          <div class="assist-head__logo" aria-hidden="true"></div>
-          <div class="assist-head__title">
-            <div class="assist-head__name">Assistant privé</div>
-            <div class="assist-head__sub">Échanges non publics avec Rapso • Actions historisées</div>
-          </div>
-        </div>
-        <button class="assist-close" type="button" aria-label="Fermer">✕</button>
-      </div>
-      <div class="assist-panel__body">
-        <div class="assist-thread" id="assist-thread"></div>
-        <div class="assist-compose">
-          <textarea id="assist-input" class="assist-input" rows="3" placeholder="Ex: Synthétise la situation, ou prépare une validation en masse sur un sujet…"></textarea>
-          <div class="assist-compose__actions">
-            <div class="assist-compose__left">
-              <button id="assist-help-toggle" class="assist-help-toggle" type="button" aria-pressed="false" aria-label="Mode Help">Help</button>
-              <button id="assist-authorize" class="assist-authorize hidden" type="button" aria-label="Autorisation directeur">Autorisation directeur</button>
-            </div>
-            <button id="assist-send" class="assist-send" type="button" aria-label="Envoyer">
-              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8.53 1.22a.75.75 0 0 0-1.06 0L3.22 5.47a.75.75 0 0 0 1.06 1.06L7.25 3.56V14a.75.75 0 0 0 1.5 0V3.56l2.97 2.97a.75.75 0 1 0 1.06-1.06L8.53 1.22Z"></path></svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  try {
-    const src = document.querySelector(".gh-brand__logo");
-    const slot = overlay.querySelector(".assist-head__logo");
-    if (src && slot) {
-      const clone = src.cloneNode(true);
-      clone.classList.remove("gh-brand__logo");
-      slot.appendChild(clone);
-    }
-  } catch {}
-
-  overlay.querySelector(".assist-close")?.addEventListener("click", closeAssistantOverlay);
-  overlay.addEventListener("click", (ev) => {
-    if (ev.target === overlay) closeAssistantOverlay();
-  });
-}
-
-let globalSituationsBrandBound = false;
-function bindGlobalBrandOverlay() {
-  if (globalSituationsBrandBound) return;
-  globalSituationsBrandBound = true;
-  document.addEventListener("click", (event) => {
-    const brandHit = event.target?.closest?.("img.gh-brand__logo, .gh-brand__logo, .gh-brand__name, .gh-brand__sep, .gh-brand__repo");
-    if (!brandHit) return;
-    event.preventDefault();
-    openAssistantOverlay();
-  });
-}
-
 function bindCondensedTitleScroll(scrollEl, classHost, key) {
   if (!scrollEl || !classHost) return;
   const boundKey = key || "default";
@@ -2843,9 +2748,7 @@ function bindSituationsEvents(root) {
 export function renderProjectSituations(root) {
   ensureSituationsLegacyDomStyle();
   ensureViewUiState();
-  ensureAssistantOverlayDom();
   ensureDrilldownDom();
-  bindGlobalBrandOverlay();
 
   const data = store.situationsView.data || [];
   const firstSituationId = data[0]?.id || null;
