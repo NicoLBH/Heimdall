@@ -74,3 +74,56 @@ export function setGhAlertState(alertEl, {
   const body = alertEl.querySelector(".gh-alert__body");
   if (body) body.textContent = String(message || "");
 }
+/* =========================================================
+   Project Situations Runbar
+========================================================= */
+
+export function renderProjectSituationsRunbar() {
+  return `
+    <div class="project-runbar">
+      <div class="project-runbar__left">
+        <button id="runAnalysisBtnTop" class="gh-btn gh-btn--primary">
+          Run analysis
+        </button>
+
+        <button id="resetBtnTop" class="gh-btn">
+          Reset
+        </button>
+      </div>
+
+      <div class="project-runbar__right">
+        <span id="runIdLabel" class="mono"></span>
+        <span id="sysStatusLabel"></span>
+      </div>
+    </div>
+  `;
+}
+
+export function bindProjectSituationsRunbar(root = document) {
+  const runBtn = root.querySelector("#runAnalysisBtnTop");
+  const resetBtn = root.querySelector("#resetBtnTop");
+
+  if (runBtn) {
+    runBtn.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("runAnalysis"));
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("resetAnalysisUi"));
+    });
+  }
+}
+
+export function syncProjectSituationsRunbar() {
+  const runIdEl = document.getElementById("runIdLabel");
+  const statusEl = document.getElementById("sysStatusLabel");
+
+  if (!runIdEl || !statusEl) return;
+
+  const run = window.store?.state?.run || {};
+
+  runIdEl.textContent = run.run_id ? `run_id=${run.run_id}` : "";
+  statusEl.textContent = run.status || "";
+}
