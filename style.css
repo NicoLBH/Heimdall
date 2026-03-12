@@ -1605,3 +1605,29 @@ body.drilldown-open .drilldown__inner {
   white-space:nowrap;
   opacity:.8;
 }
+.gh-header--global{
+  border-bottom:1px solid var(--border);
+}
+
+.gh-header--project{
+  border-bottom:1px solid var(--border);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.03);
+}
+
+.gh-header--project .gh-brand__name{
+  font-weight:700;
+}
+
+.gh-header--project .gh-brand__repo{
+  opacity:.92;
+}
+
+#globalNavHost{
+  position:relative;
+  z-index:119;
+}
+
+.global-nav__panel a.is-active{
+  background:var(--bg-soft, rgba(127,127,127,.12));
+  border:1px solid var(--border);
+}
