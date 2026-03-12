@@ -647,7 +647,7 @@ body.banner-visible #project-content.gh-page{
   /*display:flex;*/
   align-items:center;
 }
-.gh-panel--results .gh-panel__head--tight{padding:10px 12px;}
+.gh-panel--results .gh-panel__head--tight{padding:none;}
 .gh-panel--details .gh-panel__head{padding:10px 12px;}
 
 
