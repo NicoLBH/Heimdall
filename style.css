@@ -269,7 +269,7 @@ body:not(.sidebar-collapsed) .sidebar-fab{display:none;}
   z-index:1000;
 }
 
-.issues-head-menu__dropdown.is-open{
+.issues-head-menu__dropdown.gh-menu--open{
   display:block;
 }
 .issues-head-menu__dropdown .gh-menu__item{
