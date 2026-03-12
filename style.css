@@ -1630,3 +1630,129 @@ body.drilldown-open .drilldown__inner {
   background:var(--bg-soft, rgba(127,127,127,.12));
   border:1px solid var(--border);
 }
+.project-runbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+
+.project-runbar__left,
+.project-runbar__right{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+
+.gh-split{
+  position:relative;
+  display:inline-flex;
+  align-items:stretch;
+}
+
+.gh-split__main{
+  border-top-right-radius:0;
+  border-bottom-right-radius:0;
+}
+
+.gh-split__toggle{
+  min-width:34px;
+  padding-inline:8px;
+  border-top-left-radius:0;
+  border-bottom-left-radius:0;
+  border-left:1px solid rgba(255,255,255,.12);
+}
+
+.gh-split .gh-menu{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  min-width:220px;
+  padding:6px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--panel, #0d1117);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  display:none;
+  z-index:50;
+}
+
+.gh-split.is-open .gh-menu{
+  display:block;
+}
+
+.gh-menu__item{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:34px;
+  padding:0 10px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+  cursor:pointer;
+}
+
+.gh-menu__item:hover{
+  background:rgba(127,127,127,.12);
+}
+
+.gh-menu__item.is-danger{
+  color:#f85149;
+}
+
+.gh-alert{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin:0 0 12px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:rgba(127,127,127,.08);
+}
+
+.gh-alert__close{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+  color:inherit;
+  cursor:pointer;
+  flex:0 0 auto;
+}
+
+.gh-alert__close:hover{
+  background:rgba(127,127,127,.12);
+}
+
+.gh-alert__body{
+  min-width:0;
+  line-height:1.4;
+}
+
+.gh-alert--error{
+  border-color:rgba(248,81,73,.45);
+  background:rgba(248,81,73,.10);
+}
+
+.gh-alert--success{
+  border-color:rgba(63,185,80,.45);
+  background:rgba(63,185,80,.10);
+}
+
+.gh-alert--info{
+  border-color:rgba(56,139,253,.45);
+  background:rgba(56,139,253,.10);
+}
