@@ -1,24 +1,14 @@
-import { PROJECT_TABS } from "../constants.js";
 import { renderProjectDocuments } from "./project-documents.js";
 import { renderProjectSituations } from "./project-situations.js";
 import { renderProjectIntervenants } from "./project-intervenants.js";
 import { renderProjectDashboard } from "./project-dashboard.js";
 import { renderProjectIdentity } from "./project-identity.js";
+import { renderProjectHeader } from "./project-header.js";
 
 export function renderProjectLayout(root, projectId, tab) {
   root.innerHTML = `
     <div class="project-shell">
-      <div class="project-tabs">
-        ${PROJECT_TABS.map((t) => `
-          <a
-            href="#project/${projectId}/${t.id}"
-            class="${t.id === tab ? "active" : ""}"
-          >
-            ${t.label}
-          </a>
-        `).join("")}
-      </div>
-
+      ${renderProjectHeader(projectId, tab)}
       <div id="project-content" class="gh-page gh-page--2col"></div>
     </div>
   `;
