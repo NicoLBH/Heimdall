@@ -1,6 +1,9 @@
 let runbarState = {
   run_id: null,
-  status: null
+  status: null,
+  label: "",
+  meta: "",
+  isBusy: false
 };
 
 export function renderProjectSituationsRunbar() {
@@ -9,7 +12,7 @@ export function renderProjectSituationsRunbar() {
       <div class="project-runbar__left">
         <div class="gh-split-btn" id="runSplitBtn">
           <button class="gh-btn gh-btn--primary" id="runAnalysisBtnTop">Run analysis</button>
-          <button class="gh-btn gh-btn--primary gh-btn--split" id="runMenuBtn">▼</button>
+          <button class="gh-btn gh-btn--primary gh-btn--split" id="runMenuBtn" aria-label="Ouvrir le menu d’analyse">▼</button>
           <div class="gh-menu" id="runMenu">
             <div class="gh-menu__item" data-action="run">Run analysis</div>
             <div class="gh-menu__item" data-action="reset">Reset</div>
@@ -22,57 +25,88 @@ export function renderProjectSituationsRunbar() {
 }
 
 export function bindProjectSituationsRunbar(root = document) {
-
   const runBtn = root.querySelector("#runAnalysisBtnTop");
   const menuBtn = root.querySelector("#runMenuBtn");
   const menu = root.querySelector("#runMenu");
 
   if (!runBtn || !menuBtn || !menu) return;
-  /* run direct */
+
   runBtn.addEventListener("click", () => {
+    if (runbarState.isBusy) return;
     document.dispatchEvent(new CustomEvent("runAnalysis"));
   });
-  /* toggle menu */
+
   menuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     menu.classList.toggle("gh-menu--open");
   });
-  /* menu actions */
+
   menu.addEventListener("click", (e) => {
     const item = e.target.closest(".gh-menu__item");
     if (!item) return;
+
     const action = item.dataset.action;
     menu.classList.remove("gh-menu--open");
+
     if (action === "run") {
+      if (runbarState.isBusy) return;
       document.dispatchEvent(new CustomEvent("runAnalysis"));
     }
+
     if (action === "reset") {
       document.dispatchEvent(new CustomEvent("resetAnalysisUi"));
     }
   });
-  /* close menu outside */
+
   document.addEventListener("click", () => {
     menu.classList.remove("gh-menu--open");
   });
+
+  syncProjectSituationsRunbar(runbarState);
 }
 
 export function syncProjectSituationsRunbar(run = {}) {
-  runbarState = run;
+  runbarState = {
+    ...runbarState,
+    ...run
+  };
+
   const host = document.getElementById("runStatusAlertHost");
+  const runBtn = document.getElementById("runAnalysisBtnTop");
+  const menuBtn = document.getElementById("runMenuBtn");
+
+  const isBusy = !!runbarState.isBusy || runbarState.status === "running";
+
+  if (runBtn) {
+    runBtn.disabled = isBusy;
+    runBtn.classList.toggle("is-disabled", isBusy);
+    runBtn.textContent = isBusy ? "Analysis running…" : "Run analysis";
+  }
+
+  if (menuBtn) {
+    menuBtn.disabled = false;
+  }
+
   if (!host) return;
-  if (!run.run_id && !run.status) {
+
+  if (!runbarState.run_id && !runbarState.status) {
     host.innerHTML = "";
     return;
   }
-  const isError = run.status === "error";
+
+  const isError = runbarState.status === "error";
+  const statusText = runbarState.label || runbarState.status || "";
+  const metaText = runbarState.meta || "";
+
   host.innerHTML = `
     <div class="gh-alert ${isError ? "gh-alert--error" : ""}">
       <button class="gh-alert__close" id="runAlertClose">✕</button>
-      <span class="mono">run_id=${run.run_id || "-"}</span>
-      <span class="gh-alert__status">${run.status || ""}
-      </span>
+      <span class="mono">run_id=${runbarState.run_id || "-"}</span>
+      <span class="gh-alert__status">${statusText}</span>
+      ${metaText ? `<span class="gh-alert__meta">${metaText}</span>` : ""}
     </div>
   `;
+
   const closeBtn = host.querySelector("#runAlertClose");
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
