@@ -217,26 +217,38 @@ function renderVerdictHeadFilter() {
     "HM",
     "PM",
     "SO",
+    "OK",
+    "KO",
+    "WARNING"
   ];
 
+  const currentLabel = current === "ALL" ? "Verdict" : current;
+
   return `
-    <div class="issues-head-menu" id="verdictHeadMenu">
-      <button class="issues-head-menu__btn" id="verdictHeadBtn">
-        <span>Verdict</span>
-        <svg class="gh-chevron" viewBox="0 0 16 16">
-          <path d="M4 6l4 4 4-4"></path>
+    <div class="issues-head-menu">
+      <button
+        class="issues-head-menu__btn"
+        id="verdictHeadBtn"
+        type="button"
+        aria-haspopup="true"
+        aria-expanded="false"
+      >
+        <span>${escapeHtml(currentLabel)}</span>
+        <svg class="gh-chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
         </svg>
       </button>
 
       <div class="gh-menu issues-head-menu__dropdown" id="verdictHeadDropdown">
-        ${options
-          .map(
-            (v) => `
-            <div class="gh-menu__item ${v === current ? "is-active" : ""}" data-verdict="${v}">
-              ${v}
-            </div>`
-          )
-          .join("")}
+        ${options.map((v) => `
+          <button
+            class="gh-menu__item ${v === current ? "is-active" : ""}"
+            type="button"
+            data-verdict="${escapeHtml(v)}"
+          >
+            ${escapeHtml(v)}
+          </button>
+        `).join("")}
       </div>
     </div>
   `;
@@ -1390,36 +1402,6 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
     </div>
-  `;
-}
-
-function renderVerdictHeadFilter() {
-  const current = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
-
-  const options = [
-    ["ALL", "Verdict"],
-    ["F", "F"],
-    ["D", "D"],
-    ["S", "S"],
-    ["HM", "HM"],
-    ["PM", "PM"],
-    ["SO", "SO"],
-    ["OK", "OK"],
-    ["KO", "KO"],
-    ["WARNING", "WARNING"]
-  ];
-
-  return `
-    <label class="issues-head-filter" aria-label="Filtrer par verdict">
-      <select id="verdictFilter" class="gh-input gh-input--sm issues-head-filter__select">
-        ${options
-          .map(
-            ([value, label]) =>
-              `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`
-          )
-          .join("")}
-      </select>
-    </label>
   `;
 }
 
@@ -2784,11 +2766,35 @@ function bindDetailsScroll(root) {
 }
 
 function bindSituationsEvents(root) {
-  root.querySelector("#verdictFilter")?.addEventListener("change", (event) => {
-    store.situationsView.verdictFilter = String(event.target.value || "ALL").toUpperCase();
-    rerenderPanels();
-  });
+  const verdictBtn = root.querySelector("#verdictHeadBtn");
+  const verdictDropdown = root.querySelector("#verdictHeadDropdown");
 
+  if (verdictBtn && verdictDropdown) {
+    verdictBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const isOpen = verdictDropdown.classList.contains("is-open");
+      verdictDropdown.classList.toggle("is-open", !isOpen);
+      verdictBtn.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    verdictDropdown.querySelectorAll("[data-verdict]").forEach((item) => {
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const verdict = String(item.dataset.verdict || "ALL").toUpperCase();
+        store.situationsView.verdictFilter = verdict;
+
+        verdictDropdown.classList.remove("is-open");
+        verdictBtn.setAttribute("aria-expanded", "false");
+
+        rerenderPanels();
+      });
+    });
+  }
+  
   root.querySelector("#situationsSearch")?.addEventListener("input", (event) => {
     store.situationsView.search = String(event.target.value || "");
     rerenderPanels();
@@ -2800,6 +2806,19 @@ function bindSituationsEvents(root) {
   });
 
   root.addEventListener("click", (event) => {
+    const verdictDropdown = root.querySelector("#verdictHeadDropdown");
+    const verdictBtn = root.querySelector("#verdictHeadBtn");
+
+    if (
+      verdictDropdown &&
+      verdictBtn &&
+      !event.target.closest("#verdictHeadBtn") &&
+      !event.target.closest("#verdictHeadDropdown")
+    ) {
+      verdictDropdown.classList.remove("is-open");
+      verdictBtn.setAttribute("aria-expanded", "false");
+    }
+    
     const expandBtn = event.target.closest("#detailsExpand");
     if (expandBtn) {
       event.preventDefault();
@@ -2849,6 +2868,26 @@ function bindSituationsEvents(root) {
       selectSituation(String(situationRow.dataset.situationId || ""));
     }
   });
+    
+  if (!root.__verdictMenuOutsideBound) {
+    root.__verdictMenuOutsideBound = true;
+
+    document.addEventListener("click", (event) => {
+      const verdictDropdown = root.querySelector("#verdictHeadDropdown");
+      const verdictBtn = root.querySelector("#verdictHeadBtn");
+      if (!verdictDropdown || !verdictBtn) return;
+
+      if (
+        event.target.closest("#verdictHeadBtn") ||
+        event.target.closest("#verdictHeadDropdown")
+      ) {
+        return;
+      }
+
+      verdictDropdown.classList.remove("is-open");
+      verdictBtn.setAttribute("aria-expanded", "false");
+    });
+  }
 }
 
 /* =========================================================
