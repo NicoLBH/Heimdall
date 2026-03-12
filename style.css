@@ -72,13 +72,13 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
   color:var(--text);text-decoration:none;min-width:0;
 }
 .gh-brand__logo{
-  width:34px;
-  height:34px;
+  width:30px;
+  height:30px;
   border-radius:8px;
   background:transparent;
   padding:0;
   object-fit:contain;
-  /* améliore la lisibilité du blanc sur fond noir */
+  margin-top:-4px;
   filter: drop-shadow(0 0 6px rgba(0,0,0,.6));
 }
 .gh-brand__name{font-weight:700;}
@@ -131,7 +131,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
   outline:none;font-size:13px;
 }
 .gh-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.15);}
-.gh-input--sm{padding:5px 8px;font-size:12px;}
+.gh-input--sm{padding:5px 8px;font-size:12px;border-top-right-radius: 0px;border-bottom-right-radius: 0px;border:none;border-right:solid 1px var(--border);}
 
 .gh-field{display:flex;flex-direction:column;gap:6px;}
 .gh-field__label{font-size:12px;color:var(--muted);margin-top:8px;}
@@ -707,9 +707,12 @@ body.banner-visible #project-content.gh-page{
 .gh-filter--inline{
   display:flex;
   align-items:center;
-  gap: 8px;
+  gap: 4px;
+  border: solid 1px var(--border);
+  background: var(--headbgtight);
+  border-radius: var(--radius);
 }
-.gh-filter--inline span{margin:0;}
+.gh-filter--inline span{margin:0;padding: 2px 6px 2px 2px;}
 
 /* Issues table spacing */
 #issuesTable{margin-top:16px;}
