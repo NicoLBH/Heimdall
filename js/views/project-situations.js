@@ -1358,12 +1358,42 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
   `;
 }
 
+function renderVerdictHeadFilter() {
+  const current = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
+
+  const options = [
+    ["ALL", "Verdict"],
+    ["F", "F"],
+    ["D", "D"],
+    ["S", "S"],
+    ["HM", "HM"],
+    ["PM", "PM"],
+    ["SO", "SO"],
+    ["OK", "OK"],
+    ["KO", "KO"],
+    ["WARNING", "WARNING"]
+  ];
+
+  return `
+    <label class="issues-head-filter" aria-label="Filtrer par verdict">
+      <select id="verdictFilter" class="gh-input gh-input--sm issues-head-filter__select">
+        ${options
+          .map(
+            ([value, label]) =>
+              `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`
+          )
+          .join("")}
+      </select>
+    </label>
+  `;
+}
+
 function renderWelcomeHtml() {
   return `
     <div class="issues-table">
       <div class="issues-table__head">
         <div class="cell cell-theme">Thème</div>
-        <div class="cell cell-verdict">Verdict</div>
+        <div class="cell cell-verdict">${renderVerdictHeadFilter()}</div>
         <div class="cell cell-prio">Prio</div>
         <div class="cell cell-agent">Agent</div>
         <div class="cell cell-id">avis_id</div>
@@ -1379,12 +1409,25 @@ function renderWelcomeHtml() {
 
 function renderTableHtml(filteredSituations) {
   const displayDepth = String(store.situationsView.displayDepth || "situations").toLowerCase();
+  const activeVerdictFilter = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
+
+  const avisMatchesVerdictFilter = (avis) => {
+    if (activeVerdictFilter === "ALL") return true;
+    return normalizeVerdict(getEffectiveAvisVerdict(avis.id)) === activeVerdictFilter;
+  };
 
   if (!(store.situationsView.data || []).length) return renderWelcomeHtml();
 
   if (!filteredSituations.length) {
     return `
       <div class="issues-table">
+        <div class="issues-table__head">
+          <div class="cell cell-theme">Thème</div>
+          <div class="cell cell-verdict">${renderVerdictHeadFilter()}</div>
+          <div class="cell cell-prio">Prio</div>
+          <div class="cell cell-agent">Agent</div>
+          <div class="cell cell-id">avis_id</div>
+        </div>
         <div class="issues-table__body">
           <div style="padding:24px;color:var(--muted);">Aucun résultat pour les filtres actuels.</div>
         </div>
@@ -1397,18 +1440,37 @@ function renderTableHtml(filteredSituations) {
   const forceExpandSujets = displayDepth === "avis";
 
   for (const situation of filteredSituations) {
+    const visibleSujets =
+      activeVerdictFilter === "ALL"
+        ? (situation.sujets || [])
+        : (situation.sujets || []).filter((sujet) =>
+            (sujet.avis || []).some((avis) => avisMatchesVerdictFilter(avis))
+          );
+
+    if (activeVerdictFilter !== "ALL" && !visibleSujets.length) continue;
+
     rows.push(renderSituationRow(situation));
 
-    const showSujets = forceExpandSituations || store.situationsView.expandedSituations.has(situation.id);
+    const showSujets =
+      forceExpandSituations || store.situationsView.expandedSituations.has(situation.id);
     if (!showSujets) continue;
 
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of visibleSujets) {
+      const visibleAvis =
+        activeVerdictFilter === "ALL"
+          ? (sujet.avis || [])
+          : (sujet.avis || []).filter((avis) => avisMatchesVerdictFilter(avis));
+
+      if (activeVerdictFilter !== "ALL" && !visibleAvis.length) continue;
+
       rows.push(renderSujetRow(sujet));
 
       const showAvis = forceExpandSujets || store.situationsView.expandedSujets.has(sujet.id);
       if (!showAvis) continue;
 
-      for (const avis of sujet.avis || []) rows.push(renderAvisRow(avis));
+      for (const avis of visibleAvis) {
+        rows.push(renderAvisRow(avis));
+      }
     }
   }
 
@@ -1416,7 +1478,7 @@ function renderTableHtml(filteredSituations) {
     <div class="issues-table">
       <div class="issues-table__head">
         <div class="cell cell-theme">Thème</div>
-        <div class="cell cell-verdict">Verdict</div>
+        <div class="cell cell-verdict">${renderVerdictHeadFilter()}</div>
         <div class="cell cell-prio">Prio</div>
         <div class="cell cell-agent">Agent</div>
         <div class="cell cell-id">avis_id</div>
@@ -2786,24 +2848,6 @@ export function renderProjectSituations(root) {
               </select>
             </label>
             <div class="issues-totals mono" id="situationsHeaderCounts">—</div>
-            
-            <div class="gh-filters gh-filters--inline">
-              <label class="gh-filter gh-filter--inline">
-                <span>Verdict</span>
-                <select id="verdictFilter" class="gh-input gh-input--sm">
-                  <option value="ALL">All</option>
-                  <option value="F">F</option>
-                  <option value="D">D</option>
-                  <option value="S">S</option>
-                  <option value="HM">HM</option>
-                  <option value="PM">PM</option>
-                  <option value="SO">SO</option>
-                  <option value="OK">OK</option>
-                  <option value="KO">KO</option>
-                  <option value="WARNING">WARNING</option>
-                </select>
-              </label>
-            </div>
           </div>
 
           <div class="results-bar__right">
