@@ -1360,13 +1360,19 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
 
 function renderWelcomeHtml() {
   return `
-    <div id="issuesTable" class="gh-issues emptyState">
-      <h1><b>WELCOME</b><h2> to RAPSOBOT Proof Of Concept</h2>🎉</h1>
-      <h3>Comment ça marche</h3>
-      <span>Saisissez dans le menu de gauche la "vérité" de votre projet.</span><br>
-      <span>Chargez votre document pdf.</span><br>
-      <span>Et cliquez sur le bouton "Run analysis".</span><br><br>
-      --- Please Enjoy Now 🎈 ---
+    <div class="issues-table">
+      <div class="issues-table__head">
+        <div class="cell cell-theme">Thème</div>
+        <div class="cell cell-verdict">Verdict</div>
+        <div class="cell cell-prio">Prio</div>
+        <div class="cell cell-agent">Agent</div>
+        <div class="cell cell-id">avis_id</div>
+      </div>
+      <div class="issues-table__body">
+        <div class="emptyState" style="padding:24px;color:var(--muted);">
+          Lancer une analyse pour générer des avis-sujets-situations.
+        </div>
+      </div>
     </div>
   `;
 }
