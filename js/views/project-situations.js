@@ -342,7 +342,10 @@ function addComment(entityType, entityId, message, options = {}) {
       type: "COMMENT",
       actor: options.actor || "Human",
       agent: options.agent || "human",
-      message: String(message || "")
+      message: String(message || ""),
+      pending: !!options.pending,
+      request_id: options.request_id || null,
+      meta: options.meta || {}
     });
   });
 }
@@ -386,6 +389,281 @@ function getEffectiveAvisVerdict(avisId) {
   const d = String(decision?.decision || "").toUpperCase();
   if (d.startsWith("VALIDATED_")) return d.replace("VALIDATED_", "");
   return normalizeVerdict(avis?.verdict) || "-";
+}
+
+function updateCommentByRequestId(requestId, nextMessage, options = {}) {
+  if (!requestId) return;
+  persistRunBucket((bucket) => {
+    const comments = Array.isArray(bucket.comments) ? bucket.comments : [];
+    const target = [...comments].reverse().find((entry) => String(entry?.request_id || "") === String(requestId));
+    if (!target) return;
+    target.message = String(nextMessage || "");
+    target.pending = !!options.pending;
+    if (options.agent) target.agent = options.agent;
+    if (options.actor) target.actor = options.actor;
+  });
+}
+
+function stripRapsoTag(text) {
+  return String(text || "").replace(/@rapso/gi, "").replace(/\s{2,}/g, " ").trim();
+}
+
+function isHelpTrigger(text) {
+  const t = String(text || "").trim();
+  return /^\/help/i.test(t) || /^@help/i.test(t);
+}
+
+function stripHelpTag(text) {
+  return String(text || "")
+    .replace(/^\s*\/help\s*/i, "")
+    .replace(/^\s*@help\s*/i, "")
+    .trim();
+}
+
+const ASK_LLM_URL_PROD = "https://nicolbh.app.n8n.cloud/webhook/rapsobot-poc-assistant";
+const ASSIST_LLM_URL_PROD = "https://nicolbh.app.n8n.cloud/webhook/rapsobot-poc-ask-llm";
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 120000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new Error("timeout")), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function showError(message) {
+  console.error(message);
+}
+
+function buildUiSnapshot({ scope = "unknown", type = null, id = null } = {}) {
+  return {
+    scope,
+    now: nowIso(),
+    display_depth: store.situationsView.displayDepth || "situations",
+    filters: {
+      verdict: store.situationsView.verdictFilter || "ALL",
+      search: store.situationsView.search || ""
+    },
+    selection: {
+      situation_id: store.situationsView.selectedSituationId || null,
+      sujet_id: store.situationsView.selectedSujetId || null,
+      avis_id: store.situationsView.selectedAvisId || null,
+      type: type || null,
+      id: id || null
+    }
+  };
+}
+
+function buildRapsoContextBundle(type, id, humanMessage) {
+  const situation = type === "situation" ? getNestedSituation(id) : (type === "sujet" ? getSituationBySujetId(id) : getSituationByAvisId(id));
+  const sujet = type === "sujet" ? getNestedSujet(id) : (type === "avis" ? getSujetByAvisId(id) : null);
+  const avis = type === "avis" ? getNestedAvis(id) : null;
+  const sujetAvis = sujet?.avis || [];
+
+  return {
+    run_id: store.ui?.runId || null,
+    agent: "specialist_ps",
+    scope: { type, id },
+    ui_snapshot: buildUiSnapshot({ scope: "entity_thread", type, id }),
+    context_structured: {
+      situation: situation ? {
+        id: situation.id,
+        title: firstNonEmpty(situation.title, situation.id, "Situation"),
+        status: String(getEffectiveSituationStatus(situation.id) || "open").toUpperCase(),
+        summary: getSituationSummary(situation)
+      } : null,
+      sujet: sujet ? {
+        id: sujet.id,
+        title: firstNonEmpty(sujet.title, sujet.id, "Sujet"),
+        status: String(getEffectiveSujetStatus(sujet.id) || "open").toUpperCase(),
+        summary: getSujetSummary(sujet)
+      } : null,
+      avis: avis ? {
+        id: avis.id,
+        title: firstNonEmpty(avis.title, avis.id, "Avis"),
+        verdict: getEffectiveAvisVerdict(avis.id),
+        severity: firstNonEmpty(avis.severity, ""),
+        summary: getAvisSummary(avis),
+        message: firstNonEmpty(avis.raw?.message, avis.message, avis.summary, "")
+      } : null,
+      avis_freres: avis && sujetAvis.length
+        ? sujetAvis.filter((entry) => String(entry?.id || "") !== String(avis.id)).map((entry) => ({
+            id: entry.id,
+            title: firstNonEmpty(entry.title, entry.id, "Avis"),
+            verdict: getEffectiveAvisVerdict(entry.id),
+            severity: firstNonEmpty(entry.severity, ""),
+            summary: getAvisSummary(entry)
+          }))
+        : []
+    },
+    user_message: stripRapsoTag(humanMessage)
+  };
+}
+
+function _extractJsonFromFencedBlock(s) {
+  const t = String(s || "").trim();
+  const m = t.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  return m ? String(m[1] || "").trim() : null;
+}
+
+function _tryParseJson(s) {
+  const t = String(s || "").trim();
+  if (!t) return null;
+  try { return JSON.parse(t); } catch { return null; }
+}
+
+function _unwrapOpenAIResponsesText(out) {
+  try {
+    if (!out || typeof out !== "object") return null;
+    const arr = Array.isArray(out.output) ? out.output : null;
+    if (!arr?.length) return null;
+    const msg = arr.find((x) => x && x.type === "message") || arr[0];
+    const content = Array.isArray(msg?.content) ? msg.content : null;
+    if (!content?.length) return null;
+    const ot = content.find((c) => c && (c.type === "output_text" || c.type === "text")) || content[0];
+    const t = typeof ot?.text === "string" ? ot.text : null;
+    return t && t.trim() ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+function _normalizeLlmRawToObject(rawText) {
+  const direct = _tryParseJson(rawText);
+  if (direct) return direct;
+  const inner = _extractJsonFromFencedBlock(rawText);
+  if (inner) {
+    const obj = _tryParseJson(inner);
+    if (obj) return obj;
+  }
+  const t = String(rawText || "").trim();
+  const i = t.indexOf("{");
+  const j = t.lastIndexOf("}");
+  if (i >= 0 && j > i) {
+    const obj = _tryParseJson(t.slice(i, j + 1));
+    if (obj) return obj;
+  }
+  return null;
+}
+
+function _pickReplyMarkdown(out, rawText) {
+  if (out && typeof out === "object") {
+    const r = out.reply_markdown ?? out.reply ?? out.message ?? out.content ?? "";
+    if (typeof r === "string" && r.trim()) return r.trim();
+    const wrapped = _unwrapOpenAIResponsesText(out);
+    if (wrapped) {
+      const obj = _normalizeLlmRawToObject(wrapped);
+      if (obj) return _pickReplyMarkdown(obj, null);
+      return wrapped.trim();
+    }
+  }
+  const obj = rawText ? _normalizeLlmRawToObject(rawText) : null;
+  if (obj) return _pickReplyMarkdown(obj, null);
+  return String(rawText || "").trim();
+}
+
+function _helpFurtiveCommentHtml({ role = "assistant", bodyMd = "", pending = false } = {}) {
+  const who = role === "user" ? "Vous (Help)" : "Rapso (Help)";
+  const ts = fmtTs(nowIso());
+  const cleanMd = String(bodyMd || "").replace(/^_+|_+$/g, "");
+  const bodyHtml = pending
+    ? `<div><div class="rapso-wait"><span class="rapso-spinner" aria-hidden="true"></span><span class="rapso-shimmer">${escapeHtml(cleanMd || "RAPSOBOT réfléchit…")}</span></div></div>`
+    : mdToHtml(cleanMd);
+  const avatar = role === "user"
+    ? `<div class="gh-avatar gh-avatar--human" aria-hidden="true">${SVG_AVATAR_HUMAN}</div>`
+    : `<div class="gh-avatar" aria-hidden="true"><span class="gh-avatar-initial mono">R</span></div>`;
+  return `<div class="thread-item thread-item--comment thread-item--comment--flush"><div class="thread-wrapper"><div class="gh-comment gh-comment--help gh-comment--${role}">${avatar}<div class="gh-comment-box gh-comment-box--help"><div class="gh-comment-header gh-comment-header--help"><div class="gh-comment-author mono">${escapeHtml(who)}</div><div class="mono-small">${escapeHtml(ts)}</div></div><div class="gh-comment-body gh-comment-body--help">${bodyHtml}</div></div></div></div></div>`;
+}
+
+function showEphemeralHelpThread(rootEl, { userMd, assistantPendingMd = "RAPSOBOT réfléchit…", ttlMs = 60000 } = {}) {
+  if (!rootEl) return null;
+  const anchor = rootEl.querySelector(".gh-thread") || rootEl;
+  const wrap = document.createElement("div");
+  wrap.className = "help-ephemeral";
+  wrap.innerHTML = `${_helpFurtiveCommentHtml({ role: "user", bodyMd: userMd || "" })}<div class="help-ephemeral__reply">${_helpFurtiveCommentHtml({ role: "assistant", bodyMd: assistantPendingMd || "", pending: true })}</div>`;
+  try {
+    if (anchor && anchor.parentElement) anchor.parentElement.insertBefore(wrap, anchor.nextSibling);
+    else rootEl.appendChild(wrap);
+  } catch {
+    try { rootEl.appendChild(wrap); } catch {}
+  }
+  const timer = setTimeout(() => { try { wrap.remove(); } catch {} }, ttlMs);
+  return { wrap, timer };
+}
+
+async function askRapsoAndAppendReply({ type, id, humanMessage }) {
+  const ctx = buildRapsoContextBundle(type, id, humanMessage);
+  if (!ctx) return;
+  const requestId = `rapso_${Date.now()}_${type}_${id}`;
+  addComment(type, id, "RAPSOBOT est en train de réfléchir…", {
+    actor: "RAPSOBOT",
+    agent: "specialist_ps",
+    pending: true,
+    request_id: requestId,
+    meta: { from_webhook: true }
+  });
+  rerenderPanels();
+  const payload = { agent: "specialist_ps", request_id: requestId, context: ctx };
+  try {
+    const res = await fetchWithTimeout(ASSIST_LLM_URL_PROD, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }, 120000);
+    const txt = await res.text();
+    let out = null;
+    try { out = JSON.parse(txt); } catch { out = null; }
+    const reply = _pickReplyMarkdown(out, txt) || "_(no reply)_";
+    updateCommentByRequestId(requestId, reply, { pending: false, actor: "RAPSOBOT", agent: "specialist_ps" });
+    rerenderPanels();
+  } catch (e) {
+    const errMsg = e?.message || String(e);
+    updateCommentByRequestId(requestId, `_(error: ${errMsg})_`, { pending: false, actor: "RAPSOBOT", agent: "specialist_ps" });
+    rerenderPanels();
+    showError(`@rapso: échec de l'appel LLM (${errMsg})`);
+  }
+}
+
+async function askHelpEphemeral({ rootEl, type, id, humanMessage, scope = "details" } = {}) {
+  const raw = String(humanMessage || "").trim();
+  const q = stripHelpTag(raw) || "Explique-moi ce que je peux faire ici.";
+  const ctx = buildRapsoContextBundle(type, id, q);
+  if (!ctx) return;
+  ctx.help_mode = true;
+  ctx.ui_snapshot = buildUiSnapshot({ scope, type, id });
+  ctx.user_message = [
+    "MODE_HELP: explique au format:",
+    "1) Où suis-je (type + id + statut/verdict si dispo)",
+    "2) Actions possibles ici",
+    "3) Exemples de commandes courtes",
+    "",
+    q
+  ].join("
+");
+  const ui = showEphemeralHelpThread(rootEl, { userMd: q });
+  if (!ui) return;
+  const requestId = `help_${Date.now()}_${type}_${id}`;
+  const payload = { agent: "specialist_ps", request_id: requestId, context: ctx };
+  try {
+    const res = await fetchWithTimeout(ASK_LLM_URL_PROD, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }, 120000);
+    const txt = await res.text();
+    let out = null;
+    try { out = JSON.parse(txt); } catch { out = null; }
+    const reply = _pickReplyMarkdown(out, txt) || "_(no reply)_";
+    const slot = ui.wrap.querySelector(".help-ephemeral__reply");
+    if (slot) slot.innerHTML = _helpFurtiveCommentHtml({ role: "assistant", bodyMd: reply, pending: false });
+  } catch (e) {
+    const errMsg = e?.message || String(e);
+    const slot = ui.wrap.querySelector(".help-ephemeral__reply");
+    if (slot) slot.innerHTML = _helpFurtiveCommentHtml({ role: "assistant", bodyMd: `_(error: ${errMsg})_`, pending: false });
+    showError(`Help: échec de l'appel LLM (${errMsg})`);
+  }
 }
 
 function getEffectiveSujetStatus(sujetId) {
@@ -1672,7 +1950,7 @@ function rerenderScope(root) {
   rerenderPanels();
 }
 
-function applyCommentAction(root) {
+async function applyCommentAction(root) {
   const target = currentDecisionTarget(root);
   if (!target) return;
 
@@ -1682,24 +1960,29 @@ function applyCommentAction(root) {
   const message = String(ta.value || "").trim();
   if (!message) return;
 
-  if (store.situationsView.helpMode) {
-    addComment(target.type, target.id, `[HELP]\n${message}`, { actor: "Human", agent: "human" });
-  } else {
-    addComment(target.type, target.id, message, { actor: "Human", agent: "human" });
-
-    if (/@rapso\b/i.test(message)) {
-      addComment(
-        target.type,
-        target.id,
-        `Réponse automatique de RAPSOBOT : prise en compte de la demande « ${message.replace(/@rapso/gi, "").trim() || "analyse demandée"} ».`,
-        { actor: "RAPSOBOT", agent: "specialist_ps" }
-      );
-    }
+  const helpActive = !!store.situationsView.helpMode || isHelpTrigger(message);
+  if (helpActive) {
+    ta.value = "";
+    store.situationsView.commentPreviewMode = false;
+    await askHelpEphemeral({
+      rootEl: root,
+      type: target.type,
+      id: target.id,
+      humanMessage: message,
+      scope: root.closest("#detailsModal") ? "modal" : (root.closest("#drilldownPanel") ? "overlay" : "details")
+    });
+    rerenderScope(root);
+    return;
   }
 
+  addComment(target.type, target.id, message, { actor: "Human", agent: "human" });
   ta.value = "";
   store.situationsView.commentPreviewMode = false;
   rerenderScope(root);
+
+  if (/@rapso/i.test(message)) {
+    await askRapsoAndAppendReply({ type: target.type, id: target.id, humanMessage: message });
+  }
 }
 
 function applyValidateAvis(root) {
@@ -1715,7 +1998,7 @@ function applyValidateAvis(root) {
     addActivity("sujet", sujet.id, "avis_verdict_changed", "", { avis_id: avisId, to: verdict }, { actor: "Human", agent: "human" });
   }
 
-  rerenderScope(root);
+  rerenderPanels();
 }
 
 function applyIssueCloseOrReopen(nextStatus, root) {
@@ -1839,7 +2122,9 @@ function wireDetailsInteractive(root) {
   });
 
   root.querySelectorAll("[data-action='add-comment']").forEach((btn) => {
-    btn.onclick = () => applyCommentAction(root);
+    btn.onclick = async () => {
+      await applyCommentAction(root);
+    };
   });
 
   root.querySelectorAll("[data-action='set-verdict']").forEach((btn) => {
