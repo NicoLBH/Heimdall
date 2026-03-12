@@ -1682,7 +1682,7 @@ white-space:nowrap;
 }
 
 .gh-menu__item:hover{
-background:#f6f8fa;
+background:none;
 }
 
 .gh-alert{
