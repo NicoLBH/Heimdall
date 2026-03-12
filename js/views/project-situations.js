@@ -640,8 +640,7 @@ async function askHelpEphemeral({ rootEl, type, id, humanMessage, scope = "detai
     "3) Exemples de commandes courtes",
     "",
     q
-  ].join("
-");
+  ].join("");
   const ui = showEphemeralHelpThread(rootEl, { userMd: q });
   if (!ui) return;
   const requestId = `help_${Date.now()}_${type}_${id}`;
