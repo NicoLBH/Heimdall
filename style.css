@@ -95,6 +95,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
   padding:6px 0px 6px 12px;color:#ffff;font-weight:600;
 }
 .gh-btn--primary:hover{filter:brightness(.95);}
+.gh-btn-icon{padding-right:0px;}
 
 /* Comment button (green background, muted text when disabled) */
 .gh-btn--comment{background:var(--success);border-color:rgba(0,0,0,.2);color:#fff;font-weight:700;}
