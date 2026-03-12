@@ -1,129 +1,148 @@
-let ghAlertBound = false;
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;"
-  }[char]));
-}
-
-export function renderGhAlert({
-  id = "",
-  variant = "",
-  message = "",
-  dismissible = true,
-  hidden = false
-}) {
-  const classes = [
-    "gh-alert",
-    variant ? `gh-alert--${variant}` : "",
-    hidden ? "hidden" : ""
-  ].filter(Boolean).join(" ");
-
-  return `
-    <div id="${id}" class="${classes}" role="status" aria-live="polite">
-      ${dismissible ? `
-        <button
-          type="button"
-          class="gh-alert__close"
-          data-gh-alert-close
-          aria-label="Fermer"
-        >
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
-            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 1 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path>
-          </svg>
-        </button>
-      ` : ""}
-
-      <div class="gh-alert__body">${escapeHtml(message)}</div>
-    </div>
-  `;
-}
-
-export function bindGhAlerts() {
-  if (ghAlertBound) return;
-  ghAlertBound = true;
-
-  document.addEventListener("click", (event) => {
-    const closeBtn = event.target.closest?.("[data-gh-alert-close]");
-    if (!closeBtn) return;
-
-    const alert = closeBtn.closest(".gh-alert");
-    if (!alert) return;
-
-    alert.classList.add("hidden");
-  });
-}
-
-export function setGhAlertState(alertEl, {
-  variant = "",
-  message = "",
-  hidden = false
-} = {}) {
-  if (!alertEl) return;
-
-  alertEl.className = [
-    "gh-alert",
-    variant ? `gh-alert--${variant}` : "",
-    hidden ? "hidden" : ""
-  ].filter(Boolean).join(" ");
-
-  const body = alertEl.querySelector(".gh-alert__body");
-  if (body) body.textContent = String(message || "");
-}
 /* =========================================================
    Project Situations Runbar
+========================================================= */
+
+let runbarState = {
+  run_id: null,
+  status: null
+};
+
+/* =========================================================
+   Render
 ========================================================= */
 
 export function renderProjectSituationsRunbar() {
   return `
     <div class="project-runbar">
+
       <div class="project-runbar__left">
-        <button id="runAnalysisBtnTop" class="gh-btn gh-btn--primary">
-          Run analysis
-        </button>
 
-        <button id="resetBtnTop" class="gh-btn">
-          Reset
-        </button>
+        <div class="gh-split-btn" id="runSplitBtn">
+
+          <button class="gh-btn gh-btn--primary" id="runAnalysisBtnTop">
+            Run analysis
+          </button>
+
+          <button class="gh-btn gh-btn--primary gh-btn--split" id="runMenuBtn">
+            ▼
+          </button>
+
+          <div class="gh-menu" id="runMenu">
+            <div class="gh-menu__item" data-action="run">
+              Run analysis
+            </div>
+
+            <div class="gh-menu__item" data-action="reset">
+              Reset
+            </div>
+          </div>
+
+        </div>
+
       </div>
 
-      <div class="project-runbar__right">
-        <span id="runIdLabel" class="mono"></span>
-        <span id="sysStatusLabel"></span>
-      </div>
     </div>
+
+    <div id="runStatusAlertHost"></div>
   `;
 }
 
+---
+
+/* =========================================================
+   Bind
+========================================================= */
+
 export function bindProjectSituationsRunbar(root = document) {
+
   const runBtn = root.querySelector("#runAnalysisBtnTop");
-  const resetBtn = root.querySelector("#resetBtnTop");
+  const menuBtn = root.querySelector("#runMenuBtn");
+  const menu = root.querySelector("#runMenu");
 
-  if (runBtn) {
-    runBtn.addEventListener("click", () => {
+  if (!runBtn || !menuBtn || !menu) return;
+
+  /* run direct */
+
+  runBtn.addEventListener("click", () => {
+    document.dispatchEvent(new CustomEvent("runAnalysis"));
+  });
+
+  /* toggle menu */
+
+  menuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.classList.toggle("gh-menu--open");
+  });
+
+  /* menu actions */
+
+  menu.addEventListener("click", (e) => {
+
+    const item = e.target.closest(".gh-menu__item");
+    if (!item) return;
+
+    const action = item.dataset.action;
+
+    menu.classList.remove("gh-menu--open");
+
+    if (action === "run") {
       document.dispatchEvent(new CustomEvent("runAnalysis"));
-    });
-  }
+    }
 
-  if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
+    if (action === "reset") {
       document.dispatchEvent(new CustomEvent("resetAnalysisUi"));
-    });
-  }
+    }
+
+  });
+
+  /* close menu outside */
+
+  document.addEventListener("click", () => {
+    menu.classList.remove("gh-menu--open");
+  });
+
 }
 
-export function syncProjectSituationsRunbar() {
-  const runIdEl = document.getElementById("runIdLabel");
-  const statusEl = document.getElementById("sysStatusLabel");
+---
 
-  if (!runIdEl || !statusEl) return;
+/* =========================================================
+   Sync
+========================================================= */
 
-  const run = window.store?.state?.run || {};
+export function syncProjectSituationsRunbar(run = {}) {
 
-  runIdEl.textContent = run.run_id ? `run_id=${run.run_id}` : "";
-  statusEl.textContent = run.status || "";
+  runbarState = run;
+
+  const host = document.getElementById("runStatusAlertHost");
+  if (!host) return;
+
+  if (!run.run_id && !run.status) {
+    host.innerHTML = "";
+    return;
+  }
+
+  const isError = run.status === "error";
+
+  host.innerHTML = `
+    <div class="gh-alert ${isError ? "gh-alert--error" : ""}">
+      <button class="gh-alert__close" id="runAlertClose">✕</button>
+
+      <span class="mono">
+        run_id=${run.run_id || "-"}
+      </span>
+
+      <span class="gh-alert__status">
+        ${run.status || ""}
+      </span>
+    </div>
+  `;
+
+  const closeBtn = host.querySelector("#runAlertClose");
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      host.innerHTML = "";
+    });
+  }
+
 }
