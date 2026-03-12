@@ -469,7 +469,17 @@ body.banner-visible #project-content.gh-page{
   background-color:rgb(21, 27, 35);
   border-bottom:1px solid var(--border2);
 }
-
+.issues-head-filter{
+  display:block;
+  width:100%;
+}
+.issues-head-filter__select{
+  width:100%;
+  min-width:0;
+  height:28px;
+  padding-top:0;
+  padding-bottom:0;
+}
 .issues-table__body{
   flex:1 1 auto;
   min-height:0;
