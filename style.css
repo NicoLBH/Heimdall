@@ -85,15 +85,9 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
 .sys-status__meta{color:var(--muted);}
 
 /* Buttons / Inputs */
-.gh-btn{
-  color:var(--text);
-  padding:6px 12px;border-radius:var(--radius);
-  cursor:pointer;font-size:13px;
-}
+.gh-btn{color:var(--text);padding:6px 12px;border-radius:var(--radius);cursor:pointer;font-size:13px;}
 .gh-btn:hover{border-color:#6e7681;}
-.gh-btn--primary{
-  padding:6px 0px 6px 12px;color:#ffff;font-weight:600;
-}
+.gh-btn--primary{padding:6px 0px 6px 6px;color:#ffff;font-weight:600;}
 .gh-btn--primary:hover{filter:brightness(.95);}
 .gh-btn-icon{padding-right:0px;}
 
