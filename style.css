@@ -1605,28 +1605,3 @@ body.drilldown-open .drilldown__inner {
   white-space:nowrap;
   opacity:.8;
 }
-
-.project-tabs{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  border-bottom:1px solid var(--border);
-  padding-bottom:8px;
-  overflow-x:auto;
-}
-
-.project-tabs a{
-  display:inline-flex;
-  align-items:center;
-  min-height:32px;
-  padding:0 12px;
-  border-radius:8px;
-  text-decoration:none;
-  color:inherit;
-  white-space:nowrap;
-}
-
-.project-tabs a.active{
-  background:var(--bg-soft, rgba(127,127,127,.12));
-  border:1px solid var(--border);
-}
