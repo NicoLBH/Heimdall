@@ -7,25 +7,40 @@ const SUPABASE_URL = "https://smsizuijtrqogupgjnyj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_0JlI9Nc1tyGmjuBZX9Oznw_Zlnfq6gC";
 
 const FETCH_TIMEOUT_MS = 60_000;
+
+// logique archive
 const POLL_BASE_MS = 2000;
 const POLL_MAX_INTERVAL_MS = 20_000;
 const POLL_MAX_MS = 12 * 60_000;
 const POLL_FAST_TRIES = 5;
 
+let activeRunPromise = null;
+let activePollToken = 0;
+
 function el(id) {
   return document.getElementById(id);
 }
 
+function syncRunbar(extra = {}) {
+  syncProjectSituationsRunbar({
+    run_id: store.ui.runId || "",
+    status: store.ui.systemStatus?.state || "idle",
+    label: store.ui.systemStatus?.label || "",
+    meta: store.ui.systemStatus?.meta || "",
+    isBusy: store.ui.systemStatus?.state === "running",
+    ...extra
+  });
+}
+
 function setRunMeta(runId) {
   store.ui.runId = runId || "";
+
   const node = el("runAnalysisMetaTop");
   if (node) {
     node.textContent = runId ? `run_id=${runId}` : "";
   }
-  syncProjectSituationsRunbar({
-    run_id: store.ui.runId || "",
-    status: store.ui.systemStatus?.state || "idle"
-  });
+
+  syncRunbar();
 }
 
 function setSystemStatus(state, label, meta = "—") {
@@ -46,17 +61,7 @@ function setSystemStatus(state, label, meta = "—") {
     else dot.classList.add("is-idle");
   }
 
-  let runbarStatus = "idle";
-  if (state === "running") runbarStatus = "running";
-  else if (state === "done") runbarStatus = "done";
-  else if (state === "error") runbarStatus = "error";
-
-  syncProjectSituationsRunbar({
-    run_id: store.ui.runId || "",
-    status: runbarStatus,
-    label,
-    meta
-  });
+  syncRunbar();
 }
 
 function getDomValue(id) {
@@ -188,6 +193,10 @@ function computePollDelayMs(tries, progress) {
   return Math.min(POLL_MAX_INTERVAL_MS, Math.round(delay));
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function firstNonEmpty(...values) {
   for (const value of values) {
     if (value !== undefined && value !== null && String(value).trim() !== "") {
@@ -299,22 +308,43 @@ function applyRunResult(final, runId, statusLabel) {
   rerenderRoute();
 }
 
-async function pollRunStatus({ runId }) {
+function extractFinalPayload(payload) {
+  let final = payload?.final_result || payload;
+
+  if (Array.isArray(final)) {
+    final = final[0] || {};
+  }
+
+  if (final && Array.isArray(final.final_result)) {
+    final = final.final_result[0] || {};
+  }
+
+  return final;
+}
+
+async function pollRunStatus({ runId, token }) {
   const t0 = Date.now();
   let tries = 0;
 
   while (Date.now() - t0 < POLL_MAX_MS) {
+    if (token !== activePollToken) return false;
+
     tries += 1;
-    setSystemStatus("running", "En cours d’analyse", `poll #${tries}`);
+    setRunMeta(runId);
+    setSystemStatus("running", "En cours d’analyse", "IN_PROGRESS");
 
     let data = null;
 
     try {
       data = await fetchRunRowFromSupabase(runId);
     } catch {
-      await new Promise((r) => setTimeout(r, computePollDelayMs(tries)));
+      if (token !== activePollToken) return false;
+      setSystemStatus("running", "En cours d’analyse", "RECOVERING");
+      await delay(computePollDelayMs(tries));
       continue;
     }
+
+    if (token !== activePollToken) return false;
 
     data = normalizeStatusResponse(data);
 
@@ -327,36 +357,34 @@ async function pollRunStatus({ runId }) {
     const meta = [
       status || "IN_PROGRESS",
       phase ? `· ${phase}` : "",
-      progress !== undefined && progress !== null ? `· ${progress}%` : "",
-      phaseMsg ? `· ${phaseMsg}` : ""
+      progress !== undefined && progress !== null ? `· ${progress}%` : ""
     ].join(" ").replace(/\s+/g, " ").trim();
 
-    setSystemStatus("running", "En cours d’analyse", meta || `poll #${tries}`);
+    const uiMeta = phaseMsg ? `${meta} — ${phaseMsg}` : meta;
+    setSystemStatus("running", "En cours d’analyse", uiMeta || `poll #${tries}`);
     setRunMeta(runId);
 
     if ((status === "READY_FOR_REVIEW" || status === "DONE" || status === "READY") && payload) {
-      let final = payload.final_result || payload;
-
-      if (Array.isArray(final)) {
-        final = final[0] || {};
-      }
-
-      if (final && Array.isArray(final.final_result)) {
-        final = final.final_result[0] || {};
-      }
-
+      const final = extractFinalPayload(payload);
       applyRunResult(final, runId, status);
       return true;
     }
 
-    await new Promise((r) => setTimeout(r, computePollDelayMs(tries, progress)));
+    await delay(computePollDelayMs(tries, progress));
   }
 
-  setSystemStatus("error", "Timeout", "polling");
+  if (token === activePollToken) {
+    setSystemStatus("error", "Timeout", "polling");
+  }
+
   return false;
 }
 
 export async function runAnalysis() {
+  if (store.ui.systemStatus?.state === "running" && activeRunPromise) {
+    return activeRunPromise;
+  }
+
   const inputs = readInputs();
 
   if (!inputs.pdfFile) {
@@ -366,6 +394,8 @@ export async function runAnalysis() {
   }
 
   const runId = `RUN-${Date.now()}`;
+  const pollToken = ++activePollToken;
+
   setRunMeta(runId);
   setSystemStatus("running", "En cours d’analyse", "POST /webhook");
 
@@ -377,56 +407,73 @@ export async function runAnalysis() {
     referential: inputs.referential
   };
 
-  try {
-    const form = new FormData();
-    form.append("run_id", runId);
-    form.append("user_reference", JSON.stringify(user_reference));
-    form.append("pdf", inputs.pdfFile, inputs.pdfFile.name);
-
-    const res = await fetchWithTimeout(
-      START_URL_PROD,
-      { method: "POST", body: form },
-      FETCH_TIMEOUT_MS
-    );
-
-    const text = await res.text();
-    let data = null;
-
+  const promise = (async () => {
     try {
-      data = JSON.parse(text);
-    } catch {
-      data = null;
+      const form = new FormData();
+      form.append("run_id", runId);
+      form.append("user_reference", JSON.stringify(user_reference));
+      form.append("pdf", inputs.pdfFile, inputs.pdfFile.name);
+
+      const res = await fetchWithTimeout(
+        START_URL_PROD,
+        { method: "POST", body: form },
+        FETCH_TIMEOUT_MS
+      );
+
+      const text = await res.text();
+      let data = null;
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+
+      data = normalizeStatusResponse(data);
+
+      const final = data?.final_result || data;
+
+      if (
+        final &&
+        typeof final === "object" &&
+        Array.isArray(final.situations) &&
+        Array.isArray(final.problems) &&
+        Array.isArray(final.avis)
+      ) {
+        if (pollToken !== activePollToken) return;
+        applyRunResult(final, final.run_id || runId, final.status || "OK");
+        return;
+      }
+
+      if (pollToken !== activePollToken) return;
+      setSystemStatus("running", "En cours d’analyse", "ACK reçu");
+      await pollRunStatus({ runId, token: pollToken });
+    } catch (error) {
+      if (pollToken !== activePollToken) return;
+
+      if (isAbortError(error)) {
+        setSystemStatus("running", "En cours d’analyse", "timeout POST → polling");
+      } else {
+        setSystemStatus("running", "En cours d’analyse", "POST erreur → polling");
+      }
+
+      await pollRunStatus({ runId, token: pollToken });
+    } finally {
+      if (activeRunPromise === promise) {
+        activeRunPromise = null;
+      }
+      syncRunbar();
     }
+  })();
 
-    data = normalizeStatusResponse(data);
-
-    const final = data?.final_result || data;
-
-    if (
-      final &&
-      typeof final === "object" &&
-      Array.isArray(final.situations) &&
-      Array.isArray(final.problems) &&
-      Array.isArray(final.avis)
-    ) {
-      applyRunResult(final, final.run_id || runId, final.status || "OK");
-      return;
-    }
-
-    setSystemStatus("running", "En cours d’analyse", "ACK reçu");
-    await pollRunStatus({ runId });
-  } catch (error) {
-    if (isAbortError(error)) {
-      setSystemStatus("running", "En cours d’analyse", "timeout POST → polling");
-    } else {
-      setSystemStatus("running", "En cours d’analyse", "POST erreur → polling");
-    }
-
-    await pollRunStatus({ runId });
-  }
+  activeRunPromise = promise;
+  return promise;
 }
 
 export function resetAnalysisUi() {
+  activePollToken += 1;
+  activeRunPromise = null;
+
   store.situationsView.data = [];
   store.situationsView.rawResult = null;
   store.situationsView.expandedSituations = new Set();
