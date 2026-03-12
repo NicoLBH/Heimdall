@@ -217,9 +217,6 @@ function renderVerdictHeadFilter() {
     "HM",
     "PM",
     "SO",
-    "OK",
-    "KO",
-    "WARNING"
   ];
 
   const currentLabel = current === "ALL" ? "Verdict" : current;
