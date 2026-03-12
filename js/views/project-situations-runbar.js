@@ -28,8 +28,11 @@ export function renderProjectSituationsRunbar() {
         </div>
       </div>
     </div>
-    <div id="runStatusAlertHost"></div>
   `;
+}
+
+export function renderProjectSituationsTopBanner() {
+  return `<div id="topBanner" class="gh-banner hidden" role="status" aria-live="polite"></div>`;
 }
 
 export function bindProjectSituationsRunbar(root = document) {
@@ -79,9 +82,9 @@ export function syncProjectSituationsRunbar(run = {}) {
     ...run
   };
 
-  const host = document.getElementById("runStatusAlertHost");
   const runBtn = document.getElementById("runAnalysisBtnTop");
   const menuBtn = document.getElementById("runMenuBtn");
+  const topBanner = document.getElementById("topBanner");
 
   const isBusy = !!runbarState.isBusy || runbarState.status === "running";
 
@@ -95,10 +98,15 @@ export function syncProjectSituationsRunbar(run = {}) {
     menuBtn.disabled = false;
   }
 
-  if (!host) return;
+  if (!topBanner) return;
 
-  if (!runbarState.run_id && !runbarState.status) {
-    host.innerHTML = "";
+  const hasBannerContent = !!(runbarState.run_id || runbarState.status);
+
+  if (!hasBannerContent) {
+    topBanner.classList.add("hidden");
+    topBanner.innerHTML = "";
+    topBanner.classList.remove("gh-banner--error", "gh-banner--info");
+    document.body.classList.remove("banner-visible");
     return;
   }
 
@@ -106,19 +114,25 @@ export function syncProjectSituationsRunbar(run = {}) {
   const statusText = runbarState.label || runbarState.status || "";
   const metaText = runbarState.meta || "";
 
-  host.innerHTML = `
-    <div id ="topBanner" class="gh-banner ${isError ? "gh-banner--error" : ""}">
-      <button class="gh-alert__close" id="runAlertClose">✕</button>
-      <span class="mono">run_id=${runbarState.run_id || "-"}</span>
-      <span class="gh-alert__status">${statusText}</span>
-      ${metaText ? `<span class="gh-alert__meta">${metaText}</span>` : ""}
-    </div>
+  topBanner.classList.remove("hidden");
+  topBanner.classList.toggle("gh-banner--error", isError);
+  topBanner.classList.toggle("gh-banner--info", !isError);
+  document.body.classList.add("banner-visible");
+
+  topBanner.innerHTML = `
+    <button class="gh-alert__close" id="runAlertClose">✕</button>
+    <span class="mono">run_id=${runbarState.run_id || "-"}</span>
+    <span class="gh-alert__status">${statusText}</span>
+    ${metaText ? `<span class="gh-alert__meta">${metaText}</span>` : ""}
   `;
 
-  const closeBtn = host.querySelector("#runAlertClose");
+  const closeBtn = topBanner.querySelector("#runAlertClose");
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
-      host.innerHTML = "";
+      topBanner.classList.add("hidden");
+      topBanner.innerHTML = "";
+      topBanner.classList.remove("gh-banner--error", "gh-banner--info");
+      document.body.classList.remove("banner-visible");
     });
   }
 }
