@@ -1624,8 +1624,7 @@ body.drilldown-open .drilldown__inner {
   align-items:center;
   justify-content:space-between;
   gap:10px;
-  margin-bottom:10px;
-  padding:10px 12px;
+  padding:0px 12px;
   background:transparent;
 }
 .project-runbar__left,
@@ -1652,7 +1651,7 @@ background: rgb(35, 134, 54);
 
 .gh-btn--split{
   padding:6px 12px 6px 6px;
-  font-size:10px;
+  font-size:8px;
 }
 
 .gh-menu{
