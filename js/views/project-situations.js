@@ -14,12 +14,16 @@ function ensureSituationsLegacyDomStyle() {
     #situationsTableHost .issues-table{
       height:100%;
       min-height:0;
+      max-height:100%;
+      overflow:hidden;
+      box-sizing:border-box;
     }
 
     #situationsTableHost .issues-table{
       display:flex;
       flex-direction:column;
       min-height:0;
+      max-height:100%;
     }
 
     #situationsTableHost .issues-table__head{
@@ -994,7 +998,20 @@ ${firstNonEmpty(a.raw?.message, a.raw?.summary, "")}`
     return true;
   });
 
-  return [...events, ...humanEvents].sort((x, y) => String(x.ts || "").localeCompare(String(y.ts || "")));
+  const orderRank = (e) => {
+    const t = String(e?.type || "").toUpperCase();
+    if (t === "SITUATION") return 0;
+    if (t === "SUJET") return 1;
+    if (t === "AVIS") return 2;
+    return 3;
+  };
+
+  return [...events, ...humanEvents].sort((x, y) => {
+    const xr = orderRank(x);
+    const yr = orderRank(y);
+    if (xr !== yr) return xr - yr;
+    return String(x.ts || "").localeCompare(String(y.ts || ""));
+  });
 }
 
 function renderThreadBlock() {
@@ -1633,14 +1650,30 @@ function selectAvis(avisId) {
    Details actions (archive-like)
 ========================================================= */
 
-function currentDecisionTarget() {
-  const sel = getActiveSelection();
+function getScopedSelection(root) {
+  if (root?.closest?.("#drilldownPanel")) {
+    const sel = getDrilldownSelection();
+    if (sel) return sel;
+  }
+  return getActiveSelection();
+}
+
+function currentDecisionTarget(root) {
+  const sel = getScopedSelection(root);
   if (!sel) return null;
   return { type: sel.type, id: sel.item.id, item: sel.item };
 }
 
+function rerenderScope(root) {
+  if (root?.closest?.("#drilldownPanel")) {
+    updateDrilldownPanel();
+    return;
+  }
+  rerenderPanels();
+}
+
 function applyCommentAction(root) {
-  const target = currentDecisionTarget();
+  const target = currentDecisionTarget(root);
   if (!target) return;
 
   const ta = root.querySelector("#humanCommentBox");
@@ -1666,11 +1699,11 @@ function applyCommentAction(root) {
 
   ta.value = "";
   store.situationsView.commentPreviewMode = false;
-  rerenderPanels();
+  rerenderScope(root);
 }
 
-function applyValidateAvis() {
-  const target = currentDecisionTarget();
+function applyValidateAvis(root) {
+  const target = currentDecisionTarget(root);
   if (!target || target.type !== "avis") return;
 
   const avisId = target.id;
@@ -1682,11 +1715,11 @@ function applyValidateAvis() {
     addActivity("sujet", sujet.id, "avis_verdict_changed", "", { avis_id: avisId, to: verdict }, { actor: "Human", agent: "human" });
   }
 
-  rerenderPanels();
+  rerenderScope(root);
 }
 
-function applyIssueCloseOrReopen(nextStatus) {
-  const target = currentDecisionTarget();
+function applyIssueCloseOrReopen(nextStatus, root) {
+  const target = currentDecisionTarget(root);
   if (!target || target.type === "avis") return;
 
   if (target.type === "sujet") {
@@ -1714,7 +1747,7 @@ function applyIssueCloseOrReopen(nextStatus) {
     );
   }
 
-  rerenderPanels();
+  rerenderScope(root);
 }
 
 function syncCommentPreview(root) {
@@ -1820,15 +1853,15 @@ function wireDetailsInteractive(root) {
   });
 
   root.querySelectorAll("[data-action='avis-validate']").forEach((btn) => {
-    btn.onclick = () => applyValidateAvis();
+    btn.onclick = () => applyValidateAvis(root);
   });
 
   root.querySelectorAll("[data-action='issue-close']").forEach((btn) => {
-    btn.onclick = () => applyIssueCloseOrReopen("closed");
+    btn.onclick = () => applyIssueCloseOrReopen("closed", root);
   });
 
   root.querySelectorAll("[data-action='issue-reopen']").forEach((btn) => {
-    btn.onclick = () => applyIssueCloseOrReopen("open");
+    btn.onclick = () => applyIssueCloseOrReopen("open", root);
   });
 }
 
@@ -2097,7 +2130,9 @@ function ensureAssistantOverlayDom() {
               <button id="assist-help-toggle" class="assist-help-toggle" type="button" aria-pressed="false" aria-label="Mode Help">Help</button>
               <button id="assist-authorize" class="assist-authorize hidden" type="button" aria-label="Autorisation directeur">Autorisation directeur</button>
             </div>
-            <button id="assist-send" class="assist-send" type="button" aria-label="Envoyer">Envoyer</button>
+            <button id="assist-send" class="assist-send" type="button" aria-label="Envoyer">
+              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8.53 1.22a.75.75 0 0 0-1.06 0L3.22 5.47a.75.75 0 0 0 1.06 1.06L7.25 3.56V14a.75.75 0 0 0 1.5 0V3.56l2.97 2.97a.75.75 0 1 0 1.06-1.06L8.53 1.22Z"></path></svg>
+            </button>
           </div>
         </div>
       </div>
