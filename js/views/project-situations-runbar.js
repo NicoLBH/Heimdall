@@ -87,22 +87,25 @@ export function syncProjectSituationsRunbar(run = {}) {
   const topBanner = document.getElementById("topBanner");
 
   const isBusy = !!runbarState.isBusy || runbarState.status === "running";
+  const bannerMode = runbarState.status === "running"
+    ? "running"
+    : runbarState.status === "error"
+      ? "error"
+      : null;
 
   if (runBtn) {
-    runBtn.disabled = isBusy;
+    if ("disabled" in runBtn) runBtn.disabled = isBusy;
     runBtn.classList.toggle("is-disabled", isBusy);
     runBtn.textContent = isBusy ? "Analysis running…" : "Run analysis";
   }
 
-  if (menuBtn) {
+  if (menuBtn && "disabled" in menuBtn) {
     menuBtn.disabled = false;
   }
 
   if (!topBanner) return;
 
-  const hasBannerContent = !!(runbarState.run_id || runbarState.status);
-
-  if (!hasBannerContent) {
+  if (!bannerMode) {
     topBanner.classList.add("hidden");
     topBanner.innerHTML = "";
     topBanner.classList.remove("gh-banner--error", "gh-banner--info");
@@ -110,7 +113,7 @@ export function syncProjectSituationsRunbar(run = {}) {
     return;
   }
 
-  const isError = runbarState.status === "error";
+  const isError = bannerMode === "error";
   const statusText = runbarState.label || runbarState.status || "";
   const metaText = runbarState.meta || "";
 
@@ -120,7 +123,7 @@ export function syncProjectSituationsRunbar(run = {}) {
   document.body.classList.add("banner-visible");
 
   topBanner.innerHTML = `
-    <button class="gh-alert__close" id="runAlertClose">✕</button>
+    <button class="gh-alert__close" id="runAlertClose" type="button" aria-label="Fermer">✕</button>
     <span class="mono">run_id=${runbarState.run_id || "-"}</span>
     <span class="gh-alert__status">${statusText}</span>
     ${metaText ? `<span class="gh-alert__meta">${metaText}</span>` : ""}
@@ -128,11 +131,11 @@ export function syncProjectSituationsRunbar(run = {}) {
 
   const closeBtn = topBanner.querySelector("#runAlertClose");
   if (closeBtn) {
-    closeBtn.addEventListener("click", () => {
+    closeBtn.onclick = () => {
       topBanner.classList.add("hidden");
       topBanner.innerHTML = "";
       topBanner.classList.remove("gh-banner--error", "gh-banner--info");
       document.body.classList.remove("banner-visible");
-    });
+    };
   }
 }
