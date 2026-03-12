@@ -2778,7 +2778,12 @@ export function renderProjectSituations(root) {
       <div class="gh-panel__head gh-panel__head--tight">
         <div class="results-bar">
           <div class="results-bar__left">
-            <h2 class="gh-panel__title">Results</h2>
+            <label class="gh-filter gh-filter--inline">
+                <input id="situationsSearch" class="gh-input gh-input--sm gh-input--search" type="text" placeholder="topic / EC8 / mot-clé…" />
+                <span class="icon-search">
+                  <svg aria-hidden="true" focusable="false" class="octicon octicon-search" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"></path></svg>
+                </span>
+              </label>
             <div class="gh-filters gh-filters--inline">
               <label class="gh-filter gh-filter--inline">
                 <span>Verdict</span>
@@ -2797,12 +2802,6 @@ export function renderProjectSituations(root) {
               </label>
 
               <label class="gh-filter gh-filter--inline">
-                <span>Search</span>
-                <input id="situationsSearch" class="gh-input gh-input--sm" type="text" placeholder="topic / EC8 / mot-clé…" />
-              </label>
-
-              <label class="gh-filter gh-filter--inline">
-                <span>Affichage</span>
                 <select id="displayDepth" class="gh-input gh-input--sm">
                   <option value="situations">Situations</option>
                   <option value="sujets">Sujets</option>
