@@ -2805,22 +2805,6 @@ export function renderProjectSituations(root) {
   }
 
     root.innerHTML = `
-    <section class="project-runbar">
-      <div class="project-runbar__left">
-        <button id="runAnalysisBtnTop" class="gh-btn gh-btn--primary">Run analysis</button>
-        <button id="resetBtnTop" class="gh-btn">Reset</button>
-      </div>
-
-      <div class="project-runbar__right">
-        <div id="runAnalysisMetaTop" class="gh-meta mono"></div>
-        <div class="sys-status">
-          <span class="sys-status__dot" id="sysDot"></span>
-          <span class="sys-status__label" id="sysLabel">Idle</span>
-          <span class="sys-status__meta" id="sysMeta">—</span>
-        </div>
-      </div>
-    </section>
-
     <section class="gh-panel gh-panel--results" aria-label="Results">
       <div class="gh-panel__head gh-panel__head--tight">
         <div class="results-bar">
@@ -2856,6 +2840,21 @@ export function renderProjectSituations(root) {
                   <option value="avis">Avis</option>
                 </select>
               </label>
+              <section class="project-runbar">
+               <div class="project-runbar__left">
+                 <button id="runAnalysisBtnTop" class="gh-btn gh-btn--primary">Run analysis</button>
+                 <button id="resetBtnTop" class="gh-btn">Reset</button>
+               </div>
+         
+               <div class="project-runbar__right">
+                 <div id="runAnalysisMetaTop" class="gh-meta mono"></div>
+                 <div class="sys-status">
+                   <span class="sys-status__dot" id="sysDot"></span>
+                   <span class="sys-status__label" id="sysLabel">Idle</span>
+                   <span class="sys-status__meta" id="sysMeta">—</span>
+                 </div>
+               </div>
+             </section>
             </div>
           </div>
 
