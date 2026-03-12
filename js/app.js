@@ -1,15 +1,7 @@
 import { initRouter } from "./router.js";
 import { store } from "./store.js";
 import { mountAssistOverlay, bindGlobalAssistLauncher } from "./views/assist-overlay.js";
-import { renderGlobalHeader } from "./views/global-header.js";
-import { renderGlobalNav, bindGlobalNav } from "./views/global-nav.js";
-
-function rerenderGlobalShell() {
-  renderGlobalHeader();
-  renderGlobalNav();
-  bindGlobalNav();
-  bindGlobalAssistLauncher();
-}
+import { renderGlobalShell } from "./views/global-shell.js";
 
 function bootstrap() {
   console.log("RAPSOBOT V2 boot");
@@ -18,18 +10,19 @@ function bootstrap() {
     name: "demo"
   };
 
-  rerenderGlobalShell();
+  renderGlobalShell();
   mountAssistOverlay();
+  bindGlobalAssistLauncher();
   initRouter();
 
   window.addEventListener("hashchange", () => {
-    rerenderGlobalShell();
+    renderGlobalShell();
   });
 
   if (!location.hash) {
     location.hash = "#project/demo/situations";
   } else {
-    rerenderGlobalShell();
+    renderGlobalShell();
   }
 }
 
