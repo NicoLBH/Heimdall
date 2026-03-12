@@ -99,7 +99,7 @@ export function syncProjectSituationsRunbar(run = {}) {
   const metaText = runbarState.meta || "";
 
   host.innerHTML = `
-    <div class="gh-alert ${isError ? "gh-alert--error" : ""}">
+    <div id ="topBanner" class="gh-banner ${isError ? "gh-banner--error" : ""}">
       <button class="gh-alert__close" id="runAlertClose">✕</button>
       <span class="mono">run_id=${runbarState.run_id || "-"}</span>
       <span class="gh-alert__status">${statusText}</span>
