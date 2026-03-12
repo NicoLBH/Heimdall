@@ -116,10 +116,10 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
   background:transparent;
   color:var(--text);
   border-radius:var(--radius);
-  padding:6px 10px;
   cursor:pointer;
-  font-size:14px;
-  line-height:1;
+  height:30px;
+  width:30px;
+  margin-left:16px;
 }
 .icon-btn:hover{border-color:#6e7681;}
 
@@ -678,8 +678,6 @@ body.banner-visible #project-content.gh-page{
 /* Results head layout */
 .gh-panel--results .gh-panel__head--tight{
   background: transparent !important;
-  border: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
 }
 
 .results-bar{
