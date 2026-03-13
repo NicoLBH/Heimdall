@@ -37,6 +37,7 @@
   --btn-h:30px;
   --btn-bg:rgb(33,40,48);
   --btn-bg-success:rgb(35,134,54);
+  --bg-input:rgb(21, 27, 35);
 
   --z-base: 1;
   --z-header: 100;
@@ -153,7 +154,7 @@ body.route--project.project-shell-compact .gh-brand__compact-tab{
 }
 .icon-btn:hover{border-color:#6e7681;}
 
-.gh-input{width:100%;padding:7px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none;font-size:13px;font-family: var(--font);font-weight: 600;font-size: 13px;}
+.gh-input{width:100%;padding:7px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-input);outline:none;font-size:13px;font-family: var(--font);font-weight:500;color:rgb(240, 246, 252);}
 .gh-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.15);}
 .gh-input--sm{padding:5px 8px;font-size:12px;height:100%;background:var(--btn-bg);color:#ffff;border:none;}
 .gh-input--search{border-top-right-radius: 0px;border-bottom-right-radius: 0px;border:none;border-right:solid 1px var(--border);background:var(--bg);}
