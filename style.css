@@ -18,6 +18,7 @@
   --fgColor-done:rgb(171, 125, 248);
   --project-tabs-label-color:rgb(240, 246, 252);
   --project-tabs-icon-color:rgb(145, 152, 161);
+  --borderColor-accent-emphasis:rgb(31,111,235);
 
   --radius:6px;
   --radius2:10px;
@@ -2112,7 +2113,6 @@ color:#ffff;
 
 .settings-nav__item.is-active{
   background:rgba(110,118,129,.18);
-  box-shadow:inset 2px 0 0 var(--accent);
 }
 
 .settings-content{
@@ -2362,7 +2362,6 @@ color:#ffff;
 
 .settings-nav__item.is-active{
   background:rgba(110,118,129,.14);
-  box-shadow:inset 2px 0 0 var(--accent);
 }
 
 .settings-nav__item--main{
@@ -2378,6 +2377,7 @@ color:#ffff;
   color:var(--muted);
   flex:0 0 16px;
   margin-top:1px;
+  fill: var(--project-tabs-icon-color);
 }
 
 .settings-nav__item.is-active .settings-nav__icon,
@@ -2511,9 +2511,22 @@ color:#ffff;
 
 .settings-nav__item.is-active{
   background:rgba(110,118,129,.14);
-  box-shadow:inset 2px 0 0 var(--accent);
+  font-weight: 500;
+  font-size: 14px;
+  font-family: var(--font);
+  color: #ffff;
 }
-
+.settings-nav__item.is-active::after{
+  background: var(--borderColor-accent-emphasis);
+  border-radius: var(--radius);
+  content: "";
+  height: 24px;
+  left: -8px;
+  width: 4px;
+  position: absolute;
+  top: 4.5px;
+  line-height:21px;
+}
 .settings-content--parametres{
   min-width:0;
   min-height:0;
