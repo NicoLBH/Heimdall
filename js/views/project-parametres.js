@@ -49,9 +49,9 @@ function renderNavIcon(name) {
   return icons[name] || icons.general;
 }
 
-function renderSectionCard({ title, description = "", body = "", badge = "" }) {
+function renderSectionCard({ id = "", title, description = "", body = "", badge = "" }) {
   return `
-    <div class="settings-card settings-card--param">
+    <div class="settings-card settings-card--param" ${id ? `id="${escapeHtml(id)}"` : ""}>
       <div class="settings-card__head">
         <div>
           <h4>${escapeHtml(title)}</h4>
@@ -92,6 +92,28 @@ function renderPlaceholderList(items) {
   `;
 }
 
+function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = false, isHero = false }) {
+  return `
+    <section
+      class="settings-block ${isActive ? "is-active" : ""} ${isHero ? "settings-block--hero" : ""}"
+      data-settings-block="${escapeHtml(id)}"
+    >
+      ${isHero ? `
+        <header class="settings-page-header settings-page-header--parametres">
+          <h2>${escapeHtml(title)}</h2>
+          ${lead ? `<p>${escapeHtml(lead)}</p>` : ""}
+        </header>
+      ` : `
+        <div class="settings-block__head">
+          <h3>${escapeHtml(title)}</h3>
+          ${lead ? `<p class="settings-lead">${escapeHtml(lead)}</p>` : ""}
+        </div>
+      `}
+      ${cards.join("")}
+    </section>
+  `;
+}
+
 function getPageHtml(form) {
   return `
     <section class="project-simple-page project-simple-page--settings project-simple-page--parametres">
@@ -102,310 +124,539 @@ function getPageHtml(form) {
               <div class="settings-nav__group settings-nav__group--project">
                 <div class="settings-nav__title">Paramètres</div>
 
-                <a href="#parametres-general" class="settings-nav__item settings-nav__item--main is-active" data-settings-anchor>
+                <button type="button" class="settings-nav__item settings-nav__item--main is-active" data-settings-target="parametres-general">
                   <span class="settings-nav__icon">${renderNavIcon("general")}</span>
                   <span>Général</span>
-                </a>
+                </button>
 
                 <div class="settings-nav__separator"></div>
                 <div class="settings-nav__section-label">Données de base projet</div>
-                <a href="#parametres-localisation" class="settings-nav__item" data-settings-anchor>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-localisation">
                   <span class="settings-nav__icon">${renderNavIcon("pin")}</span>
                   <span>localisation</span>
-                </a>
-                <a href="#parametres-type-ouvrage" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-type-ouvrage">
                   <span class="settings-nav__icon">${renderNavIcon("general")}</span>
                   <span>type d’ouvrage</span>
-                </a>
-                <a href="#parametres-phase" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-phase">
                   <span class="settings-nav__icon">${renderNavIcon("checklist")}</span>
                   <span>phase</span>
-                </a>
-                <a href="#parametres-collaborateurs" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-collaborateurs">
                   <span class="settings-nav__icon">${renderNavIcon("people")}</span>
                   <span>Collaborateurs</span>
-                </a>
-                <a href="#parametres-lots" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-lots">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>lots</span>
-                </a>
-                <a href="#parametres-zones-batiments" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-zones-batiments">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>zones / bâtiments / niveaux</span>
-                </a>
+                </button>
 
                 <div class="settings-nav__separator"></div>
                 <div class="settings-nav__section-label">Référentiels techniques et réglementaires</div>
-                <a href="#parametres-zones-climatiques" class="settings-nav__item" data-settings-anchor>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-zones-climatiques">
                   <span class="settings-nav__icon">${renderNavIcon("pin")}</span>
                   <span>zones climatiques</span>
-                </a>
-                <a href="#parametres-zones-reglementaires" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-zones-reglementaires">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>zones réglementaires</span>
-                </a>
-                <a href="#parametres-incendie" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-incendie">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>règlement incendie applicable</span>
-                </a>
-                <a href="#parametres-accessibilite" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-accessibilite">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>règlement accessibilité</span>
-                </a>
-                <a href="#parametres-parasismiques" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-parasismiques">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>règlements parasismiques</span>
-                </a>
-                <a href="#parametres-thermiques" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-thermiques">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>référentiels thermiques</span>
-                </a>
-                <a href="#parametres-acoustique" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-acoustique">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>référentiels acoustique</span>
-                </a>
-                <a href="#parametres-normes" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-normes">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>DTU / Eurocodes / normes projet</span>
-                </a>
-                <a href="#parametres-doctrines" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-doctrines">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>doctrines particulières du maître d’ouvrage</span>
-                </a>
+                </button>
 
                 <div class="settings-nav__separator"></div>
                 <div class="settings-nav__section-label">Gouvernance</div>
-                <a href="#parametres-droits" class="settings-nav__item" data-settings-anchor>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-droits">
                   <span class="settings-nav__icon">${renderNavIcon("people")}</span>
                   <span>droits par acteur</span>
-                </a>
-                <a href="#parametres-circuits" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-circuits">
                   <span class="settings-nav__icon">${renderNavIcon("checklist")}</span>
                   <span>circuits de validation</span>
-                </a>
-                <a href="#parametres-taxonomie" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-taxonomie">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>taxonomie des sujets</span>
-                </a>
-                <a href="#parametres-criticite" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-criticite">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>règles de criticité</span>
-                </a>
-                <a href="#parametres-nomenclature" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-nomenclature">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>nomenclature documentaire</span>
-                </a>
-                <a href="#parametres-workflow-pr" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-workflow-pr">
                   <span class="settings-nav__icon">${renderNavIcon("checklist")}</span>
                   <span>workflow de PR</span>
-                </a>
-                <a href="#parametres-cloture" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-cloture">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>politique de clôture des sujets</span>
-                </a>
+                </button>
 
                 <div class="settings-nav__separator"></div>
                 <div class="settings-nav__section-label">Paramètres opérationnels</div>
-                <a href="#parametres-jalons" class="settings-nav__item" data-settings-anchor>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-jalons">
                   <span class="settings-nav__icon">${renderNavIcon("checklist")}</span>
                   <span>jalons</span>
-                </a>
-                <a href="#parametres-responsabilites" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-responsabilites">
                   <span class="settings-nav__icon">${renderNavIcon("people")}</span>
                   <span>responsabilités</span>
-                </a>
-                <a href="#parametres-champs" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-champs">
                   <span class="settings-nav__icon">${renderNavIcon("checklist")}</span>
                   <span>champs obligatoires</span>
-                </a>
-                <a href="#parametres-modeles" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-modeles">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>modèles de documents</span>
-                </a>
-                <a href="#parametres-templates" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-templates">
                   <span class="settings-nav__icon">${renderNavIcon("book")}</span>
                   <span>templates de remarques</span>
-                </a>
-                <a href="#parametres-diffusion" class="settings-nav__item" data-settings-anchor>
+                </button>
+
+                <button type="button" class="settings-nav__item" data-settings-target="parametres-diffusion">
                   <span class="settings-nav__icon">${renderNavIcon("people")}</span>
                   <span>matrices de diffusion</span>
-                </a>
+                </button>
               </div>
             </aside>
 
             <div class="settings-content settings-content--parametres">
-              <header class="settings-page-header settings-page-header--parametres" id="parametres-general">
-                <h2>General</h2>
-                <p>Configuration structurante du projet, sur un gabarit Settings proche de GitHub : navigation latérale, zone centrale resserrée et grands respirations latérales. Les champs réellement branchés au store sont saisis ici, les autres blocs posent la doctrine cible de la page.</p>
-              </header>
+              ${renderSettingsBlock({
+                id: "parametres-general",
+                title: "General",
+                lead: "Configuration structurante du projet, sur un gabarit Settings proche de GitHub : navigation latérale, zone centrale resserrée et grandes marges latérales.",
+                isActive: true,
+                isHero: true,
+                cards: [
+                  renderSectionCard({
+                    title: "Vue d’ensemble",
+                    description: "Le clic dans la navigation de gauche affiche désormais uniquement le bloc concerné. Le scroll se fait dans la zone centrale, tandis que le menu reste fixé sous le header.",
+                    body: renderPlaceholderList([
+                      "Navigation latérale persistante.",
+                      "Affichage central ciblé par item.",
+                      "Comportement robuste et extensible pour les futurs paramètres."
+                    ])
+                  })
+                ]
+              })}
 
-              <section class="settings-section settings-section--top" id="parametres-localisation">
-                <h3>Données de base projet</h3>
-                <p class="settings-lead">Cette première section regroupe les informations d’identité du projet et les paramètres de cadrage initial.</p>
+              ${renderSettingsBlock({
+                id: "parametres-localisation",
+                title: "Données de base projet",
+                lead: "Localisation administrative et d’usage du projet.",
+                cards: [
+                  renderSectionCard({
+                    title: "localisation",
+                    description: "Localisation administrative et d’usage du projet.",
+                    badge: "LIVE",
+                    body: `<div class="settings-form-grid settings-form-grid--thirds">
+                      ${renderInputField({ id: "projectCity", label: "Ville", value: form.city || "", placeholder: "Ex. Annecy" })}
+                      ${renderInputField({ id: "projectPostalCode", label: "CP", value: form.postalCode || "", placeholder: "Ex. 74000" })}
+                    </div>`
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "localisation",
-                  description: "Localisation administrative et d’usage du projet.",
-                  badge: "LIVE",
-                  body: `<div class="settings-form-grid settings-form-grid--thirds">
-                    ${renderInputField({ id: "projectCity", label: "Ville", value: form.city || "", placeholder: "Ex. Annecy" })}
-                    ${renderInputField({ id: "projectPostalCode", label: "CP", value: form.postalCode || "", placeholder: "Ex. 74000" })}
-                  </div>`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-type-ouvrage",
+                title: "Données de base projet",
+                lead: "Qualification réglementaire et niveau d’importance du projet.",
+                cards: [
+                  renderSectionCard({
+                    title: "type d’ouvrage",
+                    description: "Qualification réglementaire et niveau d’importance du projet.",
+                    badge: "LIVE",
+                    body: `<div class="settings-form-grid settings-form-grid--thirds">
+                      ${renderInputField({ id: "importanceCategory", label: "catégorie d'importance", value: form.importanceCategory || form.importance || "II", placeholder: "Ex. II" })}
+                    </div>`
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "type d’ouvrage",
-                  description: "Qualification réglementaire et niveau d’importance du projet.",
-                  badge: "LIVE",
-                  body: `<div class="settings-form-grid settings-form-grid--thirds">
-                    ${renderInputField({ id: "importanceCategory", label: "catégorie d'importance", value: form.importanceCategory || form.importance || "II", placeholder: "Ex. II" })}
-                  </div>`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-phase",
+                title: "Données de base projet",
+                lead: "Positionnement du projet dans son cycle de production.",
+                cards: [
+                  renderSectionCard({
+                    title: "phase",
+                    description: "Positionnement du projet dans son cycle de production.",
+                    body: `<div class="settings-form-grid settings-form-grid--thirds">
+                      ${renderSelectField({ id: "projectPhase", label: "Phase", value: form.phase || "APS", options: ["ESQ", "APS", "APD", "PRO", "DCE", "EXE", "DET", "AOR"] })}
+                    </div>`
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "phase",
-                  description: "Positionnement du projet dans son cycle de production.",
-                  body: `<div class="settings-form-grid settings-form-grid--thirds">
-                    ${renderSelectField({ id: "projectPhase", label: "Phase", value: form.phase || "APS", options: ["ESQ", "APS", "APD", "PRO", "DCE", "EXE", "DET", "AOR"] })}
-                  </div>`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-collaborateurs",
+                title: "Données de base projet",
+                lead: "Acteurs clés, profils et rôles mobilisés sur le projet.",
+                cards: [
+                  renderSectionCard({
+                    title: "Collaborateurs",
+                    description: "Acteurs clés, profils et rôles mobilisés sur le projet.",
+                    body: renderPlaceholderList([
+                      "MOA, MOE, architecte, BET, CT, SPS, OPC, entreprises, exploitant.",
+                      "Droits d'écriture, validation, revue et diffusion par acteur.",
+                      "Capacités de création de sujets, propositions et clôtures."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "Collaborateurs",
-                  description: "Acteurs clés, profils et rôles mobilisés sur le projet.",
-                  body: `${renderPlaceholderList([
-                    "MOA, MOE, architecte, BET, CT, SPS, OPC, entreprises, exploitant.",
-                    "Droits d'écriture, validation, revue et diffusion par acteur.",
-                    "Capacités de création de sujets, propositions et clôtures."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-lots",
+                title: "Données de base projet",
+                lead: "Structuration technique et répartition par macro-lots ou spécialités.",
+                cards: [
+                  renderSectionCard({
+                    title: "lots",
+                    description: "Structuration technique et répartition par macro-lots ou spécialités.",
+                    body: renderPlaceholderList([
+                      "Structure, façade, CVC, CFO/CFA, sécurité incendie, accessibilité, thermique, acoustique.",
+                      "Affectation des responsables et circuits de revue par lot."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "lots",
-                  description: "Structuration technique et répartition par macro-lots ou spécialités.",
-                  body: `${renderPlaceholderList([
-                    "Structure, façade, CVC, CFO/CFA, sécurité incendie, accessibilité, thermique, acoustique.",
-                    "Affectation des responsables et circuits de revue par lot."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-zones-batiments",
+                title: "Données de base projet",
+                lead: "Découpage spatial servant à l’adressage des documents, sujets et avis.",
+                cards: [
+                  renderSectionCard({
+                    title: "zones / bâtiments / niveaux",
+                    description: "Découpage spatial servant à l’adressage des documents, sujets et avis.",
+                    body: renderPlaceholderList([
+                      "Bâtiments, ailes, blocs, zones fonctionnelles, niveaux et locaux.",
+                      "Règles de nommage réutilisables dans les sujets et propositions."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "zones / bâtiments / niveaux",
-                  description: "Découpage spatial servant à l’adressage des documents, sujets et avis.",
-                  body: `${renderPlaceholderList([
-                    "Bâtiments, ailes, blocs, zones fonctionnelles, niveaux et locaux.",
-                    "Règles de nommage réutilisables dans les sujets et propositions."
-                  ])}`
-                })}
-              </section>
+              ${renderSettingsBlock({
+                id: "parametres-zones-climatiques",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Références climatiques utilisées par les volets thermique, enveloppe et exploitation.",
+                cards: [
+                  renderSectionCard({
+                    title: "zones climatiques",
+                    description: "Références climatiques utilisées par les volets thermique, enveloppe et exploitation.",
+                    body: renderPlaceholderList([
+                      "Zone climatique hiver / été.",
+                      "Altitude, exposition, vent dominant, neige, températures de base."
+                    ])
+                  })
+                ]
+              })}
 
-              <section class="settings-section" id="parametres-zones-climatiques">
-                <h3>Référentiels techniques et réglementaires</h3>
-                <p class="settings-lead">Référentiels de calcul, doctrines et cadres réglementaires applicables au projet.</p>
+              ${renderSettingsBlock({
+                id: "parametres-zones-reglementaires",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Paramètres territoriaux imposés par la réglementation applicable.",
+                cards: [
+                  renderSectionCard({
+                    title: "zones réglementaires",
+                    description: "Paramètres territoriaux imposés par la réglementation applicable.",
+                    badge: "LIVE",
+                    body: `<div class="settings-form-grid settings-form-grid--thirds">
+                      ${renderInputField({ id: "zoneSismique", label: "zone sismique", value: form.zoneSismique || "", placeholder: "Ex. 3" })}
+                      ${renderInputField({ id: "liquefactionText", label: "liquéfaction", value: form.liquefactionText || "", placeholder: "Ex. non / possible / avérée" })}
+                    </div>`
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "zones climatiques",
-                  description: "Références climatiques utilisées par les volets thermique, enveloppe et exploitation.",
-                  body: `${renderPlaceholderList([
-                    "Zone climatique hiver / été.",
-                    "Altitude, exposition, vent dominant, neige, températures de base."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-incendie",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Corpus incendie principal retenu pour le projet.",
+                cards: [
+                  renderSectionCard({
+                    title: "règlement incendie applicable",
+                    description: "Corpus incendie principal retenu pour le projet.",
+                    body: renderPlaceholderList([
+                      "ERP / IGH / habitation / bureaux / code du travail / ICPE selon le cas.",
+                      "Références d’arrêtés, versions et doctrines internes applicables."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "zones réglementaires",
-                  description: "Paramètres territoriaux imposés par la réglementation applicable.",
-                  badge: "LIVE",
-                  body: `<div class="settings-form-grid settings-form-grid--thirds">
-                    ${renderInputField({ id: "zoneSismique", label: "zone sismique", value: form.zoneSismique || "", placeholder: "Ex. 3" })}
-                    ${renderInputField({ id: "liquefactionText", label: "liquéfaction", value: form.liquefactionText || "", placeholder: "Ex. non / possible / avérée" })}
-                  </div>`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-accessibilite",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Base normative accessibilité PMR et dispositions complémentaires retenues.",
+                cards: [
+                  renderSectionCard({
+                    title: "règlement accessibilité",
+                    description: "Base normative accessibilité PMR et dispositions complémentaires retenues.",
+                    body: renderPlaceholderList([
+                      "Exigences réglementaires, cas particuliers, dérogations et pièces justificatives attendues."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "règlement incendie applicable",
-                  description: "Corpus incendie principal retenu pour le projet.",
-                  body: `${renderPlaceholderList([
-                    "ERP / IGH / habitation / bureaux / code du travail / ICPE selon le cas.",
-                    "Références d’arrêtés, versions et doctrines internes applicables."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-parasismiques",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Cadre réglementaire et hypothèses d’entrée du lot parasismique.",
+                cards: [
+                  renderSectionCard({
+                    title: "règlements parasismiques",
+                    description: "Cadre réglementaire et hypothèses d’entrée du lot parasismique.",
+                    badge: "LIVE",
+                    body: `<div class="settings-form-grid settings-form-grid--thirds">
+                      ${renderSelectField({ id: "referential", label: "référentiel", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
+                      ${renderSelectField({ id: "soilClass", label: "classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
+                    </div>`
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "règlement accessibilité",
-                  description: "Base normative accessibilité PMR et dispositions complémentaires retenues.",
-                  body: `${renderPlaceholderList([
-                    "Exigences réglementaires, cas particuliers, dérogations et pièces justificatives attendues."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-thermiques",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Références thermiques et énergétiques applicables.",
+                cards: [
+                  renderSectionCard({
+                    title: "référentiels thermiques",
+                    description: "Références thermiques et énergétiques applicables.",
+                    body: renderPlaceholderList([
+                      "RE2020, RT existant, labels et exigences contractuelles complémentaires."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "règlements parasismiques",
-                  description: "Cadre réglementaire et hypothèses d’entrée du lot parasismique.",
-                  badge: "LIVE",
-                  body: `<div class="settings-form-grid settings-form-grid--thirds">
-                    ${renderSelectField({ id: "referential", label: "référentiel", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
-                    ${renderSelectField({ id: "soilClass", label: "classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
-                  </div>`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-acoustique",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Normes, objectifs contractuels et seuils d’acceptation acoustiques.",
+                cards: [
+                  renderSectionCard({
+                    title: "référentiels acoustique",
+                    description: "Normes, objectifs contractuels et seuils d’acceptation acoustiques.",
+                    body: renderPlaceholderList([
+                      "NRA, programmes spécifiques, cahiers des charges de performance et modalités de contrôle."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "référentiels thermiques",
-                  description: "Références thermiques et énergétiques applicables.",
-                  body: `${renderPlaceholderList([
-                    "RE2020, RT existant, labels et exigences contractuelles complémentaires."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-normes",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Bibliothèque normative de référence du projet.",
+                cards: [
+                  renderSectionCard({
+                    title: "DTU / Eurocodes / normes projet",
+                    description: "Bibliothèque normative de référence du projet.",
+                    body: renderPlaceholderList([
+                      "DTU, Eurocodes, NF, guides, règles professionnelles et prescriptions spécifiques."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "référentiels acoustique",
-                  description: "Normes, objectifs contractuels et seuils d’acceptation acoustiques.",
-                  body: `${renderPlaceholderList([
-                    "NRA, programmes spécifiques, cahiers des charges de performance et modalités de contrôle."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-doctrines",
+                title: "Référentiels techniques et réglementaires",
+                lead: "Exigences internes et doctrines projet non strictement réglementaires.",
+                cards: [
+                  renderSectionCard({
+                    title: "doctrines particulières du maître d’ouvrage",
+                    description: "Exigences internes et doctrines projet non strictement réglementaires.",
+                    body: renderPlaceholderList([
+                      "Standards internes, listes rouges, bibliothèques de détails, prescriptions d’exploitation et d’entretien."
+                    ])
+                  })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "DTU / Eurocodes / normes projet",
-                  description: "Bibliothèque normative de référence du projet.",
-                  body: `${renderPlaceholderList([
-                    "DTU, Eurocodes, NF, guides, règles professionnelles et prescriptions spécifiques."
-                  ])}`
-                })}
+              ${renderSettingsBlock({
+                id: "parametres-droits",
+                title: "Gouvernance",
+                lead: "Garde-fous organisationnels qui encadrent la production, la revue, la qualification et la clôture.",
+                cards: [
+                  renderSectionCard({ title: "droits par acteur", body: renderPlaceholderList(["Droits d’ouverture, commentaire, validation, rejet, diffusion et clôture par rôle."]) })
+                ]
+              })}
 
-                ${renderSectionCard({
-                  title: "doctrines particulières du maître d’ouvrage",
-                  description: "Exigences internes et doctrines projet non strictement réglementaires.",
-                  body: `${renderPlaceholderList([
-                    "Standards internes, listes rouges, bibliothèques de détails, prescriptions d’exploitation et d’entretien."
-                  ])}`
-                })}
-              </section>
+              ${renderSettingsBlock({
+                id: "parametres-circuits",
+                title: "Gouvernance",
+                lead: "Règles d’approbation et d’escalade du projet.",
+                cards: [
+                  renderSectionCard({ title: "circuits de validation", body: renderPlaceholderList(["Règles d’approbation, escalade, quorum et cas bloquants selon la nature du sujet."]) })
+                ]
+              })}
 
-              <section class="settings-section" id="parametres-droits">
-                <h3>Gouvernance</h3>
-                <p class="settings-lead">Garde-fous organisationnels qui encadrent la production, la revue, la qualification et la clôture.</p>
+              ${renderSettingsBlock({
+                id: "parametres-taxonomie",
+                title: "Gouvernance",
+                lead: "Structuration de la classification métier.",
+                cards: [
+                  renderSectionCard({ title: "taxonomie des sujets", body: renderPlaceholderList(["Arborescence de thèmes, sous-thèmes, disciplines et codes de classification réutilisés partout."]) })
+                ]
+              })}
 
-                ${renderSectionCard({ title: "droits par acteur", body: renderPlaceholderList(["Droits d’ouverture, commentaire, validation, rejet, diffusion et clôture par rôle."]) })}
-                ${renderSectionCard({ title: "circuits de validation", body: renderPlaceholderList(["Règles d’approbation, escalade, quorum et cas bloquants selon la nature du sujet."]) })}
-                ${renderSectionCard({ title: "taxonomie des sujets", body: renderPlaceholderList(["Arborescence de thèmes, sous-thèmes, disciplines et codes de classification réutilisés partout."]) })}
-                ${renderSectionCard({ title: "règles de criticité", body: renderPlaceholderList(["Critères de sévérité, probabilité, impact, urgence et seuils d’alerte."]) })}
-                ${renderSectionCard({ title: "nomenclature documentaire", body: renderPlaceholderList(["Convention de nommage, identifiants, versions, lots, zones et statuts documentaires."]) })}
-                ${renderSectionCard({ title: "workflow de PR", body: renderPlaceholderList(["Règles d’ouverture, revue, approbation, intégration et traçabilité des propositions."]) })}
-                ${renderSectionCard({ title: "politique de clôture des sujets", body: renderPlaceholderList(["Preuves minimales, validations attendues et critères de fermeture / réouverture."]) })}
-              </section>
+              ${renderSettingsBlock({
+                id: "parametres-criticite",
+                title: "Gouvernance",
+                lead: "Critères de sévérité, impact et urgence.",
+                cards: [
+                  renderSectionCard({ title: "règles de criticité", body: renderPlaceholderList(["Critères de sévérité, probabilité, impact, urgence et seuils d’alerte."]) })
+                ]
+              })}
 
-              <section class="settings-section" id="parametres-jalons">
-                <h3>Paramètres opérationnels</h3>
-                <p class="settings-lead">Paramètres d’exécution utiles au quotidien pour produire, revoir et diffuser de manière homogène.</p>
+              ${renderSettingsBlock({
+                id: "parametres-nomenclature",
+                title: "Gouvernance",
+                lead: "Convention de nommage et d’identification documentaire.",
+                cards: [
+                  renderSectionCard({ title: "nomenclature documentaire", body: renderPlaceholderList(["Convention de nommage, identifiants, versions, lots, zones et statuts documentaires."]) })
+                ]
+              })}
 
-                ${renderSectionCard({ title: "jalons", body: renderPlaceholderList(["Jalons de revue, échéances, fenêtres de diffusion et points de contrôle."]) })}
-                ${renderSectionCard({ title: "responsabilités", body: renderPlaceholderList(["Répartition RACI ou équivalent par type d’action, lot et phase."]) })}
-                ${renderSectionCard({ title: "champs obligatoires", body: renderPlaceholderList(["Données minimales exigées selon l’objet créé : sujet, avis, document, proposition, diffusion."]) })}
-                ${renderSectionCard({ title: "modèles de documents", body: renderPlaceholderList(["Gabarits de fiches, bordereaux, rapports, notices et documents de synthèse."]) })}
-                ${renderSectionCard({ title: "templates de remarques", body: renderPlaceholderList(["Bibliothèque de formulations normalisées par discipline et niveau de criticité."]) })}
-                ${renderSectionCard({ title: "matrices de diffusion", body: renderPlaceholderList(["Destinataires, visas, pièces jointes et conditions de diffusion selon le contexte."]) })}
-              </section>
+              ${renderSettingsBlock({
+                id: "parametres-workflow-pr",
+                title: "Gouvernance",
+                lead: "Cadre de traitement des propositions.",
+                cards: [
+                  renderSectionCard({ title: "workflow de PR", body: renderPlaceholderList(["Règles d’ouverture, revue, approbation, intégration et traçabilité des propositions."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-cloture",
+                title: "Gouvernance",
+                lead: "Règles de fermeture et de réouverture.",
+                cards: [
+                  renderSectionCard({ title: "politique de clôture des sujets", body: renderPlaceholderList(["Preuves minimales, validations attendues et critères de fermeture / réouverture."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-jalons",
+                title: "Paramètres opérationnels",
+                lead: "Échéances et points de passage du projet.",
+                cards: [
+                  renderSectionCard({ title: "jalons", body: renderPlaceholderList(["Jalons de revue, échéances, fenêtres de diffusion et points de contrôle."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-responsabilites",
+                title: "Paramètres opérationnels",
+                lead: "Répartition des rôles d’exécution.",
+                cards: [
+                  renderSectionCard({ title: "responsabilités", body: renderPlaceholderList(["Répartition RACI ou équivalent par type d’action, lot et phase."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-champs",
+                title: "Paramètres opérationnels",
+                lead: "Informations minimales imposées selon les objets créés.",
+                cards: [
+                  renderSectionCard({ title: "champs obligatoires", body: renderPlaceholderList(["Données minimales exigées selon l’objet créé : sujet, avis, document, proposition, diffusion."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-modeles",
+                title: "Paramètres opérationnels",
+                lead: "Gabarits de livrables et supports projet.",
+                cards: [
+                  renderSectionCard({ title: "modèles de documents", body: renderPlaceholderList(["Gabarits de fiches, bordereaux, rapports, notices et documents de synthèse."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-templates",
+                title: "Paramètres opérationnels",
+                lead: "Bibliothèque de formulations réutilisables.",
+                cards: [
+                  renderSectionCard({ title: "templates de remarques", body: renderPlaceholderList(["Bibliothèque de formulations normalisées par discipline et niveau de criticité."]) })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-diffusion",
+                title: "Paramètres opérationnels",
+                lead: "Règles de diffusion selon le contexte et les destinataires.",
+                cards: [
+                  renderSectionCard({ title: "matrices de diffusion", body: renderPlaceholderList(["Destinataires, visas, pièces jointes et conditions de diffusion selon le contexte."]) })
+                ]
+              })}
             </div>
           </div>
         </div>
@@ -481,43 +732,28 @@ function bindParametresEvents() {
 
 function bindParametresNav() {
   const scrollEl = document.getElementById("projectParametresScroll");
-  const links = Array.from(document.querySelectorAll("[data-settings-anchor]"));
-  const sections = links
-    .map((link) => document.querySelector(link.getAttribute("href")))
-    .filter(Boolean);
+  const links = Array.from(document.querySelectorAll("[data-settings-target]"));
+  const blocks = Array.from(document.querySelectorAll("[data-settings-block]"));
 
-  if (!scrollEl || !links.length || !sections.length) return;
+  if (!scrollEl || !links.length || !blocks.length) return;
 
-  const setActive = (id) => {
+  const showBlock = (targetId) => {
     links.forEach((link) => {
-      const isActive = link.getAttribute("href") === `#${id}`;
-      link.classList.toggle("is-active", isActive);
+      link.classList.toggle("is-active", link.dataset.settingsTarget === targetId);
     });
+
+    blocks.forEach((block) => {
+      block.classList.toggle("is-active", block.dataset.settingsBlock === targetId);
+    });
+
+    scrollEl.scrollTo({ top: 0, behavior: "auto" });
   };
 
   links.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      const target = document.querySelector(link.getAttribute("href"));
-      if (!target) return;
-      e.preventDefault();
-      const top = target.offsetTop - 8;
-      scrollEl.scrollTo({ top, behavior: "smooth" });
-      setActive(target.id);
+    link.addEventListener("click", () => {
+      showBlock(link.dataset.settingsTarget);
     });
   });
 
-  const onScroll = () => {
-    const current = sections.reduce((best, section) => {
-      const delta = Math.abs(section.offsetTop - scrollEl.scrollTop - 12);
-      if (!best || delta < best.delta) {
-        return { id: section.id, delta };
-      }
-      return best;
-    }, null);
-
-    if (current?.id) setActive(current.id);
-  };
-
-  scrollEl.addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
+  showBlock("parametres-general");
 }
