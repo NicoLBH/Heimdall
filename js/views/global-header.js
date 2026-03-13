@@ -68,7 +68,15 @@ export function renderGlobalHeader() {
           <span class="gh-brand__name">${model.primary}</span>
           ${
             model.showSecondary
-              ? `<span class="gh-brand__sep">/</span><span class="gh-brand__repo">${model.secondary}</span>`
+              ? `
+                <span class="gh-brand__sep">/</span>
+                <span class="gh-brand__repo">${model.secondary}</span>
+
+                <span id="projectCompactTab" class="gh-brand__compact-tab" aria-hidden="true">
+                  <span class="gh-brand__sep">/</span>
+                  <span id="projectCompactTabLabel" class="gh-brand__compact-tab-label"></span>
+                </span>
+              `
               : ``
           }
         </a>
