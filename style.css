@@ -2752,7 +2752,6 @@ color:#ffff;
 
 .documents-dropzone__inner{
   padding:32px 24px;
-  max-width:760px;
 }
 
 .documents-dropzone__icon{
@@ -2839,7 +2838,6 @@ color:#ffff;
 }
 
 .documents-radio-group{
-  border:1px solid var(--border);
   border-radius:10px;
   overflow:hidden;
   margin-top:16px;
@@ -2849,9 +2847,8 @@ color:#ffff;
   display:flex;
   align-items:center;
   gap:12px;
-  padding:14px 16px;
+  margin-bottom:8px;
   cursor:pointer;
-  border-bottom:1px solid var(--border);
 }
 
 .documents-radio-option:last-child{
