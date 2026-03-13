@@ -2196,13 +2196,44 @@ function renderDetailsHtml(selectionOverride = null, options = {}) {
   };
 }
 
+function renderOverlayChromeHeadHtml({
+  eyebrow = "DÉTAILS",
+  titleId,
+  metaId = "",
+  closeId,
+  closeLabel = "Fermer",
+  headClass = ""
+} = {}) {
+  const safeTitleId = escapeHtml(titleId || "");
+  const safeMetaId = escapeHtml(metaId || "");
+  const safeCloseId = escapeHtml(closeId || "");
+  const safeCloseLabel = escapeHtml(closeLabel || "Fermer");
+  const safeHeadClass = escapeHtml(headClass || "");
+
+  return `
+    <div class="${safeHeadClass} overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded">
+      <div class="overlay-chrome__bar">
+        <div class="overlay-chrome__context">
+          <div class="overlay-chrome__eyebrow mono">${escapeHtml(eyebrow)}</div>
+          <div class="overlay-chrome__titlewrap" id="${safeTitleId}">—</div>
+        </div>
+
+        <div class="overlay-chrome__actions">
+          ${safeMetaId ? `<div class="details-meta mono" id="${safeMetaId}"></div>` : ""}
+          <button class="icon-btn icon-btn--sm" id="${safeCloseId}" aria-label="${safeCloseLabel}">✕</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* =========================================================
    Modal / rerender / selection
 ========================================================= */
 
 function updateDetailsModal() {
   const modal = document.getElementById("detailsModal");
-  const head = modal?.querySelector?.('.modal__head');
+  const head = modal?.querySelector?.(".modal__head");
   const title = document.getElementById("detailsTitleModal");
   const meta = document.getElementById("detailsMetaModal");
   const body = document.getElementById("detailsBodyModal");
@@ -2216,7 +2247,9 @@ function updateDetailsModal() {
       expandedSujets: store.situationsView.rightExpandedSujets
     }
   });
-  if (head) head.classList.add('details-head--expanded');
+
+  if (head) head.classList.add("details-head--expanded");
+
   const selection = getActiveSelection();
   title.innerHTML = renderDetailsTitleWrapHtml(selection);
   meta.textContent = details.modalMeta;
@@ -2224,8 +2257,13 @@ function updateDetailsModal() {
 
   ensureDrilldownDom();
 
-  if (store.situationsView.detailsModalOpen) modal.classList.remove("hidden");
-  else modal.classList.add("hidden");
+  if (store.situationsView.detailsModalOpen) {
+    modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+  } else {
+    modal.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+  }
 
   wireDetailsInteractive(body);
   bindDetailsScroll(document);
@@ -2240,6 +2278,7 @@ function openDetailsModal() {
 
 function closeDetailsModal() {
   store.situationsView.detailsModalOpen = false;
+  document.body.classList.remove("modal-open");
   updateDetailsModal();
 }
 
@@ -2617,28 +2656,30 @@ function initRightSplitter(root) {
 
 function ensureDrilldownDom() {
   if (document.getElementById("drilldownPanel")) return;
+
   const panel = document.createElement("div");
   panel.id = "drilldownPanel";
   panel.className = "drilldown hidden";
+
   panel.innerHTML = `
-    <div class="drilldown__inner gh-panel gh-panel--details">
-      <div class="drilldown__head gh-panel__head gh-panel__head--tight">
-        <div class="details-head details-head--expanded" style="width:100%;">
-          <div class="details-head-left" style="min-width:0;">
-            <div class="details-kicker mono">DÉTAILS</div>
-            <div class="gh-panel__title" id="drilldownTitle">—</div>
-          </div>
-          <div class="details-head-right">
-            <button class="icon-btn icon-btn--sm" id="drilldownClose" aria-label="Fermer">✕</button>
-          </div>
-        </div>
-      </div>
-      <div class="drilldown__body details-body" id="drilldownBody"></div>
+    <div class="drilldown__inner overlay-chrome overlay-chrome--drilldown gh-panel gh-panel--details">
+      ${renderOverlayChromeHeadHtml({
+        eyebrow: "DÉTAILS",
+        titleId: "drilldownTitle",
+        closeId: "drilldownClose",
+        closeLabel: "Fermer",
+        headClass: "drilldown__head"
+      })}
+      <div class="drilldown__body overlay-chrome__body details-body" id="drilldownBody"></div>
     </div>
   `;
+
   document.body.appendChild(panel);
-  panel.querySelector('#drilldownClose')?.addEventListener('click', closeDrilldown);
-  panel.addEventListener('click', (ev) => { if (ev.target === panel) closeDrilldown(); });
+
+  panel.querySelector("#drilldownClose")?.addEventListener("click", closeDrilldown);
+  panel.addEventListener("click", (ev) => {
+    if (ev.target === panel) closeDrilldown();
+  });
 }
 
 function getDrilldownSelection() {
@@ -2663,6 +2704,7 @@ function getDrilldownSelection() {
 function updateDrilldownPanel() {
   ensureViewUiState();
   ensureDrilldownDom();
+
   const panel = document.getElementById("drilldownPanel");
   const title = document.getElementById("drilldownTitle");
   const body = document.getElementById("drilldownBody");
@@ -2680,8 +2722,10 @@ function updateDrilldownPanel() {
 
   title.innerHTML = selection ? renderDetailsTitleWrapHtml(selection) : "—";
   body.innerHTML = details.bodyHtml;
+
   wireDetailsInteractive(body);
   bindDetailsScroll(document);
+  body.__syncCondensedTitle?.();
 }
 
 function openDrilldown() {
@@ -2744,9 +2788,11 @@ function bindCondensedTitleScroll(scrollEl, classHost, key) {
 
   const syncCompactState = () => {
     const scrolled = (scrollEl.scrollTop || 0) > 8;
-    classHost.classList.toggle("details-scrolled", scrolled);
 
-    classHost.querySelectorAll?.(".gh-panel__head--tight, .modal__head, .drilldown__head").forEach((head) => {
+    classHost.classList.toggle("details-scrolled", scrolled);
+    classHost.classList.toggle("overlay-chrome--compact", scrolled);
+
+    classHost.querySelectorAll?.(".gh-panel__head--tight, .overlay-chrome__head").forEach((head) => {
       head.classList.toggle("details-head--compact", scrolled);
       head.classList.toggle("details-head--expanded", !scrolled);
     });
