@@ -2538,3 +2538,261 @@ color:#ffff;
 .settings-block--hero .settings-card{
   margin-top:8px;
 }
+/* ===== Documents ===== */
+
+.project-simple-page--documents{
+  padding:0;
+}
+
+.documents-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.documents-toolbar__left{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.documents-repo{
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  background:transparent;
+}
+
+.documents-repo__head,
+.documents-repo__row{
+  display:grid;
+  grid-template-columns:minmax(280px, 1.2fr) minmax(220px, 1fr) 180px;
+  gap:16px;
+  align-items:center;
+}
+
+.documents-repo__head{
+  padding:12px 16px;
+  font-size:12px;
+  color:var(--muted);
+  background:rgb(21, 27, 35);
+  border-bottom:1px solid var(--border2);
+}
+
+.documents-repo__row{
+  padding:12px 16px;
+  border-bottom:1px solid rgba(48,54,61,.5);
+}
+
+.documents-repo__row:last-child{
+  border-bottom:none;
+}
+
+.documents-repo__row:hover{
+  background:rgba(110,118,129,.06);
+}
+
+.documents-repo__cell{
+  min-width:0;
+}
+
+.documents-repo__cell--name{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+
+.documents-repo__name{
+  font-weight:600;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.documents-repo__cell--message,
+.documents-repo__cell--date{
+  color:var(--muted);
+  font-size:14px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.documents-repo__icon{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:rgb(47, 129, 247);
+}
+
+.documents-upload-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr);
+  gap:16px;
+}
+
+.documents-dropzone{
+  border:1px solid var(--border);
+  border-radius:12px;
+  min-height:280px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  background:transparent;
+  transition:border-color .12s ease, background .12s ease;
+}
+
+.documents-dropzone.is-dragover{
+  border-color:rgb(47, 129, 247);
+  background:rgba(56,139,253,.08);
+}
+
+.documents-dropzone__inner{
+  padding:32px 24px;
+  max-width:760px;
+}
+
+.documents-dropzone__icon{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:16px;
+  color:var(--muted);
+}
+
+.documents-dropzone__icon svg{
+  width:32px;
+  height:32px;
+}
+
+.documents-dropzone__inner h3{
+  margin:0 0 10px 0;
+  font-size:20px;
+  font-weight:600;
+}
+
+.documents-dropzone__inner p{
+  margin:0;
+  color:var(--muted);
+}
+
+.documents-dropzone__link{
+  border:none;
+  background:none;
+  color:rgb(47, 129, 247);
+  cursor:pointer;
+  padding:0;
+  font:inherit;
+}
+
+.documents-dropzone__link:hover{
+  text-decoration:underline;
+}
+
+.documents-upload__file{
+  margin-top:18px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.documents-commit-card{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+  background:transparent;
+}
+
+.documents-commit-card__title{
+  font-size:32px;
+  line-height:1.2;
+  font-weight:600;
+  margin-bottom:16px;
+}
+
+.documents-form-field{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-bottom:12px;
+}
+
+.documents-form-field label{
+  font-size:14px;
+  font-weight:600;
+}
+
+.gh-input.gh-textarea{
+  min-height:100px;
+  resize:vertical;
+  padding:10px 12px;
+}
+
+.documents-radio-group{
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+  margin-top:16px;
+}
+
+.documents-radio-option{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  cursor:pointer;
+  border-bottom:1px solid var(--border);
+}
+
+.documents-radio-option:last-child{
+  border-bottom:none;
+}
+
+.documents-radio-option:hover{
+  background:rgba(110,118,129,.06);
+}
+
+.documents-radio-option input[type="radio"]{
+  margin:0;
+  flex:0 0 auto;
+}
+
+.documents-radio-option__icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  flex:0 0 auto;
+}
+
+.documents-radio-option__text{
+  min-width:0;
+  font-size:14px;
+}
+
+.documents-commit-card__actions{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:16px;
+}
+
+@media (max-width: 900px){
+  .documents-repo__head,
+  .documents-repo__row{
+    grid-template-columns:minmax(220px, 1fr) 140px;
+  }
+
+  .documents-repo__col--message,
+  .documents-repo__cell--message{
+    display:none;
+  }
+
+  .documents-commit-card__title{
+    font-size:24px;
+  }
+}
