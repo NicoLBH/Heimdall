@@ -2276,22 +2276,24 @@ function rerenderPanels() {
 function selectSituation(situationId) {
   const situation = getNestedSituation(situationId);
   if (!situation) return;
+
   store.situationsView.selectedSituationId = situationId;
   store.situationsView.selectedSujetId = null;
   store.situationsView.selectedAvisId = null;
-  store.situationsView.expandedSituations.add(situationId);
+
   rerenderPanels();
 }
 
 function selectSujet(sujetId) {
   const sujet = getNestedSujet(sujetId);
   if (!sujet) return;
+
   const situation = getSituationBySujetId(sujetId);
+
   store.situationsView.selectedSituationId = situation?.id || null;
   store.situationsView.selectedSujetId = sujetId;
   store.situationsView.selectedAvisId = null;
-  if (situation?.id) store.situationsView.expandedSituations.add(situation.id);
-  store.situationsView.expandedSujets.add(sujetId);
+
   rerenderPanels();
 }
 
