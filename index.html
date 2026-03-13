@@ -15,19 +15,23 @@
 <main id="app"></main>
 <!-- DETAILS MODAL (inchangé) -->
 <div id="detailsModal" class="modal hidden">
-  <div class="modal__inner">
-    <div class="modal__head">
-     <div class="modal__head-left">
-      <div class="details-kicker mono">DÉTAILS</div>
-      <div class="modal__title" id="detailsTitleModal"></div>
-     </div>
-     <div class="modal__head-right">
-      <div class="details-meta mono" id="detailsMetaModal"></div>
-      <button id="detailsClose" class="icon-btn icon-btn--sm">✕</button>
-     </div>
+  <div class="modal__inner overlay-chrome overlay-chrome--modal">
+    <div class="modal__head overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded">
+      <div class="overlay-chrome__bar">
+        <div class="overlay-chrome__context">
+          <div class="overlay-chrome__eyebrow mono">DÉTAILS</div>
+          <div class="overlay-chrome__titlewrap" id="detailsTitleModal"></div>
+        </div>
+
+        <div class="overlay-chrome__actions">
+          <div class="details-meta mono" id="detailsMetaModal"></div>
+          <button id="detailsClose" class="icon-btn icon-btn--sm" aria-label="Fermer">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal__body overlay-chrome__body" id="detailsBodyModal"></div>
   </div>
-  <div class="modal__body" id="detailsBodyModal"></div>
- </div>
 </div>
 
 <script type="module" src="js/app.js"></script>
