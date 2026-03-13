@@ -2795,19 +2795,26 @@ color:#ffff;
   color:var(--muted);
   font-size:13px;
 }
-
+documents-commit-shell__avatar-img{
+    border-radius: 50%;
+    float: left;
+    height: 48px;
+    width: 48px;
+}
 .documents-commit-card{
   border:1px solid var(--border);
   border-radius:12px;
   padding:16px;
   background:transparent;
+  margin-left:64px;
 }
 
 .documents-commit-card__title{
-  font-size:32px;
+  font-size:18px;
   line-height:1.2;
   font-weight:600;
   margin-bottom:16px;
+  color:#ffff;
 }
 
 .documents-form-field{
@@ -2867,7 +2874,7 @@ color:#ffff;
 
 .documents-radio-option__text{
   min-width:0;
-  font-size:14px;
+  font-size:13px;
 }
 
 .documents-commit-card__actions{
