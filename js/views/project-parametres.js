@@ -425,9 +425,9 @@ function getPageHtml(form) {
                     description: "Paramètres territoriaux imposés par la réglementation applicable.",
                     badge: "LIVE",
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderInputField({ id: "zoneSismique", label: "zone sismique", value: form.zoneSismique || "", placeholder: "Ex. 3" })}
-                      ${renderInputField({ id: "liquefactionText", label: "liquéfaction", value: form.liquefactionText || "Non défini à ce stade", options: ["Sol non liquéfiable", "Sol liquéfiable", "Non défini à ce stade"] })}
-                      ${renderSelectField({ id: "soilClass", label: "classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
+                      ${renderSelectField({ id: "zoneSismique", label: "zone sismique", value: form.zoneSismique || "3", options: ["1", "2", "3", "4", "5"]  })}
+                      ${renderSelectField({ id: "liquefactionText", label: "Liquéfaction", value: form.liquefactionText || "Non défini à ce stade", options: ["Sol non liquéfiable", "Sol liquéfiable", "Non défini à ce stade"] })}
+                      ${renderSelectField({ id: "soilClass", label: "Classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
                     </div>`
                   })
                 ]
@@ -474,7 +474,7 @@ function getPageHtml(form) {
                     description: "Cadre réglementaire et hypothèses d’entrée du lot parasismique.",
                     badge: "LIVE",
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderSelectField({ id: "referential", label: "référentiel", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
+                      ${renderSelectField({ id: "referential", label: "Référentiel parasismique", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
                     </div>`
                   })
                 ]
