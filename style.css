@@ -1920,9 +1920,6 @@ body.route--project:not(.project-shell-compact) [data-chrome-visibility="compact
   min-height:0;
   overflow:auto;
   padding:16px;
-  max-width: 1280px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .project-shell{display:flex;flex-direction:column;min-width:0;}
