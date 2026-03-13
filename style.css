@@ -2830,7 +2830,10 @@ color:#ffff;
   font-size:14px;
   font-weight:600;
 }
-
+.documents-commit-card-actions{
+  border: none;
+  padding: 0px;
+}
 .gh-input.gh-textarea{
   min-height:100px;
   resize:vertical;
