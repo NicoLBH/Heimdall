@@ -1599,7 +1599,7 @@ body.drilldown-open .drilldown__inner {
   z-index:auto;
 }
 .project-tabs a{
-  display:inline-block;
+  display:inline-flex;
   position:relative;
   align-items:center;
   padding:6px 8px;
@@ -1634,7 +1634,53 @@ body.drilldown-open .drilldown__inner {
 .project-tabs a.active::after{
   background-color:rgb(247, 129, 102);
 }
+.project-tabs__item{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
 
+.project-tabs__icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:currentColor;
+  flex:0 0 auto;
+}
+
+.project-tabs__icon .octicon{
+  width:16px;
+  height:16px;
+}
+
+.project-tabs__label{
+  display:inline-block;
+}
+
+.project-tabs__counter{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  margin-left:2px;
+  border-radius:999px;
+  background:rgba(110,118,129,.22);
+  color:inherit;
+  font-size:11px;
+  font-weight:600;
+  line-height:18px;
+}
+
+.project-tabs a:hover .project-tabs__counter{
+  background:rgba(110,118,129,.32);
+}
+
+.project-tabs a.active .project-tabs__counter{
+  background:rgba(110,118,129,.28);
+}
 #app{
   position:fixed;
   top:var(--app-top);
