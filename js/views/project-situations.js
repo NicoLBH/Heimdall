@@ -2919,8 +2919,12 @@ export function renderProjectSituations(root) {
   }
 
     root.innerHTML = `
-    <section class="gh-panel gh-panel--results" aria-label="Results">
-      <div class="gh-panel__head gh-panel__head--tight">
+        <section class="gh-panel gh-panel--results" aria-label="Results">
+      <div class="gh-panel__head gh-panel__head--tight project-view-head project-view-head--situations js-project-view-head">
+        <div class="project-view-head__context">
+          <div class="project-view-head__tab mono js-project-view-tab-label">Situations</div>
+        </div>
+
         <div class="results-bar">
           <div class="results-bar__left">
             <label class="gh-filter gh-filter--inline">
