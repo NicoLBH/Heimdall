@@ -29,19 +29,18 @@ function bootstrap() {
 
   bindAnalysisEvents();
 
+  // Très important :
+  // le global shell doit être rerendu AVANT le router sur chaque hashchange,
+  // pour que mountProjectShellChrome capture les bons noeuds du header courant.
   renderGlobalShell();
+  window.addEventListener("hashchange", renderGlobalShell);
+
   mountAssistOverlay();
   bindGlobalAssistLauncher();
   initRouter();
 
-  window.addEventListener("hashchange", () => {
-    renderGlobalShell();
-  });
-
   if (!location.hash) {
     location.hash = "#project/demo/situations";
-  } else {
-    renderGlobalShell();
   }
 }
 
