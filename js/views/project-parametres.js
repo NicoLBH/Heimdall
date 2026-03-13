@@ -427,7 +427,8 @@ function getPageHtml(form) {
                     badge: "LIVE",
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
                       ${renderInputField({ id: "zoneSismique", label: "zone sismique", value: form.zoneSismique || "", placeholder: "Ex. 3" })}
-                      ${renderInputField({ id: "liquefactionText", label: "liquéfaction", value: form.liquefactionText || "", placeholder: "Ex. non / possible / avérée" })}
+                      ${renderInputField({ id: "liquefactionText", label: "liquéfaction", value: form.liquefactionText || "Non défini à ce stade", options: ["Sol non liquéfiable", "Sol liquéfiable", "Non défini à ce stade"] })}
+                      ${renderSelectField({ id: "soilClass", label: "classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
                     </div>`
                   })
                 ]
@@ -475,7 +476,6 @@ function getPageHtml(form) {
                     badge: "LIVE",
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
                       ${renderSelectField({ id: "referential", label: "référentiel", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
-                      ${renderSelectField({ id: "soilClass", label: "classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
                     </div>`
                   })
                 ]
