@@ -1766,6 +1766,8 @@ body.route--project.project-shell-compact .project-view-header__bar{
 body.route--project.project-shell-compact .project-view-header__toolbar{
   padding-top:10px;
   padding-bottom:10px;
+  background: var(--headbg);
+  border-bottom: solid 1px var(--border);
 }
 body.route--project.project-shell-compact .project-tabs,
 .project-tabs.project-tabs--hidden{
