@@ -1,6 +1,19 @@
+export const PROJECT_TAB_IDS = {
+  DOCUMENTS: "documents",
+  SITUATIONS: "situations",
+  PROPOSITIONS: "propositions",
+  DISCUSSIONS: "discussions",
+  ACTIONS: "actions",
+  PILOTAGE: "pilotage",
+  REFERENTIEL: "referentiel",
+  RISQUES_SECURITE: "risquesSecurite",
+  INSIGHTS: "insights",
+  PARAMETRES: "parametres",
+};
+
 export const PROJECT_TABS = [
   {
-    id: "documents",
+    id: PROJECT_TAB_IDS.DOCUMENTS,
     label: "Documents",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-file" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -9,7 +22,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "situations",
+    id: PROJECT_TAB_IDS.SITUATIONS,
     label: "Sujets",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-issue-opened" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -20,7 +33,7 @@ export const PROJECT_TABS = [
     countKey: "openSujets"
   },
   {
-    id: "propositions",
+    id: PROJECT_TAB_IDS.PROPOSITIONS,
     label: "Propositions",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-git-pull-request" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -29,7 +42,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "discussions",
+    id: PROJECT_TAB_IDS.DISCUSSIONS,
     label: "Discussions",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-comment-discussion" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -38,7 +51,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "actions",
+    id: PROJECT_TAB_IDS.ACTIONS,
     label: "Actions",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-play" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -47,7 +60,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "pilotage",
+    id: PROJECT_TAB_IDS.PILOTAGE,
     label: "Pilotage",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-table" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -56,7 +69,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "referentiel",
+    id: PROJECT_TAB_IDS.REFERENTIEL,
     label: "Référentiel",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-book" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -65,7 +78,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "risquesSecurite",
+    id: PROJECT_TAB_IDS.RISQUES_SECURITE,
     label: "Risques & sécurité",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-shield" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -74,7 +87,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "insights",
+    id: PROJECT_TAB_IDS.INSIGHTS,
     label: "Indicateurs",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-graph" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -83,7 +96,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "parametres",
+    id: PROJECT_TAB_IDS.PARAMETRES,
     label: "Paramètres",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-gear" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -92,6 +105,14 @@ export const PROJECT_TABS = [
     `
   }
 ];
+
+export const DEFAULT_PROJECT_TABS_VISIBILITY = {
+  propositions: true,
+  discussions: false,
+  pilotage: false,
+  referentiel: false,
+  risquesSecurite: false,
+};
 
 export const ASK_LLM_URL_PROD =
   "https://nicolbh.app.n8n.cloud/webhook/rapsobot-poc-ask-llm";
