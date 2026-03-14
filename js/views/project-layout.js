@@ -12,10 +12,56 @@ import { renderProjectRisquesSecurite } from "./project-risques-securite.js";
 import { renderProjectPilotage } from "./project-pilotage.js";
 import { renderProjectParametres } from "./project-parametres.js";
 
+function normalizeProjectTab(tab) {
+  const value = String(tab || "").trim();
+
+  switch (value) {
+    case "documents":
+      return "documents";
+
+    case "situations":
+      return "situations";
+
+    case "propositions":
+      return "propositions";
+
+    case "discussions":
+    case "coordination":
+      return "discussions";
+
+    case "actions":
+    case "workflows":
+      return "actions";
+
+    case "pilotage":
+      return "pilotage";
+
+    case "referentiel":
+      return "referentiel";
+
+    case "risquesSecurite":
+    case "risques-securite":
+      return "risquesSecurite";
+
+    case "insights":
+    case "indicateurs":
+    case "jalons":
+      return "insights";
+
+    case "parametres":
+      return "parametres";
+
+    default:
+      return "documents";
+  }
+}
+
 export function renderProjectLayout(root, projectId, tab) {
+  const normalizedTab = normalizeProjectTab(tab);
+
   root.innerHTML = `
     <div class="project-shell" id="projectShell">
-      ${renderProjectHeader(projectId, tab)}
+      ${renderProjectHeader(projectId, normalizedTab)}
 
       <div class="project-shell__body">
         ${renderProjectSituationsTopBanner()}
@@ -25,42 +71,52 @@ export function renderProjectLayout(root, projectId, tab) {
     </div>
   `;
 
-  mountProjectShellChrome({ projectId, tab });
+  mountProjectShellChrome({ projectId, tab: normalizedTab });
 
   const content = document.getElementById("project-content");
   if (!content) return;
 
-  switch (tab) {
+  switch (normalizedTab) {
     case "documents":
       renderProjectDocuments(content);
       break;
+
     case "situations":
       renderProjectSituations(content);
       break;
+
     case "propositions":
       renderProjectPropositions(content);
       break;
-    case "coordination":
+
+    case "discussions":
       renderProjectCoordination(content);
       break;
-    case "workflows":
+
+    case "actions":
       renderProjectWorkflows(content);
       break;
-    case "jalons":
-      renderProjectJalons(content);
-      break;
-    case "referentiel":
-      renderProjectReferentiel(content);
-      break;
-    case "risques-securite":
-      renderProjectRisquesSecurite(content);
-      break;
+
     case "pilotage":
       renderProjectPilotage(content);
       break;
+
+    case "referentiel":
+      renderProjectReferentiel(content);
+      break;
+
+    case "risquesSecurite":
+      renderProjectRisquesSecurite(content);
+      break;
+
+    case "insights":
+      renderProjectJalons(content);
+      break;
+
     case "parametres":
       renderProjectParametres(content);
       break;
+
     default:
       renderProjectDocuments(content);
       break;
