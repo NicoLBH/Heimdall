@@ -807,6 +807,72 @@ body.modal-open {
   background: transparent !important;
 }
 
+/* ===== Project table toolbar ===== */
+.project-table-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  width:100%;
+}
+
+.project-table-toolbar__left,
+.project-table-toolbar__right{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+
+.project-table-toolbar__left{
+  flex:1 1 auto;
+}
+
+.project-table-toolbar__right{
+  flex:0 0 auto;
+  justify-content:flex-end;
+  white-space:nowrap;
+}
+
+.project-table-toolbar__group{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+
+.project-table-toolbar__control{
+  display:flex;
+  align-items:center;
+  min-width:0;
+}
+
+.project-table-toolbar__search{
+  display:flex;
+  align-items:center;
+  min-width:0;
+}
+
+.project-table-toolbar__search .gh-input-wrap{
+  min-width:0;
+}
+
+.project-table-toolbar__search .gh-input-wrap__control{
+  min-width:0;
+}
+
+.project-table-toolbar__search .gh-input{
+  width:260px;
+  max-width:100%;
+}
+
+.project-table-toolbar__meta{
+  font-size:12px;
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+/* Compat temporaire */
 .results-bar{
   display:flex;
   align-items:center;
@@ -814,18 +880,16 @@ body.modal-open {
   gap:12px;
   width:100%;
 }
-.results-bar__left{
-  display:flex;
-  align-items:center;
-  gap: 12px;
-  min-width: 0;
-}
+.results-bar__left,
 .results-bar__right{
   display:flex;
   align-items:center;
+  gap:12px;
+  min-width:0;
+}
+.results-bar__right{
   justify-content:flex-end;
-  gap: 12px;
-  white-space: nowrap;
+  white-space:nowrap;
 }
 
 .gh-filter--inline{
@@ -1861,7 +1925,8 @@ body.route--project.project-shell-compact .project-tabs,
   padding:8px 16px 0px 16px;
 }
 
-.project-view-header .results-bar{
+.project-view-header .results-bar,
+.project-view-header .project-table-toolbar{
   width:100%;
   padding:0;
 }
@@ -2782,17 +2847,7 @@ color:#ffff;
 }
 
 .documents-toolbar{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
   margin-bottom:16px;
-}
-
-.documents-toolbar__left{
-  display:flex;
-  align-items:center;
-  gap:12px;
 }
 .documents-shell{
   width:min(100%, 1280px);
@@ -3315,6 +3370,9 @@ color:#ffff;
 .project-view-header__toolbar,
 .project-view-header .results-bar,
 .project-view-header .results-bar__left,
+.project-view-header .project-table-toolbar,
+.project-view-header .project-table-toolbar__left,
+.project-view-header .project-table-toolbar__right,
 .project-view-header .gh-select-field,
 .project-view-header .gh-action{
   overflow:visible;
