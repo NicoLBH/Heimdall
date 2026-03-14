@@ -125,10 +125,11 @@ function ensureProjectFormDefaults() {
   form.liquefaction = liquefactionLabelToCode(form.liquefactionText || form.liquefaction || "no");
 
   form.projectTabs = {
-    propositions: form.projectTabs?.propositions !== false,
-    coordination: form.projectTabs?.coordination !== false,
-    jalons: form.projectTabs?.jalons !== false,
-    referentiel: form.projectTabs?.referentiel !== false
+    coordination: typeof form.projectTabs?.coordination === "boolean" ? form.projectTabs.coordination : true,
+    workflows: typeof form.projectTabs?.workflows === "boolean" ? form.projectTabs.workflows : false,
+    jalons: typeof form.projectTabs?.jalons === "boolean" ? form.projectTabs.jalons : false,
+    referentiel: typeof form.projectTabs?.referentiel === "boolean" ? form.projectTabs.referentiel : false,
+    risques-securite: typeof form.projectTabs?.risques-securite === "boolean" ? form.projectTabs.risques-securite : false
   };
 }
 
@@ -212,6 +213,12 @@ function renderProjectTabsFeatureCard(projectTabs) {
       key: "referentiel",
       label: "Référentiel",
       description: "Affiche l’onglet Référentiel dans la navigation projet."
+    },
+    {
+      id: "tabVisibilityRisquesSecurite",
+      key: "risqueSecurite",
+      label: "Risques & sécurité",
+      description: "Affiche l’onglet Risques & sécurité dans la navigation projet."
     }
   ];
 
