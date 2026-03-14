@@ -7,6 +7,7 @@ import {
 } from "../constants.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderGhEditableField, bindGhEditableFields } from "./ui/gh-input.js";
+import { renderGhSelectMenu, bindGhSelectMenus } from "./ui/gh-split-button.js";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -180,14 +181,14 @@ function renderInputField({ id, label, value = "", placeholder = "", width = "" 
 }
 
 function renderSelectField({ id, label, value = "", options = [] }) {
-  return `
-    <div class="form-row form-row--settings">
-      <label for="${escapeHtml(id)}">${escapeHtml(label)}</label>
-      <select id="${escapeHtml(id)}">
-        ${options.map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
-      </select>
-    </div>
-  `;
+  return renderGhSelectMenu({
+    id,
+    label,
+    value,
+    options,
+    tone: "default",
+    size: "md"
+  });
 }
 
 function renderPlaceholderList(items) {
@@ -886,36 +887,45 @@ function bindParametresEvents() {
     }
   });
 
-  bindValue("riskCategory", (value) => {
-    store.projectForm.riskCategory = value;
-    store.projectForm.risk = value;
-  }, "change");
+  bindGhSelectMenus(document, {
+    onChange: (id, value) => {
+      switch (id) {
+        case "riskCategory":
+          store.projectForm.riskCategory = value;
+          store.projectForm.risk = value;
+          break;
 
-  bindValue("importanceCategory", (value) => {
-    store.projectForm.importanceCategory = value;
-    store.projectForm.importance = importanceLabelToCode(value);
-  }, "change");
+        case "importanceCategory":
+          store.projectForm.importanceCategory = value;
+          store.projectForm.importance = importanceLabelToCode(value);
+          break;
 
-  bindValue("projectPhase", (value) => {
-    store.projectForm.phase = value;
-  }, "change");
+        case "projectPhase":
+          store.projectForm.phase = value;
+          break;
 
-  bindValue("zoneSismique", (value) => {
-    store.projectForm.zoneSismique = value;
-  }, "change");
+        case "zoneSismique":
+          store.projectForm.zoneSismique = value;
+          break;
 
-  bindValue("liquefactionText", (value) => {
-    store.projectForm.liquefactionText = value;
-    store.projectForm.liquefaction = liquefactionLabelToCode(value);
-  }, "change");
+        case "liquefactionText":
+          store.projectForm.liquefactionText = value;
+          store.projectForm.liquefaction = liquefactionLabelToCode(value);
+          break;
 
-  bindValue("referential", (value) => {
-    store.projectForm.referential = value;
-  }, "change");
+        case "referential":
+          store.projectForm.referential = value;
+          break;
 
-  bindValue("soilClass", (value) => {
-    store.projectForm.soilClass = value;
-  }, "change");
+        case "soilClass":
+          store.projectForm.soilClass = value;
+          break;
+
+        default:
+          break;
+      }
+    }
+  });
 
   bindProjectTabToggles();
   refreshProjectTabsVisibility();
