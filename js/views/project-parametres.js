@@ -827,13 +827,10 @@ function refreshProjectTabsVisibility() {
 
   tabsRoot.querySelectorAll("[data-project-tab-id]").forEach((link) => {
     const tabId = link.getAttribute("data-project-tab-id");
-    let isVisible = true;
 
-    if (tabId === "propositions") isVisible = visibility.propositions !== false;
-    if (tabId === "discussions") isVisible = visibility.discussions !== false;
-    if (tabId === "pilotage") isVisible = visibility.pilotage !== false;
-    if (tabId === "referentiel") isVisible = visibility.referentiel !== false;
-    if (tabId === "risquesSecurite") isVisible = visibility.risquesSecurite !== false;
+    if (!(tabId in visibility)) return;
+
+    const isVisible = visibility[tabId] !== false;
 
     link.style.display = isVisible ? "" : "none";
     link.setAttribute("aria-hidden", isVisible ? "false" : "true");
