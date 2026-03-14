@@ -44,7 +44,7 @@ export const store = {
       workflows: true,
       jalons: true,
       referentiel: true,
-      risques-securite: true
+      risquesSecurite: true
     },
     webhookUrl: "",
     pdfFile: null
