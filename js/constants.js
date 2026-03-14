@@ -29,7 +29,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "coordination",
+    id: "discussions",
     label: "Discussions",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-comment-discussion" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -38,7 +38,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "workflows",
+    id: "actions",
     label: "Actions",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-play" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
@@ -47,7 +47,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "jalons",
+    id: "pilotage",
     label: "Pilotage",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-table" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
