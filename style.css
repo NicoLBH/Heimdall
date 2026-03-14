@@ -1029,6 +1029,14 @@ body.is-resizing{
   white-space:inherit;
   font-size:13px;
 }
+/* ===== Message thread + comment composer ===== */
+.message-thread{display:block;}
+.message-thread__item{width:100%;}
+.comment-composer{display:flex;gap:12px;align-items:flex-start;margin-top:10px;}
+.comment-composer__main{flex:1 1 auto;min-width:0;}
+.comment-composer__box{width:100%;}
+.comment-composer__actions-right{width:100%;}
+.comment-composer__hint{margin-right:auto;}
 
 /* Bullets in first agent comment: uniform 13px (keep .mono as-is) */
 
