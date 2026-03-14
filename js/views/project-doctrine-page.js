@@ -1,4 +1,9 @@
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
+import {
+  renderSideNavLayout,
+  renderSideNavGroup,
+  renderSideNavItem
+} from "./ui/side-nav-layout.js";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -62,6 +67,20 @@ function renderSection(section) {
   `;
 }
 
+function renderDoctrineNav(config) {
+  return renderSideNavGroup({
+    title: config.navTitle || config.contextLabel,
+    items: (config.navItems || []).map((item, index) =>
+      renderSideNavItem({
+        as: "a",
+        href: `#${item.id}`,
+        label: item.label,
+        isActive: index === 0
+      })
+    )
+  });
+}
+
 export function renderDoctrinePage(root, config) {
   root.className = "project-shell__content";
 
@@ -74,22 +93,15 @@ export function renderDoctrinePage(root, config) {
     toolbarHtml: config.toolbarHtml || ""
   });
 
-  root.innerHTML = `
+    root.innerHTML = `
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="${config.scrollId}">
-        <div class="settings-layout">
-          <aside class="settings-nav">
-            <div class="settings-nav__group">
-              <div class="settings-nav__title">${escapeHtml(config.navTitle || config.contextLabel)}</div>
-              ${config.navItems.map((item, index) => `
-                <a href="#${escapeHtml(item.id)}" class="settings-nav__item ${index === 0 ? "is-active" : ""}">
-                  ${escapeHtml(item.label)}
-                </a>
-              `).join("")}
-            </div>
-          </aside>
-
-          <div class="settings-content">
+        ${renderSideNavLayout({
+          className: "settings-layout side-nav-layout--settings",
+          navClassName: "settings-nav side-nav-layout--settings-nav",
+          contentClassName: "settings-content side-nav-layout--settings-content",
+          navHtml: renderDoctrineNav(config),
+          contentHtml: `
             <header class="settings-page-header">
               <h2>${escapeHtml(config.pageTitle || config.contextLabel)}</h2>
               ${config.pageIntro ? `<p>${escapeHtml(config.pageIntro)}</p>` : ""}
@@ -97,8 +109,8 @@ export function renderDoctrinePage(root, config) {
 
             ${config.topHtml || ""}
             ${config.sections.map(renderSection).join("")}
-          </div>
-        </div>
+          `
+        })}
       </div>
     </section>
   `;
