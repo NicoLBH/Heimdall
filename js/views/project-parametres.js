@@ -127,9 +127,9 @@ function ensureProjectFormDefaults() {
   form.projectTabs = {
     propositions: typeof form.projectTabs?.propositions === "boolean" ? form.projectTabs.propositions : true,
     discussions: typeof form.projectTabs?.discussions === "boolean" ? form.projectTabs.discussions : true,
-    pilotage: typeof form.projectTabs?.pilotage === "boolean" ? form.projectTabs.pilotage : false,
-    referentiel: typeof form.projectTabs?.referentiel === "boolean" ? form.projectTabs.referentiel : false,
-    risquesSecurite: typeof form.projectTabs?.risquesSecurite === "boolean" ? form.projectTabs.risquesSecurite : false
+    pilotage: typeof form.projectTabs?.pilotage === "boolean" ? form.projectTabs.pilotage : true,
+    referentiel: typeof form.projectTabs?.referentiel === "boolean" ? form.projectTabs.referentiel : true,
+    risquesSecurite: typeof form.projectTabs?.risquesSecurite === "boolean" ? form.projectTabs.risquesSecurite : true
   };
 }
 
@@ -197,13 +197,13 @@ function renderProjectTabsFeatureCard(projectTabs) {
       description: "Affiche l’onglet Propositions dans la barre d’onglets du projet."
     },
     {
-      id: "tabVisibilityCoordination",
+      id: "tabVisibilityDiscussions",
       key: "discussions",
       label: "Discussions",
       description: "Affiche l’onglet Discussions pour les échanges de coordination."
     },
     {
-      id: "tabVisibilityJalons",
+      id: "tabVisibilityPilotage",
       key: "pilotage",
       label: "Pilotage",
       description: "Affiche l’onglet Pilotage actuellement branché sur les jalons projet."
@@ -224,7 +224,7 @@ function renderProjectTabsFeatureCard(projectTabs) {
 
   return `
     <div class="settings-features-card">
-      <div class="settings-features-card__title">Features</div>
+      <div class="settings-features-card__title">Fonctionnalités</div>
       <div class="settings-features-list">
         ${items.map((item) => `
           <label class="settings-feature-row" for="${escapeHtml(item.id)}">
