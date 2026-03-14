@@ -216,7 +216,7 @@ function renderProjectTabsFeatureCard(projectTabs) {
     },
     {
       id: "tabVisibilityRisquesSecurite",
-      key: "risqueSecurite",
+      key: "risquesSecurite",
       label: "Risques & sécurité",
       description: "Affiche l’onglet Risques & sécurité dans la navigation projet."
     }
@@ -829,10 +829,11 @@ function refreshProjectTabsVisibility() {
     const tabId = link.getAttribute("data-project-tab-id");
     let isVisible = true;
 
-    if (tabId === "propositions") isVisible = visibility.propositions !== false;
     if (tabId === "coordination") isVisible = visibility.coordination !== false;
+    if (tabId === "workflows") isVisible = visibility.workflows !== false;
     if (tabId === "jalons") isVisible = visibility.jalons !== false;
     if (tabId === "referentiel") isVisible = visibility.referentiel !== false;
+    if (tabId === "risquesSecurite") isVisible = visibility.risquesSecurite !== false;
 
     link.style.display = isVisible ? "" : "none";
   });
