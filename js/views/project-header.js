@@ -45,16 +45,29 @@ function renderTabCount(tab, counters) {
   return `<span class="project-tabs__counter" aria-label="${value} élément(s)">${value}</span>`;
 }
 
+function isTabVisible(tabId) {
+  const visibility = store.projectForm?.projectTabs || {};
+
+  if (tabId === "propositions") return visibility.propositions !== false;
+  if (tabId === "coordination") return visibility.coordination !== false;
+  if (tabId === "jalons") return visibility.jalons !== false;
+  if (tabId === "referentiel") return visibility.referentiel !== false;
+
+  return true;
+}
+
 export function renderProjectHeader(projectId, activeTab) {
   const counters = getProjectTabCounters();
+  const visibleTabs = PROJECT_TABS.filter((tab) => isTabVisible(tab.id));
 
   return `
     <section class="project-context-header">
       <nav class="project-tabs" aria-label="Project navigation">
-        ${PROJECT_TABS.map((t) => `
+        ${visibleTabs.map((t) => `
           <a
             href="#project/${projectId}/${t.id}"
             class="${t.id === activeTab ? "active" : ""}"
+            data-project-tab-id="${t.id}"
           >
             <span class="project-tabs__item">
               <span class="project-tabs__icon" aria-hidden="true">${t.icon || ""}</span>
