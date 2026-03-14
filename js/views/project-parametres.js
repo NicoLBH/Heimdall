@@ -836,6 +836,7 @@ function refreshProjectTabsVisibility() {
     if (tabId === "risquesSecurite") isVisible = visibility.risquesSecurite !== false;
 
     link.style.display = isVisible ? "" : "none";
+    link.setAttribute("aria-hidden", isVisible ? "false" : "true");
   });
 }
 
