@@ -48,6 +48,7 @@ function renderTabCount(tab, counters) {
 function isTabVisible(tabId) {
   const visibility = store.projectForm?.projectTabs || {};
 
+  if (tabId === "propositions") return visibility.propositions !== false;
   if (tabId === "coordination") return visibility.coordination !== false;
   if (tabId === "workflows") return visibility.workflows !== false;
   if (tabId === "jalons") return visibility.jalons !== false;
