@@ -13,6 +13,11 @@ import {
 } from "./project-shell-chrome.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderGhActionButton, renderGhSelectMenu, bindGhSelectMenus } from "./ui/gh-split-button.js";
+import {
+  renderDataTableShell,
+  renderDataTableHead,
+  renderDataTableEmptyState
+} from "./ui/data-table-shell.js";
 
 /* =========================================================
    Legacy DOM / archive parity helpers
@@ -1450,23 +1455,33 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
   `;
 }
 
+function getSituationsTableGridTemplate() {
+  return "1fr 110px 80px 140px 160px";
+}
+
+function renderSituationsTableHeadHtml() {
+  return renderDataTableHead({
+    columns: [
+      { className: "cell cell-theme", label: "Thème" },
+      { className: "cell cell-verdict", html: renderVerdictHeadFilter() },
+      { className: "cell cell-prio", label: "Prio" },
+      { className: "cell cell-agent", label: "Agent" },
+      { className: "cell cell-id", label: "avis_id" }
+    ]
+  });
+}
+
 function renderWelcomeHtml() {
-  return `
-    <div class="issues-table">
-      <div class="issues-table__head">
-        <div class="cell cell-theme">Thème</div>
-        <div class="cell cell-verdict">${renderVerdictHeadFilter()}</div>
-        <div class="cell cell-prio">Prio</div>
-        <div class="cell cell-agent">Agent</div>
-        <div class="cell cell-id">avis_id</div>
-      </div>
-      <div class="issues-table__body">
-        <div class="emptyState" style="padding:24px;color:var(--muted);">
-          Lancer une analyse pour générer des avis-sujets-situations.
-        </div>
-      </div>
-    </div>
-  `;
+  return renderDataTableShell({
+    className: "issues-table",
+    gridTemplate: getSituationsTableGridTemplate(),
+    headHtml: renderSituationsTableHeadHtml(),
+    state: "empty",
+    emptyHtml: renderDataTableEmptyState({
+      title: "Aucune analyse disponible",
+      description: "Lancer une analyse pour générer des avis-sujets-situations."
+    })
+  });
 }
 
 function renderTableHtml(filteredSituations) {
@@ -1481,20 +1496,16 @@ function renderTableHtml(filteredSituations) {
   if (!(store.situationsView.data || []).length) return renderWelcomeHtml();
 
   if (!filteredSituations.length) {
-    return `
-      <div class="issues-table">
-        <div class="issues-table__head">
-          <div class="cell cell-theme">Thème</div>
-          <div class="cell cell-verdict">${renderVerdictHeadFilter()}</div>
-          <div class="cell cell-prio">Prio</div>
-          <div class="cell cell-agent">Agent</div>
-          <div class="cell cell-id">avis_id</div>
-        </div>
-        <div class="issues-table__body">
-          <div style="padding:24px;color:var(--muted);">Aucun résultat pour les filtres actuels.</div>
-        </div>
-      </div>
-    `;
+    return renderDataTableShell({
+      className: "issues-table",
+      gridTemplate: getSituationsTableGridTemplate(),
+      headHtml: renderSituationsTableHeadHtml(),
+      state: "empty",
+      emptyHtml: renderDataTableEmptyState({
+        title: "Aucun résultat",
+        description: "Aucun résultat pour les filtres actuels."
+      })
+    });
   }
 
   const rows = [];
@@ -1536,20 +1547,12 @@ function renderTableHtml(filteredSituations) {
     }
   }
 
-  return `
-    <div class="issues-table">
-      <div class="issues-table__head">
-        <div class="cell cell-theme">Thème</div>
-        <div class="cell cell-verdict">${renderVerdictHeadFilter()}</div>
-        <div class="cell cell-prio">Prio</div>
-        <div class="cell cell-agent">Agent</div>
-        <div class="cell cell-id">avis_id</div>
-      </div>
-      <div class="issues-table__body">
-        ${rows.join("")}
-      </div>
-    </div>
-  `;
+  return renderDataTableShell({
+    className: "issues-table",
+    gridTemplate: getSituationsTableGridTemplate(),
+    headHtml: renderSituationsTableHeadHtml(),
+    bodyHtml: rows.join("")
+  });
 }
 
 /* =========================================================
@@ -2008,13 +2011,15 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     `;
   }).join("");
 
-  const body = `
-    <div class="issues-table subissues-table">
-      <div class="issues-table__body">
-        ${rows || `<div class="emptyState">Aucun avis.</div>`}
-      </div>
-    </div>
-  `;
+  const body = renderDataTableShell({
+    className: "issues-table subissues-table",
+    state: rows ? "ready" : "empty",
+    bodyHtml: rows,
+    emptyHtml: renderDataTableEmptyState({
+      title: "Aucun avis",
+      description: ""
+    })
+  });
 
   return renderSubIssuesPanel({
     title: "Avis rattachés",
@@ -2066,13 +2071,15 @@ function renderSubIssuesForSituation(situation, options = {}) {
   }
 
   const stats = situationVerdictStats(situation);
-  const body = `
-    <div class="issues-table subissues-table">
-      <div class="issues-table__body">
-        ${rows.join("") || `<div class="emptyState">Aucun sujet.</div>`}
-      </div>
-    </div>
-  `;
+  const body = renderDataTableShell({
+    className: "issues-table subissues-table",
+    state: rows.length ? "ready" : "empty",
+    bodyHtml: rows.join(""),
+    emptyHtml: renderDataTableEmptyState({
+      title: "Aucun sujet",
+      description: ""
+    })
+  });
 
   return renderSubIssuesPanel({
     title: "Sujets rattachés",
