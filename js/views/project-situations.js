@@ -25,6 +25,15 @@ import {
   renderProjectTableToolbarSelect,
   renderProjectTableToolbarMeta
 } from "./ui/project-table-toolbar.js";
+import {
+  renderMessageCard,
+  renderMessageThread,
+  renderMessageThreadComment,
+  renderMessageThreadActivity,
+  renderMessageThreadEvent
+} from "./ui/message-thread.js";
+
+import { renderCommentComposer } from "./ui/comment-composer.js";
 
 /* =========================================================
    Legacy DOM / archive parity helpers
@@ -974,15 +983,23 @@ function _pickReplyMarkdown(out, rawText) {
 
 function _helpFurtiveCommentHtml({ role = "assistant", bodyMd = "", pending = false } = {}) {
   const who = role === "user" ? "Vous (Help)" : "Rapso (Help)";
-  const ts = fmtTs(nowIso());
+  const tsHtml = `<div class="mono-small">${escapeHtml(fmtTs(nowIso()))}</div>`;
   const cleanMd = String(bodyMd || "").replace(/^_+|_+$/g, "");
   const bodyHtml = pending
     ? `<div><div class="rapso-wait"><span class="rapso-spinner" aria-hidden="true"></span><span class="rapso-shimmer">${escapeHtml(cleanMd || "RAPSOBOT réfléchit…")}</span></div></div>`
     : mdToHtml(cleanMd);
-  const avatar = role === "user"
-    ? `<div class="gh-avatar gh-avatar--human" aria-hidden="true">${SVG_AVATAR_HUMAN}</div>`
-    : `<div class="gh-avatar" aria-hidden="true"><span class="gh-avatar-initial mono">R</span></div>`;
-  return `<div class="thread-item thread-item--comment thread-item--comment--flush"><div class="thread-wrapper"><div class="gh-comment gh-comment--help gh-comment--${role}">${avatar}<div class="gh-comment-box gh-comment-box--help"><div class="gh-comment-header gh-comment-header--help"><div class="gh-comment-author mono">${escapeHtml(who)}</div><div class="mono-small">${escapeHtml(ts)}</div></div><div class="gh-comment-body gh-comment-body--help">${bodyHtml}</div></div></div></div></div>`;
+
+  return renderMessageThreadComment({
+    author: who,
+    tsHtml,
+    bodyHtml,
+    avatarType: role === "user" ? "human" : "agent",
+    avatarHtml: role === "user" ? SVG_AVATAR_HUMAN : "",
+    avatarInitial: role === "user" ? "H" : "R",
+    boxClassName: "gh-comment-box--help",
+    headerClassName: "gh-comment-header--help",
+    bodyClassName: "gh-comment-body--help"
+  });
 }
 
 function showEphemeralHelpThread(rootEl, { userMd, assistantPendingMd = "RAPSOBOT réfléchit…", ttlMs = 60000 } = {}) {
@@ -1591,17 +1608,11 @@ function renderMetaItem(label, valueHtml) {
 }
 
 function renderCommentCard(agentName, bodyText, initial = "S") {
-  return `
-    <div class="gh-comment">
-      <div class="gh-avatar" aria-hidden="true"><span class="gh-avatar-initial">${escapeHtml(initial)}</span></div>
-      <div class="gh-comment-box">
-        <div class="gh-comment-header">
-          <div class="gh-comment-author mono">${escapeHtml(agentName)}</div>
-        </div>
-        <div class="gh-comment-body">${mdToHtml(bodyText)}</div>
-      </div>
-    </div>
-  `;
+  return renderMessageCard({
+    author: agentName,
+    bodyHtml: mdToHtml(bodyText),
+    avatarInitial: initial
+  });
 }
 
 function getThreadForSelection() {
@@ -1739,7 +1750,7 @@ function renderThreadBlock() {
   const thread = getThreadForSelection();
   if (!thread.length) return "";
 
-  const html = thread.map((e, idx) => {
+  const itemsHtml = thread.map((e, idx) => {
     const type = String(e?.type || "").toUpperCase();
 
     if (type === "COMMENT") {
@@ -1748,27 +1759,17 @@ function renderThreadBlock() {
       const isRapso = !isHuman && agent === "specialist_ps";
       const displayName = isRapso ? "Agent specialist_ps" : normActorName(e?.actor, agent);
       const avatarInitial = isRapso ? "AS" : ((agent[0] || "S").toUpperCase());
-      const ts = e?.ts ? `<div class="mono-small">${escapeHtml(fmtTs(e.ts))}</div>` : "";
-      const avatar = isHuman
-        ? `<div class="gh-avatar gh-avatar--human" aria-hidden="true">${SVG_AVATAR_HUMAN}</div>`
-        : `<div class="gh-avatar" aria-hidden="true"><span class="gh-avatar-initial">${escapeHtml(avatarInitial)}</span></div>`;
+      const tsHtml = e?.ts ? `<div class="mono-small">${escapeHtml(fmtTs(e.ts))}</div>` : "";
 
-      return `
-        <div class="thread-item thread-item--comment thread-item--comment--flush" data-thread-kind="comment" data-thread-idx="${idx}">
-          <div class="thread-wrapper">
-            <div class="gh-comment">
-              ${avatar}
-              <div class="gh-comment-box">
-                <div class="gh-comment-header">
-                  <div class="gh-comment-author mono">${escapeHtml(displayName)}</div>
-                  ${ts}
-                </div>
-                <div class="gh-comment-body">${mdToHtml(e?.message || "")}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
+      return renderMessageThreadComment({
+        idx,
+        author: displayName,
+        tsHtml,
+        bodyHtml: mdToHtml(e?.message || ""),
+        avatarType: isHuman ? "human" : "agent",
+        avatarHtml: isHuman ? SVG_AVATAR_HUMAN : "",
+        avatarInitial
+      });
     }
 
     if (type === "ACTIVITY") {
@@ -1776,19 +1777,19 @@ function renderThreadBlock() {
       const agent = e?.agent || "system";
       const displayName = normActorName(e?.actor, agent);
       const ts = fmtTs(e?.ts || "");
-      let icon = `<span class="tl-ico tl-ico--muted" aria-hidden="true"></span>`;
+      let iconHtml = `<span class="tl-ico tl-ico--muted" aria-hidden="true"></span>`;
       let verb = "updated";
       let targetHtml = "";
 
       if (kind === "issue_closed") {
-        icon = `<span class="tl-ico-wrap tl-ico-closed" aria-hidden="true">${SVG_TL_CLOSED}</span>`;
+        iconHtml = `<span class="tl-ico-wrap tl-ico-closed" aria-hidden="true">${SVG_TL_CLOSED}</span>`;
         const sujetId = e?.meta?.problem_id;
         const sujet = sujetId ? getNestedSujet(sujetId) : null;
         const sujetTitle = sujet?.title ? `${escapeHtml(sujet.title)} ` : "";
         verb = "closed";
         targetHtml = sujetId ? `sujet ${sujetTitle}${entityLinkHtml("sujet", sujetId, "#" + escapeHtml(sujetId))}` : "this";
       } else if (kind === "issue_reopened") {
-        icon = `<span class="tl-ico-wrap tl-ico-reopened" aria-hidden="true">${SVG_TL_REOPENED}</span>`;
+        iconHtml = `<span class="tl-ico-wrap tl-ico-reopened" aria-hidden="true">${SVG_TL_REOPENED}</span>`;
         const sujetId = e?.meta?.problem_id;
         const sujet = sujetId ? getNestedSujet(sujetId) : null;
         const sujetTitle = sujet?.title ? `${escapeHtml(sujet.title)} ` : "";
@@ -1799,7 +1800,7 @@ function renderThreadBlock() {
         const avisId = e?.meta?.avis_id;
         const avis = avisId ? getNestedAvis(avisId) : null;
         const avisTitle = avis?.title ? `${escapeHtml(avis.title)} ` : "";
-        icon = verdictIconHtml(toV);
+        iconHtml = verdictIconHtml(toV);
         verb = "changed verdict";
         targetHtml = avisId
           ? `avis ${avisTitle}${entityLinkHtml("avis", avisId, "#" + escapeHtml(avisId))} → ${escapeHtml(String(toV || ""))}`
@@ -1809,51 +1810,45 @@ function renderThreadBlock() {
       const note = String(e?.message || "").trim();
       const noteHtml = note ? `<div class="tl-note">${mdToHtml(note)}</div>` : "";
 
-      return `
-        <div class="thread-item thread-item--activity thread-item--comment--flush" data-thread-kind="activity" data-thread-idx="${idx}">
-          <div class="thread-wrapper">
-            <div class="tl-activity">
-              ${icon}
-              ${miniAuthorIconHtml(agent)}
-              <div class="tl-activity__text mono">
-                <span class="tl-author-name">${escapeHtml(displayName)}</span>
-                <span class="mono-small"> ${escapeHtml(verb)} ${targetHtml || ""} </span>
-                <span class="mono-small">at ${escapeHtml(ts)}</span>
-              </div>
-            </div>
-            ${noteHtml}
-          </div>
-        </div>
-      `;
+      return renderMessageThreadActivity({
+        idx,
+        iconHtml,
+        authorIconHtml: miniAuthorIconHtml(agent),
+        textHtml: `
+          <span class="tl-author-name">${escapeHtml(displayName)}</span>
+          <span class="mono-small"> ${escapeHtml(verb)} ${targetHtml || ""} </span>
+          <span class="mono-small">at ${escapeHtml(ts)}</span>
+        `,
+        noteHtml
+      });
     }
 
-    return `
-      <div class="thread-item" data-thread-kind="event" data-thread-idx="${idx}">
+    return renderMessageThreadEvent({
+      idx,
+      badgeHtml: `
         <div class="thread-badge__subissue">
           ${svgIcon("issue-tracks", {
             className: "octicon octicon-issue-tracks Octicon__StyledOcticon-sc-jtj3m8-0 TimelineRow-module__Octicon__SMhVa"
           })}
         </div>
-        <div class="thread-wrapper">
-          <div class="thread-item__head">
-            <div class="mono">
-              <span>${escapeHtml(e.actor || "System")}</span>
-              <span> attached this to </span>
-              <span>${escapeHtml(e.entity_type || "")} n° ${entityLinkHtml(e.entity_type, e.entity_id, e.entity_id || "")}</span>
-              <span>·</span>
-              <span> (agent=${escapeHtml(e.agent || "system")})</span>
-              <div class="mono">in ${escapeHtml(fmtTs(e.ts || ""))}</div>
-            </div>
-          </div>
-          <div class="thread-item__body">${escapeHtml(e.message || "")}</div>
+      `,
+      headHtml: `
+        <div class="mono">
+          <span>${escapeHtml(e.actor || "System")}</span>
+          <span> attached this to </span>
+          <span>${escapeHtml(e.entity_type || "")} n° ${entityLinkHtml(e.entity_type, e.entity_id, e.entity_id || "")}</span>
+          <span>·</span>
+          <span> (agent=${escapeHtml(e.agent || "system")})</span>
+          <div class="mono">in ${escapeHtml(fmtTs(e.ts || ""))}</div>
         </div>
-      </div>
-    `;
+      `,
+      bodyHtml: escapeHtml(e.message || "")
+    });
   }).join("");
 
   return `
     <div class="gh-timeline-title mono" style="display:none">Discussion</div>
-    <div class="thread gh-thread">${html}</div>
+    ${renderMessageThread({ itemsHtml })}
   `;
 }
 
@@ -1899,50 +1894,37 @@ function renderCommentBox(selection) {
 
   const verdictSwitch = renderVerdictActionButtons(activeVerdict);
 
-  return `
-    <div class="human-action">
-      <div class="gh-avatar gh-avatar--human" aria-hidden="true">${SVG_AVATAR_HUMAN}</div>
-      <div class="comment-general-block">
-        <div class="gh-timeline-title mono">Add a comment</div>
-        <div class="comment-box gh-comment-boxwrap ${helpMode ? "gh-comment-box--help" : ""}">
-          <div class="comment-tabs ${helpMode ? "gh-comment-header--help" : ""}" role="tablist" aria-label="Comment tabs">
-            <button class="comment-tab ${!previewMode ? "is-active" : ""}" data-action="tab-write" type="button">Write</button>
-            <button class="comment-tab ${previewMode ? "is-active" : ""}" data-action="tab-preview" type="button">Preview</button>
-          </div>
-
-          <div class="comment-editor ${previewMode ? "hidden" : ""}">
-            <textarea
-              id="humanCommentBox"
-              class="textarea"
-              placeholder="${helpMode ? "Help (éphémère) — décrivez l’écran / l’action souhaitée." : "Réponse humaine (Markdown) — mentionne @rapso pour demander l’avis de l’agent. Ex: « @rapso peux-tu vérifier ce point ? »"}"
-            ></textarea>
-          </div>
-
-          <div class="comment-editor ${previewMode ? "" : "hidden"}">
-            <div class="comment-preview" id="humanCommentPreview"></div>
-          </div>
-        </div>
-
-        <div class="actions-row actions-row--details" style="margin-top:10px;">
-          <div class="rapso-mention-hint">
-            <span>Astuce : mentionne <span class="mono">@rapso</span> dans ton commentaire.</span>
-          </div>
-
-          <div class="actions-row__right" style="display:flex; align-items:center; gap:8px; justify-content:flex-end; flex:0 0 auto;">
-            <button class="gh-btn gh-btn--help-mode ${helpMode ? "is-on" : ""}" data-action="toggle-help" type="button">Help</button>
-
-            ${type === "avis"
-              ? `${verdictSwitch}<button class="gh-btn gh-btn--validate" data-action="avis-validate" type="button">Validate</button>`
-              : (isIssueOpen
-                  ? `<button class="gh-btn gh-btn--issue-action" data-action="issue-close" type="button">${SVG_ISSUE_CLOSED}<span class="gh-btn__label">Close</span></button>`
-                  : `<button class="gh-btn gh-btn--issue-action" data-action="issue-reopen" type="button">${SVG_ISSUE_REOPENED}<span class="gh-btn__label">Reopen issue</span></button>`)}
-
-            <button class="gh-btn gh-btn--comment" data-action="add-comment" type="button">Comment</button>
-          </div>
-        </div>
-      </div>
+  const hintHtml = `
+    <div class="rapso-mention-hint comment-composer__hint">
+      <span>Astuce : mentionne <span class="mono">@rapso</span> dans ton commentaire.</span>
     </div>
   `;
+
+  const actionsHtml = `
+    <button class="gh-btn gh-btn--help-mode ${helpMode ? "is-on" : ""}" data-action="toggle-help" type="button">Help</button>
+
+    ${type === "avis"
+      ? `${verdictSwitch}<button class="gh-btn gh-btn--validate" data-action="avis-validate" type="button">Validate</button>`
+      : (isIssueOpen
+          ? `<button class="gh-btn gh-btn--issue-action" data-action="issue-close" type="button">${SVG_ISSUE_CLOSED}<span class="gh-btn__label">Close</span></button>`
+          : `<button class="gh-btn gh-btn--issue-action" data-action="issue-reopen" type="button">${SVG_ISSUE_REOPENED}<span class="gh-btn__label">Reopen issue</span></button>`)}
+
+    <button class="gh-btn gh-btn--comment" data-action="add-comment" type="button">Comment</button>
+  `;
+
+  return renderCommentComposer({
+    title: "Add a comment",
+    avatarHtml: SVG_AVATAR_HUMAN,
+    previewMode,
+    helpMode,
+    textareaId: "humanCommentBox",
+    previewId: "humanCommentPreview",
+    placeholder: helpMode
+      ? "Help (éphémère) — décrivez l’écran / l’action souhaitée."
+      : "Réponse humaine (Markdown) — mentionne @rapso pour demander l’avis de l’agent. Ex: « @rapso peux-tu vérifier ce point ? »",
+    hintHtml,
+    actionsHtml
+  });
 }
 
 function renderDetailedMetaForSelection(selection) {
