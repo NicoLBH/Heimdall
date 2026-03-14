@@ -29,12 +29,22 @@ export const store = {
     communeCp: "Annecy 74000",
     importance: "II",
     importanceCategory: "Catégorie d'importance II",
+    riskCategory: "Risque normal",
     soilClass: "A",
     liquefaction: "no",
     liquefactionText: "Sol non liquéfiable",
     zoneSismique: "4",
     referential: "EC8",
     phase: "APS",
+    climateZoneWinter: "",
+    climateZoneSummer: "",
+    climateBaseTemperatures: "",
+    projectTabs: {
+      propositions: true,
+      coordination: true,
+      jalons: true,
+      referentiel: true
+    },
     webhookUrl: "",
     pdfFile: null
   },
