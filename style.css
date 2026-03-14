@@ -2550,34 +2550,119 @@ color:#ffff;
 .settings-block--hero .settings-card{
   margin-top:8px;
 }
-/* ===== Reusable split dropdown ===== */
+/* ===== Reusable action buttons ===== */
 
-.gh-split{
+.gh-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:32px;
+  padding:6px 12px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--btn-bg);
+  color:var(--text);
+  cursor:pointer;
+  font-size:13px;
+  font-family:var(--font);
+  line-height:1;
+}
+
+.gh-btn:hover{border-color:#6e7681;}
+
+.gh-btn--sm{min-height:28px;padding:4px 10px;font-size:12px;}
+.gh-btn--md{min-height:32px;padding:6px 12px;font-size:13px;}
+.gh-btn--lg{min-height:36px;padding:8px 14px;font-size:14px;}
+
+.gh-btn--default{
+  background:var(--btn-bg);
+  border-color:var(--border);
+  color:var(--text);
+}
+
+.gh-btn--primary{
+  background:var(--btn-bg-success);
+  border-color:rgba(255,255,255,.12);
+  color:#fff;
+  font-weight:600;
+}
+
+.gh-btn--success{
+  background:rgba(46,160,67,.16);
+  border-color:rgba(46,160,67,.35);
+  color:#d2f4d3;
+}
+
+.gh-btn--danger{
+  background:rgba(248,81,73,.12);
+  border-color:rgba(248,81,73,.35);
+  color:#ffb3ad;
+}
+
+.gh-btn--ghost{
+  background:transparent;
+  border-color:var(--border);
+  color:var(--text);
+}
+
+.gh-btn--verdict-f{
+  background:rgba(41,163,96,.16);
+  border-color:rgba(41,163,96,.36);
+  color:#d2f7df;
+}
+
+.gh-btn--verdict-s{
+  background:rgba(241,224,90,.14);
+  border-color:rgba(241,224,90,.32);
+  color:#fff2a8;
+}
+
+.gh-btn--verdict-d{
+  background:rgba(248,81,73,.14);
+  border-color:rgba(248,81,73,.36);
+  color:#ffd0cc;
+}
+
+.gh-btn--verdict-hm{
+  background:rgba(211,233,244,.16);
+  border-color:rgba(211,233,244,.36);
+  color:#eaf7fd;
+}
+
+.gh-btn--verdict-pm{
+  background:rgba(211,189,146,.18);
+  border-color:rgba(211,189,146,.34);
+  color:#f6ead6;
+}
+
+.gh-btn--verdict-so{
+  background:rgba(20,31,53,.85);
+  border-color:rgba(107,138,196,.32);
+  color:#fff;
+}
+
+.gh-action{
   position:relative;
   display:inline-flex;
   align-items:stretch;
   vertical-align:middle;
 }
 
-.gh-split .gh-btn{
+.gh-action__main,
+.gh-action__toggle{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:8px;
-  height:32px;
-  border:1px solid var(--border);
-  background:var(--btn-bg);
-  color:var(--text);
 }
 
-.gh-split__main{
+.gh-action--split .gh-action__main{
   border-top-right-radius:0;
   border-bottom-right-radius:0;
   border-right:none;
-  padding:0 12px;
 }
 
-.gh-split__toggle{
+.gh-action--split .gh-action__toggle{
   width:32px;
   min-width:32px;
   padding:0;
@@ -2585,28 +2670,25 @@ color:#ffff;
   border-bottom-left-radius:0;
 }
 
-.gh-split--primary .gh-btn{
-  background:var(--btn-bg-success);
-  color:#fff;
-  border-color:rgba(255,255,255,.12);
-}
-
-.gh-split__label{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
+.gh-action__label{
   white-space:nowrap;
 }
 
-.gh-split__label--with-icon svg,
-.gh-split__icon svg{
+.gh-action__icon,
+.gh-menu__item-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.gh-action__icon svg,
+.gh-menu__item-icon svg{
   width:16px;
   height:16px;
   display:block;
-  fill:#ffff;
 }
 
-.gh-split .gh-menu{
+.gh-action .gh-menu{
   position:absolute;
   top:calc(100% + 4px);
   right:0;
@@ -2622,7 +2704,7 @@ color:#ffff;
   z-index:260;
 }
 
-.gh-split.is-open .gh-menu{
+.gh-action.is-open .gh-menu{
   display:block;
 }
 
@@ -2630,6 +2712,7 @@ color:#ffff;
   width:100%;
   display:flex;
   align-items:center;
+  gap:8px;
   text-align:left;
   border:none;
   background:transparent;
@@ -2647,6 +2730,100 @@ color:#ffff;
 .gh-menu__item.is-danger{
   color:#ff7b72;
 }
+
+/* ===== Reusable inputs ===== */
+
+.gh-input{
+  width:100%;
+  min-height:32px;
+  padding:7px 10px;
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  background:var(--bg-input);
+  outline:none;
+  font-size:13px;
+  font-family:var(--font);
+  font-weight:500;
+  color:rgb(240, 246, 252);
+}
+
+.gh-input:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(88,166,255,.15);
+}
+
+.gh-input--sm{
+  min-height:32px;
+  padding:5px 8px;
+  font-size:12px;
+}
+
+.gh-input-wrap{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+}
+
+.gh-input-wrap__outer-icon{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+}
+
+.gh-input-wrap__control{
+  position:relative;
+  width:100%;
+}
+
+.gh-input-wrap__icon{
+  position:absolute;
+  top:50%;
+  left:10px;
+  transform:translateY(-50%);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  pointer-events:none;
+}
+
+.gh-input-wrap--inner-icon .gh-input{
+  padding-left:34px;
+}
+
+.gh-editable-field{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.gh-editable-field__input[readonly]{
+  background:rgba(110,118,129,.08);
+  color:var(--text);
+  cursor:default;
+}
+
+.gh-editable-field.is-editing .gh-editable-field__input{
+  background:var(--bg-input);
+}
+
+.gh-editable-field__btn{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+
+.gh-editable-field__btn-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+/* legacy compat */
+.gh-split{display:inline-flex;}
+.gh-split-btn{display:inline-flex;}
 /* ===== Documents ===== */
 
 .project-simple-page--documents{
