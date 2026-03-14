@@ -1,5 +1,6 @@
 import { PROJECT_TABS, isToggleableProjectTab } from "../constants.js";
 import { store } from "../store.js";
+import { renderCountBadge } from "./ui/status-badges.js";
 
 function getEffectiveSujetStatus(sujet) {
   const decisions = Array.isArray(store.situationsView?.rawResult?.decisions)
@@ -42,7 +43,10 @@ function getProjectTabCounters() {
 function renderTabCount(tab, counters) {
   if (!tab.countKey) return "";
   const value = Number(counters?.[tab.countKey] || 0);
-  return `<span class="project-tabs__counter" aria-label="${value} élément(s)">${value}</span>`;
+  return renderCountBadge(value, {
+    className: "project-tabs__counter",
+    ariaLabel: `${value} élément(s)`
+  });
 }
 
 function isTabVisible(tabId) {
