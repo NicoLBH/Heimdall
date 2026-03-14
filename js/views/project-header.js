@@ -49,8 +49,8 @@ function isTabVisible(tabId) {
   const visibility = store.projectForm?.projectTabs || {};
 
   if (tabId === "propositions") return visibility.propositions !== false;
-  if (tabId === "coordination") return visibility.coordination !== false;
-  if (tabId === "jalons") return visibility.jalons !== false;
+  if (tabId === "discussions") return visibility.discussions !== false;
+  if (tabId === "pilotage") return visibility.pilotage !== false;
   if (tabId === "referentiel") return visibility.referentiel !== false;
   if (tabId === "risquesSecurite") return visibility.risquesSecurite !== false;
 
