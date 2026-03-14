@@ -101,6 +101,10 @@ function ensureProjectFormDefaults() {
     form.soilClass = "A";
   }
 
+  if (typeof form.riskCategory !== "string" || !form.riskCategory.trim()) {
+    form.riskCategory = "Risque normal";
+  }
+
   if ((!form.city || !form.postalCode) && form.communeCp) {
     const raw = String(form.communeCp).trim();
     const match = raw.match(/^(.*?)(?:\s*[,-]?\s*)(\d{4,5})$/);
@@ -119,6 +123,13 @@ function ensureProjectFormDefaults() {
 
   form.liquefactionText = liquefactionCodeToLabel(form.liquefactionText || form.liquefaction || "no");
   form.liquefaction = liquefactionLabelToCode(form.liquefactionText || form.liquefaction || "no");
+
+  form.projectTabs = {
+    propositions: form.projectTabs?.propositions !== false,
+    coordination: form.projectTabs?.coordination !== false,
+    jalons: form.projectTabs?.jalons !== false,
+    referentiel: form.projectTabs?.referentiel !== false
+  };
 }
 
 function renderNavIcon(name) {
@@ -176,6 +187,59 @@ function renderPlaceholderList(items) {
   `;
 }
 
+function renderProjectTabsFeatureCard(projectTabs) {
+  const items = [
+    {
+      id: "tabVisibilityPropositions",
+      key: "propositions",
+      label: "Propositions",
+      description: "Affiche l’onglet Propositions dans la barre d’onglets du projet."
+    },
+    {
+      id: "tabVisibilityCoordination",
+      key: "coordination",
+      label: "Discussions",
+      description: "Affiche l’onglet Discussions pour les échanges de coordination."
+    },
+    {
+      id: "tabVisibilityJalons",
+      key: "jalons",
+      label: "Pilotage",
+      description: "Affiche l’onglet Pilotage actuellement branché sur les jalons projet."
+    },
+    {
+      id: "tabVisibilityReferentiel",
+      key: "referentiel",
+      label: "Référentiel",
+      description: "Affiche l’onglet Référentiel dans la navigation projet."
+    }
+  ];
+
+  return `
+    <div class="settings-features-card">
+      <div class="settings-features-card__title">Features</div>
+      <div class="settings-features-list">
+        ${items.map((item) => `
+          <label class="settings-feature-row" for="${escapeHtml(item.id)}">
+            <div class="settings-feature-row__control">
+              <input
+                id="${escapeHtml(item.id)}"
+                type="checkbox"
+                data-project-tab-toggle="${escapeHtml(item.key)}"
+                ${projectTabs?.[item.key] !== false ? "checked" : ""}
+              >
+            </div>
+            <div class="settings-feature-row__body">
+              <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
+              <div class="settings-feature-row__desc">${escapeHtml(item.description)}</div>
+            </div>
+          </label>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = false, isHero = false }) {
   return `
     <section
@@ -221,11 +285,6 @@ function getPageHtml(form) {
                   <span>Localisation</span>
                 </button>
 
-                <button type="button" class="settings-nav__item" data-settings-target="parametres-type-ouvrage">
-                  <span class="settings-nav__icon">${renderNavIcon("general")}</span>
-                  <span>Type d’ouvrage</span>
-                </button>
-
                 <button type="button" class="settings-nav__item" data-settings-target="parametres-phase">
                   <span class="settings-nav__icon">${renderNavIcon("checklist")}</span>
                   <span>Phase</span>
@@ -249,11 +308,6 @@ function getPageHtml(form) {
                 <div class="settings-nav__separator"></div>
                 <div class="settings-nav__section-label">Référentiels techniques et réglementaires</div>
 
-                <button type="button" class="settings-nav__item" data-settings-target="parametres-zones-climatiques">
-                  <span class="settings-nav__icon">${renderNavIcon("pin")}</span>
-                  <span>Zones climatiques</span>
-                </button>
-
                 <button type="button" class="settings-nav__item" data-settings-target="parametres-zones-reglementaires">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
                   <span>Solidité des ouvrages</span>
@@ -271,7 +325,7 @@ function getPageHtml(form) {
 
                 <button type="button" class="settings-nav__item" data-settings-target="parametres-parasismiques">
                   <span class="settings-nav__icon">${renderNavIcon("shield")}</span>
-                  <span>Protection parasismiques</span>
+                  <span>Protection parasismique</span>
                 </button>
 
                 <button type="button" class="settings-nav__item" data-settings-target="parametres-thermiques">
@@ -381,6 +435,11 @@ function getPageHtml(form) {
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
                       ${renderInputField({ id: "projectName", label: "Nom de projet", value: form.projectName || "", placeholder: "Projet demo" })}
                     </div>`
+                  }),
+                  renderSectionCard({
+                    title: "Onglets du projet",
+                    description: "Active ou masque certains onglets optionnels dans l’en-tête projet, à la manière des features GitHub.",
+                    body: renderProjectTabsFeatureCard(form.projectTabs || {})
                   })
                 ]
               })}
@@ -397,23 +456,6 @@ function getPageHtml(form) {
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
                       ${renderInputField({ id: "projectCity", label: "Ville", value: form.city || "", placeholder: "Ex. Annecy" })}
                       ${renderInputField({ id: "projectPostalCode", label: "CP", value: form.postalCode || "", placeholder: "Ex. 74000" })}
-                    </div>`
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-type-ouvrage",
-                title: "Données de base projet",
-                lead: "Qualification réglementaire et niveau d’importance du projet.",
-                cards: [
-                  renderSectionCard({
-                    title: "Type d’ouvrage",
-                    description: "Qualification réglementaire et niveau d’importance du projet.",
-                    badge: "LIVE",
-                    body: `<div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderSelectField({ id: "riskCategory", label: "Catégorie de risque", value: form.riskCategory || form.risk || "Normal", options: ["Risque Normal", "Risque Spécial"]  })}
-                      ${renderSelectField({ id: "importanceCategory", label: "catégorie d'importance", value: form.importanceCategory || form.importance || "II", options: ["Catégorie d'importance I", "Catégorie d'importance II", "Catégorie d'importance III", "Catégorie d'importance IV"]  })}
                     </div>`
                   })
                 ]
@@ -484,35 +526,25 @@ function getPageHtml(form) {
               })}
 
               ${renderSettingsBlock({
-                id: "parametres-zones-climatiques",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Références climatiques utilisées par les volets thermique, enveloppe et exploitation.",
-                cards: [
-                  renderSectionCard({
-                    title: "Zones climatiques",
-                    description: "Références climatiques utilisées par les volets thermique, enveloppe et exploitation.",
-                    body: renderPlaceholderList([
-                      "Zone climatique hiver / été.",
-                      "Altitude, exposition, vent dominant, neige, températures de base."
-                    ])
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
                 id: "parametres-zones-reglementaires",
                 title: "Référentiels techniques et réglementaires",
-                lead: "Paramètres territoriaux imposés par la réglementation applicable.",
+                lead: "Paramètres de solidité, d’exposition et d’environnement utiles au dimensionnement.",
                 cards: [
                   renderSectionCard({
-                    title: "Zones réglementaires",
-                    description: "Paramètres territoriaux imposés par la réglementation applicable.",
+                    title: "Solidité des ouvrages",
+                    description: "Réunit les paramètres réglementaires territoriaux et les références climatiques utiles au projet.",
                     badge: "LIVE",
-                    body: `<div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderSelectField({ id: "zoneSismique", label: "Zone sismique", value: form.zoneSismique || "3", options: ["1", "2", "3", "4", "5"]  })}
-                      ${renderSelectField({ id: "liquefactionText", label: "Liquéfaction", value: form.liquefactionText || "Non défini à ce stade", options: ["Sol non liquéfiable", "Sol liquéfiable", "Non défini à ce stade"] })}
-                      ${renderSelectField({ id: "soilClass", label: "Classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
-                    </div>`
+                    body: `
+                      <div class="settings-form-grid settings-form-grid--thirds">
+                        ${renderInputField({ id: "climateZoneWinter", label: "Zone climatique hiver", value: form.climateZoneWinter || "", placeholder: "Ex. H1b" })}
+                        ${renderInputField({ id: "climateZoneSummer", label: "Zone climatique été", value: form.climateZoneSummer || "", placeholder: "Ex. Ec" })}
+                        ${renderInputField({ id: "climateBaseTemperatures", label: "Températures de base", value: form.climateBaseTemperatures || "", placeholder: "Ex. -10°C / +32°C" })}
+                      </div>
+                      ${renderPlaceholderList([
+                        "Références climatiques, altitude, exposition, vent dominant et neige utiles au projet.",
+                        "Ces données complètent désormais Solidité des ouvrages et ne figurent plus dans une rubrique séparée."
+                      ])}
+                    `
                   })
                 ]
               })}
@@ -554,10 +586,15 @@ function getPageHtml(form) {
                 lead: "Cadre réglementaire et hypothèses d’entrée du lot parasismique.",
                 cards: [
                   renderSectionCard({
-                    title: "Règlements parasismiques",
-                    description: "Cadre réglementaire et hypothèses d’entrée du lot parasismique.",
+                    title: "Protection parasismique",
+                    description: "Centralise désormais les paramètres auparavant répartis entre type d’ouvrage et solidité des ouvrages.",
                     badge: "LIVE",
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
+                      ${renderSelectField({ id: "riskCategory", label: "Catégorie de risque", value: form.riskCategory || form.risk || "Risque normal", options: ["Risque normal", "Risque spécial"] })}
+                      ${renderSelectField({ id: "importanceCategory", label: "Catégorie d'importance", value: form.importanceCategory || form.importance || "II", options: ["Catégorie d'importance I", "Catégorie d'importance II", "Catégorie d'importance III", "Catégorie d'importance IV"] })}
+                      ${renderSelectField({ id: "zoneSismique", label: "Zone sismique", value: form.zoneSismique || "4", options: ["1", "2", "3", "4", "5"] })}
+                      ${renderSelectField({ id: "liquefactionText", label: "Liquéfaction", value: form.liquefactionText || "Sol non liquéfiable", options: ["Sol non liquéfiable", "Sol liquéfiable", "Non défini à ce stade"] })}
+                      ${renderSelectField({ id: "soilClass", label: "Classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
                       ${renderSelectField({ id: "referential", label: "Référentiel parasismique", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
                     </div>`
                   })
@@ -775,6 +812,36 @@ function bindValue(id, handler, eventName = "input") {
   el.addEventListener(eventName, (e) => handler(e.target.value));
 }
 
+function refreshProjectTabsVisibility() {
+  const tabsRoot = document.querySelector(".project-tabs");
+  if (!tabsRoot) return;
+
+  const visibility = store.projectForm.projectTabs || {};
+
+  tabsRoot.querySelectorAll("[data-project-tab-id]").forEach((link) => {
+    const tabId = link.getAttribute("data-project-tab-id");
+    let isVisible = true;
+
+    if (tabId === "propositions") isVisible = visibility.propositions !== false;
+    if (tabId === "coordination") isVisible = visibility.coordination !== false;
+    if (tabId === "jalons") isVisible = visibility.jalons !== false;
+    if (tabId === "referentiel") isVisible = visibility.referentiel !== false;
+
+    link.style.display = isVisible ? "" : "none";
+  });
+}
+
+function bindProjectTabToggles() {
+  document.querySelectorAll("[data-project-tab-toggle]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const key = event.target.getAttribute("data-project-tab-toggle");
+      if (!key) return;
+      store.projectForm.projectTabs[key] = !!event.target.checked;
+      refreshProjectTabsVisibility();
+    });
+  });
+}
+
 function bindParametresEvents() {
   bindValue("projectName", (value) => {
     store.projectForm.projectName = value;
@@ -790,6 +857,11 @@ function bindParametresEvents() {
     store.projectForm.communeCp = [store.projectForm.city, store.projectForm.postalCode].filter(Boolean).join(" ").trim();
   });
 
+  bindValue("riskCategory", (value) => {
+    store.projectForm.riskCategory = value;
+    store.projectForm.risk = value;
+  }, "change");
+
   bindValue("importanceCategory", (value) => {
     store.projectForm.importanceCategory = value;
     store.projectForm.importance = importanceLabelToCode(value);
@@ -801,7 +873,7 @@ function bindParametresEvents() {
 
   bindValue("zoneSismique", (value) => {
     store.projectForm.zoneSismique = value;
-  });
+  }, "change");
 
   bindValue("liquefactionText", (value) => {
     store.projectForm.liquefactionText = value;
@@ -815,6 +887,21 @@ function bindParametresEvents() {
   bindValue("soilClass", (value) => {
     store.projectForm.soilClass = value;
   }, "change");
+
+  bindValue("climateZoneWinter", (value) => {
+    store.projectForm.climateZoneWinter = value;
+  });
+
+  bindValue("climateZoneSummer", (value) => {
+    store.projectForm.climateZoneSummer = value;
+  });
+
+  bindValue("climateBaseTemperatures", (value) => {
+    store.projectForm.climateBaseTemperatures = value;
+  });
+
+  bindProjectTabToggles();
+  refreshProjectTabsVisibility();
 }
 
 function bindParametresNav() {
