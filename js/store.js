@@ -41,8 +41,7 @@ export const store = {
     climateBaseTemperatures: "",
     projectTabs: {
       propositions: true,
-      coordination: true,
-      workflows: true,
+      coordination: false,
       jalons: true,
       referentiel: true,
       risquesSecurite: true
