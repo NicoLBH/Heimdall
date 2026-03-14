@@ -1,5 +1,10 @@
 import { store } from "../store.js";
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
+import {
+  DEFAULT_PROJECT_TABS_VISIBILITY,
+  PROJECT_TAB_IDS,
+  isToggleableProjectTab
+} from "../constants.js";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -124,13 +129,12 @@ function ensureProjectFormDefaults() {
   form.liquefactionText = liquefactionCodeToLabel(form.liquefactionText || form.liquefaction || "no");
   form.liquefaction = liquefactionLabelToCode(form.liquefactionText || form.liquefaction || "no");
 
-  form.projectTabs = {
-    propositions: typeof form.projectTabs?.propositions === "boolean" ? form.projectTabs.propositions : true,
-    discussions: typeof form.projectTabs?.discussions === "boolean" ? form.projectTabs.discussions : false,
-    pilotage: typeof form.projectTabs?.pilotage === "boolean" ? form.projectTabs.pilotage : false,
-    referentiel: typeof form.projectTabs?.referentiel === "boolean" ? form.projectTabs.referentiel : false,
-    risquesSecurite: typeof form.projectTabs?.risquesSecurite === "boolean" ? form.projectTabs.risquesSecurite : false
-  };
+  form.projectTabs = Object.fromEntries(
+    Object.entries(DEFAULT_PROJECT_TABS_VISIBILITY).map(([tabId, defaultValue]) => {
+      const currentValue = form.projectTabs?.[tabId];
+      return [tabId, typeof currentValue === "boolean" ? currentValue : defaultValue];
+    })
+  );
 }
 
 function renderNavIcon(name) {
@@ -192,31 +196,31 @@ function renderProjectTabsFeatureCard(projectTabs) {
   const items = [
     {
       id: "tabVisibilityPropositions",
-      key: "propositions",
+      key: PROJECT_TAB_IDS.PROPOSITIONS,
       label: "Propositions",
       description: "Affiche l’onglet Propositions dans la barre d’onglets du projet."
     },
     {
       id: "tabVisibilityDiscussions",
-      key: "discussions",
+      key: PROJECT_TAB_IDS.DISCUSSIONS,
       label: "Discussions",
       description: "Affiche l’onglet Discussions pour les échanges de coordination."
     },
     {
       id: "tabVisibilityPilotage",
-      key: "pilotage",
+      key: PROJECT_TAB_IDS.PILOTAGE,
       label: "Pilotage",
       description: "Affiche l’onglet Pilotage actuellement branché sur les jalons projet."
     },
     {
       id: "tabVisibilityReferentiel",
-      key: "referentiel",
+      key: PROJECT_TAB_IDS.REFERENTIEL,
       label: "Référentiel",
       description: "Affiche l’onglet Référentiel dans la navigation projet."
     },
     {
       id: "tabVisibilityRisquesSecurite",
-      key: "risquesSecurite",
+      key: PROJECT_TAB_IDS.RISQUES_SECURITE,
       label: "Risques & sécurité",
       description: "Affiche l’onglet Risques & sécurité dans la navigation projet."
     }
@@ -827,11 +831,9 @@ function refreshProjectTabsVisibility() {
 
   tabsRoot.querySelectorAll("[data-project-tab-id]").forEach((link) => {
     const tabId = link.getAttribute("data-project-tab-id");
-
-    if (!(tabId in visibility)) return;
+    if (!isToggleableProjectTab(tabId)) return;
 
     const isVisible = visibility[tabId] !== false;
-
     link.style.display = isVisible ? "" : "none";
     link.setAttribute("aria-hidden", isVisible ? "false" : "true");
   });
