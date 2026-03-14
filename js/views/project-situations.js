@@ -12,10 +12,45 @@ import {
   refreshProjectShellChrome
 } from "./project-shell-chrome.js";
 import { svgIcon } from "../ui/icons.js";
+import { renderGhActionButton } from "./ui/gh-split-button.js";
 
 /* =========================================================
    Legacy DOM / archive parity helpers
 ========================================================= */
+
+function verdictTone(verdict) {
+  const map = {
+    F: "verdict-f",
+    S: "verdict-s",
+    D: "verdict-d",
+    HM: "verdict-hm",
+    PM: "verdict-pm",
+    SO: "verdict-so"
+  };
+  return map[String(verdict || "").toUpperCase()] || "default";
+}
+
+function renderVerdictActionButtons(activeVerdict) {
+  const verdicts = ["F", "S", "D", "HM", "PM", "SO"];
+
+  return `
+    <div class="verdict-switch" role="group" aria-label="Verdict">
+      ${verdicts.map((v) => `
+        <div class="verdict-switch__item ${v === activeVerdict ? "is-active" : ""}">
+          ${renderGhActionButton({
+            id: `verdict-${v}`,
+            label: v,
+            tone: verdictTone(v),
+            size: "sm",
+            mainAction: `set-verdict:${v}`,
+            withChevron: false,
+            className: "verdict-switch__action"
+          })}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
 
 function ensureSituationsLegacyDomStyle() {
   if (document.getElementById("situations-legacy-dom-style")) return;
@@ -1852,12 +1887,7 @@ function renderCommentBox(selection) {
   const previewMode = !!store.situationsView.commentPreviewMode;
   const helpMode = !!store.situationsView.helpMode;
 
-  const verdicts = ["F", "S", "D", "HM", "PM", "SO"];
-  const verdictSwitch = `
-    <div class="verdict-switch" role="group" aria-label="Verdict">
-      ${verdicts.map((v) => `<button class="verdict-switch__btn ${v === activeVerdict ? "is-active" : ""}" data-action="set-verdict" data-verdict="${v}" type="button">${v}</button>`).join("")}
-    </div>
-  `;
+  const verdictSwitch = renderVerdictActionButtons(activeVerdict);
 
   return `
     <div class="human-action">
@@ -2550,10 +2580,12 @@ function wireDetailsInteractive(root) {
     };
   });
 
-  root.querySelectorAll("[data-action='set-verdict']").forEach((btn) => {
+  root.querySelectorAll(".verdict-switch [data-main-action]").forEach((btn) => {
     btn.onclick = (ev) => {
       ev.preventDefault();
-      const v = String(btn.dataset.verdict || "").toUpperCase();
+      const action = String(btn.dataset.mainAction || "");
+      if (!action.startsWith("set-verdict:")) return;
+      const v = action.slice("set-verdict:".length).toUpperCase();
       if (!v) return;
       store.situationsView.tempAvisVerdict = v;
       rerenderPanels();
