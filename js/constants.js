@@ -74,7 +74,7 @@ export const PROJECT_TABS = [
     `
   },
   {
-    id: "pilotage",
+    id: "insights",
     label: "Indicateurs",
     icon: `
       <svg aria-hidden="true" focusable="false" class="octicon octicon-graph" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
