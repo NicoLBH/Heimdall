@@ -1,6 +1,7 @@
 import { store } from "../store.js";
 import { registerProjectPrimaryScrollSource, setProjectViewHeader } from "./project-shell-chrome.js";
 import { bindGhSplitButtons, initGhSplitButton, renderGhSplitButton } from "./ui/gh-split-button.js";
+import { svgIcon } from "../ui/icons.js";
 
 const DOCUMENT_FOLDERS = [
   { name: "Architecte", note: "Dossier discipline" },
@@ -37,51 +38,33 @@ function escapeHtml(value) {
 }
 
 function getFolderIconSvg() {
-  return `
-    <svg aria-hidden="true" focusable="false" class="icon-directory" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom;">
-      <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"></path>
-    </svg>
-  `;
+  return svgIcon("file-directory", { className: "icon-directory" });
 }
 
 function getDocumentIconSvg() {
-  return `
-    <svg aria-hidden="true" focusable="false" class="octicon octicon-file color-fg-muted" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom">
-      <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path>
-    </svg>
-  `;
+  return svgIcon("file", { className: "octicon octicon-file color-fg-muted" });
 }
 
 function getLargeDocumentIconSvg() {
-  return `
-    <svg height="32" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="32" data-view-component="true" class="octicon octicon-file mb-2 color-fg-muted">
-      <path d="M3 3a2 2 0 0 1 2-2h9.982a2 2 0 0 1 1.414.586l4.018 4.018A2 2 0 0 1 21 7.018V21a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Zm2-.5a.5.5 0 0 0-.5.5v18a.5.5 0 0 0 .5.5h14a.5.5 0 0 0 .5-.5V8.5h-4a2 2 0 0 1-2-2v-4Zm10 0v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 0-.146-.336l-4.018-4.018A.5.5 0 0 0 15 2.5Z"></path>
-    </svg>
-  `;
+  return svgIcon("file", {
+    className: "octicon octicon-file mb-2 color-fg-muted",
+    width: 32,
+    height: 32
+  });
 }
 
 function getCommitIconSvg() {
-  return `
-    <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16" class="octicon octicon-git-commit">
-      <path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"></path>
-    </svg>
-  `;
+  return svgIcon("git-commit", { className: "octicon octicon-git-commit" });
 }
 
 function getProposalIconSvg() {
-  return `
-    <svg aria-hidden="true" focusable="false" class="octicon octicon-git-pull-request" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom;">
-      <path d="M1.5 3.25a2.25 2.25 0 1 1 3.75 1.682v5.386a2.251 2.251 0 1 1-1.5 0V4.932A2.25 2.25 0 0 1 1.5 3.25Zm2.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.5-6.318V10.5a2.251 2.251 0 1 1-1.5 0V5.682A2.25 2.25 0 1 1 12.25 5.682ZM11.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm0 9.5a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM6.75 4a.75.75 0 0 1 .75-.75h2.19L8.97 2.53a.75.75 0 0 1 1.06-1.06l2 2a.75.75 0 0 1 0 1.06l-2 2a.75.75 0 0 1-1.06-1.06l.72-.72H7.5A.75.75 0 0 1 6.75 4Z"></path>
-    </svg>
-  `;
+  return svgIcon("git-pull-request", {
+    className: "octicon octicon-git-pull-request"
+  });
 }
 
 function getRemoveIconSvg() {
-  return `
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-      <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path>
-    </svg>
-  `;
+  return svgIcon("x");
 }
 
 function renderDocumentsToolbar() {
