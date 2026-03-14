@@ -64,7 +64,7 @@ export function renderGlobalHeader() {
         </button>
 
         <a class="gh-brand" href="${model.href}">
-          <img class="gh-brand__logo" src="logo.png" />
+          <img class="gh-brand__logo" src="assets/images/logo.png" />
           <span class="gh-brand__name">${model.primary}</span>
           ${
             model.showSecondary
