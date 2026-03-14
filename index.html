@@ -14,9 +14,9 @@
 <!-- MAIN APP CONTAINER -->
 <main id="app"></main>
 <!-- DETAILS MODAL (inchangé) -->
-<div id="detailsModal" class="modal hidden">
-  <div class="modal__inner overlay-chrome overlay-chrome--modal">
-    <div class="modal__head overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded">
+<div id="detailsModal" class="modal overlay-host overlay-host--modal hidden" aria-hidden="true">
+  <div class="modal__inner overlay-chrome overlay-chrome--modal" role="dialog" aria-modal="true" aria-label="Détails">
+    <div class="overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded modal__head">
       <div class="overlay-chrome__bar">
         <div class="overlay-chrome__context">
           <div class="overlay-chrome__eyebrow mono">DÉTAILS</div>
@@ -25,7 +25,7 @@
 
         <div class="overlay-chrome__actions">
           <div class="details-meta mono" id="detailsMetaModal"></div>
-          <button id="detailsClose" class="icon-btn icon-btn--sm" aria-label="Fermer">✕</button>
+          <button id="detailsClose" class="icon-btn icon-btn--sm overlay-chrome__close" aria-label="Fermer">✕</button>
         </div>
       </div>
     </div>
