@@ -1,6 +1,7 @@
 import { store } from "../store.js";
 import { sendAssistMessage } from "../services/assist-service.js";
 import { closeGlobalNav } from "./global-nav.js";
+import { svgIcon } from "../ui/icons.js";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -228,9 +229,7 @@ export function mountAssistOverlay() {
             </div>
 
             <button id="assist-send" class="assist-send" type="button" aria-label="Envoyer">
-              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-                <path d="M8.53 1.22a.75.75 0 0 0-1.06 0L3.22 5.47a.75.75 0 0 0 1.06 1.06L7.25 3.56V14a.75.75 0 0 0 1.5 0V3.56l2.97 2.97a.75.75 0 1 0 1.06-1.06L8.53 1.22Z"></path>
-              </svg>
+              ${svgIcon("arrow-up")}
             </button>
           </div>
         </div>
