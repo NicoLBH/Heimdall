@@ -53,6 +53,18 @@ html,body{height:100%;}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden;}
 .mono{font-family:var(--mono);line-height:14px;}
 
+.ui-icon{
+  display:inline-block;
+  vertical-align:text-bottom;
+  flex:0 0 auto;
+  fill:currentColor;
+}
+
+.ui-icon--block{
+  display:block;
+  vertical-align:middle;
+}
+
 /* ===== Top header ===== */
 .gh-header{
   position:fixed;
