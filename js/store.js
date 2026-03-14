@@ -23,11 +23,18 @@ export const store = {
   },
 
   projectForm: {
+    projectName: "Projet demo",
+    city: "",
+    postalCode: "",
     communeCp: "",
     importance: "II",
+    importanceCategory: "Catégorie d'importance II",
     soilClass: "A",
     liquefaction: "no",
+    liquefactionText: "Sol non liquéfiable",
+    zoneSismique: "",
     referential: "EC8",
+    phase: "APS",
     webhookUrl: "",
     pdfFile: null
   },
