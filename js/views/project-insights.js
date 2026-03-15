@@ -108,13 +108,6 @@ export function renderProjectInsights(root) {
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="projectInsightsScroll">
         <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
-          <header class="settings-page-header">
-            <h2>Indicateurs</h2>
-            <p>
-              Cet onglet devient le vrai point d’entrée des indicateurs d’exécution.
-            </p>
-          </header>
-
           ${renderExecutionInsightsCardsSection()}
         </div>
       </div>
