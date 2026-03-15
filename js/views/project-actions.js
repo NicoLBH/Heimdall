@@ -218,21 +218,7 @@ export function renderProjectActions(root) {
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="projectActionsScroll">
         <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
-          <section class="settings-section">
-            <div class="settings-card">
-              <div class="settings-card__head">
-                <div>
-                  <h4>Tableau des actions</h4>
-                  <p>
-                    Cette vue ne conserve volontairement que le tableau d’exécution, sans menu latéral ni contenu doctrinal.
-                  </p>
-                </div>
-                <span class="settings-badge mono">RUN LOG</span>
-              </div>
-
-              ${renderRunsTable()}
-            </div>
-          </section>
+          ${renderRunsTable()}
         </div>
       </div>
     </section>
