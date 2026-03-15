@@ -27,7 +27,8 @@
   --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
 
   --data-table-cols: 1fr;
-
+  --discussion-avatar-rail:52px;
+  
   --header-h:52px;
   --header-h-compact:44px;
   --app-top:var(--header-h);
@@ -4688,13 +4689,15 @@ color:#ffff;
   max-width:1280px;
   margin:0 auto;
   padding:0 16px;
-
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:16px;
   height:100%;
   box-sizing:border-box;
+}
+.project-sticky-chrome__container--discussion{
+  padding-left:calc(16px + var(--discussion-avatar-rail));
 }
 .project-sticky-chrome__left{
   min-width:0;
