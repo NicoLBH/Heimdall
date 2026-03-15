@@ -596,7 +596,7 @@ body.modal-open {
   width:auto;
   max-width:none;
   margin:0;
-  padding:12px;
+  padding:0px 12px 12px 12px;
   display:grid;
   gap:5px;
   height:100%;
@@ -4052,6 +4052,7 @@ color:#ffff;
   gap:8px;
   flex-wrap:wrap;
   margin-bottom:10px;
+  padding-top:10px;
 }
 
 .project-discussions__category-pill,
@@ -4410,7 +4411,7 @@ color:#ffff;
   z-index:30;
   margin-bottom:12px;
 }
-
+.project-table-toolbar--documents{margin-bottom:16px;}
 .discussion-close-action{
   position:relative;
   display:inline-flex;
