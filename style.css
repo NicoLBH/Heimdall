@@ -2449,6 +2449,7 @@ color:#ffff;
   display:grid;
   grid-template-columns:repeat(2, minmax(0, 1fr));
   gap:0 16px;
+  overflow:visible;
 }
 
 .settings-upload__meta{
@@ -3361,9 +3362,11 @@ color:#ffff;
 }
 .settings-features-card{
   border:1px solid var(--border);
-  border-radius:12px;
+  border-radius:var(--radius);
   overflow:hidden;
   background:transparent;
+  position: relative;
+  overflow: visible;
 }
 
 .settings-features-card__title{
