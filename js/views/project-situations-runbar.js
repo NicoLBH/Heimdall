@@ -1,5 +1,9 @@
 import { svgIcon } from "../ui/icons.js";
 import { bindGhActionButtons, initGhActionButton, renderGhActionButton } from "./ui/gh-split-button.js";
+import {
+  getAnalyzeButtonLabel,
+  shouldAutoRunAnalysisAfterUpload
+} from "../services/project-automation.js";
 
 let runbarState = {
   run_id: null,
@@ -11,20 +15,37 @@ let runbarState = {
 
 const PLAY_ICON = svgIcon("play", { className: "octicon octicon-play" });
 
+function getRunbarButtonConfig() {
+  const autoMode = shouldAutoRunAnalysisAfterUpload();
+
+  return {
+    autoMode,
+    mainAction: autoMode ? "" : "run",
+    mainLabel: getAnalyzeButtonLabel(),
+    items: autoMode
+      ? [
+          { label: "Reset", action: "reset" }
+        ]
+      : [
+          { label: "Analyser", action: "run", icon: PLAY_ICON },
+          { label: "Reset", action: "reset" }
+        ]
+  };
+}
+
 export function renderProjectSituationsRunbar() {
+  const config = getRunbarButtonConfig();
+
   return `
     <div class="project-runbar" data-chrome-visibility="always">
       <div class="project-runbar__left">
         ${renderGhActionButton({
           id: "runAnalysisAction",
-          label: "Analyser",
+          label: config.mainLabel,
           icon: PLAY_ICON,
           tone: "primary",
-          mainAction: "run",
-          items: [
-            { label: "Analyser", action: "run", icon: PLAY_ICON },
-            { label: "Reset", action: "reset" }
-          ]
+          mainAction: config.mainAction,
+          items: config.items
         })}
       </div>
     </div>
@@ -41,14 +62,18 @@ export function bindProjectSituationsRunbar(root = document) {
   const actionRoot = root.querySelector('[data-action-id="runAnalysisAction"]');
   if (!actionRoot) return;
 
-  initGhActionButton(actionRoot, { mainAction: "run" });
+  const config = getRunbarButtonConfig();
+  initGhActionButton(actionRoot, { mainAction: config.mainAction });
 
   actionRoot.addEventListener("ghaction:action", (event) => {
     const action = event.detail?.action || "";
+
     if (action === "run") {
       if (runbarState.isBusy) return;
+      if (shouldAutoRunAnalysisAfterUpload()) return;
       document.dispatchEvent(new CustomEvent("runAnalysis"));
     }
+
     if (action === "reset") {
       document.dispatchEvent(new CustomEvent("resetAnalysisUi"));
     }
@@ -70,6 +95,7 @@ export function syncProjectSituationsRunbar(run = {}) {
   const topBanner = document.getElementById("topBanner");
 
   const isBusy = !!runbarState.isBusy || runbarState.status === "running";
+  const autoMode = shouldAutoRunAnalysisAfterUpload();
   const bannerMode = runbarState.status === "running"
     ? "running"
     : runbarState.status === "error"
@@ -77,16 +103,28 @@ export function syncProjectSituationsRunbar(run = {}) {
       : null;
 
   if (mainBtn) {
-    mainBtn.disabled = isBusy;
-    mainBtn.classList.toggle("is-disabled", isBusy);
+    mainBtn.disabled = isBusy || autoMode;
+    mainBtn.classList.toggle("is-disabled", isBusy || autoMode);
+    mainBtn.setAttribute(
+      "title",
+      autoMode
+        ? "L’analyse est configurée en mode automatique après dépôt réussi d’un document."
+        : ""
+    );
   }
 
   if (toggleBtn) {
     toggleBtn.disabled = false;
   }
 
+  if (actionRoot) {
+    actionRoot.dataset.mainAction = autoMode ? "" : "run";
+  }
+
   if (labelNode) {
-    labelNode.textContent = isBusy ? "Analyse en cours…" : "Analyser";
+    labelNode.textContent = isBusy
+      ? "Analyse en cours…"
+      : getAnalyzeButtonLabel();
   }
 
   if (!topBanner) return;
