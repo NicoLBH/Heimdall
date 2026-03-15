@@ -46,6 +46,20 @@ export const store = {
     pdfFile: null
   },
 
+  projectAutomation: {
+    catalog: {
+      agents: {},
+      automations: {}
+    },
+
+    settings: {
+      enabledAgents: {},
+      enabledAutomations: {}
+    },
+
+    runLog: []
+  },
+
   situationsView: {
     data: [],
     rawResult: null,
