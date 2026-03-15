@@ -60,6 +60,8 @@ export const store = {
     runLog: []
   },
 
+  projectProposals: [],
+
   situationsView: {
     data: [],
     rawResult: null,
