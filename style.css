@@ -1068,6 +1068,7 @@ body.is-resizing{
 /* ===== Message thread + comment composer ===== */
 .message-thread{display:block;}
 .message-thread__item{width:100%;}
+.message-thread__comment{padding-left:var(--discussion-content-inset);}
 .comment-composer{display:flex;gap:12px;align-items:flex-start;margin-top:10px;padding-left:var(--discussion-content-inset);}
 .comment-composer__main{flex:1 1 auto;min-width:0;}
 .comment-composer__box{width:100%;}
@@ -3862,7 +3863,6 @@ color:#ffff;
   overflow-x:hidden;
   overscroll-behavior:contain;
   scrollbar-gutter:stable;
-  padding:0 16px 24px;
   box-sizing:border-box;
   padding-bottom:200px;
 }
@@ -3958,8 +3958,9 @@ color:#ffff;
 }
 
 .project-discussions__detail-inner{
-  max-width:980px;
-  padding-left:var(--discussion-content-inset);
+  max-width:1280px;
+  margin:0 auto;
+  padding:0 16px 24px;
 }
 
 .project-discussions__sticky-top{
