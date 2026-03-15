@@ -219,6 +219,103 @@ function bindDiscussionsTabReset() {
   });
 }
 
+let discussionsDetailScrollCleanup = null;
+
+function cleanupDiscussionsDetailScroll() {
+  if (typeof discussionsDetailScrollCleanup === "function") {
+    discussionsDetailScrollCleanup();
+  }
+  discussionsDetailScrollCleanup = null;
+  document.body.classList.remove("project-discussions-detail-scrolled");
+}
+
+function setDiscussionsDetailCompactState(isCompact) {
+  document.body.classList.toggle("project-discussions-detail-scrolled", !!isCompact);
+}
+
+function getDiscussionNumber(discussion) {
+  const idx = DISCUSSIONS.findIndex((item) => item.id === discussion?.id);
+  return idx >= 0 ? idx + 1 : 0;
+}
+
+function getDiscussionCommentCount(discussion) {
+  return Array.isArray(discussion?.timeline)
+    ? discussion.timeline.filter((item) => item.type === "comment").length
+    : 0;
+}
+
+function getDiscussionReplyCount(discussion) {
+  if (!Array.isArray(discussion?.timeline)) return 0;
+  return discussion.timeline.reduce((sum, item) => {
+    if (item.type !== "comment") return sum;
+    return sum + Number(item.repliesCount || 0);
+  }, 0);
+}
+
+function renderDiscussionStickyHeader(discussion) {
+  const commentCount = getDiscussionCommentCount(discussion);
+  const replyCount = getDiscussionReplyCount(discussion);
+  const discussionNumber = getDiscussionNumber(discussion);
+
+  return `
+    <div class="project-discussions__sticky-header" id="projectDiscussionStickyHeader">
+      <div class="project-discussions__sticky-top">
+        <div class="project-discussions__sticky-title-wrap">
+          <span class="project-discussions__sticky-title">${escapeHtml(discussion.title || "Discussion")}</span>
+          <span class="project-discussions__sticky-id mono">#${escapeHtml(discussionNumber)}</span>
+        </div>
+
+        <button
+          type="button"
+          class="project-discussions__sticky-toplink mono"
+          data-discussion-action="return-top"
+        >
+          Return to top
+        </button>
+      </div>
+
+      <div class="project-discussions__sticky-meta">
+        <span class="project-discussions__sticky-author-avatar">
+          ${svgIcon("avatar-human", { width: 16, height: 16, className: "ui-icon ui-icon--block", style: "display:block" })}
+        </span>
+        <span class="project-discussions__sticky-author mono">${escapeHtml(discussion.author || "Utilisateur")}</span>
+        <span class="project-discussions__sticky-sep">-</span>
+        <span class="project-discussions__sticky-activity mono">Latest activity ${escapeHtml(fmtTs(discussion.updatedAt))}</span>
+        <span class="project-discussions__sticky-sep">-</span>
+        <span class="project-discussions__sticky-count mono">${escapeHtml(commentCount)} comments</span>
+        <span class="project-discussions__sticky-sep">-</span>
+        <span class="project-discussions__sticky-count mono">${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
+      </div>
+    </div>
+  `;
+}
+
+function bindDiscussionDetailScroll(root) {
+  cleanupDiscussionsDetailScroll();
+
+  const scrollEl = root.querySelector("#projectDiscussionsScroll");
+  const stickyEl = root.querySelector("#projectDiscussionStickyHeader");
+
+  if (!scrollEl || !stickyEl || !state.selectedDiscussionId) {
+    setDiscussionsDetailCompactState(false);
+    return;
+  }
+
+  const sync = () => {
+    const isCompact = (scrollEl.scrollTop || 0) > 56;
+    stickyEl.classList.toggle("is-visible", isCompact);
+    setDiscussionsDetailCompactState(isCompact);
+  };
+
+  scrollEl.addEventListener("scroll", sync, { passive: true });
+  discussionsDetailScrollCleanup = () => {
+    scrollEl.removeEventListener("scroll", sync);
+    setDiscussionsDetailCompactState(false);
+  };
+
+  sync();
+}
+
 function mdToHtml(text) {
   const safe = escapeHtml(text || "");
   return safe
@@ -631,9 +728,12 @@ function renderDetailView() {
   if (!discussion) return renderListView();
 
   const category = getCategoryMeta(discussion.categoryId);
-  const commentCount = discussion.timeline.filter((item) => item.type === "comment").length;
+  const commentCount = getDiscussionCommentCount(discussion);
+  const discussionNumber = getDiscussionNumber(discussion);
 
   return `
+    ${renderDiscussionStickyHeader(discussion)}
+
     <section class="project-discussions__detail project-discussions__detail--standalone">
       <div class="project-discussions__detail-head">
         <div class="project-discussions__detail-title-row">
@@ -641,7 +741,10 @@ function renderDetailView() {
           <div class="project-discussions__state-pill mono">${escapeHtml(renderDiscussionState(discussion))}</div>
         </div>
 
-        <h2 class="project-discussions__detail-title">${escapeHtml(discussion.title)}</h2>
+        <h2 class="project-discussions__detail-title">
+          ${escapeHtml(discussion.title)}
+          <span class="project-discussions__detail-title-id mono">#${escapeHtml(discussionNumber)}</span>
+        </h2>
 
         <div class="project-discussions__detail-meta">
           ${escapeHtml(discussion.author)} ${escapeHtml(discussion.kind)} · ${escapeHtml(fmtTs(discussion.updatedAt))}
@@ -762,6 +865,7 @@ function bindEvents(root) {
     btn.addEventListener("click", () => {
       state.selectedCategoryId = btn.dataset.sideNavTarget || "all";
       state.selectedDiscussionId = "";
+      state.closeMenuOpen = false;
       renderProjectDiscussions(root, { preserveSelection: true });
     });
   });
@@ -795,6 +899,14 @@ function bindEvents(root) {
   root.querySelectorAll("[data-discussion-action='new-discussion']").forEach((btn) => {
     btn.addEventListener("click", () => {
       alert("Phase 1 UI : la création réelle sera branchée plus tard.");
+    });
+  });
+
+  root.querySelectorAll("[data-discussion-action='return-top']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const scrollEl = root.querySelector("#projectDiscussionsScroll");
+      if (!scrollEl) return;
+      scrollEl.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
 
@@ -862,7 +974,7 @@ function bindEvents(root) {
       renderProjectDiscussions(root, { preserveSelection: true });
     });
   });
-  
+
   document.addEventListener("click", handleDocumentClickCloseMenu, { once: true });
 
   root.querySelectorAll("[data-discussion-action='toggle-help']").forEach((btn) => {
@@ -901,6 +1013,8 @@ function bindEvents(root) {
       renderProjectDiscussions(root, { preserveSelection: true });
     });
   });
+
+  bindDiscussionDetailScroll(root);
 }
 
 function handleDocumentClickCloseMenu(event) {
@@ -913,6 +1027,7 @@ export function renderProjectDiscussions(root, { preserveSelection = false } = {
   root.className = "project-shell__content";
   discussionsCurrentRoot = root;
   bindDiscussionsTabReset();
+  cleanupDiscussionsDetailScroll();
 
   if (!preserveSelection) {
     state.selectedDiscussionId = "";
@@ -930,4 +1045,8 @@ export function renderProjectDiscussions(root, { preserveSelection = false } = {
 
   const preview = root.querySelector("#projectDiscussionComposerPreview");
   if (preview) preview.innerHTML = mdToHtml(state.composerText);
+
+  if (!state.selectedDiscussionId) {
+    setDiscussionsDetailCompactState(false);
+  }
 }
