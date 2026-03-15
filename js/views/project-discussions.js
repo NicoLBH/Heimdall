@@ -1,4 +1,10 @@
-import { registerProjectPrimaryScrollSource, setProjectViewHeader } from "./project-shell-chrome.js";
+import {
+  registerProjectPrimaryScrollSource,
+  setProjectViewHeader,
+  setProjectStickyChrome,
+  clearProjectStickyChrome
+} from "./project-shell-chrome.js";
+
 import { svgIcon } from "../ui/icons.js";
 import { escapeHtml } from "../utils/escape-html.js";
 
@@ -35,11 +41,6 @@ import {
   renderProjectTableToolbarSearch,
   renderProjectTableToolbarSelect
 } from "./ui/project-table-toolbar.js";
-
-import {
-  renderDetailChrome,
-  bindDetailChromeCompact
-} from "./ui/detail-chrome.js";
 
 const CATEGORY_META = [
   { id: "all", label: "Voir toutes les discussions", icon: "💬", description: "Toutes catégories" },
@@ -302,21 +303,35 @@ function bindDiscussionDetailScroll(root) {
   cleanupDiscussionsDetailScroll();
 
   const scrollEl = root.querySelector("#projectDiscussionsScroll");
-  const chromeEl = root.querySelector("#projectDiscussionDetailChrome");
+  const discussion = getSelectedDiscussion();
 
-  if (!scrollEl || !chromeEl || !state.selectedDiscussionId) {
+  if (!scrollEl || !discussion || !state.selectedDiscussionId) {
     setDiscussionsDetailCompactState(false);
+    clearProjectStickyChrome();
     return;
   }
 
-  discussionsDetailScrollCleanup = bindDetailChromeCompact({
-    scrollEl,
-    chromeEl,
-    threshold: 56,
-    onCompactChange: (isCompact) => {
-      setDiscussionsDetailCompactState(isCompact);
+  const sync = () => {
+    const isCompact = (scrollEl.scrollTop || 0) > 56;
+
+    setDiscussionsDetailCompactState(isCompact);
+
+    if (isCompact) {
+      setProjectStickyChrome(renderDiscussionFixedCompactBar(discussion));
+    } else {
+      clearProjectStickyChrome();
     }
-  });
+  };
+
+  scrollEl.addEventListener("scroll", sync, { passive: true });
+  sync();
+  setTimeout(sync, 0);
+
+  discussionsDetailScrollCleanup = () => {
+    scrollEl.removeEventListener("scroll", sync);
+    clearProjectStickyChrome();
+    setDiscussionsDetailCompactState(false);
+  };
 }
 
 function mdToHtml(text) {
@@ -377,6 +392,43 @@ function getFilteredDiscussions() {
 
 function getSelectedDiscussion() {
   return DISCUSSIONS.find((item) => item.id === state.selectedDiscussionId) || null;
+}
+
+function renderDiscussionFixedCompactBar(discussion) {
+  const discussionNumber = getDiscussionNumber(discussion);
+  const commentCount = getDiscussionCommentCount(discussion);
+  const replyCount = getDiscussionReplyCount(discussion);
+
+  return `
+    <div class="project-sticky-chrome project-sticky-chrome--discussion">
+      <div class="project-sticky-chrome__left">
+        <div class="project-sticky-chrome__title-row">
+          <span class="project-sticky-chrome__title">${escapeHtml(discussion.title || "Discussion")}</span>
+          <span class="project-sticky-chrome__id mono">#${escapeHtml(discussionNumber)}</span>
+        </div>
+
+        <div class="project-sticky-chrome__meta mono">
+          <span>${escapeHtml(discussion.author || "Utilisateur")}</span>
+          <span>-</span>
+          <span>Latest activity ${escapeHtml(fmtTs(discussion.updatedAt))}</span>
+          <span>-</span>
+          <span>${escapeHtml(commentCount)} comments</span>
+          <span>-</span>
+          <span>${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
+        </div>
+      </div>
+
+      <div class="project-sticky-chrome__right">
+        <button
+          type="button"
+          class="project-sticky-chrome__toplink mono"
+          data-discussion-action="return-top"
+        >
+          Return to top
+        </button>
+      </div>
+    </div>
+  `;
 }
 
 function renderCategoryIcon(icon) {
@@ -767,15 +819,13 @@ function renderDetailView() {
     </section>
   `;
 
-  return renderDetailChrome({
-    className: "project-discussions__detail-chrome",
-    width: "narrow",
-    stickyId: "projectDiscussionDetailChrome",
-    stickyTitleHtml: renderDiscussionStickyTitleBar(discussion),
-    stickyMetaHtml: renderDiscussionStickyMetaBar(discussion),
-    innerClassName: "project-discussions__detail-inner",
-    bodyHtml
-  });
+  return `
+    <section class="project-discussions__detail-page">
+      <div class="project-discussions__detail-inner">
+        ${bodyHtml}
+      </div>
+    </section>
+  `;
 }
 
 function renderPage() {
