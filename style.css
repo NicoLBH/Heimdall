@@ -34,6 +34,7 @@
   
   --header-h:52px;
   --header-h-compact:44px;
+  --header-h-sticky-chrome:60px;
   --app-top:var(--header-h);
   --project-tabs-h:44px;
   --top-banner-h: 44px;
@@ -4681,7 +4682,6 @@ color:#ffff;
   pointer-events:none;
   opacity:0;
   transform:translateY(-100%);
-  transition:opacity .16s ease, transform .16s ease;
 }
 
 #projectStickyChromeHost.is-visible{
@@ -4691,8 +4691,8 @@ color:#ffff;
 }
 
 .project-sticky-chrome{
-  height:var(--header-h-compact);
-  background:var(--headbg);
+  height:var(header-h-sticky-chrome);
+  background:var(--bg);
   border-bottom:1px solid var(--border);
 }
 .project-sticky-chrome__container{
