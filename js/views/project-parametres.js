@@ -1,4 +1,4 @@
-import { store } from "../store.js";
+import { store, DEFAULT_PROJECT_PHASES } from "../store.js";
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
 import {
   DEFAULT_PROJECT_TABS_VISIBILITY,
@@ -40,6 +40,58 @@ const parametresUiState = {
 };
 
 let currentParametresRoot = null;
+
+function cloneDefaultProjectPhases() {
+  return DEFAULT_PROJECT_PHASES.map((item) => ({ ...item }));
+}
+
+function getProjectPhasesCatalog() {
+  const phases = Array.isArray(store.projectForm.phasesCatalog)
+    ? store.projectForm.phasesCatalog
+    : [];
+
+  return phases.map((item) => ({
+    code: String(item?.code || "").trim(),
+    label: String(item?.label || "").trim(),
+    enabled: item?.enabled !== false
+  })).filter((item) => item.code && item.label);
+}
+
+function getEnabledProjectPhases() {
+  return getProjectPhasesCatalog().filter((item) => item.enabled);
+}
+
+function renderProjectPhasesCard() {
+  const items = getProjectPhasesCatalog();
+
+  return `
+    <div class="settings-features-card">
+      <div class="settings-features-card__title">Phases disponibles</div>
+      <div class="settings-features-list">
+        ${items.map((item) => {
+          const inputId = `projectPhaseToggle_${item.code}`;
+          return `
+            <label class="settings-feature-row" for="${escapeHtml(inputId)}">
+              <div class="settings-feature-row__control">
+                <input
+                  id="${escapeHtml(inputId)}"
+                  type="checkbox"
+                  data-project-phase-toggle="${escapeHtml(item.code)}"
+                  ${item.enabled ? "checked" : ""}
+                >
+              </div>
+              <div class="settings-feature-row__body">
+                <div class="settings-feature-row__label">
+                  ${escapeHtml(item.code)} - ${escapeHtml(item.label)}
+                </div>
+              </div>
+            </label>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
 
 function importanceCodeToLabel(value) {
   const normalized = String(value || "").trim();
@@ -119,8 +171,27 @@ function ensureProjectFormDefaults() {
     form.zoneSismique = "4";
   }
 
-  if (typeof form.phase !== "string" || !form.phase.trim()) {
-    form.phase = "APS";
+  const rawCatalog = Array.isArray(form.phasesCatalog) ? form.phasesCatalog : [];
+  const defaultCatalog = cloneDefaultProjectPhases();
+
+  form.phasesCatalog = defaultCatalog.map((defaultItem) => {
+    const existing = rawCatalog.find((item) => String(item?.code || "").trim() === defaultItem.code);
+    return {
+      code: defaultItem.code,
+      label: defaultItem.label,
+      enabled: existing?.enabled !== false
+    };
+  });
+
+  const enabledPhases = form.phasesCatalog.filter((item) => item.enabled);
+  const fallbackPhase = enabledPhases[0]?.code || defaultCatalog[0]?.code || "APS";
+
+  if (
+    typeof form.phase !== "string" ||
+    !form.phase.trim() ||
+    !enabledPhases.some((item) => item.code === form.phase)
+  ) {
+    form.phase = fallbackPhase;
   }
 
   if (typeof form.referential !== "string" || !form.referential.trim()) {
@@ -753,14 +824,12 @@ function getPageHtml(form) {
               ${renderSettingsBlock({
                 id: "parametres-phase",
                 title: "Données de base projet",
-                lead: "Positionnement du projet dans son cycle de production.",
+                lead: "Sélection des phases actives du projet. Elles alimentent ensuite le menu déroulant de l’onglet Documents.",
                 cards: [
                   renderSectionCard({
                     title: "Phase",
-                    description: "",
-                    body: `<div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderSelectField({ id: "projectPhase", label: "Phase", value: form.phase || "APS", options: ["ESQ", "APS", "APD", "PRO", "DCE", "EXE", "DET", "AOR"] })}
-                    </div>`
+                    description: "Les cases sont toutes cochées par défaut. Cette structure est stockée dans le store pour préparer le branchement backend.",
+                    body: renderProjectPhasesCard()
                   })
                 ]
               })}
@@ -1194,6 +1263,32 @@ function bindProjectAutomationToggles() {
   });
 }
 
+function bindProjectPhaseToggles() {
+  document.querySelectorAll("[data-project-phase-toggle]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const code = event.target.getAttribute("data-project-phase-toggle");
+      if (!code || !Array.isArray(store.projectForm.phasesCatalog)) return;
+
+      const item = store.projectForm.phasesCatalog.find((phase) => phase.code === code);
+      if (!item) return;
+
+      item.enabled = !!event.target.checked;
+
+      const enabledPhases = getEnabledProjectPhases();
+
+      if (!enabledPhases.length) {
+        item.enabled = true;
+        event.target.checked = true;
+        return;
+      }
+
+      if (!enabledPhases.some((phase) => phase.code === store.projectForm.phase)) {
+        store.projectForm.phase = enabledPhases[0].code;
+      }
+    });
+  });
+}
+
 function bindParametresEvents() {
   bindGhEditableFields(document, {
     onValidate: (id, value) => {
@@ -1237,10 +1332,6 @@ function bindParametresEvents() {
           store.projectForm.importance = importanceLabelToCode(value);
           break;
 
-        case "projectPhase":
-          store.projectForm.phase = value;
-          break;
-
         case "zoneSismique":
           store.projectForm.zoneSismique = value;
           break;
@@ -1265,6 +1356,7 @@ function bindParametresEvents() {
   });
 
   bindProjectTabToggles();
+  bindProjectPhaseToggles();
   bindProjectAutomationToggles();
   refreshProjectTabsVisibility();
 
