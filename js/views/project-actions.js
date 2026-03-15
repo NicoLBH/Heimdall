@@ -1,8 +1,6 @@
 import { escapeHtml } from "../utils/escape-html.js";
-import { renderDoctrinePage } from "./project-doctrine-page.js";
-import {
-  getRunLogEntries
-} from "../services/project-automation.js";
+import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
+import { getRunLogEntries } from "../services/project-automation.js";
 import {
   renderDataTableEmptyState,
   renderDataTableHead,
@@ -157,111 +155,49 @@ function renderRunsTable() {
     state: entries.length ? "ready" : "empty",
     emptyHtml: renderDataTableEmptyState({
       title: "Aucune action exécutée",
-      description: "Lance une analyse manuelle depuis l’onglet Situations pour alimenter le journal d’exécution."
+      description: "Lance une analyse manuelle depuis l’onglet Sujets pour alimenter le journal d’exécution."
     })
   });
 }
 
-function renderRunsSection() {
-  return `
-    <section class="settings-section" id="workflows-runs">
-      <h3>Exécutions et journal</h3>
-      <p class="settings-lead">
-        Cet espace devient le journal opératoire du projet. Il affiche les actions réellement exécutées par Rapsobot, leur déclencheur, leur date, leur durée et leur statut.
-      </p>
+export function renderProjectActions(root) {
+  root.className = "project-shell__content";
 
-      <div class="settings-card">
-        <div class="settings-card__head">
-          <div>
-            <h4>Journal des actions</h4>
+  setProjectViewHeader({
+    contextLabel: "Actions",
+    variant: "actions"
+  });
+
+  root.innerHTML = `
+    <section class="project-simple-page project-simple-page--settings">
+      <div class="project-simple-scroll" id="projectActionsScroll">
+        <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
+          <header class="settings-page-header">
+            <h2>Actions</h2>
             <p>
-              Première implémentation locale du run log partagé. Cette vue prépare la future traçabilité serveur, les validations humaines et les automatisations multi-documents.
+              Journal d’exécution des actions réellement lancées dans le PoC.
             </p>
-          </div>
-          <span class="settings-badge mono">RUN LOG</span>
-        </div>
+          </header>
 
-        ${renderRunsTable()}
+          <section class="settings-section">
+            <div class="settings-card">
+              <div class="settings-card__head">
+                <div>
+                  <h4>Tableau des actions</h4>
+                  <p>
+                    Cette vue ne conserve volontairement que le tableau d’exécution, sans menu latéral ni contenu doctrinal.
+                  </p>
+                </div>
+                <span class="settings-badge mono">RUN LOG</span>
+              </div>
+
+              ${renderRunsTable()}
+            </div>
+          </section>
+        </div>
       </div>
     </section>
   `;
-}
 
-export function renderProjectWorkflows(root) {
-  renderDoctrinePage(root, {
-    contextLabel: "Actions",
-    variant: "workflows",
-    scrollId: "projectWorkflowsScroll",
-    navTitle: "Actions",
-    pageTitle: "Actions",
-    pageIntro: "Cet onglet transpose GitHub Actions au projet de construction. Il montre les actions exécutées, leurs déclencheurs et leur traçabilité, sans jamais remplacer la validation humaine métier.",
-    navItems: [
-      { id: "workflows-runs", label: "Exécutions" },
-      { id: "workflows-bibliotheque", label: "Bibliothèque" },
-      { id: "workflows-approbations", label: "Approbations" },
-      { id: "workflows-checks", label: "Checks" }
-    ],
-    topHtml: renderRunsSection(),
-    sections: [
-      {
-        id: "workflows-bibliotheque",
-        title: "Bibliothèque de workflows",
-        lead: "La page affichera les automatismes disponibles pour le projet : diffusion, mise à jour de statuts, notifications, contrôles de complétude et déclenchement de revues ciblées.",
-        blocks: [
-          {
-            title: "Exemples de workflows affichés",
-            description: "Chaque ligne décrira le déclencheur, les prérequis et l'effet métier attendu.",
-            items: [
-              "Après approbation d'une proposition : intégrer la pièce, historiser l'ancienne version, notifier les intervenants.",
-              "Avant jalon : alerter si des sujets bloquants restent ouverts.",
-              "Sur changement de produit sensible : demander une revue sécurité/réglementaire complémentaire.",
-              "Après clôture de sujet : vérifier qu'une preuve est bien associée."
-            ],
-            actions: [
-              { label: "Nouveau workflow" },
-              { label: "Voir déclencheurs" }
-            ]
-          }
-        ]
-      },
-      {
-        id: "workflows-approbations",
-        title: "Étapes d'approbation humaine",
-        lead: "La différence essentielle avec l'informatique est ici : le workflow prépare et trace, mais la validation reste portée par les acteurs compétents.",
-        blocks: [
-          {
-            title: "Gates humains affichés",
-            description: "Les cartes d'approbation expliqueront quels accords seront requis selon le type de changement.",
-            items: [
-              "Validation MOE ou architecte.",
-              "Avis CT sur l'incidence réglementaire ou technique.",
-              "Arbitrage MOA si impact coût, programme ou planning.",
-              "Visa entreprise / BET si impact exécution."
-            ],
-            actions: [
-              { label: "Voir validations requises" }
-            ]
-          }
-        ]
-      },
-      {
-        id: "workflows-checks",
-        title: "Checks automatiques",
-        lead: "Les checks jouent le rôle de garde-fous procéduraux : complétude, cohérence de nomenclature, présence d'impacts, rattachement à un sujet ou à un document de référence.",
-        blocks: [
-          {
-            title: "Vérifications visibles",
-            description: "Chaque check doit être explicite pour être compris et auditable.",
-            items: [
-              "Présence des champs obligatoires.",
-              "Présence des pièces jointes minimales.",
-              "Lien avec documents et sujets concernés.",
-              "Présence d'une justification de changement.",
-              "Présence des relecteurs attendus selon la nature de la proposition."
-            ]
-          }
-        ]
-      }
-    ]
-  });
+  registerProjectPrimaryScrollSource(document.getElementById("projectActionsScroll"));
 }
