@@ -36,6 +36,11 @@ import {
   renderProjectTableToolbarSelect
 } from "./ui/project-table-toolbar.js";
 
+import {
+  renderDetailChrome,
+  bindDetailChromeCompact
+} from "./ui/detail-chrome.js";
+
 const CATEGORY_META = [
   { id: "all", label: "Voir toutes les discussions", icon: "💬", description: "Toutes catégories" },
   { id: "announcements", label: "Annonces", icon: "📣", description: "Informations générales" },
@@ -252,42 +257,43 @@ function getDiscussionReplyCount(discussion) {
   }, 0);
 }
 
-function renderDiscussionStickyHeader(discussion) {
-  const commentCount = getDiscussionCommentCount(discussion);
-  const replyCount = getDiscussionReplyCount(discussion);
+function renderDiscussionStickyTitleBar(discussion) {
   const discussionNumber = getDiscussionNumber(discussion);
 
   return `
-    <div class="project-discussions__sticky-header" id="projectDiscussionStickyHeader">
-      <div class="project-discussions__sticky-inner">
-        <div class="project-discussions__sticky-top">
-          <div class="project-discussions__sticky-title-wrap">
-            <span class="project-discussions__sticky-title">${escapeHtml(discussion.title || "Discussion")}</span>
-            <span class="project-discussions__sticky-id mono">#${escapeHtml(discussionNumber)}</span>
-          </div>
-
-          <button
-            type="button"
-            class="project-discussions__sticky-toplink mono"
-            data-discussion-action="return-top"
-          >
-            Return to top
-          </button>
-        </div>
-
-        <div class="project-discussions__sticky-meta">
-          <span class="project-discussions__sticky-author-avatar">
-            ${svgIcon("avatar-human", { width: 16, height: 16, className: "ui-icon ui-icon--block", style: "display:block" })}
-          </span>
-          <span class="project-discussions__sticky-author mono">${escapeHtml(discussion.author || "Utilisateur")}</span>
-          <span class="project-discussions__sticky-sep">-</span>
-          <span class="project-discussions__sticky-activity mono">Latest activity ${escapeHtml(fmtTs(discussion.updatedAt))}</span>
-          <span class="project-discussions__sticky-sep">-</span>
-          <span class="project-discussions__sticky-count mono">${escapeHtml(commentCount)} comments</span>
-          <span class="project-discussions__sticky-sep">-</span>
-          <span class="project-discussions__sticky-count mono">${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
-        </div>
+    <div class="project-discussions__sticky-top">
+      <div class="project-discussions__sticky-title-wrap">
+        <span class="project-discussions__sticky-title">${escapeHtml(discussion.title || "Discussion")}</span>
+        <span class="project-discussions__sticky-id mono">#${escapeHtml(discussionNumber)}</span>
       </div>
+
+      <button
+        type="button"
+        class="project-discussions__sticky-toplink mono"
+        data-discussion-action="return-top"
+      >
+        Return to top
+      </button>
+    </div>
+  `;
+}
+
+function renderDiscussionStickyMetaBar(discussion) {
+  const commentCount = getDiscussionCommentCount(discussion);
+  const replyCount = getDiscussionReplyCount(discussion);
+
+  return `
+    <div class="project-discussions__sticky-meta">
+      <span class="project-discussions__sticky-author-avatar">
+        ${svgIcon("avatar-human", { width: 16, height: 16, className: "ui-icon ui-icon--block", style: "display:block" })}
+      </span>
+      <span class="project-discussions__sticky-author mono">${escapeHtml(discussion.author || "Utilisateur")}</span>
+      <span class="project-discussions__sticky-sep">-</span>
+      <span class="project-discussions__sticky-activity mono">Latest activity ${escapeHtml(fmtTs(discussion.updatedAt))}</span>
+      <span class="project-discussions__sticky-sep">-</span>
+      <span class="project-discussions__sticky-count mono">${escapeHtml(commentCount)} comments</span>
+      <span class="project-discussions__sticky-sep">-</span>
+      <span class="project-discussions__sticky-count mono">${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
     </div>
   `;
 }
@@ -296,26 +302,21 @@ function bindDiscussionDetailScroll(root) {
   cleanupDiscussionsDetailScroll();
 
   const scrollEl = root.querySelector("#projectDiscussionsScroll");
-  const stickyEl = root.querySelector("#projectDiscussionStickyHeader");
+  const chromeEl = root.querySelector("#projectDiscussionDetailChrome");
 
-  if (!scrollEl || !stickyEl || !state.selectedDiscussionId) {
+  if (!scrollEl || !chromeEl || !state.selectedDiscussionId) {
     setDiscussionsDetailCompactState(false);
     return;
   }
 
-  const sync = () => {
-    const isCompact = (scrollEl.scrollTop || 0) > 56;
-    stickyEl.classList.toggle("is-visible", isCompact);
-    setDiscussionsDetailCompactState(isCompact);
-  };
-
-  scrollEl.addEventListener("scroll", sync, { passive: true });
-  discussionsDetailScrollCleanup = () => {
-    scrollEl.removeEventListener("scroll", sync);
-    setDiscussionsDetailCompactState(false);
-  };
-
-  sync();
+  discussionsDetailScrollCleanup = bindDetailChromeCompact({
+    scrollEl,
+    chromeEl,
+    threshold: 56,
+    onCompactChange: (isCompact) => {
+      setDiscussionsDetailCompactState(isCompact);
+    }
+  });
 }
 
 function mdToHtml(text) {
@@ -733,10 +734,8 @@ function renderDetailView() {
   const commentCount = getDiscussionCommentCount(discussion);
   const discussionNumber = getDiscussionNumber(discussion);
 
-  return `
-    ${renderDiscussionStickyHeader(discussion)}
-
-    <section class="project-discussions__detail project-discussions__detail--standalone">
+   const bodyHtml = `
+    <section class="project-discussions__detail">
       <div class="project-discussions__detail-head">
         <div class="project-discussions__detail-title-row">
           <div class="project-discussions__category-pill mono">${escapeHtml(category.icon)} ${escapeHtml(category.label)}</div>
@@ -767,6 +766,16 @@ function renderDetailView() {
       </div>
     </section>
   `;
+
+  return renderDetailChrome({
+    className: "project-discussions__detail-chrome",
+    width: "narrow",
+    stickyId: "projectDiscussionDetailChrome",
+    stickyTitleHtml: renderDiscussionStickyTitleBar(discussion),
+    stickyMetaHtml: renderDiscussionStickyMetaBar(discussion),
+    innerClassName: "project-discussions__detail-inner",
+    bodyHtml
+  });
 }
 
 function renderPage() {
