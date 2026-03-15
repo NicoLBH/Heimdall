@@ -3833,7 +3833,7 @@ color:#ffff;
   min-height:0;
   display:flex;
   flex-direction:column;
-  padding:16px;
+  padding:16px 16px 0px 16px;
 }
 
 .project-discussions--detail{
@@ -3863,6 +3863,7 @@ color:#ffff;
   scrollbar-gutter:stable;
   padding:0 16px 24px;
   box-sizing:border-box;
+  padding-bottom:200px;
 }
 
 /* =========================================================
@@ -4123,6 +4124,9 @@ color:#ffff;
   height:100%;
   min-height:0;
   align-items:stretch;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .side-nav-layout--discussions .side-nav-layout__nav{
