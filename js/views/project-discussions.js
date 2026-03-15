@@ -259,32 +259,34 @@ function renderDiscussionStickyHeader(discussion) {
 
   return `
     <div class="project-discussions__sticky-header" id="projectDiscussionStickyHeader">
-      <div class="project-discussions__sticky-top">
-        <div class="project-discussions__sticky-title-wrap">
-          <span class="project-discussions__sticky-title">${escapeHtml(discussion.title || "Discussion")}</span>
-          <span class="project-discussions__sticky-id mono">#${escapeHtml(discussionNumber)}</span>
+      <div class="project-discussions__sticky-inner">
+        <div class="project-discussions__sticky-top">
+          <div class="project-discussions__sticky-title-wrap">
+            <span class="project-discussions__sticky-title">${escapeHtml(discussion.title || "Discussion")}</span>
+            <span class="project-discussions__sticky-id mono">#${escapeHtml(discussionNumber)}</span>
+          </div>
+
+          <button
+            type="button"
+            class="project-discussions__sticky-toplink mono"
+            data-discussion-action="return-top"
+          >
+            Return to top
+          </button>
         </div>
 
-        <button
-          type="button"
-          class="project-discussions__sticky-toplink mono"
-          data-discussion-action="return-top"
-        >
-          Return to top
-        </button>
-      </div>
-
-      <div class="project-discussions__sticky-meta">
-        <span class="project-discussions__sticky-author-avatar">
-          ${svgIcon("avatar-human", { width: 16, height: 16, className: "ui-icon ui-icon--block", style: "display:block" })}
-        </span>
-        <span class="project-discussions__sticky-author mono">${escapeHtml(discussion.author || "Utilisateur")}</span>
-        <span class="project-discussions__sticky-sep">-</span>
-        <span class="project-discussions__sticky-activity mono">Latest activity ${escapeHtml(fmtTs(discussion.updatedAt))}</span>
-        <span class="project-discussions__sticky-sep">-</span>
-        <span class="project-discussions__sticky-count mono">${escapeHtml(commentCount)} comments</span>
-        <span class="project-discussions__sticky-sep">-</span>
-        <span class="project-discussions__sticky-count mono">${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
+        <div class="project-discussions__sticky-meta">
+          <span class="project-discussions__sticky-author-avatar">
+            ${svgIcon("avatar-human", { width: 16, height: 16, className: "ui-icon ui-icon--block", style: "display:block" })}
+          </span>
+          <span class="project-discussions__sticky-author mono">${escapeHtml(discussion.author || "Utilisateur")}</span>
+          <span class="project-discussions__sticky-sep">-</span>
+          <span class="project-discussions__sticky-activity mono">Latest activity ${escapeHtml(fmtTs(discussion.updatedAt))}</span>
+          <span class="project-discussions__sticky-sep">-</span>
+          <span class="project-discussions__sticky-count mono">${escapeHtml(commentCount)} comments</span>
+          <span class="project-discussions__sticky-sep">-</span>
+          <span class="project-discussions__sticky-count mono">${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
+        </div>
       </div>
     </div>
   `;
