@@ -4768,3 +4768,248 @@ color:#ffff;
 .project-sticky-chrome__toplink:hover{
   color:#fff;
 }
+/* =========================================================
+   Discussions - création
+========================================================= */
+
+.project-discussions--create{
+  height:100%;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  padding:0;
+}
+
+.project-discussions__create-shell{
+  max-width:1280px;
+  margin:0 auto;
+  padding:16px;
+}
+
+.project-discussions__create-panel{
+  max-width:100%;
+}
+
+.project-discussions__category-list{
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  background:var(--panel);
+}
+
+.project-discussions__category-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:20px 16px;
+  border-bottom:1px solid var(--border);
+}
+
+.project-discussions__category-card:last-child{
+  border-bottom:none;
+}
+
+.project-discussions__category-card-main{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+
+.project-discussions__category-card-icon{
+  width:52px;
+  height:52px;
+  border-radius:8px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--panel2);
+  font-size:24px;
+  flex:0 0 52px;
+}
+
+.project-discussions__category-card-body{
+  min-width:0;
+}
+
+.project-discussions__category-card-title{
+  font-size:16px;
+  line-height:1.4;
+  font-weight:600;
+  color:var(--text);
+  margin-bottom:2px;
+}
+
+.project-discussions__category-card-desc{
+  font-size:14px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+.project-discussions__category-card-btn{
+  flex:0 0 auto;
+}
+
+.project-discussions__create-category-head{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  margin-bottom:14px;
+}
+
+.project-discussions__create-category-icon{
+  width:52px;
+  height:52px;
+  border-radius:8px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--panel2);
+  font-size:24px;
+  flex:0 0 52px;
+}
+
+.project-discussions__create-category-copy{
+  min-width:0;
+}
+
+.project-discussions__create-category-title{
+  font-size:18px;
+  line-height:1.4;
+  font-weight:600;
+  color:var(--text);
+}
+
+.project-discussions__create-category-desc{
+  margin-top:2px;
+  font-size:14px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+.project-discussions__create-switch{
+  border:none;
+  background:transparent;
+  padding:0;
+  margin:0 0 24px;
+  color:var(--accent);
+  cursor:pointer;
+  text-decoration:underline;
+}
+
+.project-discussions__form-block{
+  margin-bottom:22px;
+}
+
+.project-discussions__form-label{
+  display:block;
+  margin-bottom:10px;
+  font-size:14px;
+  line-height:1.4;
+  font-weight:600;
+  color:var(--text);
+}
+
+.project-discussions__form-input{
+  width:100%;
+  min-height:40px;
+  padding:0 12px;
+  border:1px solid var(--accent);
+  border-radius:8px;
+  background:#0d1117;
+  color:var(--text);
+  outline:none;
+}
+
+.project-discussions__form-editor{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--panel);
+  overflow:hidden;
+}
+
+.project-discussions__form-editor-tabs{
+  display:flex;
+  align-items:center;
+  gap:0;
+  padding:0 8px;
+  min-height:40px;
+  border-bottom:1px solid var(--border);
+  background:rgba(255,255,255,0.02);
+}
+
+.project-discussions__form-editor-tab{
+  min-height:40px;
+  padding:0 14px;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  font-size:14px;
+}
+
+.project-discussions__form-editor-tab.is-active{
+  color:var(--text);
+  font-weight:600;
+}
+
+.project-discussions__form-editor-body{
+  padding:12px;
+}
+
+.project-discussions__form-textarea{
+  width:100%;
+  min-height:180px;
+  resize:vertical;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:#0d1117;
+  color:var(--text);
+  padding:12px;
+  outline:none;
+  font:inherit;
+}
+
+.project-discussions__form-preview{
+  min-height:180px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:#0d1117;
+  color:var(--text);
+  padding:12px;
+  font-size:14px;
+  line-height:1.6;
+}
+
+.project-discussions__form-preview-empty{
+  color:var(--muted);
+}
+
+.project-discussions__form-editor-footer{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-height:44px;
+  padding:0 12px;
+  border-top:1px solid var(--border);
+  color:var(--muted);
+  font-size:12px;
+}
+
+.project-discussions__create-actions{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:8px;
+}
+
+@media (max-width: 900px){
+  .project-discussions__category-card{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .project-discussions__category-card-btn{
+    width:100%;
+  }
+}
