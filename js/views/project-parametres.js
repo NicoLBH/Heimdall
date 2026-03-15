@@ -35,7 +35,8 @@ const DEFAULT_PROJECT_COLLABORATORS = [
 
 const parametresUiState = {
   collaboratorsModalOpen: false,
-  collaboratorDraftEmail: ""
+  collaboratorDraftEmail: "",
+  activeSectionId: "parametres-general"
 };
 
 let currentParametresRoot = null;
@@ -640,8 +641,30 @@ function renderCollaboratorModal() {
   `;
 }
 
+function captureActiveParametresSection() {
+  const activeNavBtn = document.querySelector(".project-settings-nav__item.is-active,[data-settings-nav].is-active");
+  if (activeNavBtn) {
+    const target =
+      activeNavBtn.getAttribute("data-settings-nav-target") ||
+      activeNavBtn.getAttribute("data-target") ||
+      activeNavBtn.dataset.settingsNavTarget ||
+      activeNavBtn.dataset.target;
+
+    if (target) {
+      parametresUiState.activeSectionId = target;
+      return;
+    }
+  }
+
+  const visibleSection = document.querySelector(".project-settings-section.is-active,[data-settings-section].is-active");
+  if (visibleSection?.id) {
+    parametresUiState.activeSectionId = visibleSection.id;
+  }
+}
+
 function rerenderProjectParametres() {
   if (!currentParametresRoot) return;
+  captureActiveParametresSection();
   renderProjectParametres(currentParametresRoot);
 }
 
@@ -1085,6 +1108,17 @@ export function renderProjectParametres(root) {
   });
 
   root.innerHTML = getPageHtml(store.projectForm);
+
+  setTimeout(() => {
+    const targetId = parametresUiState.activeSectionId || "parametres-general";
+
+    const navBtn = root.querySelector(
+      `[data-settings-nav-target="${targetId}"], [data-target="${targetId}"]`
+    );
+    if (navBtn) {
+      navBtn.click();
+    }
+  }, 0);
 
   registerProjectPrimaryScrollSource(document.getElementById("projectParametresScroll"));
   bindParametresEvents();
