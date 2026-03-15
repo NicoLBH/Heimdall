@@ -52,6 +52,7 @@ export const store = {
     zoneSismique: "4",
     referential: "EC8",
     phasesCatalog: DEFAULT_PROJECT_PHASES.map((item) => ({ ...item })),
+    currentPhase: "APS",
     phase: "APS",
     climateZoneWinter: "",
     climateZoneSummer: "",
