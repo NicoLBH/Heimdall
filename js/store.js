@@ -1,5 +1,19 @@
 import { DEFAULT_PROJECT_TABS_VISIBILITY } from "./constants.js";
 
+export const DEFAULT_PROJECT_PHASES = [
+  { code: "PC", label: "Permis de Construire", enabled: true },
+  { code: "AT", label: "Autorisation de Travaux", enabled: true },
+  { code: "APS", label: "Avant Projet Sommaire", enabled: true },
+  { code: "APD", label: "Avant Projet Définitif", enabled: true },
+  { code: "PRO", label: "Projet", enabled: true },
+  { code: "DCE", label: "Dossier de Consultation des Entreprises", enabled: true },
+  { code: "MARCHE", label: "Marchés", enabled: true },
+  { code: "EXE", label: "Exécution", enabled: true },
+  { code: "DOE", label: "Dossier des Ouvrages Exécutés", enabled: true },
+  { code: "RECEPTION", label: "Réception", enabled: true },
+  { code: "GPA", label: "Garantie de Parfait Achèvement", enabled: true }
+];
+
 export const store = {
   user: null,
   projects: [],
@@ -37,6 +51,7 @@ export const store = {
     liquefactionText: "Sol non liquéfiable",
     zoneSismique: "4",
     referential: "EC8",
+    phasesCatalog: DEFAULT_PROJECT_PHASES.map((item) => ({ ...item })),
     phase: "APS",
     climateZoneWinter: "",
     climateZoneSummer: "",
