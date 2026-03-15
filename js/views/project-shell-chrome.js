@@ -1,4 +1,5 @@
 import { PROJECT_TABS } from "../constants.js";
+import { escapeHtml } from "../utils/escape-html.js";
 
 const shellState = {
   projectId: null,
@@ -13,16 +14,6 @@ const shellState = {
   cleanupScrollSource: null,
   cleanupWindow: null
 };
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;"
-  }[char]));
-}
 
 function getTabLabel(tab) {
   return PROJECT_TABS.find((item) => item.id === tab)?.label || tab || "";
