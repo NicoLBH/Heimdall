@@ -415,8 +415,21 @@ async function pollRunStatus({ runId, token, runLogId }) {
   return { state: "timeout" };
 }
 
+export function isAnalysisRunning() {
+  return store.ui.systemStatus?.state === "running" && !!activeRunPromise;
+}
+
+export function getCurrentAnalysisRunMeta() {
+  return {
+    runId: store.ui.runId || "",
+    state: store.ui.systemStatus?.state || "idle",
+    label: store.ui.systemStatus?.label || "",
+    meta: store.ui.systemStatus?.meta || ""
+  };
+}
+
 export async function runAnalysis(options = {}) {
-  if (store.ui.systemStatus?.state === "running" && activeRunPromise) {
+  if (isAnalysisRunning()) {
     return activeRunPromise;
   }
 
@@ -540,6 +553,7 @@ export async function runAnalysis(options = {}) {
         activeRunPromise = null;
       }
       syncRunbar();
+      document.dispatchEvent(new CustomEvent("analysisStateChanged"));
     }
   })();
 
@@ -564,5 +578,6 @@ export function resetAnalysisUi() {
 
   setRunMeta("");
   setSystemStatus("idle", "Idle", "—");
+  document.dispatchEvent(new CustomEvent("analysisStateChanged"));
   rerenderRoute();
 }
