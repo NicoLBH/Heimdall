@@ -1400,7 +1400,7 @@ function renderAvisRow(avis) {
         <span class="chev chev--spacer"></span>
         <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
       </div>
-      <div class="cell cell-verdict">${verdictPill(effVerdict)}</div>
+      <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
       <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
@@ -1440,7 +1440,7 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
         <span class="theme-text theme-text--avis">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
         ${lineage ? `<span class="mono subissues-inline-count">${escapeHtml(lineage)}</span>` : ""}
       </div>
-      <div class="cell cell-verdict">${verdictPill(effVerdict)}</div>
+      <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
       <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
@@ -1919,8 +1919,8 @@ function renderDetailedMetaForSelection(selection) {
       ...common,
       renderMetaItem("Situation parent", `<span class="mono">${escapeHtml(situation?.id || "—")}</span>`),
       renderMetaItem("Sujet parent", `<span class="mono">${escapeHtml(sujet?.id || "—")}</span>`),
-      renderMetaItem("Verdict effectif", verdictPill(getEffectiveAvisVerdict(item.id))),
-      renderMetaItem("Verdict source", verdictPill(firstNonEmpty(raw.verdict, item.verdict, "-"))),
+      renderMetaItem("Verdict effectif", renderVerdictPill(getEffectiveAvisVerdict(item.id))),
+      renderMetaItem("Verdict source", renderVerdictPill(firstNonEmpty(raw.verdict, item.verdict, "-"))),
       renderMetaItem("Severity", `<span class="mono">${escapeHtml(firstNonEmpty(raw.severity, "—"))}</span>`),
       renderMetaItem("Source", `<span class="mono">${escapeHtml(firstNonEmpty(raw.source, "—"))}</span>`)
     ];
@@ -2058,7 +2058,7 @@ function renderDetailsTitleWrapHtml(selection) {
   let idHtml = entityLinkHtml(selection.type, item.id, `#${escapeHtml(item.id || "")}`);
 
   if (selection.type === "avis") {
-    badgeHtml = verdictPill(getEffectiveAvisVerdict(item.id));
+    badgeHtml = renderVerdictPill(getEffectiveAvisVerdict(item.id));
     const sujet = getSujetByAvisId(item.id);
     if (sujet) {
       probsHtml = `<div class="subissues-counts subissues-counts--problems"><span>${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span></div>`;
