@@ -1,4 +1,4 @@
-import { store } from "../store.js";
+import { store, DEFAULT_PROJECT_PHASES } from "../store.js";
 import { registerProjectPrimaryScrollSource, setProjectViewHeader } from "./project-shell-chrome.js";
 import {
   bindGhActionButtons,
@@ -31,8 +31,6 @@ const DOCUMENT_FOLDERS = [
   { name: "CSPS", note: "Dossier discipline" }
 ];
 
-const PROJECT_PHASES = ["ESQ", "APS", "APD", "PRO", "DCE", "EXE", "DET", "AOR"];
-
 const docsViewState = {
   mode: "list", // "list" | "upload"
   file: null,
@@ -43,7 +41,7 @@ const docsViewState = {
   isUploading: false,
   uploadProgress: 0,
   uploadTimer: null,
-  selectedPhase: "APS",
+  selectedPhase: store.projectForm?.phase || "APS",
   repoDocuments: [],
   activity: {
     tone: "info",
@@ -51,6 +49,31 @@ const docsViewState = {
     message: ""
   }
 };
+
+function getEnabledProjectPhases() {
+  const rawCatalog = Array.isArray(store.projectForm?.phasesCatalog)
+    ? store.projectForm.phasesCatalog
+    : DEFAULT_PROJECT_PHASES;
+
+  return rawCatalog
+    .map((item) => ({
+      code: String(item?.code || "").trim(),
+      label: String(item?.label || "").trim(),
+      enabled: item?.enabled !== false
+    }))
+    .filter((item) => item.code && item.label && item.enabled);
+}
+
+function syncDocumentsSelectedPhase() {
+  const enabledPhases = getEnabledProjectPhases();
+  const fallbackPhase = enabledPhases[0]?.code || "APS";
+
+  if (!enabledPhases.some((item) => item.code === docsViewState.selectedPhase)) {
+    docsViewState.selectedPhase =
+      enabledPhases.find((item) => item.code === store.projectForm?.phase)?.code ||
+      fallbackPhase;
+  }
+}
 
 function getFolderIconSvg() {
   return svgIcon("file-directory", { className: "icon-directory" });
@@ -170,13 +193,15 @@ function renderDocumentsToolbar() {
     ]
   });
 
+  const enabledPhases = getEnabledProjectPhases();
+
   const leftHtml = renderProjectTableToolbarGroup({
     html: renderProjectTableToolbarSelect({
       id: "documentsPhase",
       value: docsViewState.selectedPhase,
-      options: PROJECT_PHASES.map((phase) => ({
-        value: phase,
-        label: phase
+      options: enabledPhases.map((phase) => ({
+        value: phase.code,
+        label: `${phase.code} - ${phase.label}`
       }))
     })
   });
@@ -564,6 +589,7 @@ function bindDocumentsSplitActions(root) {
     onChange: (id, value) => {
       if (id !== "documentsPhase") return;
       docsViewState.selectedPhase = String(value || docsViewState.selectedPhase);
+      store.projectForm.phase = docsViewState.selectedPhase;
       renderProjectDocuments(root);
     }
   });
@@ -726,6 +752,8 @@ function bindDocumentsView(root) {
 }
 
 export function renderProjectDocuments(root) {
+  syncDocumentsSelectedPhase();
+  
   root.className = "project-shell__content";
 
   setProjectViewHeader({
