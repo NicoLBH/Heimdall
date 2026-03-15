@@ -4118,6 +4118,7 @@ color:#ffff;
   display:flex;
   flex-direction:column;
   padding:20px 16px 24px;
+  padding-left:var(--discussion-content-inset)
 }
 
 .side-nav-layout--discussions{
