@@ -400,13 +400,14 @@ function renderDiscussionFixedCompactBar(discussion) {
   const replyCount = getDiscussionReplyCount(discussion);
 
   return `
-    <div class="project-sticky-chrome project-sticky-chrome--discussion">
+  <div class="project-sticky-chrome project-sticky-chrome--discussion">
+    <div class="project-sticky-chrome__container">
       <div class="project-sticky-chrome__left">
         <div class="project-sticky-chrome__title-row">
           <span class="project-sticky-chrome__title">${escapeHtml(discussion.title || "Discussion")}</span>
           <span class="project-sticky-chrome__id mono">#${escapeHtml(discussionNumber)}</span>
         </div>
-
+  
         <div class="project-sticky-chrome__meta mono">
           <span>${escapeHtml(discussion.author || "Utilisateur")}</span>
           <span>-</span>
@@ -417,7 +418,7 @@ function renderDiscussionFixedCompactBar(discussion) {
           <span>${escapeHtml(replyCount)} reply${replyCount > 1 ? "s" : ""}</span>
         </div>
       </div>
-
+  
       <div class="project-sticky-chrome__right">
         <button
           type="button"
@@ -428,6 +429,7 @@ function renderDiscussionFixedCompactBar(discussion) {
         </button>
       </div>
     </div>
+  </div>
   `;
 }
 
