@@ -14,6 +14,7 @@ import {
 import { renderGhInput } from "./ui/gh-input.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderDataTableShell, renderDataTableHead } from "./ui/data-table-shell.js";
+import { escapeHtml } from "../utils/escape-html.js";
 
 const DOCUMENT_FOLDERS = [
   { name: "Architecte", note: "Dossier discipline" },
@@ -38,16 +39,6 @@ const docsViewState = {
   selectedPhase: "APS",
   repoDocuments: []
 };
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[char]));
-}
 
 function getFolderIconSvg() {
   return svgIcon("file-directory", { className: "icon-directory" });
