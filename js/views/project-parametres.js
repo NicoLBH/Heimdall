@@ -15,16 +15,16 @@ import {
   renderSideNavSeparator,
   bindSideNavPanels
 } from "./ui/side-nav-layout.js";
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[char]));
-}
+import {
+  ensureProjectAutomationDefaults,
+  getAgentCatalogList,
+  getAutomationCatalogList,
+  isAgentEnabled,
+  isAutomationEnabled,
+  setAgentEnabled,
+  setAutomationEnabled
+} from "../services/project-automation.js";
+import { escapeHtml } from "../utils/escape-html.js";
 
 function importanceCodeToLabel(value) {
   const normalized = String(value || "").trim();
@@ -172,6 +172,7 @@ const PARAMETRES_NAV_GROUPS = [
       { targetId: "parametres-localisation", label: "Localisation", icon: "pin" },
       { targetId: "parametres-phase", label: "Phase", icon: "checklist" },
       { targetId: "parametres-collaborateurs", label: "Collaborateurs", icon: "people" },
+      { targetId: "parametres-agents-actives", label: "Agents activés", icon: "shield" },
       { targetId: "parametres-lots", label: "Lots", icon: "book" },
       { targetId: "parametres-zones-batiments", label: "Zones / bâtiments / niveaux", icon: "book" }
     ]
@@ -206,6 +207,7 @@ const PARAMETRES_NAV_GROUPS = [
     items: [
       { targetId: "parametres-jalons", label: "Jalons", icon: "checklist" },
       { targetId: "parametres-responsabilites", label: "Responsabilités", icon: "people" },
+      { targetId: "parametres-automatisations", label: "Automatisations", icon: "checklist" },
       { targetId: "parametres-champs", label: "Champs obligatoires", icon: "checklist" },
       { targetId: "parametres-modeles", label: "Modèles de documents", icon: "book" },
       { targetId: "parametres-templates", label: "Templates de remarques", icon: "book" },
@@ -342,6 +344,105 @@ function renderProjectTabsFeatureCard(projectTabs) {
   `;
 }
 
+function getAgentItemDescription(item) {
+  const descriptions = {
+    solidite: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
+    incendie: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
+    pmr: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
+    parasismique: "Agent actuellement opérationnel dans le PoC. Utilisé pour les analyses spécialisées disponibles.",
+    thermique: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
+    acoustique: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel."
+  };
+
+  return descriptions[item.key] || "Configuration d’agent spécialisée du projet.";
+}
+
+function getAutomationItemDescription(item) {
+  const descriptions = {
+    autoAnalysisAfterUpload: "Lance automatiquement l’analyse spécialisée après dépôt réussi d’un document.",
+    autoComparePreviousVersion: "Prévu pour comparer automatiquement une version déposée à la précédente.",
+    autoDetectInconsistencies: "Prévu pour signaler automatiquement des incohérences inter-documents ou intra-document.",
+    autoGenerateReport: "Prévu pour générer automatiquement un rapport ou une synthèse d’analyse.",
+    autoNotify: "Prévu pour déclencher automatiquement les notifications liées aux activités du projet."
+  };
+
+  return descriptions[item.key] || "Automatisation projet configurable.";
+}
+
+function renderToggleSettingsCard({
+  title,
+  items = [],
+  kind = "automation"
+}) {
+  return `
+    <div class="settings-features-card">
+      <div class="settings-features-card__title">${escapeHtml(title)}</div>
+      <div class="settings-features-list">
+        ${items.map((item) => {
+          const isImplemented = !!item.implemented;
+          const inputId = `${kind}Toggle_${item.key}`;
+          const dataAttr =
+            kind === "agent"
+              ? `data-project-agent-toggle="${escapeHtml(item.key)}"`
+              : `data-project-automation-toggle="${escapeHtml(item.key)}"`;
+          const checked =
+            kind === "agent"
+              ? isAgentEnabled(item.key)
+              : isAutomationEnabled(item.key);
+
+          return `
+            <label
+              class="settings-feature-row ${isImplemented ? "" : "settings-feature-row--disabled"}"
+              for="${escapeHtml(inputId)}"
+            >
+              <div class="settings-feature-row__control">
+                <input
+                  id="${escapeHtml(inputId)}"
+                  type="checkbox"
+                  ${dataAttr}
+                  ${checked ? "checked" : ""}
+                  ${isImplemented ? "" : "disabled"}
+                >
+              </div>
+              <div class="settings-feature-row__body">
+                <div class="settings-feature-row__top">
+                  <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
+                  ${isImplemented
+                    ? `<span class="settings-feature-row__meta">PoC actif</span>`
+                    : `<span class="settings-feature-row__meta settings-feature-row__meta--muted">Non implémenté</span>`}
+                </div>
+                <div class="settings-feature-row__desc">
+                  ${escapeHtml(
+                    kind === "agent"
+                      ? getAgentItemDescription(item)
+                      : getAutomationItemDescription(item)
+                  )}
+                </div>
+              </div>
+            </label>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderAgentsFeatureCard() {
+  return renderToggleSettingsCard({
+    title: "Agents spécialisés activables",
+    kind: "agent",
+    items: getAgentCatalogList()
+  });
+}
+
+function renderAutomationsFeatureCard() {
+  return renderToggleSettingsCard({
+    title: "Principales automatisations",
+    kind: "automation",
+    items: getAutomationCatalogList()
+  });
+}
+
 function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = false, isHero = false }) {
   return `
     <section
@@ -443,6 +544,20 @@ function getPageHtml(form) {
                       "Droits d'écriture, validation, revue et diffusion par acteur.",
                       "Capacités de création de sujets, propositions et clôtures."
                     ])
+                  })
+                ]
+              })}
+
+              ${renderSettingsBlock({
+                id: "parametres-agents-actives",
+                title: "Données de base projet",
+                lead: "",
+                cards: [
+                  renderSectionCard({
+                    title: "Agents activés",
+                    description: "Active les agents spécialisés disponibles pour ce projet. Le PoC expose déjà la structure cible, avec un seul agent actuellement implémenté.",
+                    badge: "PoC",
+                    body: renderAgentsFeatureCard()
                   })
                 ]
               })}
@@ -592,7 +707,7 @@ function getPageHtml(form) {
 
               ${renderSettingsBlock({
                 id: "parametres-doctrines",
-                title: "Référentiels techniques et réglementaires",
+                title: "Référentiels techniques",
                 lead: "Exigences internes et doctrines projet non strictement réglementaires.",
                 cards: [
                   renderSectionCard({
@@ -705,6 +820,20 @@ function getPageHtml(form) {
               })}
 
               ${renderSettingsBlock({
+                id: "parametres-automatisations",
+                title: "Paramètres opérationnels",
+                lead: "Configuration des comportements automatiques principaux de Rapsobot pour ce projet.",
+                cards: [
+                  renderSectionCard({
+                    title: "Automatisations",
+                    description: "Ces réglages préfigurent une future logique de niveau de service. Une seule automatisation est activable dans le PoC actuel.",
+                    badge: "PoC",
+                    body: renderAutomationsFeatureCard()
+                  })
+                ]
+              })}
+
+              ${renderSettingsBlock({
                 id: "parametres-templates",
                 title: "Paramètres opérationnels",
                 lead: "Bibliothèque de formulations réutilisables.",
@@ -731,6 +860,7 @@ function getPageHtml(form) {
 
 export function renderProjectParametres(root) {
   ensureProjectFormDefaults();
+  ensureProjectAutomationDefaults();
 
   root.className = "project-shell__content";
 
@@ -779,6 +909,32 @@ function bindProjectTabToggles() {
       if (!key) return;
       store.projectForm.projectTabs[key] = !!event.target.checked;
       refreshProjectTabsVisibility();
+    });
+  });
+}
+
+function bindProjectAutomationToggles() {
+  document.querySelectorAll("[data-project-agent-toggle]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const key = event.target.getAttribute("data-project-agent-toggle");
+      if (!key) return;
+
+      const ok = setAgentEnabled(key, !!event.target.checked);
+      if (!ok) {
+        event.target.checked = isAgentEnabled(key);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-project-automation-toggle]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const key = event.target.getAttribute("data-project-automation-toggle");
+      if (!key) return;
+
+      const ok = setAutomationEnabled(key, !!event.target.checked);
+      if (!ok) {
+        event.target.checked = isAutomationEnabled(key);
+      }
     });
   });
 }
@@ -854,6 +1010,7 @@ function bindParametresEvents() {
   });
 
   bindProjectTabToggles();
+  bindProjectAutomationToggles();
   refreshProjectTabsVisibility();
 }
 
