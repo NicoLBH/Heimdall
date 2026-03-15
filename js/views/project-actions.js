@@ -26,6 +26,15 @@ function getRunAlertIconSvg() {
   });
 }
 
+function getRunPendingIconSvg() {
+  return svgIcon("dot-fill-pending", {
+    className: "octicon octicon-dot-fill",
+    width: 16,
+    height: 16,
+    style: "margin-top:2px"
+  });
+}
+
 function getRunStateIcon(entry) {
   const status = String(entry?.status || "").toLowerCase();
 
@@ -45,8 +54,16 @@ function getRunStateIcon(entry) {
     `;
   }
 
+  if (status === "running" || status === "queued" || status === "pending") {
+    return `
+      <span class="workflow-runs__state-icon workflow-runs__state-icon--pending" title="Exécution en cours">
+        ${getRunPendingIconSvg()}
+      </span>
+    `;
+  }
+
   return `
-    <span class="workflow-runs__state-icon workflow-runs__state-icon--neutral" aria-hidden="true"></span>
+    <span class="workflow-runs__state-icon workflow-runs__state-icon--neutral"></span>
   `;
 }
 
