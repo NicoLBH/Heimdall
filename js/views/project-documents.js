@@ -21,6 +21,7 @@ import {
   isAnalysisRunning,
   runAnalysis
 } from "../services/analysis-runner.js";
+import { createProjectProposal } from "../services/project-proposals.js";
 
 const DOCUMENT_FOLDERS = [
   { name: "Architecte", note: "Dossier discipline" },
@@ -523,19 +524,25 @@ function commitDirectDocument(root) {
 function commitProposal(root) {
   if (!docsViewState.file) return;
 
-  docsViewState.repoDocuments.unshift({
-    id: `proposal-${Date.now()}`,
-    name: docsViewState.file.name,
-    note: `Proposition : ${docsViewState.proposalName.trim()}`,
+  const fileName = docsViewState.file.name;
+  const proposalTitle = docsViewState.proposalName.trim();
+  const description = docsViewState.description.trim();
+
+  createProjectProposal({
+    title: proposalTitle,
+    fileName,
+    description,
+    status: "open",
+    needsVisa: true,
     updatedAt: "À l'instant"
   });
 
   closeUploadView(root);
 
   setDocumentsActivity({
-    tone: "info",
+    tone: "success",
     title: "Proposition enregistrée",
-    message: "La proposition a été créée sans déclenchement automatique d’analyse dans cette étape du PoC."
+    message: `La proposition "${proposalTitle}" a été créée avec demande de visa. Elle est désormais visible dans l’onglet Propositions.`
   });
 
   renderProjectDocuments(root);
