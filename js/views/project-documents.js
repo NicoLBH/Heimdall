@@ -16,7 +16,11 @@ import { svgIcon } from "../ui/icons.js";
 import { renderDataTableShell, renderDataTableHead } from "./ui/data-table-shell.js";
 import { escapeHtml } from "../utils/escape-html.js";
 import { shouldAutoRunAnalysisAfterUpload } from "../services/project-automation.js";
-import { runAnalysis } from "../services/analysis-runner.js";
+import {
+  getCurrentAnalysisRunMeta,
+  isAnalysisRunning,
+  runAnalysis
+} from "../services/analysis-runner.js";
 
 const DOCUMENT_FOLDERS = [
   { name: "Architecte", note: "Dossier discipline" },
@@ -39,7 +43,12 @@ const docsViewState = {
   uploadProgress: 0,
   uploadTimer: null,
   selectedPhase: "APS",
-  repoDocuments: []
+  repoDocuments: [],
+  activity: {
+    tone: "info",
+    title: "",
+    message: ""
+  }
 };
 
 function getFolderIconSvg() {
@@ -74,6 +83,57 @@ function getRemoveIconSvg() {
 
 function getDocumentsTableGridTemplate() {
   return "minmax(280px, 1.2fr) minmax(220px, 1fr) 180px";
+}
+
+function setDocumentsActivity({ tone = "info", title = "", message = "" } = {}) {
+  docsViewState.activity = {
+    tone,
+    title,
+    message
+  };
+}
+
+function clearDocumentsActivity() {
+  docsViewState.activity = {
+    tone: "info",
+    title: "",
+    message: ""
+  };
+}
+
+function renderDocumentsActivityBanner() {
+  const title = String(docsViewState.activity?.title || "").trim();
+  const message = String(docsViewState.activity?.message || "").trim();
+
+  if (!title && !message) return "";
+
+  const tone = String(docsViewState.activity?.tone || "info").toLowerCase();
+  const className =
+    tone === "success"
+      ? "documents-activity-banner documents-activity-banner--success"
+      : tone === "warning"
+        ? "documents-activity-banner documents-activity-banner--warning"
+        : tone === "error"
+          ? "documents-activity-banner documents-activity-banner--error"
+          : "documents-activity-banner documents-activity-banner--info";
+
+  return `
+    <div class="${className}" role="status" aria-live="polite">
+      <div class="documents-activity-banner__body">
+        ${title ? `<div class="documents-activity-banner__title">${escapeHtml(title)}</div>` : ""}
+        ${message ? `<div class="documents-activity-banner__message">${escapeHtml(message)}</div>` : ""}
+      </div>
+      <button
+        type="button"
+        class="documents-activity-banner__close"
+        id="documentsActivityCloseBtn"
+        aria-label="Fermer"
+        title="Fermer"
+      >
+        ${getRemoveIconSvg()}
+      </button>
+    </div>
+  `;
 }
 
 function renderDocumentsTableHeadHtml() {
@@ -169,6 +229,7 @@ function renderDocumentsListView() {
       <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
         <div class="documents-shell" id="projectDocumentScroll">
           ${renderDocumentsToolbar()}
+          ${renderDocumentsActivityBanner()}
 
           ${renderDataTableShell({
             className: "documents-repo",
@@ -256,6 +317,7 @@ function renderUploadView() {
   return `
     <section class="project-simple-page project-simple-page--documents">
       <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
+        ${renderDocumentsActivityBanner()}
         <div class="documents-shell documents-shell--upload" id="projectDocumentScroll">
           <div class="documents-upload-layout">
             <section class="documents-dropzone ${isBusy}" id="documentsDropzone">
@@ -354,6 +416,11 @@ function resetUploadState() {
   docsViewState.description = "";
   docsViewState.depositMode = "direct";
   docsViewState.proposalName = "";
+
+  const fileInput = document.getElementById("documentsFileInput");
+  if (fileInput) {
+    fileInput.value = "";
+  }
 }
 
 function simulateUpload(root, file) {
@@ -404,8 +471,31 @@ function buildRepoDocumentFromState() {
   };
 }
 
-function triggerAutoAnalysisAfterDirectUpload(documentName = "") {
-  if (!shouldAutoRunAnalysisAfterUpload()) return;
+function triggerAutoAnalysisAfterDirectUpload(root, documentName = "") {
+  if (!shouldAutoRunAnalysisAfterUpload()) {
+    setDocumentsActivity({
+      tone: "info",
+      title: "Document déposé",
+      message: "Le dépôt a été enregistré. L’analyse automatique n’est pas activée pour ce projet."
+    });
+    return;
+  }
+
+  if (isAnalysisRunning()) {
+    const currentRun = getCurrentAnalysisRunMeta();
+    setDocumentsActivity({
+      tone: "warning",
+      title: "Document déposé",
+      message: `Le dépôt a été enregistré, mais l’analyse automatique n’a pas été relancée car un traitement est déjà en cours${currentRun.runId ? ` (${currentRun.runId})` : ""}.`
+    });
+    return;
+  }
+
+  setDocumentsActivity({
+    tone: "success",
+    title: "Document déposé",
+    message: "Le dépôt a été enregistré et l’analyse parasismique automatique a été lancée."
+  });
 
   runAnalysis({
     triggerType: "document-upload",
@@ -413,6 +503,8 @@ function triggerAutoAnalysisAfterDirectUpload(documentName = "") {
     documentName,
     summary: "Analyse déclenchée automatiquement après dépôt réussi d’un document."
   });
+
+  renderProjectDocuments(root);
 }
 
 function commitDirectDocument(root) {
@@ -425,7 +517,7 @@ function commitDirectDocument(root) {
   store.projectForm.pdfFile = documentFile;
 
   closeUploadView(root);
-  triggerAutoAnalysisAfterDirectUpload(documentFile.name);
+  triggerAutoAnalysisAfterDirectUpload(root, documentFile.name);
 }
 
 function commitProposal(root) {
@@ -439,6 +531,14 @@ function commitProposal(root) {
   });
 
   closeUploadView(root);
+
+  setDocumentsActivity({
+    tone: "info",
+    title: "Proposition enregistrée",
+    message: "La proposition a été créée sans déclenchement automatique d’analyse dans cette étape du PoC."
+  });
+
+  renderProjectDocuments(root);
 }
 
 function handleSubmit(root) {
@@ -494,6 +594,30 @@ function bindDocumentsView(root) {
 
   bindDocumentsSplitActions(root);
 
+    const activityCloseBtn = document.getElementById("documentsActivityCloseBtn");
+  if (activityCloseBtn) {
+    activityCloseBtn.addEventListener("click", () => {
+      clearDocumentsActivity();
+      renderProjectDocuments(root);
+    });
+  }
+
+  const submitBtn = document.getElementById("documentsSubmitBtn");
+  const syncSubmitState = () => {
+    if (!submitBtn) return;
+    submitBtn.disabled = !canSubmitUpload();
+  };
+
+  syncSubmitState();
+
+  const handleAnalysisStateChanged = () => {
+    if (docsViewState.mode !== "list") return;
+    renderProjectDocuments(root);
+  };
+
+  document.removeEventListener("analysisStateChanged", handleAnalysisStateChanged);
+  document.addEventListener("analysisStateChanged", handleAnalysisStateChanged, { once: true });
+
   const cancelBtn = document.getElementById("documentsCancelBtn");
   if (cancelBtn) {
     cancelBtn.addEventListener("click", () => {
@@ -501,9 +625,10 @@ function bindDocumentsView(root) {
     });
   }
 
-  const submitBtn = document.getElementById("documentsSubmitBtn");
   if (submitBtn) {
     submitBtn.addEventListener("click", () => {
+      if (!canSubmitUpload()) return;
+      submitBtn.disabled = true;
       handleSubmit(root);
     });
   }
@@ -514,7 +639,9 @@ function bindDocumentsView(root) {
 
   if (chooseBtn && fileInput) {
     chooseBtn.addEventListener("click", () => {
-      if (!docsViewState.isUploading) fileInput.click();
+      if (docsViewState.isUploading) return;
+      fileInput.value = "";
+      fileInput.click();
     });
   }
 
@@ -552,6 +679,7 @@ function bindDocumentsView(root) {
   const removeFileBtn = document.getElementById("documentsRemoveFileBtn");
   if (removeFileBtn) {
     removeFileBtn.addEventListener("click", () => {
+      stopUploadSimulation();
       docsViewState.file = null;
       docsViewState.isUploading = false;
       docsViewState.uploadProgress = 0;
