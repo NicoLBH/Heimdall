@@ -1,11 +1,54 @@
 import { escapeHtml } from "../utils/escape-html.js";
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
 import { getRunLogEntries } from "../services/project-automation.js";
+import { svgIcon } from "../ui/icons.js";
 import {
   renderDataTableEmptyState,
   renderDataTableHead,
   renderDataTableShell
 } from "./ui/data-table-shell.js";
+
+function getRunSuccessIconSvg() {
+  return svgIcon("check-circle-fill", {
+    className: "octicon octicon-check-circle-fill",
+    width: 16,
+    height: 16,
+    style: "margin-top:2px"
+  });
+}
+
+function getRunAlertIconSvg() {
+  return svgIcon("stop-alert", {
+    className: "octicon octicon-stop",
+    width: 16,
+    height: 16,
+    style: "margin-top:2px"
+  });
+}
+
+function getRunStateIcon(entry) {
+  const status = String(entry?.status || "").toLowerCase();
+
+  if (status === "success") {
+    return `
+      <span class="workflow-runs__state-icon workflow-runs__state-icon--success" title="Exécution réussie">
+        ${getRunSuccessIconSvg()}
+      </span>
+    `;
+  }
+
+  if (status === "error" || status === "cancelled" || status === "interrupted") {
+    return `
+      <span class="workflow-runs__state-icon workflow-runs__state-icon--alert" title="Exécution en anomalie">
+        ${getRunAlertIconSvg()}
+      </span>
+    `;
+  }
+
+  return `
+    <span class="workflow-runs__state-icon workflow-runs__state-icon--neutral" aria-hidden="true"></span>
+  `;
+}
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -111,7 +154,10 @@ function renderRunRows(entries) {
     return `
       <div class="workflow-runs__row">
         <div class="workflow-runs__cell workflow-runs__cell--action">
-          <div class="workflow-runs__title">${escapeHtml(entry.name || "Run")}</div>
+          <div class="workflow-runs__title-row">
+            ${getRunStateIcon(entry)}
+            <span class="workflow-runs__title">${escapeHtml(entry.name || "Run")}</span>
+          </div>
           ${actionMeta}
         </div>
 
