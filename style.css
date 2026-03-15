@@ -3785,3 +3785,40 @@ color:#ffff;
   border-color:rgba(248,81,73,.42);
   background:rgba(248,81,73,.12);
 }
+
+.workflow-runs__title-row{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  min-width:0;
+}
+
+.workflow-runs__state-icon{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:16px;
+  height:16px;
+}
+
+.workflow-runs__state-icon--success{
+  color:var(--success);
+}
+
+.workflow-runs__state-icon--alert{
+  color:var(--danger);
+}
+
+.workflow-runs__state-icon--proposal{
+  color:var(--fgColor-open);
+}
+
+.workflow-runs__state-icon--neutral{
+  opacity:.35;
+}
+
+.workflow-runs__title--strong{
+  font-weight:700;
+  color:#fff;
+}
