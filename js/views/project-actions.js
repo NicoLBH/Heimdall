@@ -172,13 +172,6 @@ export function renderProjectActions(root) {
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="projectActionsScroll">
         <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
-          <header class="settings-page-header">
-            <h2>Actions</h2>
-            <p>
-              Journal d’exécution des actions réellement lancées dans le PoC.
-            </p>
-          </header>
-
           <section class="settings-section">
             <div class="settings-card">
               <div class="settings-card__head">
