@@ -55,7 +55,7 @@ export function renderExecutionInsightsCardsSection() {
 
   return `
     <section class="settings-section" id="insights-execution">
-      <div class="settings-card">
+      <div class="settings-card settings-card-less">
         <div class="settings-card__head">
           <div>
             <h4>Indicateurs d’exécution</h4>
