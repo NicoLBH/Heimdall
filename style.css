@@ -3908,8 +3908,9 @@ color:#ffff;
   min-height:0;
   height:100%;
   overflow:auto;
+  overflow-x:hidden;
   overscroll-behavior:contain;
-  padding-right:4px;
+  scrollbar-gutter:stable;
 }
 
 .project-discussions__panel,
@@ -3928,24 +3929,31 @@ color:#ffff;
 
 .project-discussions__detail--standalone{
   max-width:980px;
-  margin:0 auto;
+  margin:20px auto 0;
 }
 .project-discussions__sticky-header{
   position:sticky;
   top:0;
   z-index:65;
   display:none;
-  flex-direction:column;
-  gap:6px;
   padding:10px 16px 12px;
-  margin:0 -16px 12px;
+  margin:0 0 12px;
   border-bottom:1px solid var(--border);
   background:var(--headbg);
   backdrop-filter:blur(8px);
 }
 
 .project-discussions__sticky-header.is-visible{
+  display:block;
+}
+
+.project-discussions__sticky-inner{
+  width:100%;
+  max-width:980px;
+  margin:0 auto;
   display:flex;
+  flex-direction:column;
+  gap:6px;
 }
 
 .project-discussions__sticky-top{
