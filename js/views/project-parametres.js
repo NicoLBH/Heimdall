@@ -1320,7 +1320,16 @@ function bindParametresNav() {
   bindSideNavPanels(document, {
     navSelector: "[data-side-nav-target]",
     panelSelector: "[data-side-nav-panel]",
-    defaultTarget: "parametres-general",
+    defaultTarget: parametresUiState.activeSectionId || "parametres-general",
     scrollContainer: scrollEl
+  });
+
+  document.querySelectorAll("[data-side-nav-target]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-side-nav-target");
+      if (targetId) {
+        parametresUiState.activeSectionId = targetId;
+      }
+    });
   });
 }
