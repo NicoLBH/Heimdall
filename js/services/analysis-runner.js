@@ -1,6 +1,11 @@
 import { store } from "../store.js";
 import { rerenderRoute } from "../router.js";
 import { syncProjectSituationsRunbar } from "../views/project-situations-runbar.js";
+import {
+  finishRunLogEntry,
+  getPrimaryAnalysisAgent,
+  startRunLogEntry
+} from "./project-automation.js";
 
 const START_URL_PROD = "https://nicolbh.app.n8n.cloud/webhook/rapsobot-poc";
 const SUPABASE_URL = "https://smsizuijtrqogupgjnyj.supabase.co";
@@ -30,6 +35,22 @@ function syncRunbar(extra = {}) {
     isBusy: store.ui.systemStatus?.state === "running",
     ...extra
   });
+}
+
+function getAnalysisRunName(agentKey = "parasismique", triggerType = "manual") {
+  const agentLabels = {
+    parasismique: "Analyse parasismique",
+    solidite: "Analyse solidité",
+    incendie: "Analyse sécurité incendie",
+    pmr: "Analyse accessibilité PMR",
+    thermique: "Analyse thermique",
+    acoustique: "Analyse acoustique"
+  };
+
+  const baseLabel = agentLabels[agentKey] || "Analyse spécialisée";
+  return triggerType === "document-upload"
+    ? `${baseLabel} automatique`
+    : `${baseLabel} manuelle`;
 }
 
 function setRunMeta(runId) {
@@ -285,7 +306,7 @@ function normalizeFinalResult(final) {
   });
 }
 
-function applyRunResult(final, runId, statusLabel) {
+function applyRunResult(final, runId, statusLabel, runLogId = "") {
   const nested = normalizeFinalResult(final);
 
   store.situationsView.data = nested;
@@ -301,6 +322,13 @@ function applyRunResult(final, runId, statusLabel) {
 
   if (firstSituationId) {
     store.situationsView.expandedSituations.add(firstSituationId);
+  }
+
+  if (runLogId) {
+    finishRunLogEntry(runLogId, {
+      status: "success",
+      summary: statusLabel || "READY_FOR_REVIEW"
+    });
   }
 
   setRunMeta(runId || final?.run_id || "");
@@ -322,12 +350,14 @@ function extractFinalPayload(payload) {
   return final;
 }
 
-async function pollRunStatus({ runId, token }) {
+async function pollRunStatus({ runId, token, runLogId }) {
   const t0 = Date.now();
   let tries = 0;
 
   while (Date.now() - t0 < POLL_MAX_MS) {
-    if (token !== activePollToken) return false;
+    if (token !== activePollToken) {
+      return { state: "cancelled" };
+    }
 
     tries += 1;
     setRunMeta(runId);
@@ -338,13 +368,18 @@ async function pollRunStatus({ runId, token }) {
     try {
       data = await fetchRunRowFromSupabase(runId);
     } catch {
-      if (token !== activePollToken) return false;
+      if (token !== activePollToken) {
+        return { state: "cancelled" };
+      }
+
       setSystemStatus("running", "En cours d’analyse", "RECOVERING");
       await delay(computePollDelayMs(tries));
       continue;
     }
 
-    if (token !== activePollToken) return false;
+    if (token !== activePollToken) {
+      return { state: "cancelled" };
+    }
 
     data = normalizeStatusResponse(data);
 
@@ -366,8 +401,8 @@ async function pollRunStatus({ runId, token }) {
 
     if ((status === "READY_FOR_REVIEW" || status === "DONE" || status === "READY") && payload) {
       const final = extractFinalPayload(payload);
-      applyRunResult(final, runId, status);
-      return true;
+      applyRunResult(final, runId, status, runLogId);
+      return { state: "success" };
     }
 
     await delay(computePollDelayMs(tries, progress));
@@ -377,7 +412,7 @@ async function pollRunStatus({ runId, token }) {
     setSystemStatus("error", "Timeout", "polling");
   }
 
-  return false;
+  return { state: "timeout" };
 }
 
 export async function runAnalysis() {
@@ -392,6 +427,18 @@ export async function runAnalysis() {
     alert("PDF manquant. Va dans l’onglet Documents et sélectionne un fichier PDF.");
     return;
   }
+
+  const primaryAgentKey = getPrimaryAnalysisAgent()?.key || "parasismique";
+  const runLogEntry = startRunLogEntry({
+    name: getAnalysisRunName(primaryAgentKey, "manual"),
+    kind: "analysis",
+    agentKey: primaryAgentKey,
+    triggerType: "manual",
+    triggerLabel: "Lancement manuel",
+    documentName: inputs.pdfFile?.name || "",
+    status: "running",
+    summary: "Analyse déclenchée depuis l’onglet Situations."
+  });
 
   const runId = `RUN-${Date.now()}`;
   const pollToken = ++activePollToken;
@@ -441,13 +488,25 @@ export async function runAnalysis() {
         Array.isArray(final.avis)
       ) {
         if (pollToken !== activePollToken) return;
-        applyRunResult(final, final.run_id || runId, final.status || "OK");
+        applyRunResult(final, final.run_id || runId, final.status || "OK", runLogEntry.id);
         return;
       }
 
       if (pollToken !== activePollToken) return;
+
       setSystemStatus("running", "En cours d’analyse", "ACK reçu");
-      await pollRunStatus({ runId, token: pollToken });
+      const pollResult = await pollRunStatus({
+        runId,
+        token: pollToken,
+        runLogId: runLogEntry.id
+      });
+
+      if (pollResult?.state === "timeout") {
+        finishRunLogEntry(runLogEntry.id, {
+          status: "error",
+          summary: "Timeout du polling."
+        });
+      }
     } catch (error) {
       if (pollToken !== activePollToken) return;
 
@@ -457,7 +516,18 @@ export async function runAnalysis() {
         setSystemStatus("running", "En cours d’analyse", "POST erreur → polling");
       }
 
-      await pollRunStatus({ runId, token: pollToken });
+      const pollResult = await pollRunStatus({
+        runId,
+        token: pollToken,
+        runLogId: runLogEntry.id
+      });
+
+      if (pollResult?.state === "timeout") {
+        finishRunLogEntry(runLogEntry.id, {
+          status: "error",
+          summary: "Timeout du polling après échec ou délai du POST."
+        });
+      }
     } finally {
       if (activeRunPromise === promise) {
         activeRunPromise = null;
