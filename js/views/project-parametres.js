@@ -61,6 +61,32 @@ function getEnabledProjectPhases() {
   return getProjectPhasesCatalog().filter((item) => item.enabled);
 }
 
+function renderCurrentProjectPhaseCard() {
+  const enabledPhases = getEnabledProjectPhases();
+  const fallbackPhase = enabledPhases[0]?.code || "APS";
+  const currentPhase = enabledPhases.some((item) => item.code === store.projectForm.currentPhase)
+    ? store.projectForm.currentPhase
+    : fallbackPhase;
+
+  return `
+    <div class="settings-features-card">
+      <div class="settings-features-card__title">Phase</div>
+      <div class="settings-features-card__desc">Phase en cours du projet</div>
+      <div class="settings-form-grid settings-form-grid--thirds">
+        ${renderSelectField({
+          id: "currentProjectPhase",
+          label: "",
+          value: currentPhase,
+          options: enabledPhases.map((item) => ({
+            value: item.code,
+            label: `${item.code} - ${item.label}`
+          }))
+        })}
+      </div>
+    </div>
+  `;
+}
+
 function renderProjectPhasesCard() {
   const items = getProjectPhasesCatalog();
 
@@ -186,12 +212,27 @@ function ensureProjectFormDefaults() {
   const enabledPhases = form.phasesCatalog.filter((item) => item.enabled);
   const fallbackPhase = enabledPhases[0]?.code || defaultCatalog[0]?.code || "APS";
 
+  const legacyPhase =
+    typeof form.phase === "string" && form.phase.trim()
+      ? form.phase.trim()
+      : "";
+
+  if (
+    typeof form.currentPhase !== "string" ||
+    !form.currentPhase.trim() ||
+    !enabledPhases.some((item) => item.code === form.currentPhase)
+  ) {
+    form.currentPhase = enabledPhases.some((item) => item.code === legacyPhase)
+      ? legacyPhase
+      : fallbackPhase;
+  }
+
   if (
     typeof form.phase !== "string" ||
     !form.phase.trim() ||
     !enabledPhases.some((item) => item.code === form.phase)
   ) {
-    form.phase = fallbackPhase;
+    form.phase = form.currentPhase;
   }
 
   if (typeof form.referential !== "string" || !form.referential.trim()) {
@@ -824,10 +865,15 @@ function getPageHtml(form) {
               ${renderSettingsBlock({
                 id: "parametres-phase",
                 title: "Données de base projet",
-                lead: "Sélection des phases actives du projet. Elles alimentent ensuite le menu déroulant de l’onglet Documents.",
+                lead: "La phase en cours structure le projet. La liste des phases activées alimente ensuite le menu déroulant de l’onglet Documents.",
                 cards: [
                   renderSectionCard({
                     title: "Phase",
+                    description: "Phase en cours du projet.",
+                    body: renderCurrentProjectPhaseCard()
+                  }),
+                  renderSectionCard({
+                    title: "Phases activables",
                     description: "Les cases sont toutes cochées par défaut. Cette structure est stockée dans le store pour préparer le branchement backend.",
                     body: renderProjectPhasesCard()
                   })
@@ -1282,9 +1328,15 @@ function bindProjectPhaseToggles() {
         return;
       }
 
+      if (!enabledPhases.some((phase) => phase.code === store.projectForm.currentPhase)) {
+        store.projectForm.currentPhase = enabledPhases[0].code;
+      }
+
       if (!enabledPhases.some((phase) => phase.code === store.projectForm.phase)) {
         store.projectForm.phase = enabledPhases[0].code;
       }
+
+      rerenderProjectParametres();
     });
   });
 }
@@ -1322,6 +1374,10 @@ function bindParametresEvents() {
   bindGhSelectMenus(document, {
     onChange: (id, value) => {
       switch (id) {
+        case "currentProjectPhase":
+          store.projectForm.currentPhase = value;
+          break;
+          
         case "riskCategory":
           store.projectForm.riskCategory = value;
           store.projectForm.risk = value;
