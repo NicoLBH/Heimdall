@@ -5367,3 +5367,12 @@ color:#ffff;
   justify-content:flex-end;
   gap:8px;
 }
+
+
+.project-situations__table-toolbar{
+  padding: 12px 12px 0;
+}
+
+.project-situations__table-toolbar .project-table-toolbar{
+  margin: 0;
+}
