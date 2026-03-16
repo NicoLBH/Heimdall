@@ -88,6 +88,7 @@ export function renderReviewStateIcon(
     entityType = "",
     isPublished = false,
     hasChangesSincePublish = false,
+    isSeen = false,
     className = ""
   } = {}
 ) {
@@ -98,7 +99,7 @@ export function renderReviewStateIcon(
   }
 
   let iconName = "dot-fill-pending";
-  let toneClass = "review-state-icon--pending";
+  let toneClass = isSeen ? "review-state-icon--rejected" : "review-state-icon--pending";
 
   if (normalized === "validated") {
     iconName = "check";
