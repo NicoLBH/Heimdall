@@ -273,6 +273,49 @@ function entityLinkHtml(type, id, text) {
   const safeText = text || safeId;
   return `<a href="#" class="entity-link" data-nav-type="${safeType}" data-nav-id="${safeId}">${safeText}</a>`;
 }
+
+function buildEntityDisplayRefMap() {
+  const data = Array.isArray(store.situationsView?.data) ? store.situationsView.data : [];
+  const map = new Map();
+  let index = 1;
+
+  const register = (type, id) => {
+    const safeType = String(type || "").toLowerCase();
+    const safeId = String(id || "").trim();
+    if (!safeType || !safeId) return;
+    const key = `${safeType}:${safeId}`;
+    if (map.has(key)) return;
+    map.set(key, `#${index}`);
+    index += 1;
+  };
+
+  for (const situation of data) {
+    register("situation", situation?.id);
+    const sujets = Array.isArray(situation?.sujets) ? situation.sujets : [];
+    for (const sujet of sujets) {
+      register("sujet", sujet?.id);
+      const avisList = Array.isArray(sujet?.avis) ? sujet.avis : [];
+      for (const avis of avisList) {
+        register("avis", avis?.id);
+      }
+    }
+  }
+
+  return map;
+}
+
+function getEntityDisplayRef(type, id) {
+  const map = buildEntityDisplayRefMap();
+  const safeType = String(type || "").toLowerCase();
+  const safeId = String(id || "").trim();
+  if (!safeId) return "";
+  return map.get(`${safeType}:${safeId}`) || `#${safeId}`;
+}
+
+function entityDisplayLinkHtml(type, id) {
+  return entityLinkHtml(type, id, escapeHtml(getEntityDisplayRef(type, id)));
+}
+
 function renderVerdictHeadFilter() {
   const current = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
 
@@ -658,6 +701,14 @@ function getReviewTitleStateClass(entityType, entityId) {
 
 function renderEntityReviewLeadIcon(entityType, entityId) {
   const meta = getEntityReviewMeta(entityType, entityId);
+  const normalizedType = String(entityType || "").toLowerCase();
+  const normalizedState = normalizeReviewState(meta.review_state);
+
+  if ((normalizedType === "sujet" || normalizedType === "situation")
+    && (normalizedState === "rejected" || normalizedState === "dismissed")) {
+    return "";
+  }
+
   return renderReviewStateIcon(meta.review_state, {
     entityType,
     isPublished: meta.is_published,
@@ -1616,7 +1667,7 @@ function renderSituationRow(situation) {
       <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(situation.priority)}</div>
       <div class="cell cell-agent"></div>
-      <div class="cell cell-id mono">pb=${(situation.sujets || []).length}&nbsp;&nbsp;${escapeHtml(situation.id)}</div>
+      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("situation", situation.id))}</div>
     </div>
   `;
 }
@@ -1640,7 +1691,7 @@ function renderSujetRow(sujet) {
       <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
-      <div class="cell cell-id mono">avis=${(sujet.avis || []).length}&nbsp;&nbsp;${escapeHtml(sujet.id)}</div>
+      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
     </div>
   `;
 }
@@ -1660,7 +1711,7 @@ function renderAvisRow(avis) {
       <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
       <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
-      <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
+      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("avis", avis.id))}</div>
     </div>
   `;
 }
@@ -1684,7 +1735,7 @@ function renderFlatSujetRow(sujet, situationId) {
       <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
-      <div class="cell cell-id mono">avis=${(sujet.avis || []).length}&nbsp;&nbsp;${escapeHtml(sujet.id)}</div>
+      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
     </div>
   `;
 }
@@ -1707,7 +1758,7 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
       <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
       <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
-      <div class="cell cell-id mono">${escapeHtml(avis.id)}</div>
+      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("avis", avis.id))}</div>
     </div>
   `;
 }
@@ -2019,14 +2070,14 @@ function renderThreadBlock() {
         const sujet = sujetId ? getNestedSujet(sujetId) : null;
         const sujetTitle = sujet?.title ? `${escapeHtml(sujet.title)} ` : "";
         verb = "closed";
-        targetHtml = sujetId ? `sujet ${sujetTitle}${entityLinkHtml("sujet", sujetId, "#" + escapeHtml(sujetId))}` : "this";
+        targetHtml = sujetId ? `sujet ${sujetTitle}${entityDisplayLinkHtml("sujet", sujetId)}` : "this";
       } else if (kind === "issue_reopened") {
         iconHtml = `<span class="tl-ico-wrap tl-ico-reopened" aria-hidden="true">${SVG_TL_REOPENED}</span>`;
         const sujetId = e?.meta?.problem_id;
         const sujet = sujetId ? getNestedSujet(sujetId) : null;
         const sujetTitle = sujet?.title ? `${escapeHtml(sujet.title)} ` : "";
         verb = "reopened";
-        targetHtml = sujetId ? `sujet ${sujetTitle}${entityLinkHtml("sujet", sujetId, "#" + escapeHtml(sujetId))}` : "this";
+        targetHtml = sujetId ? `sujet ${sujetTitle}${entityDisplayLinkHtml("sujet", sujetId)}` : "this";
       } else if (kind === "review_validated" || kind === "review_rejected" || kind === "review_dismissed" || kind === "review_restored") {
         const entityType = String(e?.entity_type || "").toLowerCase();
         const entityId = String(e?.entity_id || "");
@@ -2047,7 +2098,7 @@ function renderThreadBlock() {
         }
 
         targetHtml = entityId
-          ? `${entityType} ${entityTitle}${entityLinkHtml(entityType, entityId, "#" + escapeHtml(entityId))}${descendants > 0 ? ` · ${descendants} descendant(s)` : ""}`
+          ? `${entityType} ${entityTitle}${entityDisplayLinkHtml(entityType, entityId)}${descendants > 0 ? ` · ${descendants} descendant(s)` : ""}`
           : "this";
       } else if (kind === "avis_verdict_changed") {
         const toV = e?.meta?.to || "";
@@ -2057,7 +2108,7 @@ function renderThreadBlock() {
         iconHtml = verdictIconHtml(toV);
         verb = "changed verdict";
         targetHtml = avisId
-          ? `avis ${avisTitle}${entityLinkHtml("avis", avisId, "#" + escapeHtml(avisId))} → ${escapeHtml(String(toV || ""))}`
+          ? `avis ${avisTitle}${entityDisplayLinkHtml("avis", avisId)} → ${escapeHtml(String(toV || ""))}`
           : escapeHtml(String(toV || ""));
       }
 
@@ -2090,7 +2141,7 @@ function renderThreadBlock() {
         <div class="mono">
           <span>${escapeHtml(e.actor || "System")}</span>
           <span> attached this to </span>
-          <span>${escapeHtml(e.entity_type || "")} n° ${entityLinkHtml(e.entity_type, e.entity_id, e.entity_id || "")}</span>
+          <span>${escapeHtml(e.entity_type || "")} n° ${entityDisplayLinkHtml(e.entity_type, e.entity_id)}</span>
           <span>·</span>
           <span> (agent=${escapeHtml(e.agent || "system")})</span>
           <div class="mono">in ${escapeHtml(fmtTs(e.ts || ""))}</div>
@@ -2177,6 +2228,11 @@ function renderValidateReviewAction(selection) {
   if (!selection?.type || !selection?.item?.id) return "";
 
   const entityType = getSelectionEntityType(selection.type);
+  const entityId = selection.item.id;
+  const meta = getEntityReviewMeta(entityType, entityId);
+  const normalizedState = normalizeReviewState(meta.review_state);
+  if (normalizedState === "rejected" || normalizedState === "dismissed") return "";
+
   const validateIcon = renderReviewStateIcon("validated", { entityType });
 
   if (selection.type === "avis") {
@@ -2425,7 +2481,7 @@ function renderDetailsTitleWrapHtml(selection) {
   let probsHtml = "";
   let verdictHtml = "";
   let barOnlyHtml = "";
-  let idHtml = entityLinkHtml(selection.type, item.id, `#${escapeHtml(item.id || "")}`);
+  let idHtml = entityDisplayLinkHtml(selection.type, item.id);
 
   if (selection.type === "avis") {
     badgeHtml = renderVerdictPill(getEffectiveAvisVerdict(item.id));
