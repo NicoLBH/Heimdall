@@ -5272,3 +5272,57 @@ color:#ffff;
     align-items:stretch;
   }
 }
+
+.review-state-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:16px;
+  height:16px;
+  min-width:16px;
+  flex:0 0 16px;
+  line-height:0;
+}
+
+.review-state-icon svg{
+  display:block;
+  width:16px;
+  height:16px;
+}
+
+.review-state-icon--pending{
+  color:rgb(210, 153, 34);
+}
+
+.review-state-icon--validated{
+  color:rgb(35, 134, 54);
+}
+
+.review-state-icon--rejected{
+  color:rgb(145, 152, 161);
+}
+
+.review-title-chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-right:6px;
+  vertical-align:middle;
+}
+
+.details-title-status{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-right:8px;
+  vertical-align:middle;
+}
+
+.theme-text.is-unseen{
+  color:var(--fgColor-default, #e6edf3);
+  font-weight:600;
+}
+
+.theme-text.is-seen{
+  color:var(--fgColor-muted, #8b949e);
+}
