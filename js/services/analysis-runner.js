@@ -227,6 +227,16 @@ function firstNonEmpty(...values) {
   return "";
 }
 
+function defaultReviewMeta(source = {}) {
+  return {
+    is_seen: !!source?.is_seen,
+    review_state: String(source?.review_state || "pending").toLowerCase(),
+    is_published: !!source?.is_published,
+    last_published_at: source?.last_published_at || null,
+    has_changes_since_publish: !!source?.has_changes_since_publish
+  };
+}
+
 function normalizeFinalResult(final) {
   const situations = Array.isArray(final?.situations) ? final.situations : [];
   const problems = Array.isArray(final?.problems) ? final.problems : [];
@@ -248,6 +258,7 @@ function normalizeFinalResult(final) {
   return situations.map((situation) => {
     const situationId = firstNonEmpty(situation.situation_id, situation.id);
     const problemIds = Array.isArray(situation.problem_ids) ? situation.problem_ids : [];
+    const situationReview = defaultReviewMeta(situation);
 
     return {
       id: situationId,
@@ -261,10 +272,12 @@ function normalizeFinalResult(final) {
       ),
       priority: firstNonEmpty(situation.priority, situation.prio, "P3"),
       status: firstNonEmpty(situation.status, "open"),
+      ...situationReview,
       raw: situation,
       sujets: problemIds.map((problemId) => {
         const problem = problemsById.get(problemId) || {};
         const avisIds = Array.isArray(problem.avis_ids) ? problem.avis_ids : [];
+        const sujetReview = defaultReviewMeta(problem);
 
         return {
           id: firstNonEmpty(problem.problem_id, problem.id, problemId),
@@ -279,9 +292,11 @@ function normalizeFinalResult(final) {
           priority: firstNonEmpty(problem.priority, problem.prio, situation.priority, "P3"),
           status: firstNonEmpty(problem.status, "open"),
           agent: firstNonEmpty(problem.agent, problem.owner, "system"),
+          ...sujetReview,
           raw: problem,
           avis: avisIds.map((avisId) => {
             const avis = avisById.get(avisId) || {};
+            const avisReview = defaultReviewMeta(avis);
 
             return {
               id: firstNonEmpty(avis.avis_id, avis.id, avisId),
@@ -297,6 +312,7 @@ function normalizeFinalResult(final) {
               priority: firstNonEmpty(avis.priority, avis.prio, problem.priority, situation.priority, "P3"),
               status: firstNonEmpty(avis.status, "open"),
               agent: firstNonEmpty(avis.agent, problem.agent, "system"),
+              ...avisReview,
               raw: avis
             };
           })
@@ -305,7 +321,6 @@ function normalizeFinalResult(final) {
     };
   });
 }
-
 function applyRunResult(final, runId, statusLabel, runLogId = "") {
   const nested = normalizeFinalResult(final);
 
