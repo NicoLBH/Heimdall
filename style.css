@@ -5328,3 +5328,42 @@ color:#ffff;
 .theme-text.is-seen{
   color:var(--fgColor-muted, #8b949e);
 }
+
+
+.gh-comment--description .gh-comment-box{
+  overflow:visible;
+}
+.gh-comment-header--editable{
+  align-items:center;
+}
+.gh-comment-header-main{
+  display:flex;
+  align-items:center;
+  min-width:0;
+}
+.gh-comment-header-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.gh-comment-edit-btn{
+  color:var(--muted);
+}
+.gh-comment-edit-btn:hover{
+  color:var(--text);
+}
+.gh-comment-body--editable{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.description-editor__textarea{
+  width:100%;
+  min-height:140px;
+  resize:vertical;
+}
+.description-editor__actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+}
