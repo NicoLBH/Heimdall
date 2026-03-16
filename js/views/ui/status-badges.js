@@ -1,4 +1,5 @@
 import { escapeHtml } from "../../utils/escape-html.js";
+import { svgIcon } from "../../ui/icons.js";
 
 export function normalizeVerdict(verdict) {
   const v = String(verdict || "").trim().toUpperCase();
@@ -7,6 +8,18 @@ export function normalizeVerdict(verdict) {
   if (v === "DEFAVORABLE") return "KO";
   if (v === "FAVORABLE") return "OK";
   return v;
+}
+
+export function normalizeReviewState(state) {
+  const value = String(state || "").trim().toLowerCase();
+
+  if (!value) return "pending";
+  if (value === "approved") return "validated";
+  if (value === "published" || value === "diffused" || value === "diffuse") return "published";
+  if (value === "rejected") return "rejected";
+  if (value === "dismissed") return "dismissed";
+  if (value === "validated") return "validated";
+  return "pending";
 }
 
 function verdictBadgeClass(verdict) {
@@ -67,4 +80,39 @@ export function renderVerdictPill(verdict) {
 
 export function renderStateDot(state) {
   return `<span class="${verdictDotClass(state)}" aria-hidden="true"></span>`;
+}
+
+export function renderReviewStateIcon(
+  state,
+  {
+    entityType = "",
+    isPublished = false,
+    hasChangesSincePublish = false,
+    className = ""
+  } = {}
+) {
+  const normalized = normalizeReviewState(state);
+
+  if ((isPublished && !hasChangesSincePublish) || normalized === "published") {
+    return "";
+  }
+
+  let iconName = "dot-fill-pending";
+  let toneClass = "review-state-icon--pending";
+
+  if (normalized === "validated") {
+    iconName = "check";
+    toneClass = "review-state-icon--validated";
+  } else if (normalized === "rejected" || normalized === "dismissed") {
+    iconName = String(entityType || "").toLowerCase() === "avis" ? "slash" : "skip";
+    toneClass = "review-state-icon--rejected";
+  }
+
+  const extraClass = className ? ` ${escapeHtml(className)}` : "";
+
+  return `
+    <span class="review-state-icon ${toneClass}${extraClass}" aria-hidden="true">
+      ${svgIcon(iconName, { width: 16, height: 16 })}
+    </span>
+  `;
 }
