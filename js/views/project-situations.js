@@ -3004,6 +3004,8 @@ async function applyDescriptionSave(root) {
     avatar_initial: "H"
   }, { actor: "Human", agent: "human" });
 
+  markEntityValidated(entityType, entityId, { actor: "Human", agent: "human" });
+
   addActivity(entityType, entityId, "description_version_saved", nextBody, {
     previous_author: initialAuthor
   }, { actor: "Human", agent: "human" });
@@ -3878,7 +3880,7 @@ export function renderProjectSituations(root) {
   setProjectViewHeader({
     contextLabel: "Situations",
     variant: "situations",
-    toolbarHtml: renderSituationsViewHeaderHtml()
+    toolbarHtml: ""
   });
 
   const headerRoot = document.getElementById("projectViewHeaderHost");
@@ -3894,6 +3896,7 @@ export function renderProjectSituations(root) {
 
   root.innerHTML = `
     <section class="gh-panel gh-panel--results" aria-label="Results">
+      <div class="project-situations__table-toolbar" id="situationsToolbarHost">${renderSituationsViewHeaderHtml()}</div>
       <div id="situationsTableHost"></div>
     </section>
 
