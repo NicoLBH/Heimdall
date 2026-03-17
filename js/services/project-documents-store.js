@@ -65,7 +65,10 @@ export function addProjectDocument(documentInput = {}) {
     updatedAt: safeString(documentInput.updatedAt) || "À l'instant",
     createdAt: documentInput.createdAt || new Date(now).toISOString(),
     fileName: safeString(documentInput.fileName) || safeString(documentInput.name),
-    kind: safeString(documentInput.kind) || "file"
+    kind: safeString(documentInput.kind) || "file",
+    mimeType: safeString(documentInput.mimeType),
+    previewUrl: safeString(documentInput.previewUrl),
+    extension: safeString(documentInput.extension)
   };
 
   docsState.items.unshift(document);
