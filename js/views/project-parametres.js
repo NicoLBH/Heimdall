@@ -25,6 +25,7 @@ import {
   setAutomationEnabled
 } from "../services/project-automation.js";
 import { escapeHtml } from "../utils/escape-html.js";
+import { fetchGeorisquesForCommune } from "../services/georisques-service.js";
 
 const DEFAULT_PROJECT_COLLABORATORS = [
   { id: "collab-1", email: "nicolas.lebihan@socotec.com", status: "Actif", role: "Admin" },
@@ -36,7 +37,9 @@ const DEFAULT_PROJECT_COLLABORATORS = [
 const parametresUiState = {
   collaboratorsModalOpen: false,
   collaboratorDraftEmail: "",
-  activeSectionId: "parametres-general"
+  activeSectionId: "parametres-general",
+  georisquesIsLoading: false,
+  georisquesLastRequestKey: ""
 };
 
 let currentParametresRoot = null;
@@ -272,6 +275,8 @@ function ensureProjectFormDefaults() {
   if (!Array.isArray(form.collaborators) || !form.collaborators.length) {
     form.collaborators = DEFAULT_PROJECT_COLLABORATORS.map((item) => ({ ...item }));
   }
+
+  ensureGeorisquesState();
 }
 
 function renderNavIcon(name) {
@@ -301,7 +306,8 @@ const PARAMETRES_NAV_GROUPS = [
       { targetId: "parametres-collaborateurs", label: "Collaborateurs", icon: "people" },
       { targetId: "parametres-agents-actives", label: "Agents activés", icon: "shield" },
       { targetId: "parametres-lots", label: "Lots", icon: "book" },
-      { targetId: "parametres-zones-batiments", label: "Zones / bâtiments / niveaux", icon: "book" }
+      { targetId: "parametres-zones-batiments", label: "Zones / bâtiments / niveaux", icon: "book" },
+      { targetId: "parametres-georisques", label: "Géorisques", icon: "shield" }
     ]
   },
   {
@@ -410,6 +416,152 @@ function renderPlaceholderList(items) {
       ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
     </ul>
   `;
+}
+
+function ensureGeorisquesState() {
+  if (!store.projectForm.georisques || typeof store.projectForm.georisques !== "object") {
+    store.projectForm.georisques = {
+      query: { city: "", postalCode: "" },
+      commune: null,
+      requestedAt: "",
+      datasets: [],
+      error: ""
+    };
+  }
+
+  if (!Array.isArray(store.projectForm.georisques.datasets)) {
+    store.projectForm.georisques.datasets = [];
+  }
+
+  if (!store.projectForm.georisques.query || typeof store.projectForm.georisques.query !== "object") {
+    store.projectForm.georisques.query = { city: "", postalCode: "" };
+  }
+
+  return store.projectForm.georisques;
+}
+
+function getGeorisquesRequestKey(city = "", postalCode = "") {
+  return `${String(city || "").trim().toLowerCase()}::${String(postalCode || "").trim()}`;
+}
+
+function formatGeorisquesDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("fr-FR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderGeorisquesDataset(dataset = {}) {
+  const status = dataset.status === "success" ? "OK" : "Erreur";
+  const body = dataset.status === "success"
+    ? `<pre class="settings-json-block">${escapeHtml(JSON.stringify(dataset.data, null, 2))}</pre>`
+    : `<div class="settings-inline-error">${escapeHtml(dataset.error || "Requête indisponible")}</div>`;
+
+  return renderSectionCard({
+    title: dataset.label || dataset.key || "Donnée",
+    description: dataset.url || "",
+    badge: status,
+    body
+  });
+}
+
+function renderGeorisquesSection() {
+  const georisques = ensureGeorisquesState();
+  const city = String(store.projectForm.city || "").trim();
+  const postalCode = String(store.projectForm.postalCode || "").trim();
+  const requestedAt = formatGeorisquesDate(georisques.requestedAt);
+  const successCount = georisques.datasets.filter((item) => item.status === "success").length;
+  const errorCount = georisques.datasets.filter((item) => item.status !== "success").length;
+
+  const summaryHtml = `
+    <div class="settings-georisques-summary">
+      <div class="settings-georisques-summary__row"><strong>Entrée projet :</strong> ${escapeHtml(`${city || "—"} ${postalCode || ""}`.trim() || "—")}</div>
+      <div class="settings-georisques-summary__row"><strong>Commune résolue :</strong> ${escapeHtml(georisques.commune?.name || "—")}</div>
+      <div class="settings-georisques-summary__row"><strong>Code INSEE :</strong> ${escapeHtml(georisques.commune?.codeInsee || "—")}</div>
+      <div class="settings-georisques-summary__row"><strong>Dernière récupération :</strong> ${escapeHtml(requestedAt || "—")}</div>
+      <div class="settings-georisques-summary__row"><strong>Jeux récupérés :</strong> ${escapeHtml(String(successCount))}${errorCount ? ` / erreurs : ${escapeHtml(String(errorCount))}` : ""}</div>
+    </div>
+  `;
+
+  const actionsHtml = `
+    <div class="settings-georisques-actions">
+      <button
+        type="button"
+        class="gh-btn gh-btn--primary"
+        id="projectGeorisquesFetchBtn"
+        ${parametresUiState.georisquesIsLoading ? "disabled" : ""}
+      >
+        ${parametresUiState.georisquesIsLoading ? "Récupération…" : "Récupérer les données Géorisques"}
+      </button>
+    </div>
+  `;
+
+  const errorHtml = georisques.error
+    ? `<div class="settings-inline-error">${escapeHtml(georisques.error)}</div>`
+    : "";
+
+  const datasetsHtml = georisques.datasets.length
+    ? georisques.datasets.map((dataset) => renderGeorisquesDataset(dataset)).join("")
+    : `<div class="settings-empty-note">Aucune donnée chargée pour le moment.</div>`;
+
+  return renderSettingsBlock({
+    id: "parametres-georisques",
+    title: "Données de base projet",
+    lead: "Récupération brute des réponses API Géorisques à l’échelle de la commune à partir de la ville et du code postal du projet.",
+    cards: [
+      renderSectionCard({
+        title: "Géorisques",
+        description: "Chargement de l’ensemble des réponses disponibles actuellement tentées au niveau commune dans le PoC.",
+        badge: "LIVE",
+        body: `${summaryHtml}${actionsHtml}${errorHtml}`
+      }),
+      renderSectionCard({
+        title: "Résultats bruts",
+        description: "Les arbitrages de pertinence viendront ensuite ; ici on expose les réponses récupérées telles quelles.",
+        body: datasetsHtml
+      })
+    ]
+  });
+}
+
+async function loadGeorisquesForCurrentProject({ force = false } = {}) {
+  const city = String(store.projectForm.city || "").trim();
+  const postalCode = String(store.projectForm.postalCode || "").trim();
+  const requestKey = getGeorisquesRequestKey(city, postalCode);
+  const georisques = ensureGeorisquesState();
+
+  if (!city || !postalCode) {
+    georisques.error = "Renseigne d'abord la ville et le code postal dans la section Localisation.";
+    rerenderProjectParametres();
+    return;
+  }
+
+  if (parametresUiState.georisquesIsLoading) return;
+  if (!force && georisques.datasets.length && parametresUiState.georisquesLastRequestKey === requestKey) return;
+
+  parametresUiState.georisquesIsLoading = true;
+  georisques.error = "";
+  rerenderProjectParametres();
+
+  try {
+    const result = await fetchGeorisquesForCommune({ city, postalCode });
+    store.projectForm.georisques = {
+      ...result,
+      error: ""
+    };
+    parametresUiState.georisquesLastRequestKey = requestKey;
+  } catch (error) {
+    ensureGeorisquesState().error = error instanceof Error ? error.message : String(error);
+  } finally {
+    parametresUiState.georisquesIsLoading = false;
+    rerenderProjectParametres();
+  }
 }
 
 function renderProjectTabsFeatureCard(projectTabs) {
@@ -934,6 +1086,8 @@ function getPageHtml(form) {
                 ]
               })}
 
+              ${renderGeorisquesSection()}
+
               ${renderSettingsBlock({
                 id: "parametres-zones-reglementaires",
                 title: "Référentiels techniques et réglementaires",
@@ -1234,6 +1388,10 @@ export function renderProjectParametres(root) {
   registerProjectPrimaryScrollSource(document.getElementById("projectParametresScroll"));
   bindParametresEvents();
   bindParametresNav();
+
+  if (parametresUiState.activeSectionId === "parametres-georisques") {
+    loadGeorisquesForCurrentProject();
+  }
 }
 
 function bindValue(id, handler, eventName = "input") {
@@ -1457,6 +1615,13 @@ function bindParametresEvents() {
       rerenderProjectParametres();
     });
   });
+
+  const georisquesFetchBtn = document.getElementById("projectGeorisquesFetchBtn");
+  if (georisquesFetchBtn) {
+    georisquesFetchBtn.addEventListener("click", () => {
+      loadGeorisquesForCurrentProject({ force: true });
+    });
+  }
 }
 
 function bindParametresNav() {
@@ -1475,6 +1640,9 @@ function bindParametresNav() {
       const targetId = btn.getAttribute("data-side-nav-target");
       if (targetId) {
         parametresUiState.activeSectionId = targetId;
+        if (targetId === "parametres-georisques") {
+          loadGeorisquesForCurrentProject();
+        }
       }
     });
   });
