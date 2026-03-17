@@ -3075,6 +3075,51 @@ color:#ffff;
   background:#fff;
 }
 
+.documents-pdf-viewer__meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  padding:20px 24px 0;
+}
+
+.documents-pdf-viewer__title{
+  font-size:20px;
+  font-weight:600;
+  color:var(--fg);
+}
+
+.documents-pdf-viewer__subtitle{
+  margin-top:6px;
+  font-size:13px;
+  color:var(--fg-muted);
+}
+
+.documents-pdf-viewer__hint{
+  max-width:360px;
+  font-size:12px;
+  line-height:1.5;
+  color:var(--fg-muted);
+  text-align:right;
+}
+
+.documents-pdf-viewer__fallback{
+  display:flex;
+  min-height:900px;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  padding:32px;
+  background:#fff;
+  color:#24292f;
+  text-align:center;
+}
+
+.documents-pdf-viewer__fallback--empty{
+  min-height:480px;
+}
+
 .documents-report-item__line--title{
   align-items:center;
   flex-wrap:wrap;
@@ -3695,6 +3740,49 @@ color:#ffff;
   font-size:13px;
   line-height:1.5;
   color:var(--muted);
+}
+
+.settings-georisques-summary{
+  display:grid;
+  gap:8px;
+}
+
+.settings-georisques-summary__row{
+  font-size:13px;
+  color:var(--fg-muted);
+}
+
+.settings-georisques-actions{
+  margin-top:16px;
+}
+
+.settings-json-block{
+  margin:0;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:rgba(1, 4, 9, 0.5);
+  color:var(--fg-muted);
+  font-size:12px;
+  line-height:1.5;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.settings-inline-error{
+  margin-top:12px;
+  padding:12px 14px;
+  border:1px solid rgba(248,81,73,.4);
+  border-radius:8px;
+  background:rgba(248,81,73,.1);
+  color:var(--fg);
+  font-size:13px;
+}
+
+.settings-empty-note{
+  padding:8px 0;
+  font-size:13px;
+  color:var(--fg-muted);
 }
 .settings-feature-row__top{
   display:flex;
