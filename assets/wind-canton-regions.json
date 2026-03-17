@@ -1,0 +1,673 @@
+{
+  "01": {
+    "departmentName": "Ain",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Bâgé-le-Châtel",
+        "Chalamont",
+        "Châtillon-sur-Chalaronne",
+        "Coligny",
+        "Meximieux",
+        "Miribel",
+        "Montluel",
+        "Montrevel-en-Bresse",
+        "Pont-de-Vaux",
+        "Pont-de-Veyle",
+        "Reyrieux",
+        "Saint-Trivier-de-Courtes",
+        "Saint-Trivier-sur-Moignans",
+        "Thoissey",
+        "Trévoux",
+        "Villars-les-Dombes"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "0102",
+        "0107",
+        "0108",
+        "0112",
+        "0113",
+        "0117",
+        "0118",
+        "0121",
+        "0122",
+        "0123"
+      ]
+    }
+  },
+  "04": {
+    "departmentName": "Alpes-de-Haute-Provence",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "1": [
+        "Annot",
+        "Barcelonnette",
+        "Colmars",
+        "Entrevaux",
+        "Javie (la)",
+        "Lauzet-Ubaye (le)",
+        "Saint-André-les-Alpes",
+        "Seyne"
+      ]
+    },
+    "explicitCantonCodes": {
+      "1": [
+        "0401",
+        "0402",
+        "0413"
+      ]
+    }
+  },
+  "05": {
+    "departmentName": "Hautes-Alpes",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Aspres-sur-Buëch",
+        "Barcillonnette",
+        "Laragne-Montéglin",
+        "Orpierre",
+        "Ribiers",
+        "Rosans",
+        "Serres",
+        "Tallard",
+        "Veynes"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "0511",
+        "0513",
+        "0514",
+        "0515"
+      ]
+    }
+  },
+  "06": {
+    "departmentName": "Alpes-Maritimes",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "1": [
+        "Guillaumes",
+        "Puget-Théniers",
+        "Saint-Étienne-de-Tinée",
+        "Saint-Martin-Vésubie",
+        "Saint-Sauveur-sur-Tinée",
+        "Villars-sur-Var"
+      ]
+    },
+    "explicitCantonCodes": {
+      "1": [
+        "0624",
+        "0626"
+      ]
+    }
+  },
+  "11": {
+    "departmentName": "Aude",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "2": [
+        "Alaigne",
+        "Alzonne",
+        "Belpech",
+        "Carcassonne (tous cantons)",
+        "Castelnaudary (tous cantons)",
+        "Chalabre",
+        "Conques-sur-Orbiel",
+        "Fanjeaux",
+        "Limoux",
+        "Mas-Cabardès",
+        "Montréal",
+        "Saissac",
+        "Salles-sur-l'Hers"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "1101",
+        "1102",
+        "1103",
+        "1104",
+        "1105",
+        "1109",
+        "1110",
+        "1114",
+        "1119",
+        "1198"
+      ]
+    }
+  },
+  "15": {
+    "departmentName": "Cantal",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Allanche",
+        "Chaudes-Aigues",
+        "Condat",
+        "Massiac",
+        "Murat",
+        "Pierrefort",
+        "Ruynes-en-Margeride",
+        "Saint-Flour (tous cantons)"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "1507",
+        "1509",
+        "1510",
+        "1511",
+        "1512",
+        "1599"
+      ]
+    }
+  },
+  "17": {
+    "departmentName": "Charente-Maritime",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "1": [
+        "Montendre",
+        "Montguyon",
+        "Montlieu-la-Garde"
+      ],
+      "2": [
+        "Archiac",
+        "Aulnay",
+        "Burie",
+        "Cozes",
+        "Gémozac",
+        "Jonzac",
+        "Loulay",
+        "Matha",
+        "Mirambeau",
+        "Pons",
+        "Saintes (tous cantons)",
+        "Saint-Genis-de-Saintonge",
+        "Saint-Hilaire-de-Villefranche",
+        "Saint-Jean-d'Angély",
+        "Saint-Porchaire",
+        "Saint-Savinien",
+        "Saujon",
+        "Tonnay-Boutonne"
+      ]
+    },
+    "explicitCantonCodes": {
+      "1": [
+        "1727"
+      ],
+      "2": [
+        "1702",
+        "1707",
+        "1711",
+        "1712",
+        "1718",
+        "1719",
+        "1720",
+        "1721",
+        "1722"
+      ]
+    }
+  },
+  "2A": {
+    "departmentName": "Corse-du-Sud",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "4": [
+        "Bonifacio",
+        "Figari",
+        "Levie",
+        "Porto-Vecchio",
+        "Serra-di-Scopamène"
+      ]
+    },
+    "explicitCantonCodes": {
+      "4": [
+        "2A07",
+        "2A09",
+        "2A99"
+      ]
+    }
+  },
+  "2B": {
+    "departmentName": "Haute-Corse",
+    "defaultRegion": 4,
+    "explicitRegions": {
+      "3": [
+        "Belgodère",
+        "Calenzana",
+        "Calvi",
+        "Île-Rousse (l')"
+      ]
+    },
+    "explicitCantonCodes": {
+      "3": [
+        "2B07",
+        "2B15"
+      ]
+    }
+  },
+  "21": {
+    "departmentName": "Côte-d'Or",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "1": [
+        "Auxonne",
+        "Chenôve",
+        "Dijon (tous cantons)",
+        "Fontaine-Française",
+        "Fontaine-lès-Dijon",
+        "Genlis",
+        "Grancey-le-Château-Neuvelle",
+        "Is-sur-Tille",
+        "Mirebeau-sur-Bèze",
+        "Pontailler-sur-Saône",
+        "Saint-Jean-de-Losne",
+        "Saint-Seine-l'Abbaye",
+        "Selongey"
+      ]
+    },
+    "explicitCantonCodes": {
+      "1": [
+        "2102",
+        "2104",
+        "2106",
+        "2108",
+        "2109",
+        "2110",
+        "2111",
+        "2112",
+        "2113",
+        "2114",
+        "2115",
+        "2116",
+        "2121",
+        "2199"
+      ]
+    }
+  },
+  "25": {
+    "departmentName": "Doubs",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Audincourt",
+        "Clerval",
+        "Étupes",
+        "Hérimoncourt",
+        "Isle-sur-le-Doubs (l')",
+        "Maîche",
+        "Montbéliard (tous cantons)",
+        "Pont-de-Roide",
+        "Saint-Hippolyte",
+        "Sochaux",
+        "Valentigney"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "2501",
+        "2503",
+        "2510",
+        "2512",
+        "2513",
+        "2519"
+      ]
+    }
+  },
+  "30": {
+    "departmentName": "Gard",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "3": [
+        "Aigues-Mortes",
+        "Aimargues",
+        "Aramon",
+        "Beaucaire",
+        "Bouillargues",
+        "Saint-Gilles",
+        "Marguerittes",
+        "Nîmes (tous cantons)",
+        "Quissac",
+        "Saint-Mamert-du-Gard",
+        "Sommières",
+        "Vauvert"
+      ]
+    },
+    "explicitCantonCodes": {
+      "3": [
+        "3001",
+        "3006",
+        "3007",
+        "3009",
+        "3010",
+        "3011",
+        "3012",
+        "3013",
+        "3015",
+        "3019",
+        "3021",
+        "3099"
+      ]
+    }
+  },
+  "31": {
+    "departmentName": "Haute-Garonne",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Auterive",
+        "Caraman",
+        "Cintegabelle",
+        "Lanta",
+        "Montgiscard",
+        "Nailloux",
+        "Revel",
+        "Villefranche-de-Lauragais"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "3101",
+        "3107",
+        "3113"
+      ]
+    }
+  },
+  "33": {
+    "departmentName": "Gironde",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Castelnau-de-Médoc",
+        "Lesparre-Médoc",
+        "Pauillac",
+        "Saint-Laurent-Médoc",
+        "Saint-Vivien-de-Médoc"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "3322",
+        "3330"
+      ]
+    }
+  },
+  "38": {
+    "departmentName": "Isère",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Beaurepaire",
+        "Heyrieux",
+        "Saint-Jean-de-Bournay"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "3814",
+        "3821",
+        "3826"
+      ]
+    }
+  },
+  "40": {
+    "departmentName": "Landes",
+    "defaultRegion": 1,
+    "explicitRegions": {
+      "2": [
+        "Amou",
+        "Castets",
+        "Dax (tous cantons)",
+        "Montfort-en-Chalosse",
+        "Mugron",
+        "Peyrehorade",
+        "Pouillon",
+        "Saint-Martin-de-Seignanx",
+        "Saint-Vincent-de-Tyrosse",
+        "Soustons",
+        "Tartas (tous cantons)"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "4003",
+        "4004",
+        "4005",
+        "4006",
+        "4009",
+        "4012",
+        "4013",
+        "4014",
+        "4015",
+        "4098"
+      ]
+    }
+  },
+  "44": {
+    "departmentName": "Loire-Atlantique",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "2": [
+        "Ancenis",
+        "Blain",
+        "Châteaubriant",
+        "Derval",
+        "Guémené-Penfao",
+        "Ligné",
+        "Moisdon-la-Rivière",
+        "Nort-sur-Erdre",
+        "Nozay",
+        "Riaillé",
+        "Rougé",
+        "Saint-Julien-de-Vouvantes",
+        "Saint-Marc-la-Jaille",
+        "Saint-Nicolas-de-Redon",
+        "Varades"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "4401",
+        "4403",
+        "4406",
+        "4408",
+        "4418",
+        "4419"
+      ]
+    }
+  },
+  "59": {
+    "departmentName": "Nord",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "2": [
+        "Arleux",
+        "Anzin",
+        "Avesnes-sur-Helpe (tous cantons)",
+        "Bavay",
+        "Berlaimont",
+        "Bouchain",
+        "Cambrai (tous cantons)",
+        "Carnières",
+        "Cateau-Cambrésis (le)",
+        "Clary",
+        "Condé-sur-l'Escaut",
+        "Denain",
+        "Douai (tous cantons)",
+        "Hautmont",
+        "Landrecies",
+        "Marchiennes",
+        "Marcoing",
+        "Maubeuge (tous cantons)",
+        "Solre-le-Château",
+        "Orchies",
+        "Quesnoy (le) (tous cantons)",
+        "Saint-Amand-les-Eaux (tous cantons)",
+        "Solesmes",
+        "Trélon",
+        "Valenciennes (tous cantons)"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "5901",
+        "5903",
+        "5905",
+        "5906",
+        "5907",
+        "5909",
+        "5910",
+        "5911",
+        "5914",
+        "5915",
+        "5919",
+        "5929",
+        "5930",
+        "5931",
+        "5934",
+        "5935",
+        "5939"
+      ]
+    }
+  },
+  "62": {
+    "departmentName": "Pas-de-Calais",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "2": [
+        "Bapaume",
+        "Bertincourt",
+        "Croisilles",
+        "Marquion",
+        "Vitry-en-Artois"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "6209",
+        "6215"
+      ]
+    }
+  },
+  "70": {
+    "departmentName": "Haute-Saône",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "1": [
+        "Autrey-lès-Gray",
+        "Champlitte",
+        "Dampierre-sur-Salon",
+        "Fresne-Saint-Mamès",
+        "Gray",
+        "Gy",
+        "Marnay",
+        "Montbozon",
+        "Pesmes",
+        "Rioz",
+        "Scey-sur-Saône-et-Saint-Albin"
+      ]
+    },
+    "explicitCantonCodes": {
+      "1": [
+        "7001",
+        "7002",
+        "7009",
+        "7012",
+        "7014"
+      ]
+    }
+  },
+  "76": {
+    "departmentName": "Seine-Maritime",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "3": [
+        "Bacqueville-en-Caux",
+        "Blangy-sur-Bresle",
+        "Cany-Barville",
+        "Eu",
+        "Dieppe (tous cantons)",
+        "Envermeu",
+        "Fontaine-le-Dun",
+        "Offranville",
+        "Saint-Valery-en-Caux"
+      ]
+    },
+    "explicitCantonCodes": {
+      "3": [
+        "7607",
+        "7608",
+        "7610",
+        "7620",
+        "7633",
+        "7695"
+      ]
+    }
+  },
+  "80": {
+    "departmentName": "Somme",
+    "defaultRegion": 3,
+    "explicitRegions": {
+      "2": [
+        "Ailly-sur-Noye",
+        "Albert",
+        "Bray-sur-Somme",
+        "Chaulnes",
+        "Combles",
+        "Ham",
+        "Montdidier",
+        "Moreuil",
+        "Nesle",
+        "Péronne",
+        "Roisel",
+        "Rosières-en-Santerre",
+        "Roye"
+      ]
+    },
+    "explicitCantonCodes": {
+      "2": [
+        "8003",
+        "8005",
+        "8018",
+        "8019",
+        "8020",
+        "8022"
+      ]
+    }
+  },
+  "81": {
+    "departmentName": "Tarn",
+    "defaultRegion": 2,
+    "explicitRegions": {
+      "1": [
+        "Cadalen",
+        "Castelnau-de-Montmiral",
+        "Cordes-sur-Ciel",
+        "Gaillac",
+        "Graulhet",
+        "Lavaur",
+        "Lisle-sur-Tarn",
+        "Rabastens",
+        "Saint-Paul-Cap-de-Joux",
+        "Salvagnac",
+        "Vaour"
+      ]
+    },
+    "explicitCantonCodes": {
+      "1": [
+        "8106",
+        "8110",
+        "8111",
+        "8112",
+        "8115",
+        "8120",
+        "8123"
+      ]
+    }
+  }
+}
