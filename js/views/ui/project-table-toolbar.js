@@ -59,7 +59,8 @@ export function renderProjectTableToolbarSelect({
   tone = "default",
   size = "sm",
   className = "",
-  fieldClassName = ""
+  fieldClassName = "",
+  icon = ""
 } = {}) {
   return `
     <div class="project-table-toolbar__control ${className}">
@@ -69,6 +70,7 @@ export function renderProjectTableToolbarSelect({
         options,
         tone,
         size,
+        icon,
         fieldClassName: `gh-select-field--inline ${fieldClassName}`.trim()
       })}
     </div>
