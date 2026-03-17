@@ -1,4 +1,5 @@
 import { store } from "../store.js";
+import { getPreferredAnalysisDocumentIds, normalizeDocumentRefIds, setLastAnalysisDocumentIds } from "./project-documents-store.js";
 import { rerenderRoute } from "../router.js";
 import { syncProjectSituationsRunbar } from "../views/project-situations-runbar.js";
 import {
@@ -237,10 +238,22 @@ function defaultReviewMeta(source = {}) {
   };
 }
 
-function normalizeFinalResult(final) {
+function withDocumentRefs(entity = {}, documentIds = []) {
+  return {
+    ...entity,
+    document_ref_ids: normalizeDocumentRefIds(
+      entity?.document_ref_ids && Array.isArray(entity.document_ref_ids)
+        ? entity.document_ref_ids
+        : documentIds
+    )
+  };
+}
+
+function normalizeFinalResult(final, options = {}) {
   const situations = Array.isArray(final?.situations) ? final.situations : [];
   const problems = Array.isArray(final?.problems) ? final.problems : [];
   const avisList = Array.isArray(final?.avis) ? final.avis : [];
+  const defaultDocumentIds = normalizeDocumentRefIds(options.documentIds || []);
 
   const problemsById = new Map();
   const avisById = new Map();
@@ -260,7 +273,7 @@ function normalizeFinalResult(final) {
     const problemIds = Array.isArray(situation.problem_ids) ? situation.problem_ids : [];
     const situationReview = defaultReviewMeta(situation);
 
-    return {
+    return withDocumentRefs({
       id: situationId,
       title: firstNonEmpty(
         situation.title,
@@ -279,7 +292,7 @@ function normalizeFinalResult(final) {
         const avisIds = Array.isArray(problem.avis_ids) ? problem.avis_ids : [];
         const sujetReview = defaultReviewMeta(problem);
 
-        return {
+        return withDocumentRefs({
           id: firstNonEmpty(problem.problem_id, problem.id, problemId),
           title: firstNonEmpty(
             problem.title,
@@ -298,7 +311,7 @@ function normalizeFinalResult(final) {
             const avis = avisById.get(avisId) || {};
             const avisReview = defaultReviewMeta(avis);
 
-            return {
+            return withDocumentRefs({
               id: firstNonEmpty(avis.avis_id, avis.id, avisId),
               title: firstNonEmpty(
                 avis.title,
@@ -314,15 +327,17 @@ function normalizeFinalResult(final) {
               agent: firstNonEmpty(avis.agent, problem.agent, "system"),
               ...avisReview,
               raw: avis
-            };
+            }, avis.document_ref_ids || problem.document_ref_ids || situation.document_ref_ids || defaultDocumentIds);
           })
-        };
+        }, problem.document_ref_ids || situation.document_ref_ids || defaultDocumentIds);
       })
-    };
+    }, situation.document_ref_ids || defaultDocumentIds);
   });
 }
-function applyRunResult(final, runId, statusLabel, runLogId = "") {
-  const nested = normalizeFinalResult(final);
+function applyRunResult(final, runId, statusLabel, runLogId = "", options = {}) {
+  const documentIds = getPreferredAnalysisDocumentIds(options.documentIds || []);
+  const nested = normalizeFinalResult(final, { documentIds });
+  setLastAnalysisDocumentIds(documentIds);
 
   store.situationsView.data = nested;
   store.situationsView.rawResult = final;
@@ -365,7 +380,7 @@ function extractFinalPayload(payload) {
   return final;
 }
 
-async function pollRunStatus({ runId, token, runLogId }) {
+async function pollRunStatus({ runId, token, runLogId, documentIds = [] }) {
   const t0 = Date.now();
   let tries = 0;
 
@@ -416,7 +431,7 @@ async function pollRunStatus({ runId, token, runLogId }) {
 
     if ((status === "READY_FOR_REVIEW" || status === "DONE" || status === "READY") && payload) {
       const final = extractFinalPayload(payload);
-      applyRunResult(final, runId, status, runLogId);
+      applyRunResult(final, runId, status, runLogId, { documentIds });
       return { state: "success" };
     }
 
@@ -460,6 +475,7 @@ export async function runAnalysis(options = {}) {
   const triggerLabel = options.triggerLabel
     || (triggerType === "document-upload" ? "Dépôt de document" : "Lancement manuel");
   const primaryAgentKey = options.agentKey || getPrimaryAnalysisAgent()?.key || "parasismique";
+  const analysisDocumentIds = getPreferredAnalysisDocumentIds(options.documentIds || []);
 
   const runLogEntry = startRunLogEntry({
     name: getAnalysisRunName(primaryAgentKey, triggerType),
@@ -523,7 +539,7 @@ export async function runAnalysis(options = {}) {
         Array.isArray(final.avis)
       ) {
         if (pollToken !== activePollToken) return;
-        applyRunResult(final, final.run_id || runId, final.status || "OK", runLogEntry.id);
+        applyRunResult(final, final.run_id || runId, final.status || "OK", runLogEntry.id, { documentIds: analysisDocumentIds });
         return;
       }
 
@@ -533,7 +549,8 @@ export async function runAnalysis(options = {}) {
       const pollResult = await pollRunStatus({
         runId,
         token: pollToken,
-        runLogId: runLogEntry.id
+        runLogId: runLogEntry.id,
+        documentIds: analysisDocumentIds
       });
 
       if (pollResult?.state === "timeout") {
@@ -554,7 +571,8 @@ export async function runAnalysis(options = {}) {
       const pollResult = await pollRunStatus({
         runId,
         token: pollToken,
-        runLogId: runLogEntry.id
+        runLogId: runLogEntry.id,
+        documentIds: analysisDocumentIds
       });
 
       if (pollResult?.state === "timeout") {
