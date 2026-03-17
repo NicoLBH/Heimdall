@@ -26,6 +26,7 @@ import {
 } from "../services/project-automation.js";
 import { escapeHtml } from "../utils/escape-html.js";
 import { fetchGeorisquesForCommune } from "../services/georisques-service.js";
+import { getWindRegion } from "../../assets/wind-regions.js";
 
 const DEFAULT_PROJECT_COLLABORATORS = [
   { id: "collab-1", email: "nicolas.lebihan@socotec.com", status: "Actif", role: "Admin" },
@@ -587,9 +588,46 @@ function renderGeorisquesTable(rows = []) {
   `;
 }
 
+function findFirstMatchingValueDeep(value, matcher) {
+  if (matcher(value)) return value;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findFirstMatchingValueDeep(item, matcher);
+      if (match !== undefined) return match;
+    }
+    return undefined;
+  }
+
+  if (value != null && typeof value === "object") {
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (matcher(nestedValue, key)) return nestedValue;
+      const match = findFirstMatchingValueDeep(nestedValue, matcher);
+      if (match !== undefined) return match;
+    }
+  }
+
+  return undefined;
+}
+
 function getGeorisquesSismiqueSummary() {
   const dataset = getGeorisquesDataset("zonage_sismique");
   if (!dataset || dataset.status !== "success") return "";
+
+  const directValue = findFirstMatchingValueDeep(dataset.data, (candidate, key = "") => {
+    const normalizedKey = String(key || "").toLowerCase();
+    if (!/(zone|sismic|sismique|sismicite|sismicité|libelle|label|intitule)/.test(normalizedKey)) {
+      return false;
+    }
+
+    const normalizedValue = normalizeFlatValue(candidate);
+    return normalizedValue && normalizedValue !== "—";
+  });
+
+  if (directValue !== undefined) {
+    const formatted = normalizeFlatValue(directValue);
+    if (formatted && formatted !== "—") return formatted;
+  }
 
   const rows = getTabularRowsFromGeorisquesData(dataset.data);
   if (!rows.length) return "";
@@ -618,12 +656,39 @@ function getGeorisquesSismiqueSummary() {
   return firstKey ? normalizeFlatValue(firstRow[firstKey]) : "";
 }
 
-function renderAutoResolvedField(label, value) {
+function getWindRegionSummary() {
+  const city = String(store.projectForm.city || "").trim();
+  const postalCode = String(store.projectForm.postalCode || "").trim();
+  const georisques = ensureGeorisquesState();
+
+  const wind = getWindRegion({
+    postalCode,
+    communeName: city,
+    georisquesCommuneName: georisques.commune?.name || null,
+    georisquesDepartmentCode: georisques.commune?.departmentCode || null,
+    georisquesInseeCode: georisques.commune?.codeInsee || null
+  });
+
+  if (!wind || wind.error) return "";
+
+  if (wind.ambiguous) {
+    const regions = Array.isArray(wind.possibleRegions) ? wind.possibleRegions.join(" / ") : "";
+    return regions
+      ? `Ambiguë (${regions})${wind.defaultRegion ? ` · défaut ${wind.defaultRegion}` : ""}`
+      : "";
+  }
+
+  if (!Number.isFinite(wind.region)) return "";
+
+  return `Région ${wind.region}`;
+}
+
+function renderAutoResolvedField(label, value, hint = "Données récupérées automatiquement sur Géorisques.") {
   return `
     <div class="settings-auto-field">
       <div class="settings-auto-field__label"><strong>${escapeHtml(label)} <span class="settings-auto-field__asterisk">*</span></strong></div>
       <div class="settings-auto-field__value">${escapeHtml(value || "—")}</div>
-      <div class="settings-auto-field__hint">Données récupérées automatiquement sur Géorisques.</div>
+      <div class="settings-auto-field__hint">${escapeHtml(hint)}</div>
     </div>
   `;
 }
@@ -1282,9 +1347,14 @@ function getPageHtml(form) {
                   renderSectionCard({
                     title: "Solidité des ouvrages",
                     description: "Références réglementaires, hypothèses générales et domaine d’application.",
-                    body: renderPlaceholderList([
+                    body: `${getWindRegionSummary() ? `
+                      <div class="settings-auto-fields settings-auto-fields--single">
+                        ${renderAutoResolvedField("Zone de vent calculée", getWindRegionSummary(), "Valeur calculée automatiquement à partir de la localisation projet et des tables vent internes.")}
+                      </div>
+                    ` : ""}
+                    ${renderPlaceholderList([
                       "Code de la construction, Eurocodes, règles professionnelles, cas particuliers et exigences du programme."
-                    ])
+                    ])}`
                   })
                 ]
               })}
