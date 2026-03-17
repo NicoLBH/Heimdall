@@ -1,6 +1,7 @@
 const COMMUNES_API_URL = "https://geo.api.gouv.fr/communes";
 const ADDRESS_API_URL = "https://api-adresse.data.gouv.fr/search/";
 const IGN_COMPLETION_API_URL = "https://data.geopf.fr/geocodage/completion/";
+const IGN_ELEVATION_API_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
 const GEORISQUES_API_BASE = "https://www.georisques.gouv.fr/api/v1";
 
 const GEORISQUES_COMMUNE_ENDPOINTS = [
@@ -25,7 +26,7 @@ const GEORISQUES_COMMUNE_ENDPOINTS = [
     paths: ["zonage_sismique", "zonage-sismique"]
   },
   { key: "cavites", label: "Cavités", paths: ["cavites"] },
-  { key: "mvt", label: "Mouvements de terrain", paths: ["mvt"] },
+  { key: "mvt", label: "MVT", paths: ["mvt"] },
   {
     key: "retrait_gonflement_argiles",
     label: "Retrait gonflement des argiles",
@@ -408,6 +409,38 @@ export async function resolveFrenchPostalCode(postalCode = "") {
     lat: centreCoords.lat,
     lon: centreCoords.lon,
     sourceUrl: url
+  };
+}
+
+export async function fetchFrenchAltitude({ longitude = null, latitude = null } = {}) {
+  const lon = toNumber(longitude);
+  const lat = toNumber(latitude);
+
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+    throw new Error("Coordonnées latitude / longitude requises pour l'altitude.");
+  }
+
+  const url = new URL(IGN_ELEVATION_API_URL);
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("resource", "ign_rge_alti_wld");
+  url.searchParams.set("delimiter", "|");
+  url.searchParams.set("indent", "true");
+  url.searchParams.set("measures", "false");
+  url.searchParams.set("zonly", "true");
+
+  const data = await fetchJson(url.toString());
+  const elevations = Array.isArray(data?.elevations) ? data.elevations : [];
+  const value = toNumber(elevations[0]);
+
+  if (!Number.isFinite(value)) {
+    throw new Error("Altitude introuvable pour ces coordonnées.");
+  }
+
+  return {
+    altitude: value,
+    sourceUrl: url.toString(),
+    raw: data
   };
 }
 
