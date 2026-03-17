@@ -82,7 +82,7 @@ export function renderGhEditableField({
   `;
 }
 
-export function bindGhEditableFields(root = document, { onValidate } = {}) {
+export function bindGhEditableFields(root = document, { onValidate, onEditStart } = {}) {
   root.querySelectorAll("[data-editable-field]").forEach((field) => {
     const input = field.querySelector("[data-editable-input]");
     const btn = field.querySelector("[data-editable-toggle]");
@@ -98,6 +98,9 @@ export function bindGhEditableFields(root = document, { onValidate } = {}) {
       const isEditing = field.classList.contains("is-editing");
 
       if (!isEditing) {
+        if (typeof onEditStart === "function") {
+          onEditStart(input.id, input, field);
+        }
         field.classList.add("is-editing");
         input.removeAttribute("readonly");
         input.focus();
