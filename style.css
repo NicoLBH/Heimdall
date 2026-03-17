@@ -5936,3 +5936,15 @@ color:#ffff;
 .settings-table tbody tr:last-child td{
   border-bottom:none;
 }
+
+
+.settings-auto-field.is-muted,
+.settings-georisques-summary.is-muted,
+.settings-location-derived-block.is-muted{
+  opacity:.56;
+}
+
+.settings-location-derived-block.is-muted .settings-card,
+.settings-location-derived-block.is-muted .settings-table-wrap{
+  opacity:.72;
+}
