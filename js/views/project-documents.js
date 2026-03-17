@@ -23,7 +23,7 @@ import {
   runAnalysis
 } from "../services/analysis-runner.js";
 import { createProjectProposal } from "../services/project-proposals.js";
-import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocuments } from "../services/project-documents-store.js";
+import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocuments, resolveDocumentRefs } from "../services/project-documents-store.js";
 import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { getEffectiveAvisVerdict, getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 
@@ -36,7 +36,7 @@ const DOCUMENT_FOLDERS = [
 ];
 
 const docsViewState = {
-  mode: "list", // "list" | "upload"
+  mode: "list", // "list" | "upload" | "report-preview"
   file: null,
   title: "",
   description: "",
@@ -46,6 +46,7 @@ const docsViewState = {
   uploadProgress: 0,
   uploadTimer: null,
   selectedPhase: store.projectForm?.currentPhase || store.projectForm?.phase || "APS",
+  reportNumber: 1,
   activity: {
     tone: "info",
     title: "",
@@ -89,6 +90,23 @@ function getProposalIconSvg() {
   return svgIcon("git-pull-request", {
     className: "octicon octicon-git-pull-request"
   });
+}
+
+function getBranchIconSvg() {
+  return svgIcon("git-branch", { className: "octicon octicon-git-branch" });
+}
+
+function getSocotecLogoSvg() {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="216" height="530" viewBox="0 0 216 530" fill="none" class="documents-report__socotec-logo" aria-hidden="true">
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M203.402 442.191C165.381 393.404 143.437 331.616 145.265 264.959C147.071 199.127 171.77 139.309 211.528 92.9189L105.548 2.50092C43.3923 75.3543 8.60738 167.613 7.19168 263.368C5.77598 359.122 37.8183 452.369 97.7928 527.028L203.402 442.191Z" fill="white"/>
+      <path d="M102.137 425.284C95.6738 425.284 90.4235 420.002 90.4235 413.499C90.4235 406.996 95.6738 401.714 102.137 401.714C105.824 401.714 109.091 403.427 111.238 406.08C113.945 403.874 117.072 401.338 120.339 398.662C116.045 393.332 109.488 389.928 102.137 389.928C89.1867 389.928 78.7095 400.493 78.7095 413.499C78.7095 426.529 89.2101 437.07 102.137 437.07C109.488 437.07 116.045 433.666 120.339 428.336L111.238 420.918C109.091 423.571 105.824 425.284 102.137 425.284Z" fill="#0082DE"/>
+      <path d="M111.238 420.894C112.871 418.875 113.852 416.293 113.852 413.476C113.852 410.658 112.871 408.076 111.238 406.057C105.871 410.424 102.138 413.476 102.138 413.476L111.238 420.894Z" fill="#00ACE8"/>
+      <path d="M137.279 413.499C137.279 405.071 134.339 397.323 129.439 391.243C126.429 393.708 123.325 396.244 120.339 398.662C123.605 402.723 125.565 407.865 125.565 413.499C125.565 419.11 123.605 424.275 120.339 428.336L129.439 435.755C134.363 429.675 137.279 421.927 137.279 413.499Z" fill="#00ACE8"/>
+      <path d="M120.362 398.662C117.095 401.338 113.968 403.874 111.261 406.08C112.895 408.099 113.875 410.682 113.875 413.499C113.875 416.316 112.895 418.899 111.261 420.918L120.362 428.336C123.629 424.275 125.589 419.134 125.589 413.499C125.565 407.865 123.629 402.7 120.362 398.662Z" fill="#005499"/>
+      <path d="M102.17 451.16C101.651 451.618 101.005 451.834 100.27 451.86C99.5232 451.834 98.8521 451.592 98.3329 451.122C97.8011 450.625 97.5352 449.989 97.5478 449.213C97.5478 448.45 97.8264 447.801 98.3456 447.292C98.8521 446.796 99.4979 446.541 100.258 446.516C100.979 446.516 101.6 446.745 102.144 447.139L103.79 445.46C103.145 444.925 102.41 444.569 101.562 444.404C101.233 444.327 100.878 444.302 100.524 444.289H100.258C100.194 444.289 100.131 444.289 100.068 444.302H100.042C99.6878 444.315 99.3332 444.366 99.004 444.442C98.0796 444.645 97.2819 445.065 96.5981 445.702C95.6231 446.63 95.1166 447.801 95.1039 449.239C95.0913 450.676 95.5851 451.834 96.5601 452.737C96.8894 453.043 97.2439 453.285 97.6365 453.488C98.3962 453.87 99.2446 454.061 100.194 454.048H100.27C101.22 454.035 102.03 453.781 102.79 453.386C103.132 453.208 103.461 452.979 103.753 452.712L102.17 451.16ZM140.297 451.16C139.778 451.618 139.132 451.834 138.397 451.86C137.65 451.834 136.979 451.592 136.46 451.122C135.928 450.625 135.662 449.989 135.675 449.213C135.675 448.45 135.954 447.801 136.473 447.292C136.979 446.796 137.625 446.541 138.385 446.516C139.107 446.516 139.727 446.745 140.272 447.139L141.918 445.46C141.272 444.925 140.537 444.569 139.689 444.404C139.36 444.327 139.005 444.302 138.651 444.289H138.385C138.322 444.289 138.258 444.289 138.195 444.302H138.17C137.815 444.315 137.46 444.366 137.131 444.442C136.207 444.645 135.409 445.065 134.725 445.702C133.75 446.63 133.244 447.801 133.231 449.239C133.218 450.676 133.712 451.834 134.687 452.737C135.017 453.043 135.371 453.285 135.764 453.488C136.523 453.87 137.372 454.061 138.322 454.048H138.397C139.347 454.035 140.158 453.781 140.917 453.386C141.259 453.208 141.588 452.979 141.88 452.712L140.297 451.16ZM109.235 454.086C107.805 454.086 106.614 453.615 105.665 452.648C104.715 451.681 104.246 450.524 104.246 449.149C104.246 447.775 104.715 446.618 105.665 445.651C106.614 444.684 107.805 444.213 109.235 444.213C110.666 444.213 111.857 444.684 112.806 445.651C113.756 446.618 114.225 447.775 114.225 449.149C114.225 450.524 113.756 451.681 112.806 452.648C111.857 453.615 110.666 454.086 109.235 454.086ZM109.235 451.834C109.957 451.834 110.527 451.58 111.008 451.071C111.477 450.574 111.73 449.913 111.73 449.149C111.73 448.373 111.489 447.724 111.008 447.228C110.54 446.732 109.957 446.465 109.235 446.465C108.514 446.465 107.931 446.719 107.45 447.228C106.981 447.724 106.754 448.386 106.754 449.149C106.754 449.926 106.981 450.574 107.45 451.071C107.919 451.58 108.514 451.834 109.235 451.834ZM88.6586 454.086C87.2278 454.086 86.0375 453.615 85.0878 452.648C84.1381 451.681 83.6696 450.524 83.6696 449.149C83.6696 447.775 84.1381 446.618 85.0878 445.651C86.0375 444.684 87.2278 444.213 88.6586 444.213C90.0895 444.213 91.2798 444.684 92.2295 445.651C93.1792 446.618 93.6477 447.775 93.6477 449.149C93.6477 450.524 93.1792 451.681 92.2295 452.648C91.2798 453.615 90.0895 454.086 88.6586 454.086ZM88.6586 451.834C89.3804 451.834 89.9502 451.58 90.4314 451.071C90.8999 450.574 91.1532 449.913 91.1532 449.149C91.1532 448.373 90.9126 447.724 90.4314 447.228C89.9629 446.732 89.3804 446.465 88.6586 446.465C87.9369 446.465 87.3544 446.719 86.8732 447.228C86.4047 447.724 86.1768 448.386 86.1768 449.149C86.1768 449.926 86.4047 450.574 86.8732 451.071C87.3544 451.58 87.9495 451.834 88.6586 451.834ZM122.962 444.416H114.845V446.567H117.188C117.466 446.567 117.681 446.796 117.681 447.063V453.921H120.113V447.063C120.113 446.783 120.341 446.567 120.606 446.567H122.962V444.416ZM131.889 451.783H127.647C127.368 451.783 127.153 451.554 127.153 451.287V450.142H130.775V448.144H127.153V447.088C127.153 446.808 127.381 446.592 127.647 446.592H131.775V444.455H124.709V453.959H131.876V451.783H131.889ZM79.2756 448.221C77.3889 447.864 77.1736 447.495 77.199 447.101C77.2369 446.668 77.7561 446.452 78.4779 446.427C79.2503 446.401 80.162 446.541 81.1117 447.05L82.6186 445.409C81.4536 444.658 79.9594 444.264 78.4399 444.315C76.1733 444.391 74.7044 445.651 74.7677 447.368V447.394C74.8184 449.022 76.1226 449.76 78.25 450.167C80.1114 450.524 80.3393 450.842 80.352 451.172V451.198C80.3646 451.631 79.6175 451.923 78.7818 451.949C77.7308 451.987 76.5152 451.72 75.5528 450.994H75.5402L74.0713 452.623L74.1979 452.712C75.4768 453.641 77.1103 454.112 78.8198 454.061C81.3017 453.972 82.8338 452.61 82.7705 450.918V450.893C82.7072 449.289 81.3776 448.628 79.2756 448.221Z" fill="black"/>
+    </svg>
+  `;
 }
 
 function getRemoveIconSvg() {
@@ -169,7 +187,9 @@ function renderDocumentsToolbar() {
     mainAction: "add-documents",
     items: [
       { label: "Ajouter des documents", action: "add-documents" },
-      { label: "Ajouter un dossier", action: "add-folder" }
+      { label: "Ajouter un dossier", action: "add-folder" },
+      { separator: true },
+      { label: "Créer un rapport", action: "create-report" }
     ]
   });
 
@@ -190,6 +210,7 @@ function renderDocumentsToolbar() {
     html: renderProjectTableToolbarSelect({
       id: "documentsPhase",
       value: docsViewState.selectedPhase,
+      icon: getBranchIconSvg(),
       options: enabledPhases.map((phase) => ({
         value: phase.code,
         label: `${phase.code} - ${phase.label}`
@@ -260,6 +281,172 @@ function renderRepoDocumentRow(doc) {
       <div class="documents-repo__cell documents-repo__cell--date">${escapeHtml(decoratedDoc.updatedAt || "À l'instant")}</div>
       <div class="documents-repo__cell documents-repo__cell--stats">${renderDocumentStatsCell(decoratedDoc)}</div>
     </div>
+  `;
+}
+
+function getReportTitle() {
+  return `Rapport chrono n° ${docsViewState.reportNumber}`;
+}
+
+function formatReportDate(value = new Date()) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  }).format(value);
+}
+
+function getReportAuthorName() {
+  return String(store.user?.name || "demo");
+}
+
+function getEntitySummary(entity = null) {
+  const raw = entity?.raw || {};
+  return String(raw.summary || raw.message || raw.comment || raw.reasoning || raw.analysis || entity?.title || "Aucune synthèse disponible.");
+}
+
+function getEntityReferenceLine(entity = null) {
+  const refs = resolveDocumentRefs(Array.isArray(entity?.document_ref_ids) ? entity.document_ref_ids : [])
+    .map((doc) => decorateDocumentWithPhase(doc))
+    .filter(Boolean);
+
+  if (!refs.length) {
+    return "Références documentaires : —";
+  }
+
+  return `Références documentaires : ${refs.map((doc) => `${doc.name}${doc.phaseCode ? ` (${doc.phaseCode})` : ""}`).join(" · ")}`;
+}
+
+function normalizeWorkflowStatus(status = "open") {
+  const value = String(status || "open").trim().toLowerCase();
+  if (["closed", "close", "ferme", "fermé"].includes(value)) return "fermé";
+  if (["reopened", "reopen", "réouvert", "reopenend"].includes(value)) return "réouvert";
+  return "ouvert";
+}
+
+function isHumanValidated(entity = null) {
+  return String(entity?.review_state || "pending").toLowerCase() === "validated";
+}
+
+function shouldIncludeInReport(entity = null) {
+  if (!entity) return false;
+  return !entity.is_published || !!entity.has_changes_since_publish;
+}
+
+function buildReportPreviewItems() {
+  const situations = Array.isArray(store.situationsView?.data) ? store.situationsView.data : [];
+  const items = [];
+
+  for (const situation of situations) {
+    if (shouldIncludeInReport(situation)) {
+      items.push({
+        key: `situation:${situation.id}`,
+        entityType: "situation",
+        entity: situation,
+        number: situation.id,
+        stateLabel: normalizeWorkflowStatus(getEffectiveSituationStatus(situation.id)),
+        title: situation.title || situation.id
+      });
+    }
+
+    for (const sujet of situation.sujets || []) {
+      if (shouldIncludeInReport(sujet)) {
+        items.push({
+          key: `sujet:${sujet.id}`,
+          entityType: "sujet",
+          entity: sujet,
+          number: sujet.id,
+          stateLabel: normalizeWorkflowStatus(getEffectiveSujetStatus(sujet.id)),
+          title: sujet.title || sujet.id
+        });
+      }
+
+      for (const avis of sujet.avis || []) {
+        if (!shouldIncludeInReport(avis)) continue;
+        items.push({
+          key: `avis:${avis.id}`,
+          entityType: "avis",
+          entity: avis,
+          number: avis.id,
+          stateLabel: getEffectiveAvisVerdict(avis.id),
+          title: avis.title || avis.id
+        });
+      }
+    }
+  }
+
+  return items;
+}
+
+function renderReportPreviewItem(item) {
+  const entity = item.entity || null;
+  const invalidClass = isHumanValidated(entity) ? "" : " documents-report-item--needs-review";
+
+  return `
+    <article class="documents-report-item${invalidClass}" data-report-entity-type="${escapeHtml(item.entityType)}">
+      <div class="documents-report-item__line documents-report-item__line--title">
+        <span class="documents-report-item__number">#${escapeHtml(String(item.number || ""))}</span>
+        <span class="documents-report-item__state">${escapeHtml(String(item.stateLabel || ""))}</span>
+        <span class="documents-report-item__title">${escapeHtml(String(item.title || "Sans titre"))}</span>
+      </div>
+      <div class="documents-report-item__line documents-report-item__line--description">
+        ${escapeHtml(getEntitySummary(entity))}
+      </div>
+      <div class="documents-report-item__line documents-report-item__line--references">
+        ${escapeHtml(getEntityReferenceLine(entity))}
+      </div>
+    </article>
+  `;
+}
+
+function renderReportPreviewView() {
+  const previewItems = buildReportPreviewItems();
+  const reportTitle = getReportTitle();
+  const projectName = String(store.projectForm?.projectName || "Projet");
+  const breadcrumb = `${projectName} / Documents / ${reportTitle}`;
+  const authorName = getReportAuthorName();
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
+        <div class="documents-shell documents-shell--report" id="projectDocumentScroll">
+          ${renderDocumentsToolbar()}
+          ${renderDocumentsActivityBanner()}
+
+          <div class="documents-report">
+            <div class="documents-report__path">${escapeHtml(breadcrumb)}</div>
+
+            <header class="documents-report__hero">
+              <div class="documents-report__hero-brand">
+                <div class="documents-report__logo-wrap">${getSocotecLogoSvg()}</div>
+                <div class="documents-report__hero-copy">
+                  <h1 class="documents-report__title">${escapeHtml(reportTitle)}</h1>
+                  <div class="documents-report__meta">Intervenant : ${escapeHtml(authorName)}</div>
+                  <div class="documents-report__meta">Date du rapport : ${escapeHtml(formatReportDate())}</div>
+                </div>
+              </div>
+            </header>
+
+            <section class="documents-report-table">
+              <header class="documents-report-table__header">
+                <div class="documents-report-table__author">${escapeHtml(authorName)}</div>
+                <div class="documents-report-table__actions">
+                  <button type="button" class="gh-btn gh-btn--validate" disabled>Valider</button>
+                  <button type="button" class="gh-btn" disabled>Modifier</button>
+                  <button type="button" class="gh-btn" disabled>Diffuser</button>
+                </div>
+              </header>
+
+              <div class="documents-report-table__body">
+                ${previewItems.length
+                  ? previewItems.map(renderReportPreviewItem).join("")
+                  : `<div class="documents-report__empty">Aucun élément nouveau ou modifié à inclure dans ce rapport.</div>`}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -507,6 +694,16 @@ function closeUploadView(root) {
   renderProjectDocuments(root);
 }
 
+function closeReportPreview(root) {
+  docsViewState.mode = "list";
+  renderProjectDocuments(root);
+}
+
+function openReportPreview(root) {
+  docsViewState.mode = "report-preview";
+  renderProjectDocuments(root);
+}
+
 function renderFromSelectedFile(root, file) {
   if (!file) return;
   if (!docsViewState.title) {
@@ -642,6 +839,9 @@ function bindDocumentsSplitActions(root) {
       if (action === "add-folder") {
         // placeholder métier
       }
+      if (action === "create-report") {
+        openReportPreview(root);
+      }
     });
   }
 
@@ -691,6 +891,13 @@ function bindDocumentsView(root) {
   if (cancelBtn) {
     cancelBtn.addEventListener("click", () => {
       closeUploadView(root);
+    });
+  }
+
+  const reportBackBtn = document.getElementById("documentsReportBackBtn");
+  if (reportBackBtn) {
+    reportBackBtn.addEventListener("click", () => {
+      closeReportPreview(root);
     });
   }
 
@@ -799,7 +1006,9 @@ export function renderProjectDocuments(root) {
 
   root.innerHTML = docsViewState.mode === "upload"
     ? renderUploadView()
-    : renderDocumentsListView();
+    : docsViewState.mode === "report-preview"
+      ? renderReportPreviewView()
+      : renderDocumentsListView();
 
   bindDocumentsView(root);
 }
