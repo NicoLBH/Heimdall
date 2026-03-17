@@ -2910,6 +2910,174 @@ color:#ffff;
   color:#ff7b72;
 }
 
+
+.gh-menu__separator{
+  height:1px;
+  margin:8px 0;
+  background:rgba(208,215,222,.16);
+}
+
+.documents-report{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.documents-report__path{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
+
+.documents-report__hero{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--panel);
+  padding:20px;
+}
+
+.documents-report__hero-brand{
+  display:flex;
+  align-items:center;
+  gap:18px;
+}
+
+.documents-report__logo-wrap{
+  width:72px;
+  height:72px;
+  border-radius:12px;
+  background:#0d1117;
+  border:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  flex:0 0 72px;
+}
+
+.documents-report__socotec-logo{
+  width:44px;
+  height:auto;
+  display:block;
+}
+
+.documents-report__hero-copy{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.documents-report__title{
+  margin:0;
+  font-size:28px;
+  line-height:1.15;
+  font-weight:700;
+}
+
+.documents-report__meta{
+  color:var(--muted);
+  font-size:13px;
+}
+
+.documents-report-table{
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  background:var(--panel);
+}
+
+.documents-report-table__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  background:rgba(110,118,129,.06);
+}
+
+.documents-report-table__author{
+  font-weight:600;
+}
+
+.documents-report-table__actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.documents-report-table__body{
+  display:flex;
+  flex-direction:column;
+}
+
+.documents-report-item{
+  padding:16px;
+  border-top:1px solid var(--border);
+  border-left:4px solid transparent;
+  background:transparent;
+}
+
+.documents-report-item:first-child{
+  border-top:none;
+}
+
+.documents-report-item--needs-review{
+  background:rgba(248,81,73,.08);
+  border-left-color:rgba(248,81,73,.85);
+}
+
+.documents-report-item__line{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+}
+
+.documents-report-item__line + .documents-report-item__line{
+  margin-top:8px;
+}
+
+.documents-report-item__line--title{
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.documents-report-item__number,
+.documents-report-item__state{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:0 8px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:rgba(110,118,129,.08);
+  font-size:12px;
+  font-weight:600;
+}
+
+.documents-report-item__title{
+  font-weight:600;
+  line-height:1.5;
+}
+
+.documents-report-item__line--description,
+.documents-report-item__line--references{
+  display:block;
+  color:var(--text);
+  line-height:1.6;
+}
+
+.documents-report-item__line--references{
+  color:var(--muted);
+  font-size:13px;
+}
+
+.documents-report__empty{
+  padding:24px 16px;
+  color:var(--muted);
+}
+
 /* ===== Reusable inputs ===== */
 
 .gh-input{
@@ -5465,4 +5633,16 @@ color:#ffff;
   font-size:11px;
   color:var(--muted);
   white-space:nowrap;
+}
+
+@media (max-width: 768px){
+  .documents-report__hero-brand,
+  .documents-report-table__header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .documents-report__title{
+    font-size:22px;
+  }
 }
