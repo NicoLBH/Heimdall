@@ -457,11 +457,191 @@ function formatGeorisquesDate(value) {
   });
 }
 
+function getGeorisquesDataset(datasetKey) {
+  const georisques = ensureGeorisquesState();
+  return georisques.datasets.find((item) => item?.key === datasetKey) || null;
+}
+
+function normalizeFlatValue(value) {
+  if (value == null || value === "") return "—";
+  if (typeof value === "string") return value.trim() || "—";
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
+
+function flattenObjectForTable(value, prefix = "") {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    const key = prefix || "value";
+    return { [key]: normalizeFlatValue(value) };
+  }
+
+  return Object.entries(value).reduce((acc, [key, nestedValue]) => {
+    const nextPrefix = prefix ? `${prefix}.${key}` : key;
+
+    if (nestedValue != null && typeof nestedValue === "object" && !Array.isArray(nestedValue)) {
+      Object.assign(acc, flattenObjectForTable(nestedValue, nextPrefix));
+      return acc;
+    }
+
+    acc[nextPrefix] = normalizeFlatValue(nestedValue);
+    return acc;
+  }, {});
+}
+
+function collectTableCandidates(value, acc = []) {
+  if (Array.isArray(value)) {
+    if (!value.length) return acc;
+
+    const hasStructuredItems = value.some((item) => item != null && typeof item === "object");
+    acc.push(
+      value.map((item) => (item != null && typeof item === "object"
+        ? flattenObjectForTable(item)
+        : { value: normalizeFlatValue(item) }))
+    );
+
+    if (hasStructuredItems) {
+      value.forEach((item) => collectTableCandidates(item, acc));
+    }
+    return acc;
+  }
+
+  if (value != null && typeof value === "object") {
+    Object.values(value).forEach((nestedValue) => collectTableCandidates(nestedValue, acc));
+  }
+
+  return acc;
+}
+
+function uniqueRows(rows = []) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const signature = JSON.stringify(
+      Object.keys(row)
+        .sort()
+        .reduce((acc, key) => {
+          acc[key] = row[key];
+          return acc;
+        }, {})
+    );
+
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}
+
+function getTabularRowsFromGeorisquesData(data) {
+  const candidates = collectTableCandidates(data, []);
+  const best = candidates
+    .filter((rows) => Array.isArray(rows) && rows.length)
+    .sort((a, b) => b.length - a.length)[0];
+
+  if (best?.length) {
+    return uniqueRows(best);
+  }
+
+  if (data != null && typeof data === "object") {
+    return [flattenObjectForTable(data)];
+  }
+
+  if (data == null || data === "") return [];
+  return [{ value: normalizeFlatValue(data) }];
+}
+
+function formatTableColumnLabel(key = "") {
+  return String(key || "")
+    .split(".")
+    .map((part) => part.replace(/_/g, " "))
+    .join(" / ");
+}
+
+function renderGeorisquesTable(rows = []) {
+  if (!rows.length) {
+    return '<div class="settings-empty-note">Aucune ligne exploitable dans la réponse.</div>';
+  }
+
+  const columns = [];
+  rows.forEach((row) => {
+    Object.keys(row).forEach((key) => {
+      if (!columns.includes(key)) columns.push(key);
+    });
+  });
+
+  return `
+    <div class="settings-table-wrap">
+      <table class="settings-table settings-table--compact">
+        <thead>
+          <tr>
+            ${columns.map((column) => `<th>${escapeHtml(formatTableColumnLabel(column))}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              ${columns.map((column) => `<td>${escapeHtml(normalizeFlatValue(row[column]))}</td>`).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getGeorisquesSismiqueSummary() {
+  const dataset = getGeorisquesDataset("zonage_sismique");
+  if (!dataset || dataset.status !== "success") return "";
+
+  const rows = getTabularRowsFromGeorisquesData(dataset.data);
+  if (!rows.length) return "";
+
+  const preferredKeys = [
+    "zone_sismicite",
+    "zone_sismique",
+    "zone",
+    "libelle",
+    "label",
+    "intitule"
+  ];
+
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      const normalizedKey = key.toLowerCase();
+      if (preferredKeys.some((candidate) => normalizedKey.includes(candidate))) {
+        const value = normalizeFlatValue(row[key]);
+        if (value && value !== "—") return value;
+      }
+    }
+  }
+
+  const firstRow = rows[0];
+  const firstKey = Object.keys(firstRow)[0];
+  return firstKey ? normalizeFlatValue(firstRow[firstKey]) : "";
+}
+
+function renderAutoResolvedField(label, value) {
+  return `
+    <div class="settings-auto-field">
+      <div class="settings-auto-field__label"><strong>${escapeHtml(label)} <span class="settings-auto-field__asterisk">*</span></strong></div>
+      <div class="settings-auto-field__value">${escapeHtml(value || "—")}</div>
+      <div class="settings-auto-field__hint">Données récupérées automatiquement sur Géorisques.</div>
+    </div>
+  `;
+}
+
 function renderGeorisquesDataset(dataset = {}) {
   const status = dataset.status === "success" ? "OK" : "Erreur";
-  const body = dataset.status === "success"
-    ? `<pre class="settings-json-block">${escapeHtml(JSON.stringify(dataset.data, null, 2))}</pre>`
-    : `<div class="settings-inline-error">${escapeHtml(dataset.error || "Requête indisponible")}</div>`;
+
+  let body = `<div class="settings-inline-error">${escapeHtml(dataset.error || "Requête indisponible")}</div>`;
+
+  if (dataset.status === "success") {
+    if (dataset.key === "radon" || dataset.key === "zonage_sismique") {
+      body = renderGeorisquesTable(getTabularRowsFromGeorisquesData(dataset.data));
+    } else if (dataset.key === "ppr") {
+      body = `<pre class="settings-json-block settings-json-block--scrollable">${escapeHtml(JSON.stringify(dataset.data, null, 2))}</pre>`;
+    } else {
+      body = `<pre class="settings-json-block">${escapeHtml(JSON.stringify(dataset.data, null, 2))}</pre>`;
+    }
+  }
 
   return renderSectionCard({
     title: dataset.label || dataset.key || "Donnée",
@@ -1005,7 +1185,13 @@ function getPageHtml(form) {
                     body: `<div class="settings-form-grid settings-form-grid--thirds">
                       ${renderInputField({ id: "projectCity", label: "Ville", value: form.city || "", placeholder: "Ex. Annecy" })}
                       ${renderInputField({ id: "projectPostalCode", label: "CP", value: form.postalCode || "", placeholder: "Ex. 74000" })}
-                    </div>`
+                    </div>
+                    ${ensureGeorisquesState().commune ? `
+                      <div class="settings-auto-fields">
+                        ${renderAutoResolvedField("Commune résolue", ensureGeorisquesState().commune?.name || "—")}
+                        ${renderAutoResolvedField("Code INSEE", ensureGeorisquesState().commune?.codeInsee || "—")}
+                      </div>
+                    ` : ""}`
                   })
                 ]
               })}
@@ -1143,7 +1329,12 @@ function getPageHtml(form) {
                     title: "Protection parasismique",
                     description: "Centralise désormais les paramètres auparavant répartis entre type d’ouvrage et solidité des ouvrages.",
                     badge: "LIVE",
-                    body: `<div class="settings-form-grid settings-form-grid--thirds">
+                    body: `${getGeorisquesSismiqueSummary() ? `
+                      <div class="settings-auto-fields settings-auto-fields--single">
+                        ${renderAutoResolvedField("Zone sismique Géorisques", getGeorisquesSismiqueSummary())}
+                      </div>
+                    ` : ""}
+                    <div class="settings-form-grid settings-form-grid--thirds">
                       ${renderSelectField({ id: "riskCategory", label: "Catégorie de risque", value: form.riskCategory || form.risk || "Risque normal", options: ["Risque normal", "Risque spécial"] })}
                       ${renderSelectField({ id: "importanceCategory", label: "Catégorie d'importance", value: form.importanceCategory || form.importance || "II", options: ["Catégorie d'importance I", "Catégorie d'importance II", "Catégorie d'importance III", "Catégorie d'importance IV"] })}
                       ${renderSelectField({ id: "zoneSismique", label: "Zone sismique", value: form.zoneSismique || "4", options: ["1", "2", "3", "4", "5"] })}
