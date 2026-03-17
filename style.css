@@ -3062,8 +3062,6 @@ color:#ffff;
 }
 
 .documents-pdf-viewer{
-  border:1px solid var(--border);
-  border-radius:12px;
   background:var(--panel);
   overflow:hidden;
   min-height:900px;
