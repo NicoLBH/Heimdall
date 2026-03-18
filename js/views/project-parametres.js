@@ -598,6 +598,47 @@ function renderSeismicSummaryCard(title, items = []) {
   `;
 }
 
+function renderSeismicPeriodsMiniTable(form) {
+  const sizing = getSeismicSizingValues(form);
+  const periodItems = [
+    { key: "TB", value: sizing.TB, tooltip: "Limite inférieure du palier d’accélération spectrale constante" },
+    { key: "TD", value: sizing.TD, tooltip: "Début de la branche à déplacement spectral constant" },
+    { key: "TC", value: sizing.TC, tooltip: "Limite supérieure du palier d’accélération spectrale constante" }
+  ];
+
+  return `
+    <div class="settings-seismic-periods-mini-table-wrap">
+      <table class="settings-seismic-periods-mini-table">
+        <thead>
+          <tr>
+            ${periodItems.map((item) => `<th title="${escapeHtml(item.tooltip)}">${escapeHtml(item.key)}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            ${periodItems.map((item) => `<td>${escapeHtml(formatSizingValue(item.value, "s"))}</td>`).join("")}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSeismicChartLegend(items = []) {
+  const labeled = items.filter((item) => item?.label);
+  if (!labeled.length) return "";
+  return `
+    <div class="svg-line-chart__legend">
+      ${labeled.map((item, index) => `
+        <div class="svg-line-chart__legend-item">
+          <span class="svg-line-chart__legend-swatch svg-line-chart__legend-swatch--${index + 1}"></span>
+          <span>${escapeHtml(item.label)}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderSeismicSpectrumChart(form) {
   const riskCategory = String(form.riskCategory || form.risk || "Risque normal").trim().toLowerCase();
   if (riskCategory === "risque spécial" || riskCategory === "risque special") {
@@ -614,12 +655,21 @@ function renderSeismicSpectrumChart(form) {
   const maxY = points.reduce((acc, point) => Math.max(acc, point.y), 0);
   const yTicks = getNiceChartTicks(maxY, 4);
   const xTicks = [0, 1, 2, 3, 4];
+  const chartSeries = [{
+    label: "spectre élastique normalisé",
+    points,
+    stroke: true,
+    fill: false,
+    pointsVisible: false
+  }];
 
   return `
     <div class="settings-seismic-chart-card">
+      <div class="svg-line-chart__meta svg-line-chart__meta--top">
+        <div class="svg-line-chart__title">Graphique du spectre de réponse élastique normalisé</div>
+        <div class="svg-line-chart__subtitle">Spectre Se(T) calculé automatiquement à partir des paramètres réglementaires du projet.</div>
+      </div>
       ${renderSvgLineChart({
-        title: "Graphique du spectre de réponse élastique normalisé",
-        subtitle: "Spectre Se(T) calculé automatiquement à partir des paramètres réglementaires du projet.",
         ariaDescription: "Graphique du spectre de réponse élastique normalisé du projet.",
         xLabel: "Période T (s)",
         yLabel: "Se(T)",
@@ -629,14 +679,11 @@ function renderSeismicSpectrumChart(form) {
         yTicks,
         xGrid: { skipFirst: true, lineStyle: "dashed" },
         yGrid: { skipFirst: true, lineStyle: "solid" },
-        series: [{
-          label: "spectre élastique normalisé",
-          points,
-          stroke: true,
-          fill: false,
-          pointsVisible: false
-        }]
+        interactive: true,
+        series: chartSeries.map((item) => ({ ...item, label: "" }))
       })}
+      ${renderSeismicPeriodsMiniTable(form)}
+      ${renderSeismicChartLegend(chartSeries)}
     </div>
   `;
 }
@@ -650,24 +697,6 @@ function renderSeismicAccelerationCard(form) {
     { symbol: "η", label: "Coefficient de correction d’amortissement", value: sizing.eta },
     { symbol: "S", label: "Paramètre de sol", value: sizing.S }
   ]);
-}
-
-function renderSeismicPeriodsCard(form) {
-  const sizing = getSeismicSizingValues(form);
-  return renderSeismicSummaryCard("Périodes caractéristiques", [
-    { symbol: "TB", label: "Limite inférieure du palier d’accélération spectrale constante", value: sizing.TB, unit: "s" },
-    { symbol: "TD", label: "Début de la branche à déplacement spectral constant", value: sizing.TD, unit: "s" },
-    { symbol: "TC", label: "Limite supérieure du palier d’accélération spectrale constante", value: sizing.TC, unit: "s" }
-  ]);
-}
-
-function renderSeismicSpectrumValuesCard(form) {
-  return `
-    <div class="settings-seismic-summary-card settings-seismic-summary-card--table">
-      <div class="settings-seismic-summary-card__title">Valeurs du spectre Se(T)</div>
-      ${renderElasticSpectrumTable(form)}
-    </div>
-  `;
 }
 
 function renderPlaceholderList(items) {
@@ -1982,14 +2011,6 @@ function getPageHtml(form) {
                           ${renderSeismicAccelerationCard(form)}
                         </div>
                       </div>
-                      <div class="settings-seismic-sizing-layout__row settings-seismic-sizing-layout__row--bottom">
-                        <div class="settings-seismic-sizing-main">
-                          ${renderSeismicPeriodsCard(form)}
-                        </div>
-                        <div class="settings-seismic-sizing-side">
-                          ${renderSeismicSpectrumValuesCard(form)}
-                        </div>
-                      </div>
                     </div>`
                   })
                 ]
@@ -2648,6 +2669,7 @@ function bindProjectLocationAutocomplete() {
 
 function bindParametresEvents() {
   bindGhActionButtons();
+  bindInteractiveSvgLineCharts();
   
   bindGhEditableFields(document, {
     onEditStart: (id) => {
@@ -2886,6 +2908,91 @@ function bindParametresEvents() {
       });
     });
   }
+}
+
+function bindInteractiveSvgLineCharts() {
+  document.querySelectorAll('.svg-line-chart[data-chart-model]').forEach((chartNode) => {
+    if (chartNode.dataset.bound === '1') return;
+    chartNode.dataset.bound = '1';
+
+    let model = null;
+    try {
+      model = JSON.parse(decodeURIComponent(chartNode.dataset.chartModel || ''));
+    } catch (error) {
+      model = null;
+    }
+    if (!model) return;
+
+    const frame = chartNode.querySelector('.svg-line-chart__frame');
+    const svg = chartNode.querySelector('.svg-line-chart__svg');
+    const hover = chartNode.querySelector('[data-chart-hover]');
+    const hoverPoint = hover?.querySelector('.svg-line-chart__hover-point');
+    const tooltip = chartNode.querySelector('[data-chart-tooltip]');
+    const firstSeries = Array.isArray(model.series) ? model.series.find((item) => Array.isArray(item?.points) && item.points.length) : null;
+    if (!frame || !svg || !hover || !hoverPoint || !tooltip || !firstSeries) return;
+
+    const { width, height, margin, xDomain, yDomain } = model;
+    const innerWidth = Math.max(1, width - margin.left - margin.right);
+    const innerHeight = Math.max(1, height - margin.top - margin.bottom);
+    const xMin = Number(xDomain?.[0] ?? 0);
+    const xMax = Number(xDomain?.[1] ?? 1);
+    const yMin = Number(yDomain?.[0] ?? 0);
+    const yMax = Number(yDomain?.[1] ?? 1);
+    const points = firstSeries.points;
+
+    const formatValue = (value, digits = 2) => Number(value).toFixed(digits).replace(/\.?0+$/, '').replace('.', ',');
+
+    const hideHover = () => {
+      hover.setAttribute('hidden', 'hidden');
+      tooltip.setAttribute('hidden', 'hidden');
+    };
+
+    const updateHover = (event) => {
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        hideHover();
+        return;
+      }
+      const svgX = ((event.clientX - rect.left) / rect.width) * width;
+      const svgY = ((event.clientY - rect.top) / rect.height) * height;
+      const innerX = svgX - margin.left;
+      const innerY = svgY - margin.top;
+      if (innerX < 0 || innerX > innerWidth || innerY < 0 || innerY > innerHeight) {
+        hideHover();
+        return;
+      }
+
+      let nearest = points[0];
+      let minDistance = Math.abs(points[0].x - (xMin + (innerX / innerWidth) * (xMax - xMin)));
+      for (const point of points) {
+        const distance = Math.abs(point.x - (xMin + (innerX / innerWidth) * (xMax - xMin)));
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = point;
+        }
+      }
+
+      const pointX = ((nearest.x - xMin) / ((xMax - xMin) || 1)) * innerWidth;
+      const pointY = innerHeight - ((nearest.y - yMin) / ((yMax - yMin) || 1)) * innerHeight;
+      hoverPoint.setAttribute('cx', pointX.toFixed(3));
+      hoverPoint.setAttribute('cy', pointY.toFixed(3));
+      hover.removeAttribute('hidden');
+
+      tooltip.textContent = `T = ${formatValue(nearest.x, 1)} s, Se(T) = ${formatValue(nearest.y, 3)} m/s²`;
+      tooltip.removeAttribute('hidden');
+
+      const frameRect = frame.getBoundingClientRect();
+      const pointLeft = (pointX + margin.left) * (frameRect.width / width);
+      const pointTop = (pointY + margin.top) * (frameRect.height / height);
+      tooltip.style.left = `${pointLeft}px`;
+      tooltip.style.top = `${pointTop}px`;
+    };
+
+    frame.addEventListener('mousemove', updateHover);
+    frame.addEventListener('mouseleave', hideHover);
+    frame.addEventListener('touchstart', hideHover, { passive: true });
+    hideHover();
+  });
 }
 
 function bindParametresNav() {
