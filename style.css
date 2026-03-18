@@ -5948,3 +5948,28 @@ color:#ffff;
 .settings-location-derived-block.is-muted .settings-table-wrap{
   opacity:.72;
 }
+
+
+.workflow-runs__head-col--action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflow-runs__head-label {
+  min-width: 0;
+}
+
+.workflow-runs__head-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fgColor-muted, #8b949e);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.workflow-runs__head-count .ui-icon {
+  opacity: 0.9;
+}
