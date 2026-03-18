@@ -38,7 +38,7 @@ const DEFAULT_AGENT_CATALOG = {
     label: "Agent spécialisé thermique",
     implemented: false,
     available: true,
-    defaultEnabled: false,
+    defaultEnabled: true,
     order: 50
   },
   acoustique: {
@@ -57,7 +57,7 @@ const DEFAULT_AUTOMATION_CATALOG = {
     label: "Déclencher l'enrichissement automatique des données de base projet",
     implemented: true,
     available: true,
-    defaultEnabled: false,
+    defaultEnabled: true,
     order: 5
   },
   autoAnalysisAfterUpload: {
@@ -97,7 +97,7 @@ const DEFAULT_AUTOMATION_CATALOG = {
     label: "Déclencher la notification automatique",
     implemented: false,
     available: true,
-    defaultEnabled: false,
+    defaultEnabled: true,
     order: 50
   }
 };
