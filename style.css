@@ -3267,7 +3267,7 @@ color:#ffff;
   z-index:40;
   border:1px solid var(--border);
   border-radius:12px;
-  background:var(--surface);
+  background:var(--bgAssistPanel);
   box-shadow:0 16px 32px rgba(1, 4, 9, .35);
   overflow:hidden;
 }
