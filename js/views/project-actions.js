@@ -1,6 +1,6 @@
 import { escapeHtml } from "../utils/escape-html.js";
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
-import { getRunLogEntries } from "../services/project-automation.js";
+import { getRunLogEntries, getRunMetrics } from "../services/project-automation.js";
 import { svgIcon } from "../ui/icons.js";
 import {
   renderDataTableEmptyState,
@@ -148,12 +148,56 @@ function getTriggerLabel(entry) {
     return "Lancement manuel";
   }
 
+  if (entry.triggerType === "automatic") {
+    return "Déclenchement automatique";
+  }
+
   return "—";
 }
 
 function renderRunStatus(entry) {
   const meta = getRunStatusMeta(entry.status);
   return `<span class="${meta.className}">${escapeHtml(meta.label)}</span>`;
+}
+
+
+function renderMetricCard({ label, value, hint = "" }) {
+  return `
+    <article class="pilotage-metric-card">
+      <div class="pilotage-metric-card__label">${escapeHtml(label)}</div>
+      <div class="pilotage-metric-card__value">${escapeHtml(value)}</div>
+      ${hint ? `<div class="pilotage-metric-card__hint">${escapeHtml(hint)}</div>` : ""}
+    </article>
+  `;
+}
+
+function renderRunMetrics() {
+  const metrics = getRunMetrics();
+
+  return `
+    <section class="settings-grid settings-grid--metrics" style="margin:0 0 24px;">
+      ${renderMetricCard({
+        label: "Actions exécutées",
+        value: String(metrics.totalRuns || 0),
+        hint: "Analyses et enrichissements confondus"
+      })}
+      ${renderMetricCard({
+        label: "Enrichissements",
+        value: String(metrics.totalEnrichments || 0),
+        hint: "Journal des données de base projet"
+      })}
+      ${renderMetricCard({
+        label: "Analyses",
+        value: String(metrics.totalAnalyses || 0),
+        hint: "Runs d'analyse documentaires"
+      })}
+      ${renderMetricCard({
+        label: "Taux de réussite",
+        value: metrics.successRate == null ? "—" : `${metrics.successRate} %`,
+        hint: metrics.totalErrors ? `${metrics.totalErrors} échec(s)` : "Aucun échec enregistré"
+      })}
+    </section>
+  `;
 }
 
 function renderRunRows(entries) {
@@ -218,7 +262,7 @@ function renderRunsTable() {
     state: entries.length ? "ready" : "empty",
     emptyHtml: renderDataTableEmptyState({
       title: "Aucune action exécutée",
-      description: "Lance une analyse manuelle depuis l’onglet Sujets pour alimenter le journal d’exécution."
+      description: "Lance une analyse ou un enrichissement manuel pour alimenter le journal d’exécution."
     })
   });
 }
@@ -235,6 +279,7 @@ export function renderProjectActions(root) {
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="projectActionsScroll">
         <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
+          ${renderRunMetrics()}
           ${renderRunsTable()}
         </div>
       </div>
