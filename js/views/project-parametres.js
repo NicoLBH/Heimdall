@@ -40,6 +40,7 @@ import {
 } from "../services/georisques-service.js";
 import { getWindRegion } from "../../assets/wind-regions.js";
 import { getSeismicSizingValues, buildElasticResponseSpectrumTable } from "../services/seismic-spectrum.js";
+import { renderSvgLineChart, getNiceChartTicks } from "../utils/svg-line-chart.js";
 
 const DEFAULT_PROJECT_COLLABORATORS = [
   { id: "collab-1", email: "nicolas.lebihan@socotec.com", status: "Actif", role: "Admin" },
@@ -578,55 +579,78 @@ function renderElasticSpectrumTable(form) {
   `;
 }
 
-function renderSeismicSizingSummaryCard(form) {
+function renderSeismicSummaryCard(title, items = []) {
+  return `
+    <div class="settings-seismic-summary-card">
+      <div class="settings-seismic-summary-card__title">${escapeHtml(title)}</div>
+      <div class="settings-seismic-summary-list">
+        ${items.map((item) => `
+          <div class="settings-seismic-summary-item">
+            <div class="settings-seismic-summary-item__head">
+              <strong>${escapeHtml(item.symbol || item.label || "")}</strong>
+              <span>${escapeHtml(item.label || "")}</span>
+            </div>
+            <div class="settings-seismic-summary-item__value">${escapeHtml(formatSizingValue(item.value, item.unit || ""))}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderSeismicSpectrumChart(form) {
+  const riskCategory = String(form.riskCategory || form.risk || "Risque normal").trim().toLowerCase();
+  if (riskCategory === "risque spécial" || riskCategory === "risque special") {
+    return `
+      <div class="settings-seismic-chart-placeholder">
+        <div class="settings-seismic-chart-placeholder__title">Graphique du spectre de réponse élastique normalisé</div>
+        <div class="settings-seismic-chart-placeholder__text">Pour les ouvrages classés à risque spécial, le spectre doit être définit par une étude spécifique</div>
+      </div>
+    `;
+  }
+
+  const rows = buildElasticResponseSpectrumTable(form, { step: 0.1, maxPeriod: 4 });
+  const points = rows.filter((row) => Number.isFinite(row.Se)).map((row) => ({ x: row.T, y: row.Se }));
+  const maxY = points.reduce((acc, point) => Math.max(acc, point.y), 0);
+  const yTicks = getNiceChartTicks(maxY, 4);
+  const xTicks = [0, 1, 2, 3, 4];
+
+  return `
+    <div class="settings-seismic-chart-card">
+      ${renderSvgLineChart({
+        title: "Graphique du spectre de réponse élastique normalisé",
+        subtitle: "Spectre Se(T) calculé automatiquement à partir des paramètres réglementaires du projet.",
+        ariaDescription: "Graphique du spectre de réponse élastique normalisé du projet.",
+        xLabel: "Période T (s)",
+        yLabel: "Se(T)",
+        xDomain: [0, 4],
+        yDomain: [0, yTicks[yTicks.length - 1] || 1],
+        xTicks,
+        yTicks,
+        series: [{ label: "spectre élastique normalisé", points }]
+      })}
+    </div>
+  `;
+}
+
+function renderSeismicSizingPanels(form) {
   const sizing = getSeismicSizingValues(form);
 
   return `
+    ${renderSeismicSummaryCard("Accélérations et coefficients", [
+      { symbol: "agr", label: "Accélération de référence au rocher", value: sizing.agr, unit: "m/s²" },
+      { symbol: "γI", label: "Coefficient d’importance", value: sizing.gl },
+      { symbol: "ag", label: "Accélération horizontale de calcul", value: sizing.ag, unit: "m/s²" },
+      { symbol: "η", label: "Coefficient de correction d’amortissement", value: sizing.eta },
+      { symbol: "S", label: "Paramètre de sol", value: sizing.S }
+    ])}
+    ${renderSeismicSummaryCard("Périodes caractéristiques", [
+      { symbol: "TB", label: "Limite inférieure du palier d’accélération spectrale constante", value: sizing.TB, unit: "s" },
+      { symbol: "TD", label: "Début de la branche à déplacement spectral constant", value: sizing.TD, unit: "s" },
+      { symbol: "TC", label: "Limite supérieure du palier d’accélération spectrale constante", value: sizing.TC, unit: "s" }
+    ])}
     <div class="settings-seismic-summary-card">
-      <div class="settings-seismic-summary-card__title">Valeurs calculées</div>
-      <div class="settings-seismic-summary-list">
-        <div class="settings-seismic-summary-item">
-          <div class="settings-seismic-summary-item__head">
-            <strong>η</strong>
-            <span>Coefficient de correction d’amortissement</span>
-          </div>
-          <div class="settings-seismic-summary-item__value">${escapeHtml(formatSizingValue(sizing.eta))}</div>
-        </div>
-
-        <div class="settings-seismic-summary-item">
-          <div class="settings-seismic-summary-item__head">
-            <strong>S</strong>
-            <span>Paramètre de sol</span>
-          </div>
-          <div class="settings-seismic-summary-item__value">${escapeHtml(formatSizingValue(sizing.S))}</div>
-        </div>
-
-        <div class="settings-seismic-summary-item">
-          <div class="settings-seismic-summary-item__head">
-            <strong>TB</strong>
-            <span>Limite inférieure du palier d’accélération spectrale constante</span>
-          </div>
-          <div class="settings-seismic-summary-item__value">${escapeHtml(formatSizingValue(sizing.TB, "s"))}</div>
-        </div>
-
-        <div class="settings-seismic-summary-item">
-          <div class="settings-seismic-summary-item__head">
-            <strong>TC</strong>
-            <span>Limite supérieure du palier d’accélération spectrale constante</span>
-          </div>
-          <div class="settings-seismic-summary-item__value">${escapeHtml(formatSizingValue(sizing.TC, "s"))}</div>
-        </div>
-
-        <div class="settings-seismic-summary-item">
-          <div class="settings-seismic-summary-item__head">
-            <strong>TD</strong>
-            <span>Début de la branche à déplacement spectral constant</span>
-          </div>
-          <div class="settings-seismic-summary-item__value">${escapeHtml(formatSizingValue(sizing.TD, "s"))}</div>
-        </div>
-      </div>
-
-      <div class="settings-seismic-summary-subtitle">Valeurs du spectre Se(T)</div>
+      <div class="settings-seismic-summary-card__title">Valeurs du spectre Se(T)</div>
       ${renderElasticSpectrumTable(form)}
     </div>
   `;
@@ -1937,13 +1961,10 @@ function getPageHtml(form) {
                         <div class="settings-form-grid settings-form-grid--thirds">
                           ${renderInputField({ id: "dampingRatio", label: "ξ coefficient d'amortissement visqueux, exprimé en pourcentage", value: form.dampingRatio || "5", placeholder: "5" })}
                         </div>
-                        <div class="settings-seismic-chart-placeholder">
-                          <div class="settings-seismic-chart-placeholder__title">Graphique du spectre de réponse élastique normalisé</div>
-                          <div class="settings-seismic-chart-placeholder__text">Zone de tracé réservée pour la prochaine étape d’implémentation. Les valeurs Se(T) sont calculées ci-contre avec un pas de 0,1 s.</div>
-                        </div>
+                        ${renderSeismicSpectrumChart(form)}
                       </div>
                       <div class="settings-seismic-sizing-side">
-                        ${renderSeismicSizingSummaryCard(form)}
+                        ${renderSeismicSizingPanels(form)}
                       </div>
                     </div>`
                   })
