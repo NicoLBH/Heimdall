@@ -2382,7 +2382,7 @@ color:#ffff;
   gap:16px;*/
   margin-bottom:14px;
 }
-
+.settings-card__head-title{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
 .settings-card__head h4{
   font-size:22px;
   line-height:1.4;
