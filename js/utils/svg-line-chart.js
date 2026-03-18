@@ -69,6 +69,7 @@ export function renderSvgLineChart({
   yTicks = [],
   xGrid = {},
   yGrid = {},
+  interactive = false,
   series = []
 } = {}) {
   const safeWidth = Math.max(320, clampNumber(width, 394));
@@ -82,6 +83,7 @@ export function renderSvgLineChart({
   const xScale = (value) => ((value - xMin) / xRange) * innerWidth;
   const yScale = (value) => innerHeight - ((value - yMin) / yRange) * innerHeight;
   const descriptionId = `chart-desc-${Math.random().toString(36).slice(2, 10)}`;
+  const chartId = `chart-${Math.random().toString(36).slice(2, 10)}`;
   const safeXGrid = {
     show: xGrid.show !== false,
     skipFirst: xGrid.skipFirst !== false,
@@ -93,9 +95,22 @@ export function renderSvgLineChart({
     lineStyle: yGrid.lineStyle === "solid" ? "solid" : "dashed"
   };
 
+  const chartModel = interactive ? encodeURIComponent(JSON.stringify({
+    width: safeWidth,
+    height: safeHeight,
+    margin,
+    xDomain: [xMin, xMax],
+    yDomain: [yMin, yMax],
+    series: series.map((item) => ({
+      label: item?.label || "",
+      points: getValidPoints(item?.points || [])
+    }))
+  })) : "";
+
   return `
-    <div class="svg-line-chart">
-      <svg class="svg-line-chart__svg" width="${safeWidth}" height="${safeHeight}" role="img" aria-describedby="${descriptionId}">
+    <div class="svg-line-chart${interactive ? " svg-line-chart--interactive" : ""}"${interactive ? ` data-chart-model="${chartModel}" data-chart-id="${chartId}"` : ""}>
+      <div class="svg-line-chart__frame">
+      <svg class="svg-line-chart__svg" width="${safeWidth}" height="${safeHeight}" role="img" aria-describedby="${descriptionId}"${interactive ? ` data-chart-svg="${chartId}"` : ""}>
         <desc id="${descriptionId}">${escapeHtml(ariaDescription || subtitle || title)}</desc>
         <g transform="translate(${margin.left},${margin.top})">
           ${safeYGrid.show ? `
@@ -146,8 +161,11 @@ export function renderSvgLineChart({
           }).join("")}
           ${xLabel ? `<text class="svg-line-chart__axis-label" text-anchor="middle" x="${(innerWidth / 2).toFixed(3)}" y="${(innerHeight + 32).toFixed(3)}">${escapeHtml(xLabel)}</text>` : ""}
           ${yLabel ? `<text class="svg-line-chart__axis-label" transform="rotate(-90)" x="${(-innerHeight / 2).toFixed(3)}" y="-40" text-anchor="middle">${escapeHtml(yLabel)}</text>` : ""}
+          ${interactive ? `<g class="svg-line-chart__hover" data-chart-hover="${chartId}" hidden><circle class="svg-line-chart__hover-point" r="4.5" cx="0" cy="0"></circle></g>` : ""}
         </g>
       </svg>
+      ${interactive ? `<div class="svg-line-chart__tooltip" data-chart-tooltip="${chartId}" hidden></div>` : ""}
+      </div>
       ${(title || subtitle || series.some((item) => item?.label)) ? `
         <div class="svg-line-chart__meta">
           ${title ? `<div class="svg-line-chart__title">${escapeHtml(title)}</div>` : ""}
