@@ -6068,6 +6068,39 @@ color:#ffff;
   gap:12px;
 }
 
+
+.settings-seismic-periods-mini-table-wrap{
+  margin-top:12px;
+}
+
+.settings-seismic-periods-mini-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:12px;
+}
+
+.settings-seismic-periods-mini-table th,
+.settings-seismic-periods-mini-table td{
+  padding:8px 10px;
+  border-top:1px solid rgba(139,148,158,.18);
+  text-align:center;
+}
+
+.settings-seismic-periods-mini-table th{
+  color:var(--text);
+  font-weight:600;
+  cursor:help;
+}
+
+.settings-seismic-periods-mini-table td{
+  color:var(--muted);
+}
+
+.svg-line-chart__frame{
+  position:relative;
+}
+
 .svg-line-chart__svg{
   display:block;
   width:100%;
@@ -6148,6 +6181,10 @@ color:#ffff;
   gap:6px;
 }
 
+.svg-line-chart__meta--top{
+  margin-bottom:4px;
+}
+
 .svg-line-chart__title{
   font-size:12px;
   font-weight:600;
@@ -6181,6 +6218,28 @@ color:#ffff;
   border-radius:999px;
   background:currentColor;
   display:inline-block;
+}
+
+.svg-line-chart__hover-point{
+  fill:#0d1117;
+  stroke:#2f81f7;
+  stroke-width:2;
+}
+
+.svg-line-chart__tooltip{
+  position:absolute;
+  transform:translate(-50%, calc(-100% - 12px));
+  padding:6px 8px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:#161b22;
+  color:var(--text);
+  font-size:12px;
+  line-height:1.35;
+  white-space:nowrap;
+  pointer-events:none;
+  box-shadow:0 8px 24px rgba(1,4,9,.35);
+  z-index:2;
 }
 
 .settings-seismic-summary-card--table{
