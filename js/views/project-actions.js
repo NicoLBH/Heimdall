@@ -161,6 +161,108 @@ function renderRunStatus(entry) {
 }
 
 
+
+function getStepLabel(stepKey) {
+  const labels = {
+    georisques: "Géorisques",
+    windRegion: "Zone de vent",
+    seismicZone: "Zone sismique",
+    snowRegion: "Zone de neige",
+    frostZone: "Zone de gel",
+    climaticZone: "Zone climatique",
+    thermalZone: "Zone thermique",
+    acousticFacade: "Isolement acoustique de façade"
+  };
+
+  return labels[stepKey] || stepKey;
+}
+
+function getStepStatusMeta(status) {
+  const normalized = String(status || "pending").toLowerCase();
+
+  if (normalized === "success") {
+    return { label: "Réussi", className: "workflow-status-pill workflow-status-pill--success" };
+  }
+
+  if (normalized === "error" || normalized === "failed") {
+    return { label: "Échec", className: "workflow-status-pill workflow-status-pill--error" };
+  }
+
+  if (normalized === "running") {
+    return { label: "En cours", className: "workflow-status-pill workflow-status-pill--running" };
+  }
+
+  return { label: "En attente", className: "workflow-status-pill" };
+}
+
+function getOrderedStepEntries(steps) {
+  const preferredOrder = [
+    "georisques",
+    "windRegion",
+    "snowRegion",
+    "frostZone",
+    "climaticZone",
+    "thermalZone",
+    "seismicZone",
+    "acousticFacade"
+  ];
+
+  return Object.entries(steps || {}).sort(([a], [b]) => {
+    const aIndex = preferredOrder.indexOf(a);
+    const bIndex = preferredOrder.indexOf(b);
+    const safeA = aIndex === -1 ? 999 : aIndex;
+    const safeB = bIndex === -1 ? 999 : bIndex;
+    if (safeA !== safeB) return safeA - safeB;
+    return a.localeCompare(b, "fr");
+  });
+}
+
+function getStepSummary(stepKey, step = {}) {
+  if (stepKey === "georisques") {
+    const parts = [];
+    if (step.communeName) parts.push(step.communeName);
+    if (step.codeInsee) parts.push(`INSEE ${step.codeInsee}`);
+    if (Number.isFinite(step.datasetsCount)) parts.push(`${step.datasetsCount} jeu(x)`);
+    if (Number.isFinite(step.successCount) && step.successCount > 0) parts.push(`${step.successCount} réussi(s)`);
+    if (Number.isFinite(step.errorCount) && step.errorCount > 0) parts.push(`${step.errorCount} erreur(s)`);
+    if (step.error) parts.push(step.error);
+    return parts.join(" · ");
+  }
+
+  const parts = [];
+  if (step.value) parts.push(String(step.value));
+  if (step.source) parts.push(`source : ${step.source}`);
+  if (step.error) parts.push(step.error);
+  return parts.join(" · ");
+}
+
+function renderRunPipelineSteps(entry) {
+  const steps = entry?.details?.steps;
+  if (!steps || typeof steps !== "object") return "";
+
+  const orderedSteps = getOrderedStepEntries(steps);
+  if (!orderedSteps.length) return "";
+
+  return `
+    <div class="workflow-runs__meta" style="margin-top:8px;">
+      <div style="font-weight:600; margin-bottom:6px; color: var(--fgColor-muted, #656d76);">Pipeline</div>
+      <div style="display:grid; gap:6px;">
+        ${orderedSteps.map(([stepKey, step]) => {
+          const meta = getStepStatusMeta(step?.status);
+          const summary = getStepSummary(stepKey, step);
+          return `
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+              <span style="min-width:132px; font-weight:600;">${escapeHtml(getStepLabel(stepKey))}</span>
+              <span class="${meta.className}">${escapeHtml(meta.label)}</span>
+              ${summary ? `<span style="color: var(--fgColor-muted, #656d76);">${escapeHtml(summary)}</span>` : ""}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderMetricCard({ label, value, hint = "" }) {
   return `
     <article class="pilotage-metric-card">
@@ -220,6 +322,7 @@ function renderRunRows(entries) {
             <span class="workflow-runs__title">${escapeHtml(entry.name || "Run")}</span>
           </div>
           ${actionMeta}
+          ${renderRunPipelineSteps(entry)}
         </div>
 
         <div class="workflow-runs__cell">
