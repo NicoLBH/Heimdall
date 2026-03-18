@@ -682,8 +682,8 @@ function renderSeismicSpectrumChart(form) {
         interactive: true,
         series: chartSeries.map((item) => ({ ...item, label: "" }))
       })}
-      ${renderSeismicPeriodsMiniTable(form)}
       ${renderSeismicChartLegend(chartSeries)}
+      ${renderSeismicPeriodsMiniTable(form)}
     </div>
   `;
 }
