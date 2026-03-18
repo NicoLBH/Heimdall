@@ -52,6 +52,14 @@ const DEFAULT_AGENT_CATALOG = {
 };
 
 const DEFAULT_AUTOMATION_CATALOG = {
+  autoProjectBaseDataEnrichment: {
+    key: "autoProjectBaseDataEnrichment",
+    label: "Déclencher l'enrichissement automatique des données de base projet",
+    implemented: true,
+    available: true,
+    defaultEnabled: false,
+    order: 5
+  },
   autoAnalysisAfterUpload: {
     key: "autoAnalysisAfterUpload",
     label: "Déclencher une analyse automatique après le dépôt d'un document",
@@ -180,6 +188,24 @@ function coerceTimestamp(value, fallback = Date.now()) {
   return fallback;
 }
 
+function cloneDetails(details) {
+  if (!details || typeof details !== "object") return null;
+
+  try {
+    if (typeof structuredClone === "function") {
+      return structuredClone(details);
+    }
+  } catch {
+    // ignore and fallback
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(details));
+  } catch {
+    return null;
+  }
+}
+
 function sortCatalogItems(items) {
   return items.slice().sort((a, b) => {
     const aOrder = Number.isFinite(a?.order) ? a.order : 9999;
@@ -306,6 +332,10 @@ export function getPrimaryAnalysisAgent() {
   return enabledImplementedAgents[0] || null;
 }
 
+export function shouldAutoRunProjectBaseDataEnrichment() {
+  return isAutomationEnabled("autoProjectBaseDataEnrichment");
+}
+
 export function shouldAutoRunAnalysisAfterUpload() {
   return Boolean(
     isAutomationEnabled("autoAnalysisAfterUpload") && getPrimaryAnalysisAgent()
@@ -343,7 +373,8 @@ export function startRunLogEntry(payload = {}) {
     endedAt: null,
     durationMs: null,
     status: payload.status || "running",
-    summary: payload.summary || ""
+    summary: payload.summary || "",
+    details: cloneDetails(payload.details)
   };
 
   store.projectAutomation.runLog.unshift(entry);
@@ -376,6 +407,7 @@ export function finishRunLogEntry(runId, patch = {}) {
   if (patch.triggerType != null) entry.triggerType = patch.triggerType;
   if (patch.triggerLabel != null) entry.triggerLabel = patch.triggerLabel;
   if (patch.documentName != null) entry.documentName = patch.documentName;
+  if (patch.details !== undefined) entry.details = cloneDetails(patch.details);
 
   return entry;
 }
@@ -408,9 +440,16 @@ export function getRunMetrics() {
     ? Math.round((successful.length / entries.length) * 100)
     : null;
 
+  const totalErrors = entries.filter((entry) => entry.status === "error").length;
+  const totalAnalyses = entries.filter((entry) => entry.kind === "analysis").length;
+  const totalEnrichments = entries.filter((entry) => entry.kind === "enrichment").length;
+
   return {
     lastRunDurationMs: Number.isFinite(entries[0]?.durationMs) ? entries[0].durationMs : null,
     totalRuns: entries.length,
+    totalErrors,
+    totalAnalyses,
+    totalEnrichments,
     successRate,
     averageDurationMs
   };
