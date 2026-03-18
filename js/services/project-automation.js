@@ -150,7 +150,7 @@ function mergeSettings(defaultsMap, currentMap, catalog) {
 }
 
 function ensureRunLogShape(runLog) {
-  return Array.isArray(runLog) ? runLog.slice() : [];
+  return Array.isArray(runLog) ? runLog.map((entry) => normalizeRunLogEntry(entry)) : [];
 }
 
 function getAgentCatalogUnsafe() {
@@ -342,6 +342,81 @@ export function shouldAutoRunAnalysisAfterUpload() {
   );
 }
 
+function normalizeRunLifecycleStatus(status) {
+  const normalized = String(status || "").toLowerCase();
+
+  if (!normalized || normalized === "queued" || normalized === "pending") return "running";
+  if (normalized === "running") return "running";
+  if (normalized === "completed" || normalized === "success" || normalized === "error" || normalized === "failed" || normalized === "cancelled" || normalized === "interrupted") {
+    return "completed";
+  }
+
+  return normalized;
+}
+
+function normalizeRunOutcomeStatus(status, fallback = null) {
+  const normalized = String(status || "").toLowerCase();
+
+  if (!normalized) return fallback;
+  if (normalized === "success") return "success";
+  if (normalized === "error" || normalized === "failed") return "error";
+  if (normalized === "cancelled" || normalized === "interrupted") return "cancelled";
+  if (normalized === "completed") return fallback;
+  if (normalized === "running" || normalized === "queued" || normalized === "pending") return null;
+
+  return fallback;
+}
+
+function normalizeRunLogEntry(entry = {}) {
+  const startedAt = coerceTimestamp(entry.startedAt, Date.now());
+  const endedAt = entry.endedAt != null ? coerceTimestamp(entry.endedAt, startedAt) : null;
+  const lifecycleStatus = normalizeRunLifecycleStatus(entry.lifecycleStatus || entry.status);
+  const outcomeStatus = normalizeRunOutcomeStatus(entry.outcomeStatus || entry.resultStatus || entry.status, entry.outcomeStatus || null);
+  const durationMsRaw = entry.durationMs != null
+    ? Number(entry.durationMs)
+    : (endedAt != null ? Math.max(0, endedAt - startedAt) : null);
+  const durationMs = Number.isFinite(durationMsRaw) ? durationMsRaw : null;
+  const triggerType = entry.triggerType || entry.trigger?.type || "manual";
+  const triggerLabel = entry.triggerLabel || entry.trigger?.label || "";
+  const documentName = entry.documentName || entry.subject?.documentName || "";
+  const createdAt = coerceTimestamp(entry.createdAt, startedAt);
+  const updatedAt = coerceTimestamp(entry.updatedAt, endedAt ?? startedAt);
+
+  return {
+    schemaVersion: 2,
+    id: entry.id || makeRunId(),
+    name: entry.name || "Run",
+    kind: entry.kind || "analysis",
+    agentKey: entry.agentKey || "parasismique",
+    lifecycleStatus,
+    outcomeStatus,
+    status: lifecycleStatus,
+    triggerType,
+    triggerLabel,
+    trigger: {
+      type: triggerType,
+      label: triggerLabel
+    },
+    documentName,
+    subject: {
+      documentName
+    },
+    startedAt,
+    endedAt,
+    durationMs,
+    summary: entry.summary || "",
+    details: cloneDetails(entry.details),
+    createdAt,
+    updatedAt
+  };
+}
+
+function getRunStatusForDisplay(entry = {}) {
+  const lifecycleStatus = normalizeRunLifecycleStatus(entry.lifecycleStatus || entry.status);
+  if (lifecycleStatus === "running") return "running";
+  return normalizeRunOutcomeStatus(entry.outcomeStatus || entry.status, "completed") || "completed";
+}
+
 export function getAnalyzeButtonLabel() {
   return shouldAutoRunAnalysisAfterUpload()
     ? "Analyse automatique activée"
@@ -359,23 +434,17 @@ export function getRunLogEntries() {
 export function startRunLogEntry(payload = {}) {
   ensureProjectAutomationDefaults();
 
-  const startedAt = coerceTimestamp(payload.startedAt, Date.now());
-
-  const entry = {
-    id: payload.id || makeRunId(),
-    name: payload.name || "Run",
-    kind: payload.kind || "analysis",
-    agentKey: payload.agentKey || "parasismique",
-    triggerType: payload.triggerType || "manual",
-    triggerLabel: payload.triggerLabel || "",
-    documentName: payload.documentName || "",
-    startedAt,
+  const entry = normalizeRunLogEntry({
+    ...payload,
+    startedAt: payload.startedAt,
     endedAt: null,
     durationMs: null,
-    status: payload.status || "running",
-    summary: payload.summary || "",
-    details: cloneDetails(payload.details)
-  };
+    lifecycleStatus: payload.lifecycleStatus || payload.status || "running",
+    outcomeStatus: payload.outcomeStatus || null,
+    status: "running",
+    createdAt: payload.createdAt,
+    updatedAt: payload.updatedAt
+  });
 
   store.projectAutomation.runLog.unshift(entry);
   return entry;
@@ -394,19 +463,40 @@ export function finishRunLogEntry(runId, patch = {}) {
       ? Number(patch.durationMs)
       : Math.max(0, endedAt - startedAt);
 
+  const nextStatus = patch.status || patch.lifecycleStatus || entry.lifecycleStatus || entry.status || "completed";
+  const lifecycleStatus = normalizeRunLifecycleStatus(nextStatus);
+  const outcomeStatus = normalizeRunOutcomeStatus(
+    patch.outcomeStatus || patch.status,
+    entry.outcomeStatus || (lifecycleStatus === "completed" ? "success" : null)
+  );
+  const triggerType = patch.triggerType ?? entry.triggerType ?? entry.trigger?.type ?? "manual";
+  const triggerLabel = patch.triggerLabel ?? entry.triggerLabel ?? entry.trigger?.label ?? "";
+  const documentName = patch.documentName ?? entry.documentName ?? entry.subject?.documentName ?? "";
+
   Object.assign(entry, {
+    schemaVersion: 2,
     endedAt,
     durationMs: Number.isFinite(durationMs) ? durationMs : 0,
-    status: patch.status || entry.status || "success",
-    summary: patch.summary ?? entry.summary ?? ""
+    lifecycleStatus,
+    outcomeStatus,
+    status: lifecycleStatus,
+    triggerType,
+    triggerLabel,
+    trigger: {
+      type: triggerType,
+      label: triggerLabel
+    },
+    documentName,
+    subject: {
+      documentName
+    },
+    summary: patch.summary ?? entry.summary ?? "",
+    updatedAt: coerceTimestamp(patch.updatedAt, endedAt)
   });
 
   if (patch.name != null) entry.name = patch.name;
   if (patch.kind != null) entry.kind = patch.kind;
   if (patch.agentKey != null) entry.agentKey = patch.agentKey;
-  if (patch.triggerType != null) entry.triggerType = patch.triggerType;
-  if (patch.triggerLabel != null) entry.triggerLabel = patch.triggerLabel;
-  if (patch.documentName != null) entry.documentName = patch.documentName;
   if (patch.details !== undefined) entry.details = cloneDetails(patch.details);
 
   return entry;
@@ -424,10 +514,8 @@ export function createRunLogEntry(payload = {}) {
 
 export function getRunMetrics() {
   const entries = getRunLogEntries();
-  const completed = entries.filter(
-    (entry) => entry.status === "success" || entry.status === "error"
-  );
-  const successful = entries.filter((entry) => entry.status === "success");
+  const completed = entries.filter((entry) => entry.lifecycleStatus === "completed");
+  const successful = completed.filter((entry) => entry.outcomeStatus === "success");
   const durations = completed
     .map((entry) => Number(entry.durationMs))
     .filter((value) => Number.isFinite(value));
@@ -436,17 +524,18 @@ export function getRunMetrics() {
     ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
     : null;
 
-  const successRate = entries.length
-    ? Math.round((successful.length / entries.length) * 100)
+  const successRate = completed.length
+    ? Math.round((successful.length / completed.length) * 100)
     : null;
 
-  const totalErrors = entries.filter((entry) => entry.status === "error").length;
+  const totalErrors = completed.filter((entry) => entry.outcomeStatus === "error").length;
   const totalAnalyses = entries.filter((entry) => entry.kind === "analysis").length;
   const totalEnrichments = entries.filter((entry) => entry.kind === "enrichment").length;
 
   return {
     lastRunDurationMs: Number.isFinite(entries[0]?.durationMs) ? entries[0].durationMs : null,
     totalRuns: entries.length,
+    completedRuns: completed.length,
     totalErrors,
     totalAnalyses,
     totalEnrichments,
