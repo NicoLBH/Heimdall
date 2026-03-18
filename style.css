@@ -661,6 +661,76 @@ body.modal-open {
 }
 
 
+/* ===== Projects list ===== */
+.projects-page{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  height:100%;
+  gap:20px;
+  padding:24px 10px 24px 10px;
+}
+
+.projects-page__head{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.projects-page__head h1{
+  margin:0;
+  font-size:40px;
+  line-height:1.15;
+  font-weight:700;
+}
+
+.projects-page__lead{
+  margin:0;
+  color:var(--text);
+  font-size:16px;
+}
+
+.projects-repo .data-table-shell__body{
+  overflow:auto;
+}
+
+.projects-repo__row{
+  width:100%;
+  display:grid;
+  grid-template-columns:var(--data-table-cols);
+  gap:0;
+  align-items:center;
+  padding:0;
+  margin:0;
+  border:0;
+  border-bottom:1px solid var(--border2);
+  background:transparent;
+  color:var(--text);
+  text-align:left;
+  cursor:pointer;
+  font:inherit;
+}
+
+.projects-repo__row:last-child{
+  border-bottom:0;
+}
+
+.projects-repo__row:hover{
+  background:rgba(177, 186, 196, 0.08);
+}
+
+.projects-repo__cell{
+  min-width:0;
+  padding:14px 16px;
+}
+
+.projects-repo__name{
+  display:block;
+  font-weight:600;
+  color:var(--project-tabs-label-color);
+}
+
+
 /* ===== Issues table (GitHub-like) ===== */
 :root{ --issues-cols: 1fr 68px 40px 80px 40px; }
 
