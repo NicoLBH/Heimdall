@@ -2371,24 +2371,26 @@ color:#ffff;
 
 .settings-callout{margin-bottom:16px;}
 
-.settings-card{border-top:1px solid var(--border);padding:20px 0;}
+.settings-card{}
 .settings-card-less{border:none;}
 .settings-card-less h4{font-size:18px;font-weight:600}
 
 .settings-card__head{
-  display:flex;
+  /*display:flex;
   align-items:flex-start;
   justify-content:space-between;
-  gap:16px;
+  gap:16px;*/
   margin-bottom:14px;
 }
 
 .settings-card__head h4{
-  font-size:13px;
+  font-size:22px;
   line-height:1.4;
   font-weight:600;
-  margin-bottom:6px;
+  margin-bottom:16px;
+  padding-bottom:8px;
   color:#ffff;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-card__head p{
@@ -2581,7 +2583,7 @@ color:#ffff;
 }
 
 .settings-card--param{
-  padding:20px 0 24px;
+  padding:40px 0 0px;
 }
 
 .settings-form-grid--thirds{
