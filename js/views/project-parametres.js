@@ -605,21 +605,33 @@ function renderSeismicPeriodsMiniTable(form) {
   const sizing = getSeismicSizingValues(form);
   const periodItems = [
     { key: "TB", value: sizing.TB, tooltip: "Limite inférieure du palier d’accélération spectrale constante" },
-    { key: "TD", value: sizing.TD, tooltip: "Début de la branche à déplacement spectral constant" },
-    { key: "TC", value: sizing.TC, tooltip: "Limite supérieure du palier d’accélération spectrale constante" }
+    { key: "TC", value: sizing.TC, tooltip: "Limite supérieure du palier d’accélération spectrale constante" },
+    { key: "TD", value: sizing.TD, tooltip: "Début de la branche à déplacement spectral constant" }
   ];
+  const spectralValues = periodItems.map((item) => ({
+    key: item.key,
+    value: computeElasticResponseValue({
+      T: item.value,
+      ag: sizing.ag,
+      S: sizing.S,
+      eta: sizing.eta,
+      TB: sizing.TB,
+      TC: sizing.TC,
+      TD: sizing.TD
+    })
+  }));
 
   return `
     <div class="settings-seismic-periods-mini-table-wrap">
       <table class="settings-seismic-periods-mini-table">
         <thead>
           <tr>
-            ${periodItems.map((item) => `<th title="${escapeHtml(item.tooltip)}">${escapeHtml(item.key)}</th>`).join("")}
+            ${periodItems.map((item) => `<th title="${escapeHtml(item.tooltip)}">${escapeHtml(item.key)} <span class="settings-seismic-periods-mini-table__meta">(${escapeHtml(formatSizingValue(item.value, "s"))})</span></th>`).join("")}
           </tr>
         </thead>
         <tbody>
           <tr>
-            ${periodItems.map((item) => `<td>${escapeHtml(formatSizingValue(item.value, "s"))}</td>`).join("")}
+            ${spectralValues.map((item, index) => `<td>${index === 0 ? '<span class="settings-seismic-periods-mini-table__rowhead">Se(T)</span> ' : ''}${escapeHtml(formatSizingValue(item.value, "m/s2"))}</td>`).join("")}
           </tr>
         </tbody>
       </table>
@@ -1538,9 +1550,11 @@ function renderAutomationsFeatureCard() {
 }
 
 function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = false, isHero = false, hideHead = false }) {
+  const hasHeadContent = Boolean(String(title || "").trim() || String(lead || "").trim());
+  const shouldRenderHead = !hideHead && hasHeadContent;
   return `
     <section
-      class="settings-block ${isActive ? "is-active" : ""} ${isHero ? "settings-block--hero" : ""}"
+      class="settings-block ${isActive ? "is-active" : ""} ${isHero ? "settings-block--hero" : ""} ${!isHero && !shouldRenderHead ? "settings-block--no-head" : ""}"
       data-settings-block="${escapeHtml(id)}"
       data-side-nav-panel="${escapeHtml(id)}"
     >
@@ -1549,12 +1563,12 @@ function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = fals
           <h2>${escapeHtml(title)}</h2>
           ${lead ? `<p>${escapeHtml(lead)}</p>` : ""}
         </header>
-      ` : (hideHead ? "" : `
+      ` : (shouldRenderHead ? `
         <div class="settings-block__head">
           <h3>${escapeHtml(title)}</h3>
           ${lead ? `<p class="settings-lead">${escapeHtml(lead)}</p>` : ""}
         </div>
-      `)}
+      ` : "")}
       ${cards.join("")}
     </section>
   `;
