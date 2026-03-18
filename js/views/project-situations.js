@@ -552,7 +552,14 @@ function normalizeReviewMeta(meta = {}) {
     review_state: normalizeReviewState(meta.review_state || "pending"),
     is_published: !!meta.is_published,
     last_published_at: meta.last_published_at ? String(meta.last_published_at) : null,
-    has_changes_since_publish: !!meta.has_changes_since_publish
+    has_changes_since_publish: !!meta.has_changes_since_publish,
+    first_seen_at: meta.first_seen_at ? String(meta.first_seen_at) : null,
+    validated_at: meta.validated_at ? String(meta.validated_at) : null,
+    rejected_at: meta.rejected_at ? String(meta.rejected_at) : null,
+    dismissed_at: meta.dismissed_at ? String(meta.dismissed_at) : null,
+    source_verdict: meta.source_verdict ? String(meta.source_verdict) : null,
+    effective_verdict: meta.effective_verdict ? String(meta.effective_verdict) : null,
+    has_human_edit: !!meta.has_human_edit
   };
 }
 
@@ -664,10 +671,17 @@ function markEntitySeen(entityType, entityId, options = {}) {
   if (!entityType || !entityId) return;
 
   const meta = getEntityReviewMeta(entityType, entityId);
-  if (meta.is_seen) return;
+  if (meta.is_seen && meta.first_seen_at) return;
+
+  const entity = getEntityByType(entityType, entityId);
+  const sourceVerdict = entityType === "avis"
+    ? firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
+    : null;
 
   setEntityReviewMeta(entityType, entityId, {
-    is_seen: true
+    is_seen: true,
+    first_seen_at: meta.first_seen_at || nowIso(),
+    source_verdict: sourceVerdict
   }, options);
 }
 
@@ -675,9 +689,21 @@ function markEntityValidated(entityType, entityId, options = {}) {
   if (!entityType || !entityId) return;
 
   const meta = getEntityReviewMeta(entityType, entityId);
+  const entity = getEntityByType(entityType, entityId);
+  const sourceVerdict = entityType === "avis"
+    ? firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
+    : null;
+  const effectiveVerdict = entityType === "avis"
+    ? firstNonEmpty(store.situationsView.tempAvisVerdict, entity?.verdict, meta.effective_verdict, sourceVerdict, null)
+    : null;
+
   setEntityReviewMeta(entityType, entityId, {
     is_seen: true,
     review_state: "validated",
+    first_seen_at: meta.first_seen_at || nowIso(),
+    validated_at: nowIso(),
+    source_verdict: sourceVerdict,
+    effective_verdict: effectiveVerdict,
     has_changes_since_publish: meta.is_published ? true : meta.has_changes_since_publish
   }, options);
 }
@@ -699,9 +725,18 @@ function setEntityReviewState(entityType, entityId, nextState, options = {}) {
 
   const meta = getEntityReviewMeta(entityType, entityId);
 
+  const entity = getEntityByType(entityType, entityId);
+  const sourceVerdict = entityType === "avis"
+    ? firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
+    : null;
+
   setEntityReviewMeta(entityType, entityId, {
     is_seen: true,
     review_state: reviewState,
+    first_seen_at: meta.first_seen_at || nowIso(),
+    rejected_at: reviewState === "rejected" ? nowIso() : meta.rejected_at,
+    dismissed_at: reviewState === "dismissed" ? nowIso() : meta.dismissed_at,
+    source_verdict: sourceVerdict,
     has_changes_since_publish:
       meta.is_published && reviewState !== "published"
         ? true
@@ -803,13 +838,29 @@ function setEntityDescriptionState(entityType, entityId, patch = {}, options = {
     bucket.descriptions = bucket.descriptions || { avis: {}, sujet: {}, situation: {} };
     bucket.descriptions[entityType] = bucket.descriptions[entityType] || {};
     const prev = getEntityDescriptionState(entityType, entityId);
+    const nextBody = firstNonEmpty(patch.body, prev.body, "");
+    const nextAgent = String(firstNonEmpty(patch.agent, prev.agent, "system")).toLowerCase();
+    const isHumanEdited = Boolean(
+      bucket.descriptions[entityType][entityId]?.is_human_edited
+      || (nextAgent === "human" && String(nextBody || "").trim() !== String(prev.body || "").trim())
+    );
     bucket.descriptions[entityType][entityId] = {
       ...prev,
       ...(bucket.descriptions[entityType][entityId] || {}),
       ...patch,
+      is_human_edited: isHumanEdited,
       updated_at: ts
     };
   });
+
+  if (entityType === "avis") {
+    const entity = getEntityByType(entityType, entityId);
+    const meta = getEntityReviewMeta(entityType, entityId);
+    setEntityReviewMeta(entityType, entityId, {
+      has_human_edit: Boolean(getRunBucket().bucket?.descriptions?.[entityType]?.[entityId]?.is_human_edited),
+      source_verdict: firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
+    }, options);
+  }
 }
 
 function claimDescriptionAsHuman(entityType, entityId, options = {}) {
