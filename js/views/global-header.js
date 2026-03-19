@@ -81,6 +81,7 @@ function renderUserMenu() {
             <span class="gh-user-menu__item-meta">
               <span class="gh-user-menu__item-name">${user.firstName} ${user.lastName}</span>
               <span class="gh-user-menu__item-role">${user.role}</span>
+              <span>Nom entreprise</span>
             </span>
           </button>
         `).join("")}
