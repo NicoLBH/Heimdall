@@ -6598,6 +6598,7 @@ color:#ffff;
   border:0;
   background:transparent;
   cursor:pointer;
+  padding-right:20px;
 }
 
 .gh-user-menu__trigger:hover{
