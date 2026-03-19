@@ -6615,7 +6615,7 @@ color:#ffff;
   position:absolute;
   top:calc(100% + 8px);
   right:50px;
-  left:auto;
+  left:calc(auto - 50px);
   min-width:260px;
   padding:8px;
   background:rgb(1, 4, 9);
