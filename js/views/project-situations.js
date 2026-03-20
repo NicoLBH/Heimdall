@@ -3942,7 +3942,7 @@ export function renderProjectSituations(root) {
   ensureDrilldownDom();
   store.situationsView.showTableOnly = true;
 
-  root.className = "project-shell__content gh-page";
+  root.className = "project-shell__content";
 
   setProjectViewHeader({
     contextLabel: "Situations",
@@ -3967,8 +3967,14 @@ export function renderProjectSituations(root) {
   }
 
   root.innerHTML = `
-    <section class="gh-panel gh-panel--results" aria-label="Results">
-      <div id="situationsPanelHost"></div>
+    <section class="project-simple-page project-simple-page--settings">
+      <div class="project-simple-scroll" id="projectSituationsScroll">
+        <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
+          <section class="gh-panel gh-panel--results" aria-label="Results">
+            <div id="situationsPanelHost"></div>
+          </section>
+        </div>
+      </div>
     </section>
   `;
 
