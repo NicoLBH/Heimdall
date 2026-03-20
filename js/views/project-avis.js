@@ -3944,7 +3944,7 @@ function renderSituationsViewHeaderHtml() {
    Public render
 ========================================================= */
 
-export function renderProjectSituations(root) {
+export function renderProjectAvis(root) {
   ensureSituationsLegacyDomStyle();
   ensureViewUiState();
   ensureDrilldownDom();
