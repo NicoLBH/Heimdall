@@ -1,6 +1,7 @@
 import { store } from "../store.js";
 import { svgIcon } from "../ui/icons.js";
 import { DEMO_USERS, setCurrentDemoUser } from "../demo-context.js";
+import { rerenderRoute } from "../router.js";
 
 function parseHash() {
   const hash = String(location.hash || "").replace(/^#/, "").trim();
@@ -147,6 +148,7 @@ export function bindGlobalHeader() {
     if (switchBtn) {
       setCurrentDemoUser(switchBtn.dataset.userSwitch || "");
       renderGlobalHeader();
+      rerenderRoute();
       return;
     }
 
