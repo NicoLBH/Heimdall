@@ -1,4 +1,6 @@
 import { store } from "../store.js";
+import { svgIcon } from "../ui/icons.js";
+import { DEMO_USERS, setCurrentDemoUser } from "../demo-context.js";
 
 function parseHash() {
   const hash = String(location.hash || "").replace(/^#/, "").trim();
@@ -6,8 +8,15 @@ function parseHash() {
   return hash.split("/");
 }
 
-function menuIcon() {
-  return `<svg aria-hidden="true" focusable="false" class="octicon octicon-three-bars" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom;"><path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75ZM1.75 12a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H1.75Z"></path></svg>`;
+function getProjectDisplayName(projectId) {
+  const explicitName =
+    store.currentProject?.name ||
+    store.currentProject?.title ||
+    "";
+
+  if (explicitName) return explicitName;
+  if (projectId) return `Projet ${projectId}`;
+  return "Projet";
 }
 
 function getHeaderModel() {
@@ -72,19 +81,26 @@ export function renderGlobalHeader() {
     <header class="${model.headerClass}">
       <div class="gh-header__left">
         <button id="menuBtn" class="icon-btn" type="button" aria-label="Ouvrir le menu">
-          ${menuIcon()}
+          ${svgIcon("three-bars", { className: "octicon octicon-three-bars" })}
         </button>
 
-        <a class="gh-brand" href="${model.brandHref}">
-          <img class="gh-brand__logo" src="assets/images/logo.png" alt="Rapsobot">
-          <span class="gh-brand__name">RAPSOBOT</span>
-          <span class="gh-brand__sep">/</span>
-          <span class="gh-brand__repo">${model.repoLabel}</span>
-        </a>
+        <a class="gh-brand" href="${model.href}">
+          <img class="gh-brand__logo" src="assets/images/logo.png" />
+          <span class="gh-brand__name">${model.primary}</span>
+          ${
+            model.showSecondary
+              ? `
+                <span class="gh-brand__sep">/</span>
+                <span class="gh-brand__repo">${model.secondary}</span>
 
-        <div id="projectCompactTab" class="gh-brand__compact-tab is-empty" aria-hidden="true">
-          <span class="gh-brand__compact-tab-label" id="projectCompactTabLabel"></span>
-        </div>
+                <span id="projectCompactTab" class="gh-brand__compact-tab" aria-hidden="true">
+                  <span class="gh-brand__sep">/</span>
+                  <span id="projectCompactTabLabel" class="gh-brand__compact-tab-label"></span>
+                </span>
+              `
+              : ``
+          }
+        </a>
       </div>
 
       <div class="gh-header__center"></div>
