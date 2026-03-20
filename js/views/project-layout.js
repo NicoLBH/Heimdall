@@ -65,7 +65,7 @@ export function renderProjectLayout(root, projectId, tab) {
       renderProjectDocuments(content);
       break;
 
-    case PROJECT_TAB_IDS.AVISS:
+    case PROJECT_TAB_IDS.AVIS:
       renderProjectAvis(content);
       break;
       
