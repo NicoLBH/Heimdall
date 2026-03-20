@@ -1924,7 +1924,7 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
   `;
 }
 function getSituationsTableGridTemplate() {
-  return "1fr 110px 80px 140px 160px";
+  return "minmax(0, 1fr) 96px 56px 86px 72px";
 }
 
 function renderSituationsTableHeadHtml() {
@@ -1978,7 +1978,6 @@ function renderTableHtml(filteredSituations) {
 
   const rows = [];
   const forceExpandSituations = displayDepth === "sujets" || displayDepth === "avis";
-  const forceExpandSujets = displayDepth === "avis";
 
   for (const situation of filteredSituations) {
     const visibleSujets =
@@ -1997,21 +1996,7 @@ function renderTableHtml(filteredSituations) {
     if (!showSujets) continue;
 
     for (const sujet of visibleSujets) {
-      const visibleAvis =
-        activeVerdictFilter === "ALL"
-          ? (sujet.avis || [])
-          : (sujet.avis || []).filter((avis) => avisMatchesVerdictFilter(avis));
-
-      if (activeVerdictFilter !== "ALL" && !visibleAvis.length) continue;
-
       rows.push(renderSujetRow(sujet));
-
-      const showAvis = forceExpandSujets || store.situationsView.expandedSujets.has(sujet.id);
-      if (!showAvis) continue;
-
-      for (const avis of visibleAvis) {
-        rows.push(renderAvisRow(avis));
-      }
     }
   }
 
