@@ -2903,6 +2903,28 @@ function closeDetailsModal() {
   updateDetailsModal();
 }
 
+function syncSituationsPrimaryScrollSource() {
+  const panelHost = document.getElementById("situationsPanelHost");
+
+  if (store.situationsView.showTableOnly) {
+    const mainScrollBody = panelHost?.querySelector(".data-table-shell__body") || null;
+    registerProjectPrimaryScrollSource(mainScrollBody);
+
+    if (!mainScrollBody) return;
+
+    requestAnimationFrame(() => {
+      const currentPanelHost = document.getElementById("situationsPanelHost");
+      const currentMainScrollBody = currentPanelHost?.querySelector(".data-table-shell__body") || null;
+      if (!currentMainScrollBody || currentMainScrollBody !== mainScrollBody) return;
+      registerProjectPrimaryScrollSource(currentMainScrollBody);
+    });
+    return;
+  }
+
+  const detailsHost = document.getElementById("situationsDetailsHost");
+  registerProjectPrimaryScrollSource(detailsHost || null);
+}
+
 function rerenderPanels() {
   ensureViewUiState();
 
@@ -2923,8 +2945,7 @@ function rerenderPanels() {
   if (panelHost) {
     if (store.situationsView.showTableOnly) {
       panelHost.innerHTML = `<div id="situationsTableHost">${renderTableHtml(filteredSituations)}</div>`;
-      const mainScrollBody = panelHost.querySelector(".data-table-shell__body");
-      registerProjectPrimaryScrollSource(mainScrollBody || null);
+      syncSituationsPrimaryScrollSource();
     } else {
       const details = renderDetailsHtml(null, {
         subissuesOptions: {
@@ -2944,7 +2965,7 @@ function rerenderPanels() {
       wireDetailsInteractive(detailsHost);
       bindDetailsScroll(document);
       detailsHost?.__syncCondensedTitle?.();
-      registerProjectPrimaryScrollSource(detailsHost || null);
+      syncSituationsPrimaryScrollSource();
     }
   }
 
@@ -4015,6 +4036,7 @@ export function renderProjectSituations(root) {
   `;
 
   rerenderPanels();
+  syncSituationsPrimaryScrollSource();
   bindSituationsEvents(root, headerRoot);
   bindProjectSituationsRunbar(toolbarHost || root || document);
   bindModalEvents();
