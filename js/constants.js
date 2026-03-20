@@ -2,6 +2,7 @@ import { svgIcon } from "./ui/icons.js";
 
 export const PROJECT_TAB_IDS = {
   DOCUMENTS: "documents",
+  AVIS: "avis",
   SITUATIONS: "situations",
   PROPOSITIONS: "propositions",
   DISCUSSIONS: "discussions",
@@ -52,6 +53,11 @@ export const PROJECT_TABS = [
     id: PROJECT_TAB_IDS.DOCUMENTS,
     label: "Documents",
     icon: svgIcon("file", { className: "octicon octicon-file" })
+  },
+  {
+    id: PROJECT_TAB_IDS.AVIS,
+    label: "Avis",
+    icon: svgIcon("avis", { className: "octicon octicon-file" })
   },
   {
     id: PROJECT_TAB_IDS.SITUATIONS,
