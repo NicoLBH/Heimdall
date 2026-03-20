@@ -62,7 +62,6 @@
   pointer-events:none;
   transition:opacity .18s ease;
 }
-
 .overlay-host.is-open{
   opacity:1;
   pointer-events:auto;
