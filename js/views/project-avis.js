@@ -1851,7 +1851,6 @@ function renderSujetRow(sujet) {
         <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
       </div>
       <div class="cell cell-verdict"></div>
-      <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
     </div>
@@ -1871,7 +1870,6 @@ function renderAvisRow(avis) {
         <span class="theme-text theme-text--avis ${titleSeenClass}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
       </div>
       <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
-      <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("avis", avis.id))}</div>
     </div>
@@ -1895,7 +1893,6 @@ function renderFlatSujetRow(sujet, situationId) {
         ${parentLabel}
       </div>
       <div class="cell cell-verdict"></div>
-      <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
     </div>
@@ -1916,7 +1913,6 @@ function renderFlatAvisRow(avis) {
         <span class="theme-text theme-text--avis ${titleSeenClass}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
       </div>
       <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
-      <div class="cell cell-prio"></div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("avis", avis.id))}</div>
     </div>
@@ -1924,7 +1920,7 @@ function renderFlatAvisRow(avis) {
 }
 
 function getSituationsTableGridTemplate() {
-  return "1fr 96px 56px 86px 72px";
+  return "1fr 96px 86px 72px";
 }
 
 function renderSituationsTableHeadHtml() {
@@ -1932,7 +1928,6 @@ function renderSituationsTableHeadHtml() {
     columns: [
       { className: "cell cell-theme", label: "Thème" },
       { className: "cell cell-verdict", html: renderVerdictHeadFilter() },
-      { className: "cell cell-prio", label: "Prio" },
       { className: "cell cell-agent", label: "Agent" },
       { className: "cell cell-id", label: "avis_id" }
     ]
