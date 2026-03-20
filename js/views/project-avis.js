@@ -1977,6 +1977,25 @@ function renderTableHtml(filteredSituations) {
   }
 
   const rows = [];
+
+  if (displayDepth === "avis") {
+    for (const situation of filteredSituations) {
+      for (const sujet of situation.sujets || []) {
+        for (const avis of sujet.avis || []) {
+          if (!avisMatchesVerdictFilter(avis)) continue;
+          rows.push(renderFlatAvisRow(avis, sujet.id, situation.id));
+        }
+      }
+    }
+
+    return renderDataTableShell({
+      className: "issues-table",
+      gridTemplate: getSituationsTableGridTemplate(),
+      headHtml: renderSituationsTableHeadHtml(),
+      bodyHtml: rows.join("")
+    });
+  }
+
   const forceExpandSituations = displayDepth === "sujets" || displayDepth === "avis";
   const forceExpandSujets = displayDepth === "avis";
 
@@ -3901,17 +3920,6 @@ function bindSituationsEvents(root, headerRoot) {
 function renderSituationsViewHeaderHtml() {
   const leftHtml = [
     renderProjectTableToolbarGroup({
-      html: renderProjectTableToolbarSelect({
-        id: "displayDepth",
-        value: String(store.situationsView.displayDepth || "situations").toLowerCase(),
-        options: [
-          { value: "situations", label: "Situations" },
-          { value: "sujets", label: "Sujets" },
-          { value: "avis", label: "Avis" }
-        ]
-      })
-    }),
-    renderProjectTableToolbarGroup({
       html: renderProjectTableToolbarMeta({
         id: "situationsHeaderCounts",
         text: "—",
@@ -3948,6 +3956,7 @@ export function renderProjectAvis(root) {
   ensureSituationsLegacyDomStyle();
   ensureViewUiState();
   ensureDrilldownDom();
+  store.situationsView.displayDepth = "avis";
 
   root.className = "project-shell__content gh-page gh-page--2col";
 
