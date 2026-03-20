@@ -1825,7 +1825,6 @@ function renderSituationRow(situation) {
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
         <span class="theme-text theme-text--sit ${titleSeenClass}">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</span>
       </div>
-      <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(situation.priority)}</div>
       <div class="cell cell-agent"></div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("situation", situation.id))}</div>
@@ -1844,12 +1843,11 @@ function renderSujetRow(sujet) {
   return `
     <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl1">
-        <span class="js-toggle-sujet" data-sujet-id="${escapeHtml(sujet.id)}">${chevron(expanded, hasAvis)}</span>
+        <span class="chev chev--spacer"></span>
         ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
         <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
       </div>
-      <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
@@ -1893,7 +1891,6 @@ function renderFlatSujetRow(sujet, situationId) {
         <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
         ${parentLabel}
       </div>
-      <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
@@ -1924,14 +1921,13 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
   `;
 }
 function getSituationsTableGridTemplate() {
-  return "minmax(0, 1fr) 96px 56px 86px 72px";
+  return "minmax(0, 1fr) 56px 86px 72px";
 }
 
 function renderSituationsTableHeadHtml() {
   return renderDataTableHead({
     columns: [
       { className: "cell cell-theme", label: "Thème" },
-      { className: "cell cell-verdict", html: renderVerdictHeadFilter() },
       { className: "cell cell-prio", label: "Prio" },
       { className: "cell cell-agent", label: "Agent" },
       { className: "cell cell-id", label: "avis_id" }
