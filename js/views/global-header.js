@@ -1,97 +1,64 @@
-import { PROJECT_TABS, isToggleableProjectTab } from "../constants.js";
 import { store } from "../store.js";
-import { renderCountBadge } from "./ui/status-badges.js";
 
-function getEffectiveSujetStatus(sujet) {
-  const decisions = Array.isArray(store.situationsView?.rawResult?.decisions)
-    ? store.situationsView.rawResult.decisions
-    : [];
-
-  const sujetId = String(sujet?.id || "");
-
-  const decision = decisions.find((d) => {
-    const entityType = String(d?.entity_type || d?.type || "").toLowerCase();
-    const entityId = String(d?.entity_id || d?.problem_id || d?.id || "");
-    return entityType === "sujet" && entityId === sujetId;
-  });
-
-  const d = String(decision?.decision || "").toUpperCase();
-  if (d === "CLOSED") return "closed";
-  if (d === "REOPENED") return "open";
-
-  return String(sujet?.status || "open").toLowerCase();
+function parseHash() {
+  const hash = String(location.hash || "").replace(/^#/, "").trim();
+  if (!hash) return ["dashboard"];
+  return hash.split("/");
 }
 
-function getProjectTabCounters() {
-  const situations = Array.isArray(store.situationsView?.data)
-    ? store.situationsView.data
-    : [];
-
-  let openSujets = 0;
-
-  for (const situation of situations) {
-    for (const sujet of situation?.sujets || []) {
-      if (getEffectiveSujetStatus(sujet) === "open") {
-        openSujets += 1;
-      }
-    }
-  }
-
-  return { openSujets };
+function menuIcon() {
+  return `<svg aria-hidden="true" focusable="false" class="octicon octicon-three-bars" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align:text-bottom;"><path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75ZM1.75 12a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H1.75Z"></path></svg>`;
 }
 
-function renderTabCount(tab, counters) {
-  if (!tab.countKey) return "";
-  const value = Number(counters?.[tab.countKey] || 0);
-  return renderCountBadge(value, {
-    className: "project-tabs__counter",
-    ariaLabel: `${value} élément(s)`
-  });
+function getHeaderModel() {
+  const [root] = parseHash();
+  const isProjectRoute = root === "project";
+  const projectName = String(store.currentProject?.name || store.projectForm?.projectName || "Projet demo").trim();
+
+  return {
+    isProjectRoute,
+    headerClass: isProjectRoute ? "gh-header gh-header--project" : "gh-header gh-header--global",
+    repoLabel: isProjectRoute ? projectName : "Projets",
+    brandHref: isProjectRoute
+      ? `#project/${store.currentProjectId || ""}/documents`
+      : "#projects"
+  };
 }
 
-function isTabVisible(tabId) {
-  const visibility = store.projectForm?.projectTabs || {};
+export function renderGlobalHeader() {
+  const host = document.getElementById("globalHeaderHost");
+  if (!host) return;
 
-  if (tabId === "avis") {
-    return String(store.user?.role || "").toUpperCase() === "CT";
-  }
+  const model = getHeaderModel();
 
-  if (isToggleableProjectTab(tabId)) {
-    return visibility[tabId] !== false;
-  }
+  host.innerHTML = `
+    <header class="${model.headerClass}">
+      <div class="gh-header__left">
+        <button id="menuBtn" class="icon-btn" type="button" aria-label="Ouvrir le menu">
+          ${menuIcon()}
+        </button>
 
-  return true;
-}
+        <a class="gh-brand" href="${model.brandHref}">
+          <img class="gh-brand__logo" src="assets/images/logo.png" alt="Rapsobot">
+          <span class="gh-brand__name">RAPSOBOT</span>
+          <span class="gh-brand__sep">/</span>
+          <span class="gh-brand__repo">${model.repoLabel}</span>
+        </a>
 
-function getTabHref(projectId, tabId) {
-  return `#project/${projectId}/${tabId}`;
-}
+        <div id="projectCompactTab" class="gh-brand__compact-tab is-empty" aria-hidden="true">
+          <span class="gh-brand__compact-tab-label" id="projectCompactTabLabel"></span>
+        </div>
+      </div>
 
-export function renderProjectHeader(projectId, activeTab) {
-  const counters = getProjectTabCounters();
-
-  return `
-    <section class="project-context-header">
-      <nav class="project-tabs" aria-label="Project navigation">
-        ${PROJECT_TABS.map((t) => {
-          const visible = isTabVisible(t.id);
-          return `
-            <a
-              href="${getTabHref(projectId, t.id)}"
-              class="${t.id === activeTab ? "active" : ""}"
-              data-project-tab-id="${t.id}"
-              style="${visible ? "" : "display:none;"}"
-              aria-hidden="${visible ? "false" : "true"}"
-            >
-              <span class="project-tabs__item">
-                <span class="project-tabs__icon" aria-hidden="true">${t.icon || ""}</span>
-                <span class="project-tabs__label">${t.label}</span>
-                ${renderTabCount(t, counters)}
-              </span>
-            </a>
-          `;
-        }).join("")}
-      </nav>
-    </section>
+      <div class="gh-header__center"></div>
+      <div class="gh-header__right"></div>
+    </header>
   `;
+}
+
+let globalHeaderBound = false;
+
+export function bindGlobalHeader() {
+  if (globalHeaderBound) return;
+  globalHeaderBound = true;
 }
