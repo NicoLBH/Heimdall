@@ -1,4 +1,4 @@
-import { PROJECT_TABS, isToggleableProjectTab } from "../constants.js";
+import { PROJECT_TABS, isToggleableProjectTab, isProjectTabAllowedForUser } from "../constants.js";
 import { store } from "../store.js";
 import { renderCountBadge } from "./ui/status-badges.js";
 
@@ -51,6 +51,10 @@ function renderTabCount(tab, counters) {
 
 function isTabVisible(tabId) {
   const visibility = store.projectForm?.projectTabs || {};
+
+  if (!isProjectTabAllowedForUser(tabId, store.user)) {
+    return false;
+  }
 
   if (isToggleableProjectTab(tabId)) {
     return visibility[tabId] !== false;
