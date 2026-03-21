@@ -2674,13 +2674,12 @@ function renderDetailsTitleWrapHtml(selection) {
   const titleSeenClass = getReviewTitleStateClass("avis", item.id);
   const badgeHtml = renderVerboseAvisVerdictPill(getEffectiveAvisVerdict(item.id));
   const idHtml = entityDisplayLinkHtml("avis", item.id);
-
   const titleTextHtml = `
     ${reviewIcon ? `<span class="details-title-status">${reviewIcon}</span>` : ""}
     <span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Avis"))}</span>
   `;
 
-  return `
+  const expandedHtml = `
     <div class="details-title-wrap details-title--expanded">
       <div class="details-title-row details-title-row--main">
         <div class="details-title-maincol">
@@ -2694,7 +2693,9 @@ function renderDetailsTitleWrapHtml(selection) {
         </div>
       </div>
     </div>
+  `;
 
+  const compactHtml = `
     <div class="details-title-wrap details-title--compact details-title--compact-avis">
       <div class="details-title-compact details-title-compact--avis">
         ${badgeHtml}
@@ -2703,6 +2704,8 @@ function renderDetailsTitleWrapHtml(selection) {
       </div>
     </div>
   `;
+
+  return `${expandedHtml}${compactHtml}`;
 }
 
 
