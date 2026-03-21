@@ -86,6 +86,7 @@ function renderVerdictActionButtons(activeVerdict) {
         </div>
       `).join("")}
     </div>
+    `}
   `;
 }
 
@@ -383,6 +384,7 @@ function ensureViewUiState() {
   if (typeof v.subjectsStatusFilter !== "string") v.subjectsStatusFilter = "open";
   if (typeof v.situationsStatusFilter !== "string") v.situationsStatusFilter = "open";
   if (typeof v.draggedKanbanSujetId !== "string") v.draggedKanbanSujetId = "";
+  if (typeof v.situationModalView !== "string") v.situationModalView = "kanban";
 }
 
 function currentRunKey() {
@@ -1934,11 +1936,16 @@ function renderSituationRow(situation) {
     <div class="issue-row issue-row--sit click js-row-situation${rowSelectedClass("situation", situation.id)}" data-situation-id="${escapeHtml(situation.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
-        ${renderSituationListIcon(effStatus)}
-        ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="issue-row-title-stack">
-          <span class="theme-text theme-text--sit ${titleSeenClass}">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</span>
-          <span class="issue-row-meta-text mono-small">${escapeHtml(displayRef)} • ${escapeHtml(updatedLabel)}</span>
+        <span class="issue-row-title-grid">
+          <span class="issue-row-title-grid__status">
+            ${renderSituationListIcon(effStatus)}
+          </span>
+          <span class="issue-row-title-grid__review">
+            ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : `<span class="review-title-chip review-title-chip--placeholder" aria-hidden="true"></span>`}
+          </span>
+          <span class="issue-row-title-grid__title">
+          <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--sit ${titleSeenClass}" data-row-entity-type="situation" data-row-entity-id="${escapeHtml(situation.id)}">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</button>
+          <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${escapeHtml(displayRef)} • ${escapeHtml(updatedLabel)}</span>
         </span>
       </div>
       <div class="cell cell-prio">${priorityBadge(situation.priority)}</div>
@@ -2001,10 +2008,18 @@ function renderFlatSujetRow(sujet, situationId) {
     <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
-        ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
-        ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
-        ${parentLabel}
+        <span class="issue-row-title-grid">
+          <span class="issue-row-title-grid__status">
+            ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
+          </span>
+          <span class="issue-row-title-grid__review">
+            ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : `<span class="review-title-chip review-title-chip--placeholder" aria-hidden="true"></span>`}
+          </span>
+          <span class="issue-row-title-grid__title">
+            <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--pb ${titleSeenClass}" data-row-entity-type="sujet" data-row-entity-id="${escapeHtml(sujet.id)}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</button>
+          </span>
+          <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}${parentLabel ? ` • ` : ""}${parentLabel}</span>
+        </span>
       </div>
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
@@ -2966,9 +2981,50 @@ function renderSituationKanbanCard(sujet) {
   `;
 }
 
+function renderSituationModalDetailBody(situation) {
+  const selection = { type: "situation", item: situation };
+  return `
+    <div class="situation-kanban-modal-detail">
+      <div class="details-grid details-grid--situation-modal-detail">
+        <div class="details-main">
+          <div class="gh-timeline">
+            ${renderDescriptionCard(selection)}
+            ${renderDocumentRefsCard(selection)}
+            ${renderSubIssuesForSituation(situation, {
+              sujetRowClass: "js-modal-drilldown-sujet",
+              sujetToggleClass: "js-modal-toggle-sujet",
+              avisRowClass: "js-modal-drilldown-avis",
+              expandedSujets: store.situationsView.rightExpandedSujets
+            })}
+            ${renderThreadBlock()}
+            ${renderCommentBox(selection)}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderSituationKanbanBody(situation) {
   const columns = getSituationKanbanColumns(situation);
+  const isDetailMode = String(store.situationsView.situationModalView || "kanban") === "detail";
   return `
+    <div class="situation-modal-commandbar">
+      ${isDetailMode ? `
+        <button type="button" class="situation-modal-commandbar__back js-situation-modal-back" aria-label="Revenir au kanban" title="Revenir au kanban">
+          ${svgIcon("arrow-left")}
+        </button>
+      ` : ""}
+      <div class="situation-modal-commandbar__title-wrap">
+        <div class="situation-modal-commandbar__title">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</div>
+      </div>
+      ${!isDetailMode ? `
+        <button type="button" class="situation-modal-commandbar__edit js-situation-modal-edit" aria-label="Modifier la situation" title="Modifier la situation">
+          ${svgIcon("pencil")}
+        </button>
+      ` : ""}
+    </div>
+    ${isDetailMode ? renderSituationModalDetailBody(situation) : `
     <div class="situation-kanban-modal">
       <div class="situation-kanban" aria-label="Pilotage des sujets de la situation">
         ${columns.map((column) => `
@@ -3047,6 +3103,9 @@ function openDetailsModal() {
   const selection = getActiveSelection();
   if (selection?.type && selection?.item?.id) {
     markEntitySeen(getSelectionEntityType(selection.type), selection.item.id, { source: "modal" });
+  }
+  if (selection?.type === "situation") {
+    store.situationsView.situationModalView = "kanban";
   }
   store.situationsView.detailsModalOpen = true;
   updateDetailsModal();
@@ -3638,6 +3697,22 @@ function wireDetailsInteractive(root) {
     };
   });
 
+  root.querySelectorAll(".js-situation-modal-edit").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      store.situationsView.situationModalView = "detail";
+      updateDetailsModal();
+    });
+  });
+
+  root.querySelectorAll(".js-situation-modal-back").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      store.situationsView.situationModalView = "kanban";
+      updateDetailsModal();
+    });
+  });
+
   root.querySelectorAll(".js-kanban-card").forEach((card) => {
     card.onclick = () => {
       const sujetId = String(card.dataset.sujetId || "");
@@ -4104,27 +4179,22 @@ function bindSituationsEvents(root, headerRoot) {
       return;
     }
 
-    const sujetRow = event.target.closest(".js-row-sujet");
-    if (sujetRow) {
+    const titleTrigger = event.target.closest(".js-row-title-trigger");
+    if (titleTrigger) {
       event.preventDefault();
-      const sujetId = String(sujetRow.dataset.sujetId || "");
-      selectSujet(sujetId);
-      return;
-    }
-
-    const situationRow = event.target.closest(".js-row-situation");
-    if (situationRow) {
-      event.preventDefault();
-      const situationId = String(situationRow.dataset.situationId || "");
-      selectSituation(situationId);
-      return;
-    }
-
-    const avisRow = event.target.closest(".js-row-avis");
-    if (avisRow) {
-      event.preventDefault();
-      const avisId = String(avisRow.dataset.avisId || "");
-      selectAvis(avisId);
+      const entityType = String(titleTrigger.dataset.rowEntityType || "");
+      const entityId = String(titleTrigger.dataset.rowEntityId || "");
+      if (entityType === "sujet") {
+        selectSujet(entityId);
+        return;
+      }
+      if (entityType === "situation") {
+        selectSituation(entityId);
+        return;
+      }
+      if (entityType === "avis") {
+        selectAvis(entityId);
+      }
     }
   });
 }
