@@ -810,6 +810,8 @@ body.modal-open {
   color:inherit;
   font:inherit;
   text-align:left;
+  display:block;
+  width:100%;
   max-width:100%;
   cursor:pointer;
 }
