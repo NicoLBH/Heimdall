@@ -49,6 +49,7 @@ import {
   renderCountBadge
 } from "./ui/status-badges.js";
 import { escapeHtml } from "../utils/escape-html.js";
+import { renderSharedDetailsTitleWrap, renderSharedDetailsTitleHtml } from "./ui/detail-header.js";
 import { getSelectionDocumentRefs } from "../services/project-document-selectors.js";
 
 /* =========================================================
@@ -173,6 +174,28 @@ function priorityBadge(priority = "P3") {
   });
 }
 
+
+function renderVerboseAvisVerdictPill(verdict) {
+  const labels = {
+    F: "Favorable",
+    S: "Suspendu",
+    D: "Défavorable",
+    HM: "Hors Mission",
+    PM: "Pour Mémoire",
+    SO: "Sans Objet"
+  };
+  const normalized = normalizeVerdict(verdict);
+  const classMap = {
+    F: "verdict-F",
+    S: "verdict-S",
+    D: "verdict-D",
+    HM: "verdict-HM",
+    PM: "verdict-PM",
+    SO: "verdict-SO"
+  };
+  const badgeClass = classMap[normalized] ? `verdict-badge ${classMap[normalized]}` : "verdict-badge";
+  return `<span class="${badgeClass}">${escapeHtml(labels[normalized] || String(verdict || "—"))}</span>`;
+}
 function statePill(status = "open", options = {}) {
   const {
     reviewState = "pending",
@@ -242,23 +265,6 @@ function getEntityDisplayRef(type, id) {
 
 function entityDisplayLinkHtml(type, id) {
   return entityLinkHtml(type, id, escapeHtml(getEntityDisplayRef(type, id)));
-}
-
-function getVerboseAvisVerdictLabel(verdict) {
-  const value = String(verdict || "").trim().toUpperCase();
-  if (value === "F") return "Favorable";
-  if (value === "S") return "Suspendu";
-  if (value === "D") return "Défavorable";
-  if (value === "HM") return "Hors Mission";
-  if (value === "PM") return "Pour Mémoire";
-  if (value === "SO") return "Sans Objet";
-  return value || "—";
-}
-
-function renderVerboseAvisVerdictPill(verdict) {
-  const label = getVerboseAvisVerdictLabel(verdict);
-  const normalized = String(verdict || "").trim().toUpperCase() || "—";
-  return `<span class="verdict-badge verdict-${escapeHtml(normalized)}">${escapeHtml(label)}</span>`;
 }
 
 function renderVerdictHeadFilter() {
@@ -2725,143 +2731,84 @@ function renderSubIssuesForSituation(situation, options = {}) {
 }
 
 function renderDetailsTitleWrapHtml(selection) {
-  if (!selection) return `<span class="details-title-text">Sélectionner un élément</span>`;
-
-  const item = selection.item;
-  const entityType = getSelectionEntityType(selection.type);
-  const reviewIcon = renderEntityReviewLeadIcon(entityType, item.id);
-  const titleSeenClass = getReviewTitleStateClass(entityType, item.id);
-  const idHtml = entityDisplayLinkHtml(selection.type, item.id);
-  const titleTextHtml = `
-    ${reviewIcon ? `<span class="details-title-status">${reviewIcon}</span>` : ""}
-    <span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Détail"))}</span>
-  `;
-
-  if (selection.type === "avis") {
-    const badgeHtml = renderVerboseAvisVerdictPill(getEffectiveAvisVerdict(item.id));
-    return `
-      <div class="details-title-wrap details-title--expanded">
-        <div class="details-title-row details-title-row--main">
-          <div class="details-title-maincol">
-            <div class="details-title-topline">
-              ${titleTextHtml}
-              <span class="details-title-id mono">${idHtml}</span>
-            </div>
-            <div class="details-title-bottomline">
-              ${badgeHtml}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="details-title-wrap details-title--compact details-title--compact-avis">
-        <div class="details-title-compact details-title-compact--avis">
-          ${badgeHtml}
-          ${titleTextHtml}
-          <span class="details-title-id mono">${idHtml}</span>
-        </div>
-      </div>
-    `;
-  }
-
-  if (selection.type === "sujet") {
-    const stats = problemVerdictStats(item);
-    const badgeHtml = statePill(getEffectiveSujetStatus(item.id), { reviewState: getEntityReviewMeta("sujet", item.id).review_state, entityType: "sujet" });
-    const verdictHtml = buildVerdictBarHtml(stats.counts, { legend: true });
-    const barOnlyHtml = buildVerdictBarHtml(stats.counts, { legend: false });
-    return `
-      <div class="details-title-wrap details-title--expanded">
-        <div class="details-title-row details-title-row--main">
-          <div class="details-title-maincol">
-            <div class="details-title-topline">
-              ${titleTextHtml}
-              <span class="details-title-id mono">${idHtml}</span>
-            </div>
-            <div class="details-title-bottomline">
-              ${badgeHtml}${verdictHtml}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="details-title-wrap details-title--compact details-title--compact-grid">
-        <div class="details-title-compact">
-          <div class="details-title-compact-col1">${badgeHtml}</div>
-          <div class="details-title-compact-col2">
-            <div class="details-title-compact-top">${titleTextHtml}</div>
-            <div class="details-title-compact-bottom">${barOnlyHtml}</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  const stats = situationVerdictStats(item);
-  const badgeHtml = statePill(getEffectiveSituationStatus(item.id), { reviewState: getEntityReviewMeta("situation", item.id).review_state, entityType: "situation" });
-  const probsHtml = problemsCountsHtml(item);
-  const verdictHtml = buildVerdictBarHtml(stats.counts, { legend: true });
-  const barOnlyHtml = buildVerdictBarHtml(stats.counts, { legend: false });
-
-  return `
-    <div class="details-title-wrap details-title--expanded">
-      <div class="details-title-row details-title-row--main">
-        <div class="details-title-maincol">
-          <div class="details-title-topline">
-            ${titleTextHtml}
-            <span class="details-title-id mono">${idHtml}</span>
-          </div>
-          <div class="details-title-bottomline">
-            ${badgeHtml}${probsHtml}${verdictHtml}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="details-title-wrap details-title--compact details-title--compact-grid">
-      <div class="details-title-compact">
-        <div class="details-title-compact-col1">${badgeHtml}</div>
-        <div class="details-title-compact-col2">
-          <div class="details-title-compact-top">${titleTextHtml}</div>
-          <div class="details-title-compact-bottom">${probsHtml}${barOnlyHtml}</div>
-        </div>
-      </div>
-    </div>
-  `;
+  return renderSharedDetailsTitleWrap(selection, {
+    emptyText: "Sélectionner un élément",
+    buildTitleTextHtml(currentSelection) {
+      const item = currentSelection.item;
+      const entityType = getSelectionEntityType(currentSelection.type);
+      const reviewIcon = renderEntityReviewLeadIcon(entityType, item.id);
+      const titleSeenClass = getReviewTitleStateClass(entityType, item.id);
+      return `
+        ${reviewIcon ? `<span class="details-title-status">${reviewIcon}</span>` : ""}
+        <span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Détail"))}</span>
+      `;
+    },
+    buildIdHtml(currentSelection) {
+      return entityDisplayLinkHtml(currentSelection.type, currentSelection.item.id);
+    },
+    buildExpandedBottomHtml(currentSelection) {
+      const item = currentSelection.item;
+      if (currentSelection.type === "avis") {
+        return renderVerboseAvisVerdictPill(getEffectiveAvisVerdict(item.id));
+      }
+      if (currentSelection.type === "sujet") {
+        const stats = problemVerdictStats(item);
+        const badgeHtml = statePill(getEffectiveSujetStatus(item.id), { reviewState: getEntityReviewMeta("sujet", item.id).review_state, entityType: "sujet" });
+        return `${badgeHtml}${buildVerdictBarHtml(stats.counts, { legend: true })}`;
+      }
+      const stats = situationVerdictStats(item);
+      const badgeHtml = statePill(getEffectiveSituationStatus(item.id), { reviewState: getEntityReviewMeta("situation", item.id).review_state, entityType: "situation" });
+      return `${badgeHtml}${problemsCountsHtml(item)}${buildVerdictBarHtml(stats.counts, { legend: true })}`;
+    },
+    buildCompactConfig(currentSelection, { titleTextHtml, idHtml }) {
+      const item = currentSelection.item;
+      if (currentSelection.type === "avis") {
+        return {
+          variant: "inline",
+          wrapClass: "details-title--compact-avis",
+          bodyClass: "details-title-compact--avis",
+          leftHtml: renderVerboseAvisVerdictPill(getEffectiveAvisVerdict(item.id)),
+          topHtml: titleTextHtml,
+          idHtml
+        };
+      }
+      if (currentSelection.type === "sujet") {
+        const stats = problemVerdictStats(item);
+        return {
+          variant: "grid",
+          wrapClass: "details-title--compact-grid",
+          leftHtml: statePill(getEffectiveSujetStatus(item.id), { reviewState: getEntityReviewMeta("sujet", item.id).review_state, entityType: "sujet" }),
+          topHtml: titleTextHtml,
+          bottomHtml: buildVerdictBarHtml(stats.counts, { legend: false })
+        };
+      }
+      const stats = situationVerdictStats(item);
+      return {
+        variant: "grid",
+        wrapClass: "details-title--compact-grid",
+        leftHtml: statePill(getEffectiveSituationStatus(item.id), { reviewState: getEntityReviewMeta("situation", item.id).review_state, entityType: "situation" }),
+        topHtml: titleTextHtml,
+        bottomHtml: `${problemsCountsHtml(item)}${buildVerdictBarHtml(stats.counts, { legend: false })}`
+      };
+    }
+  });
 }
 
 function renderDetailsTitleHtml(selection, options = {}) {
   const showExpand = options.showExpand !== false;
-  if (!selection) {
-    return `
-      <div class="details-head">
-        <div class="details-head-left">
-          <div class="details-kicker mono"></div>
-          <div class="gh-panel__title">Sélectionner un élément</div>
-        </div>
-        <div class="details-head-right">
-          <div class="details-meta mono" id="detailsMeta">—</div>
-          ${showExpand ? `<button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Agrandir" title="Agrandir">⤢</button>` : ``}
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="details-head details-head--expanded">
-      <div class="details-head-left">
-        <div class="details-kicker mono"></div>
-        <div class="gh-panel__title">
-          ${renderDetailsTitleWrapHtml(selection)}
-        </div>
-      </div>
-
-      <div class="details-head-right">
-        <div class="details-meta mono" id="detailsMeta">${escapeHtml(selection.item.id || "—")}</div>
-        ${showExpand ? `<button id="detailsExpand" class="icon-btn icon-btn--sm" aria-label="Agrandir" title="Agrandir">⤢</button>` : ``}
-      </div>
-    </div>
-  `;
+  return renderSharedDetailsTitleHtml(selection, {
+    showExpand,
+    titleWrapHtml: renderDetailsTitleWrapHtml(selection),
+    emptyPanelTitle: "Sélectionner un élément",
+    buildKickerText(currentSelection) {
+      return currentSelection && currentSelection.type === "situation" ? "DÉTAILS" : "";
+    },
+    buildMetaHtml(currentSelection) {
+      return escapeHtml(currentSelection?.item?.id || "—");
+    }
+  });
 }
+
 
 function renderDetailsBody(selection, options = {}) {
   if (!selection) {
@@ -3714,7 +3661,7 @@ function ensureDrilldownDom() {
     variant: "drilldown",
     ariaLabel: "Détails",
     headHtml: renderOverlayChromeHead({
-      eyebrow: "",
+      eyebrow: "DÉTAILS",
       titleId: "drilldownTitle",
       closeId: "drilldownClose",
       closeLabel: "Fermer",
