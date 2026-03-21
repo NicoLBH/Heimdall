@@ -1357,6 +1357,10 @@ body.is-resizing{
   line-height:40px;
 }
 
+.gh-timeline-title--hidden{display:none;}
+.subissues-problems-icon__svg{display:block;}
+.verdict-bar__seg{width:var(--verdict-seg-width, 100%);}
+
 .gh-thread{
   margin-left:52px;
   width:calc(100% - 52px);
@@ -5920,6 +5924,64 @@ color:#ffff;
 }
 
 
+
+.table-head-filter-group{
+  display:inline-flex;
+  align-items:center;
+  gap:16px;
+}
+
+.table-head-filter{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 8px;
+  border:0;
+  border-radius:6px;
+  background:none;
+  color:inherit;
+  font:inherit;
+  cursor:pointer;
+  transition:background-color .12s ease,color .12s ease;
+}
+
+.table-head-filter:hover,
+.table-head-filter:focus-visible{
+  background:rgba(110,118,129,.18);
+  outline:none;
+}
+
+.table-head-filter.is-active{
+  color:#fff;
+  font-weight:600;
+}
+
+.table-head-filter__label{
+  display:inline-flex;
+  align-items:center;
+}
+
+.project-page-shell{
+  max-width:1216px;
+  margin:0 auto;
+  box-sizing:border-box;
+}
+
+.project-page-shell--toolbar{
+  padding:12px 32px 0;
+}
+
+.project-page-shell--content{
+  padding:24px 32px 40px;
+}
+
+.issue-status-icon__svg--situation.issue-status-icon__svg--open{
+  color:#fff;
+}
+
+.issue-status-icon__svg--situation.issue-status-icon__svg--closed{
+  color:var(--muted);
+}
 .project-situations__table-toolbar{
   padding: 12px 12px 0;
   margin-bottom: 16px;
