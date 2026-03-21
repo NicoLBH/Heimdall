@@ -1917,11 +1917,17 @@ function renderFlatSujetRow(sujet, situationId) {
     <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
-        ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
-        ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="issue-row-title-stack">
-          <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
-          <span class="issue-row-meta-text mono-small">${escapeHtml(displayRef)} - ${escapeHtml(author)} • ${escapeHtml(openedLabel)}</span>
+        <span class="issue-row-title-grid">
+          <span class="issue-row-title-grid__status">
+            ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
+          </span>
+          <span class="issue-row-title-grid__review">
+            ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : `<span class="review-title-chip review-title-chip--placeholder" aria-hidden="true"></span>`}
+          </span>
+          <span class="issue-row-title-grid__title">
+            <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--pb ${titleSeenClass}" data-row-entity-type="sujet" data-row-entity-id="${escapeHtml(sujet.id)}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</button>
+          </span>
+          <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${escapeHtml(displayRef)} - ${escapeHtml(author)} • ${escapeHtml(openedLabel)}</span>
         </span>
       </div>
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
@@ -3908,27 +3914,22 @@ function bindSituationsEvents(root, headerRoot) {
       return;
     }
 
-    const sujetRow = event.target.closest(".js-row-sujet");
-    if (sujetRow) {
+    const titleTrigger = event.target.closest(".js-row-title-trigger");
+    if (titleTrigger) {
       event.preventDefault();
-      const sujetId = String(sujetRow.dataset.sujetId || "");
-      selectSujet(sujetId);
-      return;
-    }
-
-    const situationRow = event.target.closest(".js-row-situation");
-    if (situationRow) {
-      event.preventDefault();
-      const situationId = String(situationRow.dataset.situationId || "");
-      selectSituation(situationId);
-      return;
-    }
-
-    const avisRow = event.target.closest(".js-row-avis");
-    if (avisRow) {
-      event.preventDefault();
-      const avisId = String(avisRow.dataset.avisId || "");
-      selectAvis(avisId);
+      const entityType = String(titleTrigger.dataset.rowEntityType || "");
+      const entityId = String(titleTrigger.dataset.rowEntityId || "");
+      if (entityType === "sujet") {
+        selectSujet(entityId);
+        return;
+      }
+      if (entityType === "situation") {
+        selectSituation(entityId);
+        return;
+      }
+      if (entityType === "avis") {
+        selectAvis(entityId);
+      }
     }
   });
 }
