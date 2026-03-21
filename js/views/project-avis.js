@@ -1819,7 +1819,7 @@ function renderSituationRow(situation) {
   const titleSeenClass = getReviewTitleStateClass("situation", situation.id);
 
   return `
-    <div class="issue-row issue-row--sit click js-row-situation${rowSelectedClass("situation", situation.id)}" data-situation-id="${escapeHtml(situation.id)}">
+    <div class="issue-row issue-row--sit js-row-situation${rowSelectedClass("situation", situation.id)}" data-situation-id="${escapeHtml(situation.id)}">
       <div class="cell cell-theme lvl0">
         <span class="js-toggle-situation" data-situation-id="${escapeHtml(situation.id)}">${chevron(expanded, hasSujets)}</span>
         ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "situation", isSeen: meta.is_seen })}
@@ -1843,7 +1843,7 @@ function renderSujetRow(sujet) {
   const titleSeenClass = getReviewTitleStateClass("sujet", sujet.id);
 
   return `
-    <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
+    <div class="issue-row issue-row--pb js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl1">
         <span class="js-toggle-sujet" data-sujet-id="${escapeHtml(sujet.id)}">${chevron(expanded, hasAvis)}</span>
         ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
@@ -1863,7 +1863,7 @@ function renderAvisRow(avis) {
   const titleSeenClass = getReviewTitleStateClass("avis", avis.id);
 
   return `
-    <div class="issue-row issue-row--avis click js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
+    <div class="issue-row issue-row--avis js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
       <div class="cell cell-theme lvl2">
         <span class="chev chev--spacer"></span>
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
@@ -1884,12 +1884,12 @@ function renderFlatSujetRow(sujet, situationId) {
   const titleSeenClass = getReviewTitleStateClass("sujet", sujet.id);
 
   return `
-    <div class="issue-row issue-row--pb click js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
+    <div class="issue-row issue-row--pb js-row-sujet${rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
         ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
+        <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--pb ${titleSeenClass}" data-row-entity-type="sujet" data-row-entity-id="${escapeHtml(sujet.id)}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</button>
         ${parentLabel}
       </div>
       <div class="cell cell-verdict"></div>
@@ -1906,11 +1906,11 @@ function renderFlatAvisRow(avis) {
   const titleSeenClass = getReviewTitleStateClass("avis", avis.id);
 
   return `
-    <div class="issue-row issue-row--avis click js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
+    <div class="issue-row issue-row--avis js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
       <div class="cell cell-theme lvl0">
         <span class="chev chev--spacer"></span>
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="theme-text theme-text--avis ${titleSeenClass}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
+        <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--avis ${titleSeenClass}" data-row-entity-type="avis" data-row-entity-id="${escapeHtml(avis.id)}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</button>
       </div>
       <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
