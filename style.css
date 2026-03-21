@@ -460,6 +460,17 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 #detailsBodyModal .details-grid{max-width:1280px;margin: 0 auto;}
 #detailsBodyModal.details-body-modal--situation-kanban{overflow-y:hidden;overflow-x:overlay;padding:0px;}
 #detailsBodyModal.details-body-modal--situation-kanban .situation-kanban-modal{width:100%;margin:0;height:100%;display:flex;}
+#detailsBodyModal.details-body-modal--situation-kanban .details-grid--situation-modal-detail{max-width:none;margin:0;}
+.situation-modal-commandbar{display:flex;align-items:center;gap:8px;padding:12px 16px 8px;}
+.situation-modal-commandbar__title-wrap{min-width:0;display:flex;align-items:center;gap:8px;}
+.situation-modal-commandbar__title{font-size:14px;font-weight:600;color:var(--fgColor-default, #e6edf3);}
+.situation-modal-commandbar__edit,
+.situation-modal-commandbar__back{appearance:none;border:0;background:transparent;color:var(--fgColor-muted, #8b949e);padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+.situation-modal-commandbar__edit:hover,
+.situation-modal-commandbar__edit:focus-visible,
+.situation-modal-commandbar__back:hover,
+.situation-modal-commandbar__back:focus-visible{background:rgba(110,118,129,0.12);color:var(--fgColor-default, #e6edf3);outline:none;}
+.situation-kanban-modal-detail{width:100%;padding:0 16px 16px;}
 
 /* Middle list lines */
 .emptyState{padding:20px 20px;color:var(--muted);font-size:13px;}
@@ -789,6 +800,33 @@ body.modal-open {
 .theme-text--pb{font-weight:500;font-size:13px;}
 .theme-text--avis{font-size:12px;color:var(--text);font-weight:400;}
 
+.row-title-trigger,
+.documents-repo__name-trigger{
+  appearance:none;
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
+  color:inherit;
+  font:inherit;
+  text-align:left;
+  max-width:100%;
+  cursor:pointer;
+}
+.row-title-trigger:hover,
+.row-title-trigger:focus-visible,
+.documents-repo__name-trigger:hover,
+.documents-repo__name-trigger:focus-visible{
+  color:rgb(68, 147, 248);
+  text-decoration:underline;
+  outline:none;
+}
+.review-title-chip--placeholder{
+  display:inline-flex;
+  width:16px;
+  height:16px;
+}
+
 .cell-id{
   font-size:12px;
   color:var(--muted);
@@ -806,6 +844,39 @@ body.modal-open {
 }
 .issue-row-title-stack .theme-text{
   width:100%;
+}
+.issue-row-title-grid{
+  min-width:0;
+  display:grid;
+  grid-template-columns:auto auto minmax(0, 1fr);
+  grid-template-rows:auto auto;
+  column-gap:6px;
+  row-gap:2px;
+  align-items:center;
+}
+.issue-row-title-grid__status{
+  grid-column:1;
+  grid-row:1;
+  display:inline-flex;
+  align-items:center;
+}
+.issue-row-title-grid__review{
+  grid-column:2;
+  grid-row:1;
+  display:inline-flex;
+  align-items:center;
+  min-width:16px;
+  min-height:16px;
+}
+.issue-row-title-grid__title{
+  grid-column:3;
+  grid-row:1;
+  min-width:0;
+}
+.issue-row-title-grid__meta{
+  grid-column:3;
+  grid-row:2;
+  min-width:0;
 }
 .issue-row-meta-text{
   width:100%;
