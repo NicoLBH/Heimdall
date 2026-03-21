@@ -3,11 +3,11 @@ import { svgIcon } from "./ui/icons.js";
 export const PROJECT_TAB_IDS = {
   DOCUMENTS: "documents",
   AVIS: "avis",
+  SUBJECTS: "sujets",
   SITUATIONS: "situations",
   PROPOSITIONS: "propositions",
   DISCUSSIONS: "discussions",
   ACTIONS: "actions",
-  PILOTAGE: "pilotage",
   REFERENTIEL: "referentiel",
   RISQUES_SECURITE: "risquesSecurite",
   INSIGHTS: "insights",
@@ -25,7 +25,7 @@ export const PROJECT_TAB_ROUTE_ALIASES = {
 export const PROJECT_TABS_TOGGLEABLE = [
   PROJECT_TAB_IDS.PROPOSITIONS,
   PROJECT_TAB_IDS.DISCUSSIONS,
-  PROJECT_TAB_IDS.PILOTAGE,
+  PROJECT_TAB_IDS.SITUATIONS,
   PROJECT_TAB_IDS.REFERENTIEL,
   PROJECT_TAB_IDS.RISQUES_SECURITE,
 ];
@@ -33,7 +33,7 @@ export const PROJECT_TABS_TOGGLEABLE = [
 export const DEFAULT_PROJECT_TABS_VISIBILITY = {
   [PROJECT_TAB_IDS.PROPOSITIONS]: true,
   [PROJECT_TAB_IDS.DISCUSSIONS]: false,
-  [PROJECT_TAB_IDS.PILOTAGE]: false,
+  [PROJECT_TAB_IDS.SITUATIONS]: false,
   [PROJECT_TAB_IDS.REFERENTIEL]: false,
   [PROJECT_TAB_IDS.RISQUES_SECURITE]: false,
 };
@@ -68,10 +68,9 @@ export const PROJECT_TABS = [
     icon: svgIcon("avis", { className: "octicon octicon-file" })
   },
   {
-    id: PROJECT_TAB_IDS.SITUATIONS,
+    id: PROJECT_TAB_IDS.SUBJECTS,
     label: "Sujets",
-    icon: svgIcon("issue-opened", { className: "octicon octicon-issue-opened" }),
-    countKey: "openSujets"
+    icon: svgIcon("issue-opened", { className: "octicon octicon-file" })
   },
   {
     id: PROJECT_TAB_IDS.PROPOSITIONS,
@@ -89,8 +88,8 @@ export const PROJECT_TABS = [
     icon: svgIcon("play", { className: "octicon octicon-play" })
   },
   {
-    id: PROJECT_TAB_IDS.PILOTAGE,
-    label: "Pilotage",
+    id: PROJECT_TAB_IDS.SITUATIONS,
+    label: "Situations",
     icon: svgIcon("table", { className: "octicon octicon-table" })
   },
   {
