@@ -458,8 +458,8 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 /* Keep modal content centered while the scrollbar stays at the window edge */
 #detailsBodyModal{width:100%;padding:16px 24px 50px 24px;margin:0px;}
 #detailsBodyModal .details-grid{max-width:1280px;margin: 0 auto;}
-#detailsBodyModal.details-body-modal--situation-kanban{padding:16px 24px 0 24px;}
-#detailsBodyModal.details-body-modal--situation-kanban .situation-kanban-modal{width:100%;margin:0;}
+#detailsBodyModal.details-body-modal--situation-kanban{overflow-y:hidden;overflow-x:overlay;padding:0px;}
+#detailsBodyModal.details-body-modal--situation-kanban .situation-kanban-modal{width:100%;margin:0;height:100%;display:flex;}
 
 /* Middle list lines */
 .emptyState{padding:20px 20px;color:var(--muted);font-size:13px;}
@@ -6737,20 +6737,18 @@ color:#ffff;
     }
 
     .situation-kanban{
-      display:grid;
-      grid-template-columns:repeat(5, minmax(220px, 1fr));
-      gap:8px;
-      align-items:start;
-      min-width:max-content;
-      padding-bottom:4px;
+      display:flex;
+      flex:auto;
       height:100%;
+      padding: 8px 16px;
+      display:flex;
+      flex:auto;
     }
 
     .situation-kanban__col{
-      min-width:350px;
-      width:350px;
+      min-width:320px;
+      width:330px;
       background:var(--bgAssistPanel);
-      border:1px solid var(--borderColor-default, #30363d);
       border-radius:var(--radius);
       padding:4px 8px;
       display:flex;
@@ -6758,6 +6756,8 @@ color:#ffff;
       gap:12px;
       min-height:380px;
       height:100%;
+      overflow:hidden;
+      margin-right:8px;
     }
 
     .situation-kanban__col.is-drop-target{
@@ -6822,8 +6822,11 @@ color:#ffff;
     .situation-kanban__cards{
       display:flex;
       flex-direction:column;
-      gap:10px;
+      gap:8px;
       min-height:220px;
+      height:100%;
+      overflow:overlay;
+      padding-bottom:8px;
     }
 
     .situation-kanban__empty{
@@ -6841,7 +6844,7 @@ color:#ffff;
       text-align:left;
       border:1px solid var(--borderColor-default, #30363d);
       background:var(--bgColor-default, #0d1117);
-      border-radius:10px;
+      border-radius:var(--radius);
       padding:12px;
       color:inherit;
       cursor:pointer;
@@ -6855,6 +6858,7 @@ color:#ffff;
     .situation-kanban-card:focus-visible{
       border-color:var(--fgColor-accent, #2f81f7);
       outline:none;
+      cursor:grab;
     }
 
     .situation-kanban-card.is-dragging{
