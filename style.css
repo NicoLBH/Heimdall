@@ -458,6 +458,8 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 /* Keep modal content centered while the scrollbar stays at the window edge */
 #detailsBodyModal{width:100%;padding:16px 24px 50px 24px;margin:0px;}
 #detailsBodyModal .details-grid{max-width:1280px;margin: 0 auto;}
+#detailsBodyModal.details-body-modal--situation-kanban{padding:16px 24px 0 24px;}
+#detailsBodyModal.details-body-modal--situation-kanban .situation-kanban-modal{width:100%;margin:0;}
 
 /* Middle list lines */
 .emptyState{padding:20px 20px;color:var(--muted);font-size:13px;}
@@ -6772,11 +6774,37 @@ color:#ffff;
     }
 
     .situation-kanban__dot{
-      width:10px;
-      height:10px;
-      border-radius:999px;
-      border:2px solid currentColor;
-      flex:0 0 auto;
+      border-width:2px;
+      width:16px;
+      height:16px;
+      border-radius:8px;
+      border-style:solid;
+      flex-shrink:0;
+    }
+
+    .situation-kanban__dot--non-active{
+      background-color:rgba(46, 160, 67, 0.15);
+      border-color:rgb(35, 134, 54);
+    }
+
+    .situation-kanban__dot--to-activate{
+      background-color:rgba(56, 139, 253, 0.1);
+      border-color:rgb(31, 111, 235);
+    }
+
+    .situation-kanban__dot--in-progress{
+      background-color:rgba(187, 128, 9, 0.15);
+      border-color:rgb(158, 106, 3);
+    }
+
+    .situation-kanban__dot--in-arbitration{
+      background-color:rgba(171, 125, 248, 0.15);
+      border-color:rgb(137, 87, 229);
+    }
+
+    .situation-kanban__dot--resolved{
+      background-color:rgba(219, 109, 40, 0.1);
+      border-color:rgb(189, 86, 29);
     }
 
     .situation-kanban__count{
