@@ -1824,7 +1824,7 @@ function renderSituationRow(situation) {
         <span class="js-toggle-situation" data-situation-id="${escapeHtml(situation.id)}">${chevron(expanded, hasSujets)}</span>
         ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "situation", isSeen: meta.is_seen })}
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="theme-text theme-text--sit ${titleSeenClass}">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</span>
+        <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--sit ${titleSeenClass}" data-row-entity-type="situation" data-row-entity-id="${escapeHtml(situation.id)}">${escapeHtml(firstNonEmpty(situation.title, situation.id, "(sans titre)"))}</button>
       </div>
       <div class="cell cell-verdict"></div>
       <div class="cell cell-prio">${priorityBadge(situation.priority)}</div>
@@ -1848,7 +1848,7 @@ function renderSujetRow(sujet) {
         <span class="js-toggle-sujet" data-sujet-id="${escapeHtml(sujet.id)}">${chevron(expanded, hasAvis)}</span>
         ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="theme-text theme-text--pb ${titleSeenClass}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
+        <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--pb ${titleSeenClass}" data-row-entity-type="sujet" data-row-entity-id="${escapeHtml(sujet.id)}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</button>
       </div>
       <div class="cell cell-verdict"></div>
       <div class="cell cell-agent"></div>
@@ -1867,7 +1867,7 @@ function renderAvisRow(avis) {
       <div class="cell cell-theme lvl2">
         <span class="chev chev--spacer"></span>
         ${reviewIcon ? `<span class="review-title-chip">${reviewIcon}</span>` : ""}
-        <span class="theme-text theme-text--avis ${titleSeenClass}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
+        <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--avis ${titleSeenClass}" data-row-entity-type="avis" data-row-entity-id="${escapeHtml(avis.id)}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</button>
       </div>
       <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
       <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
@@ -3732,11 +3732,22 @@ function bindSituationsEvents(root, headerRoot) {
       return;
     }
 
-    const avisRow = event.target.closest(".js-row-avis");
-    if (avisRow) {
+    const titleTrigger = event.target.closest(".js-row-title-trigger");
+    if (titleTrigger) {
       event.preventDefault();
-      const avisId = String(avisRow.dataset.avisId || "");
-      selectAvis(avisId);
+      const entityType = String(titleTrigger.dataset.rowEntityType || "");
+      const entityId = String(titleTrigger.dataset.rowEntityId || "");
+      if (entityType === "situation") {
+        selectSituation(entityId);
+        return;
+      }
+      if (entityType === "sujet") {
+        selectSujet(entityId);
+        return;
+      }
+      if (entityType === "avis") {
+        selectAvis(entityId);
+      }
     }
   });
 }
