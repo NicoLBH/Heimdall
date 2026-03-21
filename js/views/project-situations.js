@@ -3079,7 +3079,7 @@ function updateDetailsModal() {
   body.classList.toggle("details-body-modal--situation-kanban", isSituationKanbanModal);
 
   title.innerHTML = renderDetailsTitleWrapHtml(selection);
-  if (eyebrow) eyebrow.textContent = selection?.type === "situation" ? "DÉTAILS" : "";
+  if (eyebrow) eyebrow.textContent = "";
   meta.textContent = details.modalMeta;
   body.innerHTML = details.bodyHtml;
 
@@ -4056,16 +4056,16 @@ function bindDetailsScroll(root) {
     "details"
   );
 
-  const modalBody = document.getElementById("detailsBodyModal");
   const modalInner = document.querySelector("#detailsModal .modal__inner");
+  const modalDetail = document.querySelector("#detailsModal .situation-kanban-modal-detail");
   bindCondensedTitleScroll(
-    modalBody,
+    modalDetail || document.getElementById("detailsBodyModal"),
     modalInner,
     "modal"
   );
 
-  document.querySelectorAll("#detailsModal .js-kanban-column").forEach((column, index) => {
-    bindCondensedTitleScroll(column, modalInner, `modal-kanban-${index}`);
+  document.querySelectorAll("#detailsModal .situation-kanban__col.js-kanban-column").forEach((column, index) => {
+    bindCondensedTitleScroll(column, modalInner, `modalKanban${index}`);
   });
 
   bindCondensedTitleScroll(
