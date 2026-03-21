@@ -1973,7 +1973,6 @@ function renderTableHtml(filteredSituations) {
   }
 
   const rows = [];
-  const forceExpandSituations = displayDepth === "sujets" || displayDepth === "avis";
 
   for (const situation of filteredSituations) {
     const visibleSujets =
@@ -1986,14 +1985,6 @@ function renderTableHtml(filteredSituations) {
     if (activeVerdictFilter !== "ALL" && !visibleSujets.length) continue;
 
     rows.push(renderSituationRow(situation));
-
-    const showSujets =
-      forceExpandSituations || store.situationsView.expandedSituations.has(situation.id);
-    if (!showSujets) continue;
-
-    for (const sujet of visibleSujets) {
-      rows.push(renderSujetRow(sujet));
-    }
   }
 
   return renderDataTableShell({
@@ -3948,11 +3939,9 @@ function renderSituationsViewHeaderHtml() {
     renderProjectTableToolbarGroup({
       html: renderProjectTableToolbarSelect({
         id: "displayDepth",
-        value: String(store.situationsView.displayDepth || "situations").toLowerCase(),
+        value: "situations",
         options: [
-          { value: "situations", label: "Situations" },
-          { value: "sujets", label: "Sujets" },
-          { value: "avis", label: "Avis" }
+          { value: "situations", label: "Situations" }
         ]
       })
     }),
@@ -3994,6 +3983,7 @@ export function renderProjectSituations(root) {
   ensureViewUiState();
   ensureDrilldownDom();
   store.situationsView.showTableOnly = true;
+  store.situationsView.displayDepth = "situations";
 
   root.className = "project-shell__content";
 
