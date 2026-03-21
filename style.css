@@ -895,13 +895,13 @@ body.modal-open {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding:1px 10px;
+  padding:2px 8px;
   border-radius:999px;
   font-size:12px;
   font-weight:600;
   border:1px solid transparent;
   white-space:nowrap;
-  line-height:20px;
+  line-height:21px;
   margin-right:8px;
   min-width:40px;
   letter-spacing:.01em;
@@ -1354,12 +1354,12 @@ body.is-resizing{
 }
 .details-title--compact .details-title-compact-col1{display:flex;align-items:center;}
 .details-title--compact .details-title-compact-col2{min-width:0;}
-.details-title--compact .details-title-compact--inline{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:nowrap;}
+.details-title--compact .details-title-compact--inline{display:flex;align-items:center;gap:8px 2px;min-width:0;flex-wrap:nowrap;}
 .details-title--compact .details-title-compact--inline .verdict-badge,
 .details-title--compact .details-title-compact--inline .details-title-status,
 .details-title--compact .details-title-compact--inline .details-title-id{flex:0 0 auto;}
 .details-title--compact .details-title-compact--inline .details-title-text{min-width:0;}
-.details-title--compact .details-title-compact-top{display:flex;align-items:baseline;gap:0px 8px;min-width:0;flex-wrap:wrap;}
+.details-title--compact .details-title-compact-top{display:flex;align-items:baseline;gap:0px 4px;min-width:0;flex-wrap:wrap;}
 .details-title--compact .details-title-compact-bottom{display:flex;align-items:center;gap:8px;min-width:0;height:16px;}
 .details-title--compact .details-title-compact-bottom .subissues-counts--problems{flex:0 0 auto;margin:0px;border:none;padding:0px 6px 0px 0px;font-weight:400;}
 .details-title--compact .details-title-compact-bottom .verdict-bar{flex:0 1 auto;}
@@ -1382,7 +1382,7 @@ body.is-resizing{
 
 /* Expanded title layout: 2 lines */
 .details-title--expanded .details-title-maincol{display:flex;flex-direction:column;gap:6px;min-width:0;}
-.details-title--expanded .details-title-topline{display:flex;align-items:center;gap:8px;min-width:0;}
+.details-title--expanded .details-title-topline{display:flex;align-items:center;gap:4px;min-width:0;}
 .details-title--expanded .details-title-bottomline{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap;}
 .details-title--expanded .details-title-id{font-size:28px;font-weight:100;font-family:inherit;white-space:nowrap;text-overflow:ellipsis;}
 
@@ -5970,7 +5970,6 @@ color:#ffff;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  margin-right:8px;
   vertical-align:middle;
 }
 
