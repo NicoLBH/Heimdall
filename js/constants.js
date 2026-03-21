@@ -4,10 +4,10 @@ export const PROJECT_TAB_IDS = {
   DOCUMENTS: "documents",
   AVIS: "avis",
   SUBJECTS: "sujets",
-  SITUATIONS: "situations",
   PROPOSITIONS: "propositions",
   DISCUSSIONS: "discussions",
   ACTIONS: "actions",
+  SITUATIONS: "situations",
   REFERENTIEL: "referentiel",
   RISQUES_SECURITE: "risquesSecurite",
   INSIGHTS: "insights",
@@ -33,7 +33,7 @@ export const PROJECT_TABS_TOGGLEABLE = [
 export const DEFAULT_PROJECT_TABS_VISIBILITY = {
   [PROJECT_TAB_IDS.PROPOSITIONS]: true,
   [PROJECT_TAB_IDS.DISCUSSIONS]: false,
-  [PROJECT_TAB_IDS.SITUATIONS]: false,
+  [PROJECT_TAB_IDS.SITUATIONS]: true,
   [PROJECT_TAB_IDS.REFERENTIEL]: false,
   [PROJECT_TAB_IDS.RISQUES_SECURITE]: false,
 };
