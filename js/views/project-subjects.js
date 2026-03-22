@@ -600,19 +600,23 @@ function getDefaultSujetKanbanStatus(sujetId) {
   return effectiveStatus === "closed" ? "resolved" : "non_active";
 }
 
-function getSujetKanbanStatus(sujetId) {
+function getSujetKanbanStatus(sujetId, situationId = "") {
   const { bucket } = getRunBucket();
-  const stored = normalizeSujetKanbanStatus(bucket?.workflow?.sujet_kanban_status?.[sujetId]);
-  return stored || getDefaultSujetKanbanStatus(sujetId);
+  const normalizedSituationId = String(situationId || "");
+  const statusMap = bucket?.workflow?.sujet_kanban_status;
+  const scopedStored = normalizeSujetKanbanStatus(normalizedSituationId ? statusMap?.[normalizedSituationId]?.[sujetId] : null);
+  if (scopedStored) return scopedStored;
+  const legacyStored = normalizeSujetKanbanStatus(statusMap?.[sujetId]);
+  return legacyStored || getDefaultSujetKanbanStatus(sujetId);
 }
 
-function getSujetKanbanStatusMeta(sujetId) {
-  const key = getSujetKanbanStatus(sujetId);
+function getSujetKanbanStatusMeta(sujetId, situationId = "") {
+  const key = getSujetKanbanStatus(sujetId, situationId);
   return SUJET_KANBAN_STATUSES.find((status) => status.key === key) || SUJET_KANBAN_STATUSES[0];
 }
 
-function renderSujetKanbanStatusBadge(sujetId) {
-  const meta = getSujetKanbanStatusMeta(sujetId);
+function renderSujetKanbanStatusBadge(sujetId, situationId = "") {
+  const meta = getSujetKanbanStatusMeta(sujetId, situationId);
   const tone = SUJET_KANBAN_BADGE_STYLE[meta.key] || SUJET_KANBAN_BADGE_STYLE.non_active;
   return `<span class="subject-kanban-badge" style="--subject-kanban-badge-bg:${tone.background};--subject-kanban-badge-border:${tone.border};--subject-kanban-badge-text:${tone.text};">${escapeHtml(meta.label)}</span>`;
 }
@@ -2919,13 +2923,16 @@ function getSubjectSituationStatusLabel(situation, subjectId) {
 }
 
 function renderSubjectSituationCard(situation, subjectId) {
+  const situationStatus = String(getEffectiveSituationStatus(situation?.id) || situation?.status || "open").toLowerCase();
+  const isClosedSituation = situationStatus !== "open";
   return `
     <span class="subject-meta-situation-card">
       <span class="subject-meta-situation-card__head">
-        <span class="subject-meta-situation-card__icon">${svgIcon("table", { className: "ui-icon octicon octicon-table" })}</span>
+        <span class="subject-meta-situation-card__icon">${svgIcon(isClosedSituation ? "table-check" : "table", { className: "ui-icon octicon octicon-table" })}</span>
         <span class="subject-meta-situation-card__title">${escapeHtml(firstNonEmpty(situation.title, situation.id, "Situation"))}</span>
+        ${isClosedSituation ? `<span class="subject-meta-situation-card__state">Fermée</span>` : ""}
       </span>
-      <span class="subject-meta-situation-card__meta">Status · ${escapeHtml(getSubjectSituationStatusLabel(situation, subjectId))} ${renderSujetKanbanStatusBadge(subjectId)}</span>
+      <span class="subject-meta-situation-card__meta">Status · ${escapeHtml(getSubjectSituationStatusLabel(situation, subjectId))} ${renderSujetKanbanStatusBadge(subjectId, situation.id)}</span>
     </span>
   `;
 }
