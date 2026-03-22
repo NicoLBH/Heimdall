@@ -18,6 +18,11 @@ import {
   renderDataTableEmptyState
 } from "./ui/data-table-shell.js";
 import {
+  renderIssuesTable,
+  renderSubIssuesTable,
+  renderSubIssuesPanel
+} from "./ui/issues-table.js";
+import {
   renderProjectTableToolbar,
   renderProjectTableToolbarGroup,
   renderProjectTableToolbarSearch,
@@ -2051,15 +2056,11 @@ function renderSituationsTableHeadHtml(options = {}) {
 }
 
 function renderWelcomeHtml() {
-  return renderDataTableShell({
-    className: "issues-table",
+  return renderIssuesTable({
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml(),
-    state: "empty",
-    emptyHtml: renderDataTableEmptyState({
-      title: "Aucune analyse disponible",
-      description: "Lancer une analyse pour générer des avis-sujets-situations."
-    })
+    emptyTitle: "Aucune analyse disponible",
+    emptyDescription: "Lancer une analyse pour générer des avis-sujets-situations."
   });
 }
 
@@ -2069,15 +2070,11 @@ function renderTableHtml(filteredSituations) {
   if (!(store.situationsView.data || []).length) return renderWelcomeHtml();
 
   if (!filteredSituations.length) {
-    return renderDataTableShell({
-      className: "issues-table",
+    return renderIssuesTable({
       gridTemplate: getSituationsTableGridTemplate(),
       headHtml: renderSituationsTableHeadHtml(),
-      state: "empty",
-      emptyHtml: renderDataTableEmptyState({
-        title: "Aucun résultat",
-        description: "Aucun résultat pour les filtres actuels."
-      })
+      emptyTitle: "Aucun résultat",
+      emptyDescription: "Aucun résultat pour les filtres actuels."
     });
   }
 
@@ -2093,11 +2090,12 @@ function renderTableHtml(filteredSituations) {
     }
   }
 
-  return renderDataTableShell({
-    className: "issues-table",
+  return renderIssuesTable({
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml(),
-    bodyHtml: rows.join("")
+    rowsHtml: rows.join(""),
+    emptyTitle: "Aucun résultat",
+    emptyDescription: "Aucun résultat pour les filtres actuels."
   });
 }
 
@@ -2471,27 +2469,6 @@ function renderThreadBlock() {
   `;
 }
 
-function renderSubIssuesPanel({ title, leftMetaHtml = "", rightMetaHtml = "", bodyHtml = "" }) {
-  ensureViewUiState();
-  const isOpen = !!store.situationsView.rightSubissuesOpen;
-  return `
-    <div class="details-subissues">
-      <div class="subissues-head click" data-action="toggle-subissues">
-        <div class="subissues-head-left">
-          <span class="chev">${isOpen ? "▾" : "▸"}</span>
-          <span class="subissues-title">${escapeHtml(title)}</span>
-          ${leftMetaHtml || ""}
-        </div>
-        <div class="subissues-head-right">
-          ${rightMetaHtml || ""}
-        </div>
-      </div>
-      <div class="subissues-body ${isOpen ? "" : "hidden"}">
-        ${bodyHtml || ""}
-      </div>
-    </div>
-  `;
-}
 
 function renderRejectReviewAction(selection) {
   if (!selection?.type || !selection?.item?.id) return "";
@@ -2707,21 +2684,17 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     `;
   }).join("");
 
-  const body = renderDataTableShell({
-    className: "issues-table subissues-table",
-    state: rows ? "ready" : "empty",
-    bodyHtml: rows,
-    emptyHtml: renderDataTableEmptyState({
-      title: "Aucun avis",
-      description: ""
-    })
+  const body = renderSubIssuesTable({
+    rowsHtml: rows,
+    emptyTitle: "Aucun avis"
   });
 
   return renderSubIssuesPanel({
     title: "Avis rattachés",
     leftMetaHtml: `<div class="subissues-counts subissues-counts--total"><span class="mono">${(sujet.avis || []).length}</span></div>`,
     rightMetaHtml: buildVerdictBarHtml(stats.counts, { legend: true }),
-    bodyHtml: body
+    bodyHtml: body,
+    isOpen: !!store.situationsView.rightSubissuesOpen
   });
 }
 
@@ -2767,21 +2740,17 @@ function renderSubIssuesForSituation(situation, options = {}) {
   }
 
   const stats = situationVerdictStats(situation);
-  const body = renderDataTableShell({
-    className: "issues-table subissues-table",
-    state: rows.length ? "ready" : "empty",
-    bodyHtml: rows.join(""),
-    emptyHtml: renderDataTableEmptyState({
-      title: "Aucun sujet",
-      description: ""
-    })
+  const body = renderSubIssuesTable({
+    rowsHtml: rows.join(""),
+    emptyTitle: "Aucun sujet"
   });
 
   return renderSubIssuesPanel({
     title: "Sujets rattachés",
     leftMetaHtml: problemsCountsHtml(situation),
     rightMetaHtml: buildVerdictBarHtml(stats.counts, { legend: true }),
-    bodyHtml: body
+    bodyHtml: body,
+    isOpen: !!store.situationsView.rightSubissuesOpen
   });
 }
 
@@ -4212,7 +4181,7 @@ function renderObjectiveSubjectsTableHtml(objective) {
         description: "Les sujets rattachés à cet objectif apparaîtront ici."
       });
 
-  return renderDataTableShell({
+  return renderIssuesTable({
     className: "issues-table objectives-subjects-table",
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml({
@@ -4229,9 +4198,9 @@ function renderObjectiveSubjectsTableHtml(objective) {
         { className: "cell cell-id mono", label: "#" }
       ]
     }),
-    bodyHtml,
-    state: visibleSubjects.length ? "ready" : "empty",
-    emptyHtml: bodyHtml
+    rowsHtml: visibleSubjects.length ? bodyHtml : "",
+    emptyTitle: activeStatusFilter === "closed" ? "Aucun sujet fermé" : "Aucun sujet ouvert",
+    emptyDescription: "Les sujets rattachés à cet objectif apparaîtront ici."
   });
 }
 
@@ -4296,15 +4265,15 @@ function renderObjectivesTableHtml() {
         description: activeFilter === "closed" ? "Les objectifs fermés apparaîtront ici." : "Les objectifs ouverts apparaîtront ici."
       });
 
-  return renderDataTableShell({
+  return renderIssuesTable({
     className: "objectives-table",
     headHtml,
-    bodyHtml,
+    rowsHtml: visibleObjectives.length ? bodyHtml : "",
     headClassName: "objectives-table__head",
     bodyClassName: "objectives-table__body",
     gridTemplate: "minmax(0, 1fr)",
-    state: visibleObjectives.length ? "ready" : "empty",
-    emptyHtml: bodyHtml
+    emptyTitle: activeFilter === "closed" ? "Aucun objectif fermé" : "Aucun objectif ouvert",
+    emptyDescription: activeFilter === "closed" ? "Les objectifs fermés apparaîtront ici." : "Les objectifs ouverts apparaîtront ici."
   });
 }
 
