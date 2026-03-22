@@ -225,7 +225,7 @@ function buildEntityDisplayRefMap() {
 
   for (const situation of data) {
     register("situation", situation?.id);
-    const sujets = Array.isArray(situation?.sujets) ? situation.sujets : [];
+    const sujets = getSituationSubjects(situation);
     for (const sujet of sujets) {
       register("sujet", sujet?.id);
       const avisList = Array.isArray(sujet?.avis) ? sujet.avis : [];
@@ -1508,6 +1508,45 @@ function getSujetKanbanStatus(sujetId) {
   return stored || getDefaultSujetKanbanStatus(sujetId);
 }
 
+function normalizeSubjectSituationIds(situationIds) {
+  return [...new Set((Array.isArray(situationIds) ? situationIds : []).map((value) => String(value || "")).filter(Boolean))];
+}
+
+function getSituationSubjects(situation) {
+  const situationId = String(situation?.id || "");
+  const { bucket } = getRunBucket();
+  const metaMap = bucket?.subjectMeta?.sujet && typeof bucket.subjectMeta.sujet === "object"
+    ? bucket.subjectMeta.sujet
+    : {};
+
+  const base = (Array.isArray(situation?.sujets) ? situation.sujets : []).filter((sujet) => {
+    const meta = metaMap[String(sujet?.id || "")];
+    if (!Array.isArray(meta?.situationIds)) return true;
+    return normalizeSubjectSituationIds(meta.situationIds).includes(situationId);
+  });
+  const existingIds = new Set(base.map((sujet) => String(sujet?.id || "")).filter(Boolean));
+  if (!situationId) return base;
+
+  const canonicalById = new Map();
+  for (const sourceSituation of store.situationsView.data || []) {
+    for (const sujet of Array.isArray(sourceSituation?.sujets) ? sourceSituation.sujets : []) {
+      const subjectId = String(sujet?.id || "");
+      if (subjectId && !canonicalById.has(subjectId)) canonicalById.set(subjectId, sujet);
+    }
+  }
+
+  for (const [subjectId, meta] of Object.entries(metaMap)) {
+    const linkedIds = normalizeSubjectSituationIds(meta?.situationIds);
+    if (!linkedIds.includes(situationId) || existingIds.has(subjectId)) continue;
+    const canonical = canonicalById.get(subjectId);
+    if (!canonical) continue;
+    base.push(canonical);
+    existingIds.add(subjectId);
+  }
+
+  return base;
+}
+
 function setSujetKanbanStatus(sujetId, nextStatus, options = {}) {
   const normalized = normalizeSujetKanbanStatus(nextStatus);
   if (!sujetId || !normalized) return false;
@@ -1547,7 +1586,7 @@ function setSujetKanbanStatus(sujetId, nextStatus, options = {}) {
 function getSituationKanbanColumns(situation) {
   const columns = SUJET_KANBAN_STATUSES.map((status) => ({ ...status, sujets: [] }));
   const columnMap = new Map(columns.map((column) => [column.key, column]));
-  for (const sujet of situation?.sujets || []) {
+  for (const sujet of getSituationSubjects(situation)) {
     const key = getSujetKanbanStatus(sujet?.id);
     (columnMap.get(key) || columns[0]).sujets.push(sujet);
   }
@@ -1625,7 +1664,7 @@ function situationMatchesFilters(situation, query, verdictFilter) {
 
   if (situationTextMatch && verdictFilter === "ALL") return true;
 
-  for (const sujet of situation.sujets || []) {
+  for (const sujet of getSituationSubjects(situation)) {
     const sujetTextMatch = matchSearch(
       [
         sujet.id,
@@ -1709,8 +1748,9 @@ function getVisibleCounts(filteredSituations) {
   let sujets = 0;
   let avis = 0;
   for (const situation of filteredSituations) {
-    sujets += (situation.sujets || []).length;
-    for (const sujet of situation.sujets || []) avis += (sujet.avis || []).length;
+    const linkedSujets = getSituationSubjects(situation);
+    sujets += linkedSujets.length;
+    for (const sujet of linkedSujets) avis += (sujet.avis || []).length;
   }
   return { situations: filteredSituations.length, sujets, avis };
 }
@@ -1721,7 +1761,7 @@ function getNestedSituation(situationId) {
 
 function getNestedSujet(problemId) {
   for (const situation of store.situationsView.data || []) {
-    const match = (situation.sujets || []).find((sujet) => sujet.id === problemId);
+    const match = getSituationSubjects(situation).find((sujet) => sujet.id === problemId);
     if (match) return match;
   }
   return null;
@@ -1729,7 +1769,7 @@ function getNestedSujet(problemId) {
 
 function getNestedAvis(avisId) {
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       const match = (sujet.avis || []).find((avis) => avis.id === avisId);
       if (match) return match;
     }
@@ -1739,14 +1779,14 @@ function getNestedAvis(avisId) {
 
 function getSituationBySujetId(problemId) {
   for (const situation of store.situationsView.data || []) {
-    if ((situation.sujets || []).some((sujet) => sujet.id === problemId)) return situation;
+    if (getSituationSubjects(situation).some((sujet) => sujet.id === problemId)) return situation;
   }
   return null;
 }
 
 function getSituationByAvisId(avisId) {
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       if ((sujet.avis || []).some((avis) => avis.id === avisId)) return situation;
     }
   }
@@ -1755,7 +1795,7 @@ function getSituationByAvisId(avisId) {
 
 function getSujetByAvisId(avisId) {
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       if ((sujet.avis || []).some((avis) => avis.id === avisId)) return sujet;
     }
   }
@@ -1799,7 +1839,7 @@ function problemVerdictStats(problem) {
 
 function situationVerdictStats(situation) {
   const counts = verdictCountsObject();
-  for (const sujet of situation?.sujets || []) {
+  for (const sujet of getSituationSubjects(situation)) {
     for (const avis of sujet.avis || []) {
       const v = String(getEffectiveAvisVerdict(avis.id) || "").toUpperCase();
       if (counts[v] !== undefined) counts[v] += 1;
@@ -1881,7 +1921,7 @@ function problemsCountsIconHtml(closedCount, totalCount) {
 }
 
 function problemsCountsHtml(situation) {
-  const problems = situation?.sujets || [];
+  const problems = getSituationSubjects(situation);
   const totalPb = problems.length;
   const closedPb = problems.filter((x) => String(getEffectiveSujetStatus(x.id) || "closed").toLowerCase() !== "open").length;
   return `<div class="subissues-counts subissues-counts--problems">${problemsCountsIconHtml(closedPb, totalPb)}<span>${closedPb} sur ${totalPb}</span></div>`;
@@ -2262,7 +2302,7 @@ function getThreadForSelection() {
       entity_id: s.id,
       message: `${firstNonEmpty(s.title, s.id, "(sans titre)")}
 priority=${firstNonEmpty(s.priority, "")}
-sujets=${(s.sujets || []).length}`
+sujets=${getSituationSubjects(s).length}`
     });
   }
   if (p) {
@@ -2688,7 +2728,7 @@ function renderDetailedMetaForSelection(selection) {
     ...common,
     renderMetaItem("Status effectif", statePill(getEffectiveSituationStatus(item.id))),
     renderMetaItem("Status source", statePill(firstNonEmpty(raw.status, item.status, "open"))),
-    renderMetaItem("Sujets", `<span class="mono">${escapeHtml(String((item.sujets || []).length))}</span>`),
+    renderMetaItem("Sujets", `<span class="mono">${escapeHtml(String(getSituationSubjects(item).length))}</span>`),
     renderMetaItem("Verdicts", buildVerdictBarHtml(stats.counts, { legend: true }))
   ];
   return entries.join("");
@@ -2734,7 +2774,7 @@ function renderSubIssuesForSituation(situation, options = {}) {
   const avisRowClass = options.avisRowClass || "js-row-avis";
 
   const rows = [];
-  for (const sujet of situation.sujets || []) {
+  for (const sujet of getSituationSubjects(situation)) {
     const open = expandedSet.has(sujet.id);
     const hasAvis = (sujet.avis || []).length > 0;
     const effStatus = getEffectiveSujetStatus(sujet.id);
@@ -3350,7 +3390,7 @@ function getCascadeTargets(entityType, entityId, mode = "self") {
     const situation = getNestedSituation(entityId);
     if (!situation) return targets;
     if (mode === "descendants") {
-      for (const sujet of situation.sujets || []) {
+      for (const sujet of getSituationSubjects(situation)) {
         for (const avis of sujet.avis || []) pushTarget("avis", avis.id);
         pushTarget("sujet", sujet.id);
       }
