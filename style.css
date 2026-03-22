@@ -608,7 +608,7 @@ body.modal-open {
   width:auto;
   max-width:none;
   margin:0;
-  padding:0px 12px 12px 12px;
+  padding:0 0 12px 0;
   display:grid;
   gap:5px;
   height:100%;
@@ -2118,6 +2118,7 @@ body.route--project.project-shell-compact{
   display:flex;
   flex-direction:column;
   overflow:hidden;
+  padding:0 12px;
 }
 .project-view-header-host{
   flex:0 0 auto;
@@ -6109,7 +6110,7 @@ color:#ffff;
   color:var(--muted);
 }
 .project-situations__table-toolbar{
-  padding: 12px 12px 0;
+  padding: 12px 0 0;
   margin-bottom: 16px;
 }
 
