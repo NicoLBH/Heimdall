@@ -780,9 +780,7 @@ body.modal-open {
   overflow:auto;
 }
 #situationsTableHost{
-  border-bottom: solid 1px var(--border);
-  border-bottom-right-radius: var(--radius);
-  border-bottom-left-radius: var(--radius);
+  Padding-bottom:8px;
 }
 .issue-row{display:grid;grid-template-columns: var(--issues-cols);gap:0;align-items:center;padding:8px 12px 10px 0px;border-bottom:1px solid rgba(48,54,61,.35);}
 .issue-row:last-child{border-bottom:none;}
