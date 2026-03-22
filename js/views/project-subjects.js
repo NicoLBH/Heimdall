@@ -561,15 +561,22 @@ function persistRunBucket(mutator) {
   saveHumanStore(all);
 }
 
+function normalizeSubjectObjectiveIds(objectiveIds) {
+  const normalized = [...new Set((Array.isArray(objectiveIds) ? objectiveIds : []).map((value) => String(value || "")).filter(Boolean))];
+  return normalized.length ? [normalized[0]] : [];
+}
+
 function getSubjectSidebarMeta(subjectId) {
   const { bucket } = getRunBucket();
   const subjectMeta = bucket?.subjectMeta?.sujet?.[subjectId] || {};
   const objectiveIds = Array.isArray(subjectMeta.objectiveIds)
-    ? subjectMeta.objectiveIds.map((value) => String(value || "")).filter(Boolean)
-    : getObjectives()
-        .filter((objective) => Array.isArray(objective.subjectIds) && objective.subjectIds.includes(String(subjectId || "")))
-        .map((objective) => String(objective.id || ""))
-        .filter(Boolean);
+    ? normalizeSubjectObjectiveIds(subjectMeta.objectiveIds)
+    : normalizeSubjectObjectiveIds(
+        getObjectives()
+          .filter((objective) => Array.isArray(objective.subjectIds) && objective.subjectIds.includes(String(subjectId || "")))
+          .map((objective) => String(objective.id || ""))
+          .filter(Boolean)
+      );
   return {
     assignees: Array.isArray(subjectMeta.assignees) ? subjectMeta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
     labels: Array.isArray(subjectMeta.labels) ? subjectMeta.labels.map((value) => String(value || "")).filter(Boolean) : [],
@@ -585,7 +592,7 @@ function getSubjectObjectives(subjectId) {
 
 function setSubjectObjectiveIds(subjectId, objectiveIds) {
   const subjectKey = String(subjectId || "");
-  const nextIds = [...new Set((Array.isArray(objectiveIds) ? objectiveIds : []).map((value) => String(value || "")).filter(Boolean))];
+  const nextIds = normalizeSubjectObjectiveIds(objectiveIds);
   persistRunBucket((bucket) => {
     bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
     bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
@@ -605,13 +612,9 @@ function setSubjectObjectiveIds(subjectId, objectiveIds) {
   });
 }
 
-function toggleSubjectObjective(subjectId, objectiveId) {
-  const currentIds = getSubjectSidebarMeta(subjectId).objectiveIds;
-  const normalizedObjectiveId = String(objectiveId || "");
-  const nextIds = currentIds.includes(normalizedObjectiveId)
-    ? currentIds.filter((value) => value !== normalizedObjectiveId)
-    : [...currentIds, normalizedObjectiveId];
-  setSubjectObjectiveIds(subjectId, nextIds);
+function setSubjectObjective(subjectId, objectiveId) {
+  const normalizedObjectiveId = String(objectiveId || "").trim();
+  setSubjectObjectiveIds(subjectId, normalizedObjectiveId ? [normalizedObjectiveId] : []);
 }
 
 const DEFAULT_REVIEW_META = Object.freeze({
@@ -2760,23 +2763,25 @@ function renderSubjectMetaField({ field, label, valueHtml, menuHtml }) {
         type="button"
         class="subject-meta-field__trigger"
         data-subject-meta-trigger="${escapeHtml(field)}"
+        data-subject-meta-anchor="${escapeHtml(field)}"
         aria-expanded="${isOpen ? "true" : "false"}"
       >
-        <span class="subject-meta-field__main">
-          <span class="subject-meta-field__label-row">
-            <span class="subject-meta-field__label">${escapeHtml(label)}</span>
-            <span class="subject-meta-field__gear" aria-hidden="true">${svgIcon("gear", { className: "octicon octicon-gear" })}</span>
-          </span>
-          <span class="subject-meta-field__value">${valueHtml}</span>
+        <span class="subject-meta-field__label-row">
+          <span class="subject-meta-field__label">${escapeHtml(label)}</span>
+          <span class="subject-meta-field__gear" aria-hidden="true">${svgIcon("gear", { className: "octicon octicon-gear" })}</span>
         </span>
       </button>
+      <div class="subject-meta-field__value">${valueHtml}</div>
       ${isOpen ? menuHtml : ""}
     </section>
   `;
 }
 
-function renderSubjectMetaButtonValue(text) {
-  return `<span class="subject-meta-field__value-text">${escapeHtml(text)}</span>`;
+function renderSubjectMetaButtonValue(text, metaText = "") {
+  return `
+    <span class="subject-meta-field__value-text">${escapeHtml(text)}</span>
+    ${metaText ? `<span class="subject-meta-field__value-meta">${escapeHtml(metaText)}</span>` : ""}
+  `;
 }
 
 function renderSubjectSituationsValue(subjectId) {
@@ -2794,24 +2799,38 @@ function renderSubjectSituationsValue(subjectId) {
   `;
 }
 
+
+function renderSubjectObjectivesValue(subjectId) {
+  const objective = getSubjectObjectives(subjectId)[0] || null;
+  if (!objective) return renderSubjectMetaButtonValue("Aucun objectif");
+  return renderSubjectMetaButtonValue(objective.title, formatObjectiveDueDateLabel(objective));
+}
+
 function buildSubjectMetaMenuItems(subject, field) {
   const dropdownState = store.situationsView.subjectMetaDropdown || {};
   const query = String(dropdownState.query || "").trim().toLowerCase();
 
   if (field === "objectives") {
-    const selectedIds = new Set(getSubjectSidebarMeta(subject.id).objectiveIds);
+    const selectedObjectiveId = String(getSubjectSidebarMeta(subject.id).objectiveIds[0] || "");
     const objectives = getObjectives();
     const matches = (objective) => matchSearch([objective.title, formatObjectiveDueDateLabel(objective), objective.id], query);
-    const toItem = (objective) => ({
-      key: String(objective.id || ""),
-      isActive: String(dropdownState.activeKey || "") === String(objective.id || ""),
-      isSelected: selectedIds.has(String(objective.id || "")),
-      iconHtml: svgIcon("milestone", { className: "octicon octicon-milestone" }),
-      title: objective.title,
-      metaHtml: escapeHtml(formatObjectiveDueDateLabel(objective)),
-      rightHtml: selectedIds.has(String(objective.id || "")) ? '<span class="select-menu__check">✓</span>' : "",
-      dataAttrs: { objectiveToggle: String(objective.id || "") }
-    });
+    const toItem = (objective) => {
+      const isSelected = selectedObjectiveId === String(objective.id || "");
+      return {
+        key: String(objective.id || ""),
+        isActive: String(dropdownState.activeKey || "") === String(objective.id || ""),
+        isSelected,
+        iconHtml: `
+          <span class="select-menu__objective-iconset" aria-hidden="true">
+            <span class="select-menu__objective-check ${isSelected ? "is-visible" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
+            <span class="select-menu__objective-milestone">${svgIcon("milestone", { className: "octicon octicon-milestone" })}</span>
+          </span>
+        `,
+        title: objective.title,
+        metaHtml: escapeHtml(formatObjectiveDueDateLabel(objective)),
+        dataAttrs: { objectiveSelect: String(objective.id || "") }
+      };
+    };
     return {
       openItems: objectives.filter((objective) => !objective.closed && matches(objective)).map(toItem),
       closedItems: objectives.filter((objective) => objective.closed && matches(objective)).map(toItem)
@@ -2920,7 +2939,7 @@ function renderSubjectMetaControls(subject) {
       ${renderSubjectMetaField({
         field: "objectives",
         label: "Objectifs",
-        valueHtml: renderSubjectMetaButtonValue(selectedObjectives.length ? summarizeSubjectMetaValue(selectedObjectives.map((objective) => objective.title), "Aucun objectif") : "Aucun objectif"),
+        valueHtml: renderSubjectObjectivesValue(subject.id),
         menuHtml: renderSubjectMetaDropdown(subject, "objectives")
       })}
       ${renderSubjectMetaField({
@@ -3705,6 +3724,25 @@ function focusSubjectMetaSearch(root, field) {
   });
 }
 
+
+function syncSubjectMetaDropdownPosition(root) {
+  const field = String(store.situationsView.subjectMetaDropdown?.field || "");
+  if (!field) return;
+  requestAnimationFrame(() => {
+    const anchor = root?.querySelector?.(`[data-subject-meta-anchor="${field}"]`);
+    const dropdown = root?.querySelector?.(".subject-meta-dropdown");
+    if (!anchor || !dropdown) return;
+    const rect = anchor.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const dropdownWidth = 320;
+    const gutter = 12;
+    const left = Math.max(gutter, Math.min(rect.right - dropdownWidth, viewportWidth - dropdownWidth - gutter));
+    dropdown.style.left = `${left}px`;
+    dropdown.style.top = `${Math.max(gutter, rect.bottom - 4)}px`;
+    dropdown.style.width = `${dropdownWidth}px`;
+  });
+}
+
 function wireDetailsInteractive(root) {
   if (!root) return;
 
@@ -3725,10 +3763,18 @@ function wireDetailsInteractive(root) {
         dropdown.field = field;
         dropdown.query = "";
         const entries = scopedSelection?.type === "sujet" ? getSubjectMetaMenuEntries(scopedSelection.item, field) : [];
-        dropdown.activeKey = String(entries[0]?.key || "");
+        const selectedObjectiveKey = field === "objectives" && scopedSelection?.type === "sujet"
+          ? String(getSubjectSidebarMeta(scopedSelection.item.id).objectiveIds[0] || "")
+          : "";
+        dropdown.activeKey = selectedObjectiveKey && entries.some((entry) => String(entry?.key || "") === selectedObjectiveKey)
+          ? selectedObjectiveKey
+          : String(entries[0]?.key || "");
       }
       rerenderScope(root);
-      if (!isAlreadyOpen) focusSubjectMetaSearch(root, field);
+      if (!isAlreadyOpen) {
+        focusSubjectMetaSearch(root, field);
+        syncSubjectMetaDropdownPosition(root);
+      }
     };
   });
 
@@ -3741,6 +3787,7 @@ function wireDetailsInteractive(root) {
       store.situationsView.subjectMetaDropdown.activeKey = String(entries[0]?.key || "");
       rerenderScope(root);
       focusSubjectMetaSearch(root, field);
+      syncSubjectMetaDropdownPosition(root);
     });
 
     input.addEventListener("keydown", (event) => {
@@ -3752,6 +3799,7 @@ function wireDetailsInteractive(root) {
         setSubjectMetaActiveEntry(subjectSelection.item, field, event.key === "ArrowDown" ? 1 : -1);
         rerenderScope(root);
         focusSubjectMetaSearch(root, field);
+        syncSubjectMetaDropdownPosition(root);
         return;
       }
       if (event.key === "Escape") {
@@ -3765,9 +3813,9 @@ function wireDetailsInteractive(root) {
         if (!activeKey) return;
         if (field === "objectives") {
           event.preventDefault();
-          toggleSubjectObjective(subjectSelection.item.id, activeKey);
+          setSubjectObjective(subjectSelection.item.id, activeKey);
+          closeSubjectMetaDropdown();
           rerenderScope(root);
-          focusSubjectMetaSearch(root, field);
           return;
         }
         if (field === "situations") {
@@ -3778,16 +3826,16 @@ function wireDetailsInteractive(root) {
     });
   });
 
-  root.querySelectorAll("[data-objective-toggle]").forEach((btn) => {
+  root.querySelectorAll("[data-objective-select]").forEach((btn) => {
     btn.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
       const subjectSelection = getScopedSelection(root);
       if (subjectSelection?.type !== "sujet") return;
-      toggleSubjectObjective(subjectSelection.item.id, String(btn.dataset.objectiveToggle || ""));
-      store.situationsView.subjectMetaDropdown.activeKey = String(btn.dataset.objectiveToggle || "");
+      const objectiveId = String(btn.dataset.objectiveSelect || "");
+      setSubjectObjective(subjectSelection.item.id, objectiveId);
+      closeSubjectMetaDropdown();
       rerenderScope(root);
-      focusSubjectMetaSearch(root, "objectives");
     };
   });
 
@@ -3798,6 +3846,8 @@ function wireDetailsInteractive(root) {
       selectSituation(String(btn.dataset.situationNav || ""));
     };
   });
+
+  syncSubjectMetaDropdownPosition(root);
 
   root.addEventListener("click", (event) => {
     if (event.target.closest(".subject-meta-field")) return;
@@ -4257,6 +4307,8 @@ function bindSituationsEvents(root, headerRoot) {
       rerenderPanels();
     }
   });
+
+  syncSubjectMetaDropdownPosition(root);
 
   root.addEventListener("click", (event) => {
     const objectivesFilterButton = event.target.closest("[data-objectives-filter]");
