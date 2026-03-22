@@ -19,6 +19,11 @@ import {
   renderDataTableEmptyState
 } from "./ui/data-table-shell.js";
 import {
+  renderIssuesTable,
+  renderSubIssuesTable,
+  renderSubIssuesPanel
+} from "./ui/issues-table.js";
+import {
   renderProjectTableToolbar,
   renderProjectTableToolbarGroup,
   renderProjectTableToolbarSearch,
@@ -1959,15 +1964,11 @@ function renderSituationsTableHeadHtml() {
 
 
 function renderWelcomeHtml() {
-  return renderDataTableShell({
-    className: "issues-table",
+  return renderIssuesTable({
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml(),
-    state: "empty",
-    emptyHtml: renderDataTableEmptyState({
-      title: "Aucun avis disponible",
-      description: "Lancer une analyse pour générer des avis."
-    })
+    emptyTitle: "Aucun avis disponible",
+    emptyDescription: "Lancer une analyse pour générer des avis."
   });
 }
 
@@ -1994,23 +1995,20 @@ function renderTableHtml(filteredSituations) {
   }
 
   if (!rows.length) {
-    return renderDataTableShell({
-      className: "issues-table",
+    return renderIssuesTable({
       gridTemplate: getSituationsTableGridTemplate(),
       headHtml: renderSituationsTableHeadHtml(),
-      state: "empty",
-      emptyHtml: renderDataTableEmptyState({
-        title: "Aucun avis",
-        description: "Aucun avis ne correspond aux filtres actuels."
-      })
+      emptyTitle: "Aucun avis",
+      emptyDescription: "Aucun avis ne correspond aux filtres actuels."
     });
   }
 
-  return renderDataTableShell({
-    className: "issues-table",
+  return renderIssuesTable({
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml(),
-    bodyHtml: rows.join("")
+    rowsHtml: rows.join(""),
+    emptyTitle: "Aucun avis",
+    emptyDescription: "Aucun avis ne correspond aux filtres actuels."
   });
 }
 
@@ -2385,27 +2383,6 @@ function renderThreadBlock() {
   `;
 }
 
-function renderSubIssuesPanel({ title, leftMetaHtml = "", rightMetaHtml = "", bodyHtml = "" }) {
-  ensureViewUiState();
-  const isOpen = !!store.situationsView.rightSubissuesOpen;
-  return `
-    <div class="details-subissues">
-      <div class="subissues-head click" data-action="toggle-subissues">
-        <div class="subissues-head-left">
-          <span class="chev">${isOpen ? "▾" : "▸"}</span>
-          <span class="subissues-title">${escapeHtml(title)}</span>
-          ${leftMetaHtml || ""}
-        </div>
-        <div class="subissues-head-right">
-          ${rightMetaHtml || ""}
-        </div>
-      </div>
-      <div class="subissues-body ${isOpen ? "" : "hidden"}">
-        ${bodyHtml || ""}
-      </div>
-    </div>
-  `;
-}
 
 function renderRejectReviewAction(selection) {
   if (!selection?.type || !selection?.item?.id) return "";
@@ -2591,21 +2568,17 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     `;
   }).join("");
 
-  const body = renderDataTableShell({
-    className: "issues-table subissues-table",
-    state: rows ? "ready" : "empty",
-    bodyHtml: rows,
-    emptyHtml: renderDataTableEmptyState({
-      title: "Aucun avis",
-      description: ""
-    })
+  const body = renderSubIssuesTable({
+    rowsHtml: rows,
+    emptyTitle: "Aucun avis"
   });
 
   return renderSubIssuesPanel({
     title: "Avis rattachés",
     leftMetaHtml: `<div class="subissues-counts subissues-counts--total"><span class="mono">${(sujet.avis || []).length}</span></div>`,
     rightMetaHtml: buildVerdictBarHtml(stats.counts, { legend: true }),
-    bodyHtml: body
+    bodyHtml: body,
+    isOpen: !!store.situationsView.rightSubissuesOpen
   });
 }
 
@@ -2651,21 +2624,17 @@ function renderSubIssuesForSituation(situation, options = {}) {
   }
 
   const stats = situationVerdictStats(situation);
-  const body = renderDataTableShell({
-    className: "issues-table subissues-table",
-    state: rows.length ? "ready" : "empty",
-    bodyHtml: rows.join(""),
-    emptyHtml: renderDataTableEmptyState({
-      title: "Aucun sujet",
-      description: ""
-    })
+  const body = renderSubIssuesTable({
+    rowsHtml: rows.join(""),
+    emptyTitle: "Aucun sujet"
   });
 
   return renderSubIssuesPanel({
     title: "Sujets rattachés",
     leftMetaHtml: problemsCountsHtml(situation),
     rightMetaHtml: buildVerdictBarHtml(stats.counts, { legend: true }),
-    bodyHtml: body
+    bodyHtml: body,
+    isOpen: !!store.situationsView.rightSubissuesOpen
   });
 }
 
