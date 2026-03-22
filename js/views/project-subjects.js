@@ -2842,15 +2842,14 @@ function renderDetailedMetaForSelection(selection) {
   }
 
   if (selection.type === "sujet") {
-    const situation = getSituationBySujetId(item.id);
-    const stats = problemVerdictStats(item);
+    const situations = getSubjectSituations(item.id);
+    const situationLabel = situations.length
+      ? situations.map((situation) => String(situation?.id || "")).filter(Boolean).join(", ")
+      : "—";
     const entries = [
       ...common,
-      renderMetaItem("Situation parent", `<span class="mono">${escapeHtml(situation?.id || "—")}</span>`),
-      renderMetaItem("Status effectif", statePill(getEffectiveSujetStatus(item.id))),
-      renderMetaItem("Status source", statePill(firstNonEmpty(raw.status, item.status, "open"))),
-      renderMetaItem("Avis", `<span class="mono">${escapeHtml(String((item.avis || []).length))}</span>`),
-      renderMetaItem("Verdicts", buildVerdictBarHtml(stats.counts, { legend: true }))
+      renderMetaItem(situations.length > 1 ? "Situations parentes" : "Situation parent", `<span class="mono">${escapeHtml(situationLabel)}</span>`),
+      renderMetaItem("Avis rattachés", `<span class="mono">${escapeHtml(String((item.avis || []).length))}</span>`)
     ];
     return entries.join("");
   }
