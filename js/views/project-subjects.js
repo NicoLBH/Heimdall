@@ -413,6 +413,7 @@ function ensureViewUiState() {
   if (typeof v.situationsStatusFilter !== "string") v.situationsStatusFilter = "open";
   if (typeof v.subjectsSubview !== "string") v.subjectsSubview = "subjects";
   if (typeof v.objectivesStatusFilter !== "string") v.objectivesStatusFilter = "open";
+  if (typeof v.selectedObjectiveId !== "string") v.selectedObjectiveId = "";
 }
 
 function currentRunKey() {
@@ -524,7 +525,8 @@ function getObjectives() {
     dueDate: objective?.dueDate || null,
     closed: !!objective?.closed,
     closedSubjectsCount: Number.isFinite(Number(objective?.closedSubjectsCount)) ? Number(objective.closedSubjectsCount) : 0,
-    subjectsCount: Number.isFinite(Number(objective?.subjectsCount)) ? Number(objective.subjectsCount) : 2
+    subjectsCount: Number.isFinite(Number(objective?.subjectsCount)) ? Number(objective.subjectsCount) : 2,
+    subjectIds: Array.isArray(objective?.subjectIds) ? objective.subjectIds.map((value) => String(value || "")).filter(Boolean) : []
   }));
 }
 
@@ -2036,14 +2038,16 @@ function getSituationsTableGridTemplate() {
   return "minmax(0, 1fr) 56px 86px";
 }
 
-function renderSituationsTableHeadHtml() {
-  return renderDataTableHead({
-    columns: [
-      { className: "cell cell-theme", html: renderSubjectsStatusHeadHtml() },
-      { className: "cell cell-prio", label: "Prio" },
-      { className: "cell cell-agent", label: "Agent" }
-    ]
-  });
+function renderSituationsTableHeadHtml(options = {}) {
+  const columns = Array.isArray(options.columns) && options.columns.length
+    ? options.columns
+    : [
+        { className: "cell cell-theme", html: renderSubjectsStatusHeadHtml() },
+        { className: "cell cell-prio", label: "Prio" },
+        { className: "cell cell-agent", label: "Agent" }
+      ];
+
+  return renderDataTableHead({ columns });
 }
 
 function renderWelcomeHtml() {
@@ -3878,6 +3882,7 @@ function bindSituationsEvents(root, headerRoot) {
     if (action === "open-objectives") {
       event.preventDefault();
       store.situationsView.subjectsSubview = "objectives";
+      store.situationsView.selectedObjectiveId = "";
       store.situationsView.showTableOnly = true;
       rerenderPanels();
     }
@@ -3888,8 +3893,29 @@ function bindSituationsEvents(root, headerRoot) {
     if (objectivesFilterButton) {
       event.preventDefault();
       store.situationsView.objectivesStatusFilter = String(objectivesFilterButton.dataset.objectivesFilter || "open").toLowerCase() === "closed" ? "closed" : "open";
+      store.situationsView.selectedObjectiveId = "";
       rerenderPanels();
       return;
+    }
+
+    const objectiveBackButton = event.target.closest("[data-objectives-back]");
+    if (objectiveBackButton) {
+      event.preventDefault();
+      store.situationsView.selectedObjectiveId = "";
+      rerenderPanels();
+      return;
+    }
+
+    const objectiveTitleTrigger = event.target.closest(".objectives-row__title, .objectives-row[data-objective-id]");
+    if (objectiveTitleTrigger && String(store.situationsView.subjectsSubview || "subjects") === "objectives") {
+      event.preventDefault();
+      const objectiveId = String(objectiveTitleTrigger.dataset.objectiveId || objectiveTitleTrigger.closest("[data-objective-id]")?.dataset.objectiveId || "");
+      if (objectiveId) {
+        store.situationsView.selectedObjectiveId = objectiveId;
+        store.situationsView.showTableOnly = true;
+        rerenderPanels();
+        return;
+      }
     }
     const subjectsStatusFilterButton = event.target.closest("[data-subjects-status-filter]");
     if (subjectsStatusFilterButton) {
@@ -4049,14 +4075,27 @@ function renderSubjectsObjectivesAction() {
 
 function renderSituationsViewHeaderHtml() {
   if (String(store.situationsView.subjectsSubview || "subjects") === "objectives") {
+    const selectedObjective = getObjectiveById(store.situationsView.selectedObjectiveId || "");
+    const leftHtml = selectedObjective
+      ? renderProjectTableToolbarGroup({
+          html: `<div class="objective-breadcrumb"><button type="button" class="objective-breadcrumb__link" data-objectives-back="list">Objectifs</button><span class="objective-breadcrumb__sep">/</span><span class="objective-breadcrumb__current">${escapeHtml(selectedObjective.title)}</span></div>`
+        })
+      : renderProjectTableToolbarGroup({
+          html: '<div class="project-table-toolbar__title">Objectifs</div>'
+        });
+    const rightHtml = selectedObjective
+      ? [
+          renderProjectTableToolbarGroup({ html: renderSubjectsToolbarButton({ id: "objectiveEditAction", label: "Modifier", action: "edit-objective" }) }),
+          renderProjectTableToolbarGroup({ html: renderSubjectsToolbarButton({ id: "objectiveCloseAction", label: "Fermer l'Objectif", action: "close-objective" }) }),
+          renderProjectTableToolbarGroup({ html: renderSituationsAddAction() })
+        ].join("")
+      : renderProjectTableToolbarGroup({
+          html: renderObjectivesCreateAction()
+        });
     return renderProjectTableToolbar({
       className: "project-table-toolbar--situations project-table-toolbar--objectives",
-      leftHtml: renderProjectTableToolbarGroup({
-        html: '<div class="project-table-toolbar__title">Objectifs</div>'
-      }),
-      rightHtml: renderProjectTableToolbarGroup({
-        html: renderObjectivesCreateAction()
-      })
+      leftHtml,
+      rightHtml
     });
   }
 
@@ -4105,30 +4144,152 @@ function formatObjectiveMeta(objective) {
   return `${dueDate} - ${closedSubjectsCount}/${subjectsCount} sujets fermés`;
 }
 
+
+function getObjectiveById(objectiveId) {
+  return getObjectives().find((objective) => String(objective?.id || "") === String(objectiveId || "")) || null;
+}
+
+function getObjectiveSubjects(objective) {
+  if (!objective) return [];
+  const ids = Array.isArray(objective.subjectIds) ? objective.subjectIds : [];
+  return ids.map((subjectId) => getNestedSujet(subjectId)).filter(Boolean);
+}
+
+function getObjectiveSubjectCounts(objective) {
+  const linkedSubjects = getObjectiveSubjects(objective);
+  if (linkedSubjects.length) {
+    let open = 0;
+    let closed = 0;
+    for (const sujet of linkedSubjects) {
+      if (sujetMatchesStatusFilter(sujet, "closed")) closed += 1;
+      else open += 1;
+    }
+    return { open, closed, total: linkedSubjects.length, linkedSubjects };
+  }
+
+  const total = Number.isFinite(Number(objective?.subjectsCount)) ? Number(objective.subjectsCount) : 0;
+  const closed = Math.max(0, Math.min(total, Number.isFinite(Number(objective?.closedSubjectsCount)) ? Number(objective.closedSubjectsCount) : 0));
+  const open = Math.max(0, total - closed);
+  return { open, closed, total, linkedSubjects: [] };
+}
+
+function formatObjectiveDueDateLabel(objective) {
+  if (!objective?.dueDate) return "Pas de date définie";
+  const parsed = new Date(objective.dueDate);
+  if (Number.isNaN(parsed.getTime())) return String(objective.dueDate);
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(parsed);
+}
+
+function renderObjectiveStatusBadge(objective) {
+  return statePill(objective?.closed ? "closed" : "open");
+}
+
+function renderObjectiveProgressBar(objective) {
+  const counts = getObjectiveSubjectCounts(objective);
+  const percent = counts.total > 0 ? Math.round((counts.closed / counts.total) * 100) : 0;
+  return `
+    <div class="objective-progress" aria-label="${percent}% terminé">
+      <div class="objective-progress__label"><strong>${percent}%</strong> complete</div>
+      <div class="objective-progress__track" aria-hidden="true">
+        <span class="objective-progress__fill" style="width:${percent}%"></span>
+      </div>
+    </div>
+  `;
+}
+
+function renderObjectiveSubjectsTableHtml(objective) {
+  const counts = getObjectiveSubjectCounts(objective);
+  const activeStatusFilter = getCurrentSubjectsStatusFilter();
+  const visibleSubjects = counts.linkedSubjects.filter((sujet) => sujetMatchesStatusFilter(sujet, activeStatusFilter));
+
+  const bodyHtml = visibleSubjects.length
+    ? visibleSubjects.map((sujet) => {
+        const parentSituation = getSituationBySujetId(sujet.id);
+        return renderFlatSujetRow(sujet, parentSituation?.id || "");
+      }).join("")
+    : renderDataTableEmptyState({
+        title: activeStatusFilter === "closed" ? "Aucun sujet fermé" : "Aucun sujet ouvert",
+        description: "Les sujets rattachés à cet objectif apparaîtront ici."
+      });
+
+  return renderDataTableShell({
+    className: "issues-table objectives-subjects-table",
+    gridTemplate: getSituationsTableGridTemplate(),
+    headHtml: renderSituationsTableHeadHtml({
+      columns: [
+        { className: "cell cell-theme", html: renderTableHeadFilterToggle({
+          activeValue: activeStatusFilter,
+          items: [
+            { label: "Ouverts", value: "open", count: counts.open, dataAttr: "subjects-status-filter" },
+            { label: "Fermés", value: "closed", count: counts.closed, dataAttr: "subjects-status-filter" }
+          ]
+        }) },
+        { className: "cell cell-prio", label: "Prio" },
+        { className: "cell cell-agent", label: "Agent" },
+        { className: "cell cell-id mono", label: "#" }
+      ]
+    }),
+    bodyHtml,
+    state: visibleSubjects.length ? "ready" : "empty",
+    emptyHtml: bodyHtml
+  });
+}
+
+function renderObjectiveDetailHtml(objective) {
+  if (!objective) {
+    return renderDataTableEmptyState({
+      title: "Objectif introuvable",
+      description: "Cet objectif n'existe plus ou n'est pas disponible."
+    });
+  }
+
+  return `
+    <section class="objective-detail">
+      <header class="objective-detail__header">
+        <div class="objective-detail__title">${escapeHtml(objective.title)}</div>
+      </header>
+      <div class="objective-detail__meta-row">
+        <div class="objective-detail__meta-left">
+          ${renderObjectiveStatusBadge(objective)}
+          <span class="objective-detail__meta-text">${escapeHtml(formatObjectiveDueDateLabel(objective))}</span>
+        </div>
+        <div class="objective-detail__meta-right">
+          ${renderObjectiveProgressBar(objective)}
+        </div>
+      </div>
+      <div class="objective-detail__subjects">
+        ${renderObjectiveSubjectsTableHtml(objective)}
+      </div>
+    </section>
+  `;
+}
+
 function renderObjectivesTableHtml() {
+  const selectedObjective = getObjectiveById(store.situationsView.selectedObjectiveId || "");
+  if (selectedObjective) {
+    return renderObjectiveDetailHtml(selectedObjective);
+  }
+
   const objectives = getObjectives();
   const openObjectives = objectives.filter((objective) => !objective.closed);
   const closedObjectives = objectives.filter((objective) => objective.closed);
   const activeFilter = String(store.situationsView.objectivesStatusFilter || "open").toLowerCase() === "closed" ? "closed" : "open";
   const visibleObjectives = activeFilter === "closed" ? closedObjectives : openObjectives;
 
-  const headHtml = `
-    <button type="button" class="objectives-table__filter${activeFilter === "open" ? " is-active" : ""}" data-objectives-filter="open">
-      <span>Ouverts</span>
-      ${renderCountBadge(openObjectives.length, "neutral")}
-    </button>
-    <button type="button" class="objectives-table__filter${activeFilter === "closed" ? " is-active" : ""}" data-objectives-filter="closed">
-      <span>Fermés</span>
-      ${renderCountBadge(closedObjectives.length, "neutral")}
-    </button>
-  `;
+  const headHtml = renderTableHeadFilterToggle({
+    activeValue: activeFilter,
+    items: [
+      { label: "Ouverts", value: "open", count: openObjectives.length, dataAttr: "objectives-filter" },
+      { label: "Fermés", value: "closed", count: closedObjectives.length, dataAttr: "objectives-filter" }
+    ]
+  });
 
   const bodyHtml = visibleObjectives.length
     ? visibleObjectives.map((objective) => `
-        <button type="button" class="objectives-row" data-objective-id="${escapeHtml(objective.id)}">
-          <span class="objectives-row__title">${escapeHtml(objective.title)}</span>
+        <div class="objectives-row" data-objective-id="${escapeHtml(objective.id)}" tabindex="0" role="button">
+          <button type="button" class="objectives-row__title" data-objective-id="${escapeHtml(objective.id)}">${escapeHtml(objective.title)}</button>
           <span class="objectives-row__meta">${escapeHtml(formatObjectiveMeta(objective))}</span>
-        </button>
+        </div>
       `).join("")
     : renderDataTableEmptyState({
         title: activeFilter === "closed" ? "Aucun objectif fermé" : "Aucun objectif ouvert",
@@ -4141,7 +4302,7 @@ function renderObjectivesTableHtml() {
     bodyHtml,
     headClassName: "objectives-table__head",
     bodyClassName: "objectives-table__body",
-    gridTemplate: "minmax(0, 1fr) minmax(0, 1fr)",
+    gridTemplate: "minmax(0, 1fr)",
     state: visibleObjectives.length ? "ready" : "empty",
     emptyHtml: bodyHtml
   });
@@ -4168,6 +4329,7 @@ export function renderProjectSubjects(root) {
   const headerRoot = document.getElementById("projectViewHeaderHost");
   const toolbarHost = document.getElementById("situationsToolbarHost");
   store.situationsView.subjectsSubview = "subjects";
+  store.situationsView.selectedObjectiveId = "";
   const data = store.situationsView.data || [];
   const firstSituationId = data[0]?.id || null;
 
