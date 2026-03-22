@@ -779,9 +779,7 @@ body.modal-open {
   min-height:0;
   overflow:auto;
 }
-#situationsTableHost{
-  Padding-bottom:8px;
-}
+
 .issue-row{display:grid;grid-template-columns: var(--issues-cols);gap:0;align-items:center;padding:8px 12px 10px 0px;border-bottom:1px solid rgba(48,54,61,.35);}
 .issue-row:last-child{border-bottom:none;}
 .issue-row:hover{background: rgba(110, 118, 129, .06);}
@@ -6100,6 +6098,7 @@ color:#ffff;
   flex-direction:column;
   flex:1 1 auto;
   min-height:0;
+  padding-bottom:8px;
 }
 
 .issue-status-icon__svg--situation.issue-status-icon__svg--open{
