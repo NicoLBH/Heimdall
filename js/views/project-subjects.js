@@ -375,6 +375,21 @@ function matchSearch(parts, query) {
 ========================================================= */
 
 const HUMAN_STORE_KEY = "rapsobot-human-store-v2";
+const SUJET_KANBAN_STATUSES = [
+  { key: "non_active", label: "Non activé", hint: "Sujet détecté mais pas encore engagé." },
+  { key: "to_activate", label: "A activer", hint: "Sujet prêt à être lancé." },
+  { key: "in_progress", label: "En cours", hint: "Sujet actuellement traité." },
+  { key: "in_arbitration", label: "En arbitrage", hint: "Décision ou arbitrage attendu." },
+  { key: "resolved", label: "Résolu", hint: "Sujet traité ou clos." }
+];
+const SUJET_KANBAN_STATUS_KEYS = new Set(SUJET_KANBAN_STATUSES.map((status) => status.key));
+const SUJET_KANBAN_BADGE_STYLE = {
+  non_active: { background: "rgba(46, 160, 67, 0.15)", border: "rgb(35, 134, 54)", text: "rgb(63, 185, 80)" },
+  to_activate: { background: "rgba(56, 139, 253, 0.1)", border: "rgb(31, 111, 235)", text: "rgb(88, 166, 255)" },
+  in_progress: { background: "rgba(187, 128, 9, 0.15)", border: "rgb(158, 106, 3)", text: "rgb(210, 153, 34)" },
+  in_arbitration: { background: "rgba(171, 125, 248, 0.15)", border: "rgb(137, 87, 229)", text: "rgb(188, 140, 255)" },
+  resolved: { background: "rgba(219, 109, 40, 0.1)", border: "rgb(189, 86, 29)", text: "rgb(255, 161, 107)" }
+};
 const DEFAULT_OBJECTIVE_TITLES = [
   "Programme validé",
   "Esquisse retenue",
@@ -486,6 +501,9 @@ function getRunBucket() {
         situation: {}
       },
       objectives: [],
+      workflow: {
+        sujet_kanban_status: {}
+      },
       subjectMeta: {
         sujet: {}
       }
@@ -512,6 +530,14 @@ function getRunBucket() {
   }
   if (!Array.isArray(bucket.objectives)) {
     bucket.objectives = [];
+    saveHumanStore(all);
+  }
+  if (!bucket.workflow || typeof bucket.workflow !== "object") {
+    bucket.workflow = { sujet_kanban_status: {} };
+    saveHumanStore(all);
+  }
+  if (!bucket.workflow.sujet_kanban_status) {
+    bucket.workflow.sujet_kanban_status = {};
     saveHumanStore(all);
   }
   if (!bucket.subjectMeta || typeof bucket.subjectMeta !== "object") {
@@ -564,9 +590,40 @@ function persistRunBucket(mutator) {
   saveHumanStore(all);
 }
 
+function normalizeSujetKanbanStatus(value) {
+  const key = String(value || "").trim().toLowerCase();
+  return SUJET_KANBAN_STATUS_KEYS.has(key) ? key : null;
+}
+
+function getDefaultSujetKanbanStatus(sujetId) {
+  const effectiveStatus = String(getEffectiveSujetStatus(sujetId) || "open").toLowerCase();
+  return effectiveStatus === "closed" ? "resolved" : "non_active";
+}
+
+function getSujetKanbanStatus(sujetId) {
+  const { bucket } = getRunBucket();
+  const stored = normalizeSujetKanbanStatus(bucket?.workflow?.sujet_kanban_status?.[sujetId]);
+  return stored || getDefaultSujetKanbanStatus(sujetId);
+}
+
+function getSujetKanbanStatusMeta(sujetId) {
+  const key = getSujetKanbanStatus(sujetId);
+  return SUJET_KANBAN_STATUSES.find((status) => status.key === key) || SUJET_KANBAN_STATUSES[0];
+}
+
+function renderSujetKanbanStatusBadge(sujetId) {
+  const meta = getSujetKanbanStatusMeta(sujetId);
+  const tone = SUJET_KANBAN_BADGE_STYLE[meta.key] || SUJET_KANBAN_BADGE_STYLE.non_active;
+  return `<span class="subject-kanban-badge" style="--subject-kanban-badge-bg:${tone.background};--subject-kanban-badge-border:${tone.border};--subject-kanban-badge-text:${tone.text};">${escapeHtml(meta.label)}</span>`;
+}
+
 function normalizeSubjectObjectiveIds(objectiveIds) {
   const normalized = [...new Set((Array.isArray(objectiveIds) ? objectiveIds : []).map((value) => String(value || "")).filter(Boolean))];
   return normalized.length ? [normalized[0]] : [];
+}
+
+function normalizeSubjectSituationIds(situationIds) {
+  return [...new Set((Array.isArray(situationIds) ? situationIds : []).map((value) => String(value || "")).filter(Boolean))];
 }
 
 function getSubjectSidebarMeta(subjectId) {
@@ -580,10 +637,18 @@ function getSubjectSidebarMeta(subjectId) {
           .map((objective) => String(objective.id || ""))
           .filter(Boolean)
       );
+  const derivedSituationIds = (store.situationsView.data || [])
+    .filter((situation) => (situation.sujets || []).some((sujet) => String(sujet?.id || "") === String(subjectId || "")))
+    .map((situation) => String(situation.id || ""))
+    .filter(Boolean);
+  const situationIds = Array.isArray(subjectMeta.situationIds)
+    ? normalizeSubjectSituationIds(subjectMeta.situationIds)
+    : normalizeSubjectSituationIds(derivedSituationIds);
   return {
     assignees: Array.isArray(subjectMeta.assignees) ? subjectMeta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
     labels: Array.isArray(subjectMeta.labels) ? subjectMeta.labels.map((value) => String(value || "")).filter(Boolean) : [],
     objectiveIds,
+    situationIds,
     relations: Array.isArray(subjectMeta.relations) ? subjectMeta.relations.map((value) => String(value || "")).filter(Boolean) : []
   };
 }
@@ -613,6 +678,31 @@ function setSubjectObjectiveIds(subjectId, objectiveIds) {
       objective.subjectIds = [...new Set(filteredIds)];
     });
   });
+}
+
+function setSubjectSituationIds(subjectId, situationIds) {
+  const subjectKey = String(subjectId || "");
+  const nextIds = normalizeSubjectSituationIds(situationIds);
+  persistRunBucket((bucket) => {
+    bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
+    bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
+    const current = bucket.subjectMeta.sujet[subjectKey] && typeof bucket.subjectMeta.sujet[subjectKey] === "object" ? bucket.subjectMeta.sujet[subjectKey] : {};
+    bucket.subjectMeta.sujet[subjectKey] = {
+      ...current,
+      situationIds: nextIds
+    };
+  });
+}
+
+function toggleSubjectSituation(subjectId, situationId) {
+  const subjectKey = String(subjectId || "");
+  const situationKey = String(situationId || "");
+  if (!subjectKey || !situationKey) return;
+  const meta = getSubjectSidebarMeta(subjectKey);
+  const nextIds = meta.situationIds.includes(situationKey)
+    ? meta.situationIds.filter((id) => id !== situationKey)
+    : [...meta.situationIds, situationKey];
+  setSubjectSituationIds(subjectKey, nextIds);
 }
 
 function setSubjectObjective(subjectId, objectiveId) {
@@ -1676,7 +1766,7 @@ function situationMatchesFilters(situation, query, verdictFilter) {
 
   if (situationTextMatch && verdictFilter === "ALL") return true;
 
-  for (const sujet of situation.sujets || []) {
+  for (const sujet of getSituationSubjects(situation)) {
     const sujetTextMatch = matchSearch(
       [
         sujet.id,
@@ -1721,7 +1811,7 @@ function getSubjectsStatusCounts(query = "") {
   let open = 0;
   let closed = 0;
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       const matchesSearch = matchSearch([
         situation?.id,
         situation?.title,
@@ -1760,8 +1850,8 @@ function getVisibleCounts(filteredSituations) {
   let sujets = 0;
   let avis = 0;
   for (const situation of filteredSituations) {
-    sujets += (situation.sujets || []).length;
-    for (const sujet of situation.sujets || []) avis += (sujet.avis || []).length;
+    sujets += getSituationSubjects(situation).length;
+    for (const sujet of getSituationSubjects(situation)) avis += (sujet.avis || []).length;
   }
   return { situations: filteredSituations.length, sujets, avis };
 }
@@ -1770,17 +1860,48 @@ function getNestedSituation(situationId) {
   return (store.situationsView.data || []).find((s) => s.id === situationId) || null;
 }
 
-function getNestedSujet(problemId) {
+function getCanonicalSujetById(problemId) {
   for (const situation of store.situationsView.data || []) {
-    const match = (situation.sujets || []).find((sujet) => sujet.id === problemId);
+    const match = getSituationSubjects(situation).find((sujet) => sujet.id === problemId);
     if (match) return match;
   }
   return null;
 }
 
+function getSituationSubjects(situation) {
+  const situationId = String(situation?.id || "");
+  const { bucket } = getRunBucket();
+  const metaMap = bucket?.subjectMeta?.sujet && typeof bucket.subjectMeta.sujet === "object"
+    ? bucket.subjectMeta.sujet
+    : {};
+
+  const base = (Array.isArray(situation?.sujets) ? situation.sujets : []).filter((sujet) => {
+    const meta = metaMap[String(sujet?.id || "")];
+    if (!Array.isArray(meta?.situationIds)) return true;
+    return normalizeSubjectSituationIds(meta.situationIds).includes(situationId);
+  });
+  const existingIds = new Set(base.map((sujet) => String(sujet?.id || "")).filter(Boolean));
+  if (!situationId) return base;
+
+  for (const [subjectId, meta] of Object.entries(metaMap)) {
+    const linkedIds = normalizeSubjectSituationIds(meta?.situationIds);
+    if (!linkedIds.includes(situationId) || existingIds.has(subjectId)) continue;
+    const canonical = getCanonicalSujetById(subjectId);
+    if (!canonical) continue;
+    base.push(canonical);
+    existingIds.add(subjectId);
+  }
+
+  return base;
+}
+
+function getNestedSujet(problemId) {
+  return getCanonicalSujetById(problemId);
+}
+
 function getNestedAvis(avisId) {
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       const match = (sujet.avis || []).find((avis) => avis.id === avisId);
       if (match) return match;
     }
@@ -1790,14 +1911,14 @@ function getNestedAvis(avisId) {
 
 function getSituationBySujetId(problemId) {
   for (const situation of store.situationsView.data || []) {
-    if ((situation.sujets || []).some((sujet) => sujet.id === problemId)) return situation;
+    if (getSituationSubjects(situation).some((sujet) => sujet.id === problemId)) return situation;
   }
   return null;
 }
 
 function getSituationByAvisId(avisId) {
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       if ((sujet.avis || []).some((avis) => avis.id === avisId)) return situation;
     }
   }
@@ -1806,7 +1927,7 @@ function getSituationByAvisId(avisId) {
 
 function getSujetByAvisId(avisId) {
   for (const situation of store.situationsView.data || []) {
-    for (const sujet of situation.sujets || []) {
+    for (const sujet of getSituationSubjects(situation)) {
       if ((sujet.avis || []).some((avis) => avis.id === avisId)) return sujet;
     }
   }
@@ -1999,7 +2120,7 @@ function rowSelectedClass(kind, id) {
 
 function renderSituationRow(situation) {
   const expanded = store.situationsView.expandedSituations.has(situation.id);
-  const hasSujets = (situation.sujets || []).length > 0;
+  const hasSujets = getSituationSubjects(situation).length > 0;
   const effStatus = getEffectiveSituationStatus(situation.id);
   const meta = getEntityReviewMeta("situation", situation.id);
   const reviewIcon = renderEntityReviewLeadIcon("situation", situation.id);
@@ -2159,7 +2280,7 @@ function renderTableHtml(filteredSituations) {
   const rows = [];
 
   for (const situation of filteredSituations) {
-    const visibleSujets = (situation.sujets || []).filter((sujet) => sujetMatchesStatusFilter(sujet, activeStatusFilter));
+    const visibleSujets = getSituationSubjects(situation).filter((sujet) => sujetMatchesStatusFilter(sujet, activeStatusFilter));
 
     if (!visibleSujets.length) continue;
 
@@ -2739,7 +2860,7 @@ function renderDetailedMetaForSelection(selection) {
     ...common,
     renderMetaItem("Status effectif", statePill(getEffectiveSituationStatus(item.id))),
     renderMetaItem("Status source", statePill(firstNonEmpty(raw.status, item.status, "open"))),
-    renderMetaItem("Sujets", `<span class="mono">${escapeHtml(String((item.sujets || []).length))}</span>`),
+    renderMetaItem("Sujets", `<span class="mono">${escapeHtml(String(getSituationSubjects(item).length))}</span>`),
     renderMetaItem("Verdicts", buildVerdictBarHtml(stats.counts, { legend: true }))
   ];
   return entries.join("");
@@ -2748,7 +2869,8 @@ function renderDetailedMetaForSelection(selection) {
 
 function getSubjectSituations(subjectId) {
   const normalizedId = String(subjectId || "");
-  return (store.situationsView.data || []).filter((situation) => (situation.sujets || []).some((sujet) => String(sujet?.id || "") === normalizedId));
+  const meta = getSubjectSidebarMeta(normalizedId);
+  return meta.situationIds.map((situationId) => getNestedSituation(situationId)).filter(Boolean);
 }
 
 function summarizeSubjectMetaValue(items, emptyLabel = "Aucun") {
@@ -2792,7 +2914,7 @@ function renderObjectiveCounterIcon(objective) {
 }
 
 function getSubjectSituationStatusLabel(situation, subjectId) {
-  const linkedSubject = (situation?.sujets || []).find((item) => String(item?.id || "") === String(subjectId || ""));
+  const linkedSubject = getSituationSubjects(situation).find((item) => String(item?.id || "") === String(subjectId || ""));
   const status = getEffectiveSujetStatus(linkedSubject?.id || subjectId) || linkedSubject?.status || "open";
   return String(status || "open").toLowerCase() === "closed" ? "Closed" : "Open";
 }
@@ -2801,10 +2923,10 @@ function renderSubjectSituationCard(situation, subjectId) {
   return `
     <span class="subject-meta-situation-card">
       <span class="subject-meta-situation-card__head">
-        <span class="subject-meta-situation-card__icon">${issueIcon(getEffectiveSituationStatus(situation.id), { entityType: "situation" })}</span>
+        <span class="subject-meta-situation-card__icon">${svgIcon("table", { className: "ui-icon octicon octicon-table" })}</span>
         <span class="subject-meta-situation-card__title">${escapeHtml(firstNonEmpty(situation.title, situation.id, "Situation"))}</span>
       </span>
-      <span class="subject-meta-situation-card__meta">Status · ${escapeHtml(getSubjectSituationStatusLabel(situation, subjectId))}</span>
+      <span class="subject-meta-situation-card__meta">Status · ${escapeHtml(getSubjectSituationStatusLabel(situation, subjectId))} ${renderSujetKanbanStatusBadge(subjectId)}</span>
     </span>
   `;
 }
@@ -2864,17 +2986,28 @@ function buildSubjectMetaMenuItems(subject, field) {
   }
 
   if (field === "situations") {
-    const situations = getSubjectSituations(subject.id).filter((situation) => matchSearch([situation.title, situation.id], query));
-    return {
-      items: situations.map((situation) => ({
+    const selectedSituationIds = new Set(getSubjectSidebarMeta(subject.id).situationIds);
+    const situations = (store.situationsView.data || []).filter((situation) => matchSearch([situation.title, situation.id], query));
+    const toItem = (situation) => {
+      const isSelected = selectedSituationIds.has(String(situation.id || ""));
+      return {
         key: String(situation.id || ""),
         isActive: String(dropdownState.activeKey || "") === String(situation.id || ""),
-        iconHtml: svgIcon("issue-opened", { className: "octicon octicon-issue-opened" }),
+        isSelected,
+        iconHtml: `
+          <span class="select-menu__situation-iconset" aria-hidden="true">
+            <span class="select-menu__checkbox ${isSelected ? "is-checked" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
+            <span class="select-menu__situation-icon">${svgIcon("table", { className: "ui-icon octicon octicon-table" })}</span>
+          </span>
+        `,
         title: firstNonEmpty(situation.title, situation.id, "Situation"),
         metaHtml: escapeHtml(situation.id),
-        rightHtml: statePill(getEffectiveSituationStatus(situation.id)),
-        dataAttrs: { "situation-nav": String(situation.id || "") }
-      }))
+        dataAttrs: { "situation-toggle": String(situation.id || "") }
+      };
+    };
+    return {
+      openItems: situations.filter((situation) => String(getEffectiveSituationStatus(situation.id) || situation.status || "open").toLowerCase() === "open").map(toItem),
+      closedItems: situations.filter((situation) => String(getEffectiveSituationStatus(situation.id) || situation.status || "open").toLowerCase() !== "open").map(toItem)
     };
   }
 
@@ -2908,7 +3041,7 @@ function renderSubjectMetaDropdown(subject, field) {
   }
 
   if (field === "situations") {
-    const { items } = buildSubjectMetaMenuItems(subject, field);
+    const { openItems, closedItems } = buildSubjectMetaMenuItems(subject, field);
     return `
       <div class="subject-meta-dropdown gh-menu gh-menu--open" role="dialog">
         <div class="subject-meta-dropdown__title">Situations liées</div>
@@ -2917,7 +3050,8 @@ function renderSubjectMetaDropdown(subject, field) {
           <input type="search" class="subject-meta-dropdown__search-input" data-subject-meta-search="${escapeHtml(field)}" value="${escapeHtml(query)}" placeholder="Filtrer les situations" autocomplete="off">
         </div>
         <div class="subject-meta-dropdown__body">
-          ${renderSelectMenuSection({ title: "Présent dans", items, emptyTitle: "Aucune situation", emptyHint: query ? "Aucun résultat pour cette recherche." : "Ce sujet n'est rattaché à aucune situation." })}
+          ${renderSelectMenuSection({ title: "Ouvertes", items: openItems, emptyTitle: "Aucune situation ouverte", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune situation ouverte disponible." })}
+          ${renderSelectMenuSection({ title: "Fermées", items: closedItems, emptyTitle: "Aucune situation fermée", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune situation fermée disponible." })}
         </div>
       </div>
     `;
@@ -3013,7 +3147,7 @@ function renderSubIssuesForSituation(situation, options = {}) {
   const avisRowClass = options.avisRowClass || "js-row-avis";
 
   const rows = [];
-  for (const sujet of situation.sujets || []) {
+  for (const sujet of getSituationSubjects(situation)) {
     const open = expandedSet.has(sujet.id);
     const hasAvis = (sujet.avis || []).length > 0;
     const effStatus = getEffectiveSujetStatus(sujet.id);
@@ -3523,7 +3657,7 @@ function getCascadeTargets(entityType, entityId, mode = "self") {
     const situation = getNestedSituation(entityId);
     if (!situation) return targets;
     if (mode === "descendants") {
-      for (const sujet of situation.sujets || []) {
+      for (const sujet of getSituationSubjects(situation)) {
         for (const avis of sujet.avis || []) pushTarget("avis", avis.id);
         pushTarget("sujet", sujet.id);
       }
@@ -3946,7 +4080,10 @@ function wireDetailsInteractive(root) {
         }
         if (field === "situations") {
           event.preventDefault();
-          selectSituation(activeKey);
+          toggleSubjectSituation(subjectSelection.item.id, activeKey);
+          rerenderScope(root);
+          focusSubjectMetaSearch(root, field);
+          syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
         }
       }
     });
@@ -3965,11 +4102,16 @@ function wireDetailsInteractive(root) {
     };
   });
 
-  dropdownHost.querySelectorAll("[data-situation-nav]").forEach((btn) => {
+  dropdownHost.querySelectorAll("[data-situation-toggle]").forEach((btn) => {
     btn.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      selectSituation(String(btn.dataset.situationNav || ""));
+      const subjectSelection = getScopedSelection(root);
+      if (subjectSelection?.type !== "sujet") return;
+      toggleSubjectSituation(subjectSelection.item.id, String(btn.dataset.situationToggle || ""));
+      rerenderScope(root);
+      focusSubjectMetaSearch(root, "situations");
+      syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
     };
   });
 
