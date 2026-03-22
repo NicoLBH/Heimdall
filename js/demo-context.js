@@ -9,35 +9,35 @@ export const DEMO_USERS = [
   {
     id: "user-moa",
     firstName: "Claire",
-    lastName: "Delorme",
+    lastName: "DELORME",
     role: "MOA",
     avatar: "assets/images/avatar-moa.jfif"
   },
   {
     id: "user-moe",
     firstName: "Sophie",
-    lastName: "Leroux",
+    lastName: "LEROUX",
     role: "MOE",
     avatar: "assets/images/avatar-moe.jfif"
   },
   {
     id: "user-bet",
     firstName: "Julien",
-    lastName: "Morel",
+    lastName: "MOREL",
     role: "BET",
     avatar: "assets/images/avatar-bet.jfif"
   },
   {
     id: "user-ct",
-    firstName: "Marc",
-    lastName: "Renaud",
+    firstName: "Nicolas",
+    lastName: "LE BIHAN",
     role: "CT",
     avatar: "assets/images/avatar-ct.jfif"
   },
   {
     id: "user-entreprise",
-    firstName: "Alex",
-    lastName: "Vidal",
+    firstName: "Clément",
+    lastName: "BOCHE",
     role: "Entreprise",
     avatar: "assets/images/avatar-entreprise.jfif"
   }
