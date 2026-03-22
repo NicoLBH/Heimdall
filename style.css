@@ -586,6 +586,83 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   min-width:0;
 }
 
+.subject-meta-objective-card{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  grid-template-rows:auto auto;
+  column-gap:10px;
+  row-gap:2px;
+  align-items:start;
+  padding:2px 10px 0;
+}
+
+.subject-meta-objective-card__count{
+  grid-column:1;
+  grid-row:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:16px;
+  margin-top:1px;
+}
+
+.subject-meta-objective-card__count .subissues-problems-icon{
+  display:inline-flex;
+}
+
+.subject-meta-objective-card__title{
+  grid-column:2;
+  grid-row:1;
+  font-size:13px;
+  color:var(--text);
+  font-weight:600;
+  min-width:0;
+}
+
+.subject-meta-objective-card__date{
+  grid-column:2;
+  grid-row:2;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.subject-meta-situation-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto;
+  gap:4px;
+  padding:10px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:rgba(13,17,23,.32);
+}
+
+.subject-meta-situation-card__head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+
+.subject-meta-situation-card__icon{
+  display:inline-flex;
+  align-items:center;
+  flex:0 0 auto;
+}
+
+.subject-meta-situation-card__title{
+  font-size:13px;
+  font-weight:600;
+  color:var(--text);
+  min-width:0;
+}
+
+.subject-meta-situation-card__meta{
+  font-size:12px;
+  color:var(--muted);
+  padding-left:24px;
+}
+
 .subject-meta-dropdown-host{
   position:fixed;
   inset:0;
@@ -689,7 +766,8 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   background:rgba(110,118,129,.12);
 }
 
-.select-menu__item.is-active::before{
+.select-menu__item:hover::before,
+.select-menu__item:focus-visible::before{
   background:#1f6feb;
 }
 
@@ -724,7 +802,7 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 
 .select-menu__objective-check.is-visible{
   opacity:1;
-  color:#3fb950;
+  color:var(--muted);
 }
 
 .select-menu__objective-milestone{
