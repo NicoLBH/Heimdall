@@ -445,6 +445,14 @@ function ensureViewUiState() {
       activeKey: ""
     };
   }
+  if (!v.subjectKanbanDropdown || typeof v.subjectKanbanDropdown !== "object") {
+    v.subjectKanbanDropdown = {
+      subjectId: "",
+      situationId: "",
+      query: "",
+      activeKey: ""
+    };
+  }
 }
 
 function currentRunKey() {
@@ -619,6 +627,41 @@ function renderSujetKanbanStatusBadge(sujetId, situationId = "") {
   const meta = getSujetKanbanStatusMeta(sujetId, situationId);
   const tone = SUJET_KANBAN_BADGE_STYLE[meta.key] || SUJET_KANBAN_BADGE_STYLE.non_active;
   return `<span class="subject-kanban-badge" style="--subject-kanban-badge-bg:${tone.background};--subject-kanban-badge-border:${tone.border};--subject-kanban-badge-text:${tone.text};">${escapeHtml(meta.label)}</span>`;
+}
+
+function setSujetKanbanStatus(sujetId, nextStatus, options = {}) {
+  const normalized = normalizeSujetKanbanStatus(nextStatus);
+  const situationId = String(options.situationId || "");
+  if (!sujetId || !normalized || !situationId) return false;
+
+  const previous = getSujetKanbanStatus(sujetId, situationId);
+  if (previous === normalized) return false;
+
+  persistRunBucket((bucket) => {
+    bucket.workflow = bucket.workflow || { sujet_kanban_status: {} };
+    bucket.workflow.sujet_kanban_status = bucket.workflow.sujet_kanban_status || {};
+    const statusMap = bucket.workflow.sujet_kanban_status;
+    if (typeof statusMap[situationId] !== "object" || Array.isArray(statusMap[situationId])) statusMap[situationId] = {};
+    statusMap[situationId][sujetId] = normalized;
+    bucket.activities.push({
+      ts: options.ts || nowIso(),
+      entity_type: "situation",
+      entity_id: situationId,
+      type: "ACTIVITY",
+      kind: "sujet_kanban_status_changed",
+      actor: options.actor || "Human",
+      agent: options.agent || "human",
+      message: "",
+      meta: {
+        sujet_id: sujetId,
+        situation_id: situationId,
+        from: previous,
+        to: normalized
+      }
+    });
+  });
+
+  return true;
 }
 
 function normalizeSubjectObjectiveIds(objectiveIds) {
@@ -2922,6 +2965,25 @@ function getSubjectSituationStatusLabel(situation, subjectId) {
   return String(status || "open").toLowerCase() === "closed" ? "Closed" : "Open";
 }
 
+function renderSubjectSituationKanbanButton(situation, subjectId) {
+  const dropdown = store.situationsView.subjectKanbanDropdown || {};
+  const situationId = String(situation?.id || "");
+  const isOpen = String(dropdown.subjectId || "") === String(subjectId || "") && String(dropdown.situationId || "") === situationId;
+  return `
+    <button
+      type="button"
+      class="subject-situation-kanban-trigger ${isOpen ? "is-open" : ""}"
+      data-subject-kanban-trigger="${escapeHtml(subjectId)}"
+      data-subject-kanban-situation-id="${escapeHtml(situationId)}"
+      data-subject-kanban-anchor="${escapeHtml(subjectId)}::${escapeHtml(situationId)}"
+      aria-expanded="${isOpen ? "true" : "false"}"
+    >
+      ${renderSujetKanbanStatusBadge(subjectId, situationId)}
+      <span class="subject-situation-kanban-trigger__chevron" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+    </button>
+  `;
+}
+
 function renderSubjectSituationCard(situation, subjectId) {
   const situationStatus = String(getEffectiveSituationStatus(situation?.id) || situation?.status || "open").toLowerCase();
   const isClosedSituation = situationStatus !== "open";
@@ -2932,7 +2994,10 @@ function renderSubjectSituationCard(situation, subjectId) {
         <span class="subject-meta-situation-card__title">${escapeHtml(firstNonEmpty(situation.title, situation.id, "Situation"))}</span>
         ${isClosedSituation ? `<span class="subject-meta-situation-card__state">Fermée</span>` : ""}
       </span>
-      <span class="subject-meta-situation-card__meta">Status · ${escapeHtml(getSubjectSituationStatusLabel(situation, subjectId))} ${renderSujetKanbanStatusBadge(subjectId, situation.id)}</span>
+      <span class="subject-meta-situation-card__meta">
+        <span>Status · ${escapeHtml(getSubjectSituationStatusLabel(situation, subjectId))}</span>
+        ${renderSubjectSituationKanbanButton(situation, subjectId)}
+      </span>
     </span>
   `;
 }
@@ -3003,7 +3068,7 @@ function buildSubjectMetaMenuItems(subject, field) {
         iconHtml: `
           <span class="select-menu__situation-iconset" aria-hidden="true">
             <span class="select-menu__checkbox ${isSelected ? "is-checked" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
-            <span class="select-menu__situation-icon">${svgIcon("table", { className: "ui-icon octicon octicon-table" })}</span>
+            <span class="select-menu__situation-icon">${svgIcon(String(getEffectiveSituationStatus(situation.id) || situation.status || "open").toLowerCase() === "open" ? "table" : "table-check", { className: "ui-icon octicon octicon-table" })}</span>
           </span>
         `,
         title: firstNonEmpty(situation.title, situation.id, "Situation"),
@@ -3074,6 +3139,48 @@ function renderSubjectMetaDropdown(subject, field) {
       <div class="subject-meta-dropdown__title">${escapeHtml(titles[field] || "Paramètres")}</div>
       <div class="subject-meta-dropdown__body">
         ${renderSelectMenuSection({ items, emptyTitle: "Aucune donnée", emptyHint: emptyHint || "Cette liste sera branchée plus tard." })}
+      </div>
+    </div>
+  `;
+}
+
+function getSubjectKanbanMenuEntries(subjectId, situationId, query = "") {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  return SUJET_KANBAN_STATUSES
+    .filter((status) => matchSearch([status.label, status.hint, status.key], normalizedQuery))
+    .map((status) => ({
+      key: status.key,
+      isActive: String(store.situationsView.subjectKanbanDropdown?.activeKey || "") === status.key,
+      isSelected: getSujetKanbanStatus(subjectId, situationId) === status.key,
+      iconHtml: `
+        <span class="subject-kanban-menu__iconset" aria-hidden="true">
+          <span class="subject-kanban-menu__check ${getSujetKanbanStatus(subjectId, situationId) === status.key ? "is-visible" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
+          <span class="subject-kanban-menu__dot subject-kanban-menu__dot--${escapeHtml(String(status.key || "").replace(/_/g, "-"))}"></span>
+        </span>
+      `,
+      title: status.label,
+      metaHtml: escapeHtml(status.hint),
+      dataAttrs: {
+        "subject-kanban-select": status.key,
+        "subject-kanban-situation-id": situationId,
+        "subject-kanban-subject-id": subjectId
+      }
+    }));
+}
+
+function renderSubjectKanbanDropdown(subjectId, situationId) {
+  const dropdownState = store.situationsView.subjectKanbanDropdown || {};
+  const query = String(dropdownState.query || "");
+  const items = getSubjectKanbanMenuEntries(subjectId, situationId, query);
+  return `
+    <div class="subject-meta-dropdown subject-kanban-dropdown gh-menu gh-menu--open" role="dialog">
+      <div class="subject-meta-dropdown__search">
+        <span class="subject-meta-dropdown__search-icon" aria-hidden="true">${svgIcon("search", { className: "octicon octicon-search" })}</span>
+        <input type="search" class="subject-meta-dropdown__search-input" data-subject-kanban-search="${escapeHtml(subjectId)}" data-subject-kanban-search-situation-id="${escapeHtml(situationId)}" value="${escapeHtml(query)}" placeholder="Filtrer les étapes" autocomplete="off">
+      </div>
+      <div class="subject-kanban-dropdown__separator" aria-hidden="true"></div>
+      <div class="subject-meta-dropdown__body">
+        ${renderSelectMenuSection({ items, emptyTitle: "Aucune étape", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune étape disponible." })}
       </div>
     </div>
   `;
@@ -3857,9 +3964,18 @@ function closeSubjectMetaDropdown() {
   }
 }
 
+function closeSubjectKanbanDropdown() {
+  if (store.situationsView.subjectKanbanDropdown) {
+    store.situationsView.subjectKanbanDropdown.subjectId = "";
+    store.situationsView.subjectKanbanDropdown.situationId = "";
+    store.situationsView.subjectKanbanDropdown.query = "";
+    store.situationsView.subjectKanbanDropdown.activeKey = "";
+  }
+}
+
 function getSubjectMetaMenuEntries(subject, field) {
   const config = buildSubjectMetaMenuItems(subject, field);
-  if (field === "objectives") return [...(config.openItems || []), ...(config.closedItems || [])];
+  if (field === "objectives" || field === "situations") return [...(config.openItems || []), ...(config.closedItems || [])];
   return config.items || [];
 }
 
@@ -3896,14 +4012,25 @@ function getSubjectMetaScopeRoot() {
 function renderSubjectMetaDropdownHost(root) {
   const host = ensureSubjectMetaDropdownHost();
   const field = String(store.situationsView.subjectMetaDropdown?.field || "");
+  const kanbanDropdown = store.situationsView.subjectKanbanDropdown || {};
   const selection = getScopedSelection(root);
-  if (!field || selection?.type !== "sujet") {
+  if (selection?.type !== "sujet") {
     host.innerHTML = "";
     host.setAttribute("aria-hidden", "true");
     return host;
   }
-  host.innerHTML = renderSubjectMetaDropdown(selection.item, field);
-  host.setAttribute("aria-hidden", "false");
+  if (field) {
+    host.innerHTML = renderSubjectMetaDropdown(selection.item, field);
+    host.setAttribute("aria-hidden", "false");
+    return host;
+  }
+  if (String(kanbanDropdown.subjectId || "") === String(selection.item.id || "") && String(kanbanDropdown.situationId || "")) {
+    host.innerHTML = renderSubjectKanbanDropdown(selection.item.id, String(kanbanDropdown.situationId || ""));
+    host.setAttribute("aria-hidden", "false");
+    return host;
+  }
+  host.innerHTML = "";
+  host.setAttribute("aria-hidden", "true");
   return host;
 }
 
@@ -3921,18 +4048,31 @@ function focusSubjectMetaSearch(root, field) {
   });
 }
 
+function focusSubjectKanbanSearch(subjectId, situationId) {
+  requestAnimationFrame(() => {
+    const input = ensureSubjectMetaDropdownHost().querySelector(`[data-subject-kanban-search="${CSS.escape(String(subjectId || ""))}"][data-subject-kanban-search-situation-id="${CSS.escape(String(situationId || ""))}"]`);
+    input?.focus();
+    input?.select?.();
+  });
+}
 
 function syncSubjectMetaDropdownPosition(root) {
   const field = String(store.situationsView.subjectMetaDropdown?.field || "");
+  const kanbanDropdown = store.situationsView.subjectKanbanDropdown || {};
   const host = ensureSubjectMetaDropdownHost();
-  if (!field) {
+  let anchorSelector = "";
+  if (field) {
+    anchorSelector = `[data-subject-meta-anchor="${field}"]`;
+  } else if (String(kanbanDropdown.subjectId || "") && String(kanbanDropdown.situationId || "")) {
+    anchorSelector = `[data-subject-kanban-anchor="${CSS.escape(String(kanbanDropdown.subjectId || ""))}::${CSS.escape(String(kanbanDropdown.situationId || ""))}"]`;
+  } else {
     host.innerHTML = "";
     host.setAttribute("aria-hidden", "true");
     return;
   }
   requestAnimationFrame(() => {
     const scopeRoot = root || getSubjectMetaScopeRoot();
-    const anchor = scopeRoot?.querySelector?.(`[data-subject-meta-anchor="${field}"]`);
+    const anchor = scopeRoot?.querySelector?.(anchorSelector);
     const dropdown = host.querySelector(".subject-meta-dropdown");
     if (!anchor || !dropdown) {
       host.innerHTML = "";
@@ -3961,26 +4101,31 @@ function bindSubjectMetaDropdownDocumentEvents() {
   subjectMetaDropdownDocumentBound = true;
 
   document.addEventListener("click", (event) => {
-    if (!store.situationsView.subjectMetaDropdown?.field) return;
+    const hasMetaOpen = !!store.situationsView.subjectMetaDropdown?.field;
+    const hasKanbanOpen = !!store.situationsView.subjectKanbanDropdown?.subjectId && !!store.situationsView.subjectKanbanDropdown?.situationId;
+    if (!hasMetaOpen && !hasKanbanOpen) return;
     if (event.target.closest("#subjectMetaDropdownHost .subject-meta-dropdown")) return;
     if (event.target.closest("[data-subject-meta-trigger]")) return;
+    if (event.target.closest("[data-subject-kanban-trigger]")) return;
     closeSubjectMetaDropdown();
+    closeSubjectKanbanDropdown();
     rerenderSubjectMetaScopes();
   });
 
   window.addEventListener("resize", () => {
-    if (!store.situationsView.subjectMetaDropdown?.field) return;
+    if (!store.situationsView.subjectMetaDropdown?.field && !(store.situationsView.subjectKanbanDropdown?.subjectId && store.situationsView.subjectKanbanDropdown?.situationId)) return;
     syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
   });
 
   document.addEventListener("scroll", () => {
-    if (!store.situationsView.subjectMetaDropdown?.field) return;
+    if (!store.situationsView.subjectMetaDropdown?.field && !(store.situationsView.subjectKanbanDropdown?.subjectId && store.situationsView.subjectKanbanDropdown?.situationId)) return;
     syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
   }, true);
 }
 
 function resetSubjectsTabView() {
   closeSubjectMetaDropdown();
+  closeSubjectKanbanDropdown();
   store.situationsView.subjectsSubview = "subjects";
   store.situationsView.selectedObjectiveId = "";
   if (store.situationsView.detailsModalOpen) closeDetailsModal();
@@ -4042,6 +4187,77 @@ function wireDetailsInteractive(root) {
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       }
     };
+  });
+
+  root.querySelectorAll("[data-subject-kanban-trigger]").forEach((btn) => {
+    btn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const subjectId = String(btn.dataset.subjectKanbanTrigger || "");
+      const situationId = String(btn.dataset.subjectKanbanSituationId || "");
+      const dropdown = store.situationsView.subjectKanbanDropdown || {};
+      const isAlreadyOpen = String(dropdown.subjectId || "") === subjectId && String(dropdown.situationId || "") === situationId;
+      if (isAlreadyOpen) {
+        closeSubjectKanbanDropdown();
+      } else {
+        closeSubjectMetaDropdown();
+        dropdown.subjectId = subjectId;
+        dropdown.situationId = situationId;
+        dropdown.query = "";
+        const entries = getSubjectKanbanMenuEntries(subjectId, situationId, "");
+        dropdown.activeKey = String((entries.find((entry) => entry.isSelected) || entries[0] || {}).key || "");
+      }
+      rerenderScope(root);
+      if (!isAlreadyOpen) {
+        focusSubjectKanbanSearch(subjectId, situationId);
+        syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
+      }
+    };
+  });
+
+  dropdownHost.querySelectorAll("[data-subject-kanban-search]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const subjectId = String(input.dataset.subjectKanbanSearch || "");
+      const situationId = String(input.dataset.subjectKanbanSearchSituationId || "");
+      store.situationsView.subjectKanbanDropdown.query = String(input.value || "");
+      const entries = getSubjectKanbanMenuEntries(subjectId, situationId, input.value || "");
+      store.situationsView.subjectKanbanDropdown.activeKey = String((entries.find((entry) => entry.isSelected) || entries[0] || {}).key || "");
+      rerenderScope(root);
+      focusSubjectKanbanSearch(subjectId, situationId);
+      syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
+    });
+
+    input.addEventListener("keydown", (event) => {
+      const subjectId = String(input.dataset.subjectKanbanSearch || "");
+      const situationId = String(input.dataset.subjectKanbanSearchSituationId || "");
+      const entries = getSubjectKanbanMenuEntries(subjectId, situationId, store.situationsView.subjectKanbanDropdown.query || "");
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (!entries.length) return;
+        const currentKey = String(store.situationsView.subjectKanbanDropdown.activeKey || "");
+        const currentIndex = entries.findIndex((entry) => String(entry?.key || "") === currentKey);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + entries.length) % entries.length : 0;
+        store.situationsView.subjectKanbanDropdown.activeKey = String(entries[nextIndex]?.key || "");
+        rerenderScope(root);
+        focusSubjectKanbanSearch(subjectId, situationId);
+        syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSubjectKanbanDropdown();
+        rerenderScope(root);
+        return;
+      }
+      if (event.key === "Enter") {
+        const activeKey = String(store.situationsView.subjectKanbanDropdown.activeKey || "");
+        if (!activeKey) return;
+        event.preventDefault();
+        setSujetKanbanStatus(subjectId, activeKey, { situationId });
+        closeSubjectKanbanDropdown();
+        rerenderScope(root);
+      }
+    });
   });
 
   dropdownHost.querySelectorAll("[data-subject-meta-search]").forEach((input) => {
@@ -4118,6 +4334,19 @@ function wireDetailsInteractive(root) {
       rerenderScope(root);
       focusSubjectMetaSearch(root, "situations");
       syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
+    };
+  });
+
+  dropdownHost.querySelectorAll("[data-subject-kanban-select]").forEach((btn) => {
+    btn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const subjectId = String(btn.dataset.subjectKanbanSubjectId || "");
+      const situationId = String(btn.dataset.subjectKanbanSituationId || "");
+      const nextStatus = String(btn.dataset.subjectKanbanSelect || "");
+      setSujetKanbanStatus(subjectId, nextStatus, { situationId });
+      closeSubjectKanbanDropdown();
+      rerenderScope(root);
     };
   });
 
