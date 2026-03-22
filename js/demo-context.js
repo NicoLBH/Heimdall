@@ -11,35 +11,35 @@ export const DEMO_USERS = [
     firstName: "Claire",
     lastName: "Delorme",
     role: "MOA",
-    avatar: "assets/images/avatar-moa.svg"
+    avatar: "assets/images/avatar-moa.jfif"
   },
   {
     id: "user-moe",
     firstName: "Sophie",
     lastName: "Leroux",
     role: "MOE",
-    avatar: "assets/images/avatar-moe.svg"
+    avatar: "assets/images/avatar-moe.jfif"
   },
   {
     id: "user-bet",
     firstName: "Julien",
     lastName: "Morel",
     role: "BET",
-    avatar: "assets/images/avatar-bet.svg"
+    avatar: "assets/images/avatar-bet.jfif"
   },
   {
     id: "user-ct",
     firstName: "Marc",
     lastName: "Renaud",
     role: "CT",
-    avatar: "assets/images/avatar-ct.svg"
+    avatar: "assets/images/avatar-ct.jfif"
   },
   {
     id: "user-entreprise",
     firstName: "Alex",
     lastName: "Vidal",
     role: "Entreprise",
-    avatar: "assets/images/avatar-entreprise.svg"
+    avatar: "assets/images/avatar-entreprise.jfif"
   }
 ];
 
