@@ -586,6 +586,13 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   min-width:0;
 }
 
+.subject-meta-dropdown-host{
+  position:fixed;
+  inset:0;
+  z-index:1400;
+  pointer-events:none;
+}
+
 .subject-meta-dropdown{
   position:fixed;
   top:0;
@@ -593,10 +600,12 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   right:auto;
   width:320px;
   max-width:calc(100vw - 24px);
-  display:block;
+  display:flex;
+  flex-direction:column;
   padding:0;
-  z-index:300;
+  z-index:1401;
   overflow:hidden;
+  pointer-events:auto;
 }
 
 .subject-meta-dropdown__title{
@@ -635,6 +644,8 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 }
 
 .subject-meta-dropdown__body{
+  flex:1 1 auto;
+  min-height:0;
   max-height:360px;
   overflow:auto;
 }
