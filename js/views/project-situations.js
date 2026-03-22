@@ -1502,10 +1502,14 @@ function getDefaultSujetKanbanStatus(sujetId) {
   return effectiveStatus === "closed" ? "resolved" : "non_active";
 }
 
-function getSujetKanbanStatus(sujetId) {
+function getSujetKanbanStatus(sujetId, situationId = "") {
   const { bucket } = getRunBucket();
-  const stored = normalizeSujetKanbanStatus(bucket?.workflow?.sujet_kanban_status?.[sujetId]);
-  return stored || getDefaultSujetKanbanStatus(sujetId);
+  const normalizedSituationId = String(situationId || "");
+  const statusMap = bucket?.workflow?.sujet_kanban_status;
+  const scopedStored = normalizeSujetKanbanStatus(normalizedSituationId ? statusMap?.[normalizedSituationId]?.[sujetId] : null);
+  if (scopedStored) return scopedStored;
+  const legacyStored = normalizeSujetKanbanStatus(statusMap?.[sujetId]);
+  return legacyStored || getDefaultSujetKanbanStatus(sujetId);
 }
 
 function normalizeSubjectSituationIds(situationIds) {
@@ -1549,24 +1553,27 @@ function getSituationSubjects(situation) {
 
 function setSujetKanbanStatus(sujetId, nextStatus, options = {}) {
   const normalized = normalizeSujetKanbanStatus(nextStatus);
-  if (!sujetId || !normalized) return false;
+  const situationId = String(options.situationId || "");
+  if (!sujetId || !normalized || !situationId) return false;
 
-  const previous = getSujetKanbanStatus(sujetId);
+  const previous = getSujetKanbanStatus(sujetId, situationId);
   if (previous === normalized) return false;
 
   const ts = options.ts || nowIso();
   const actor = options.actor || "Human";
   const agent = options.agent || "human";
-  const situation = getSituationBySujetId(sujetId);
+  const situation = (store.situationsView.data || []).find((item) => String(item?.id || "") === situationId) || getSituationBySujetId(sujetId);
 
   persistRunBucket((bucket) => {
     bucket.workflow = bucket.workflow || { sujet_kanban_status: {} };
     bucket.workflow.sujet_kanban_status = bucket.workflow.sujet_kanban_status || {};
-    bucket.workflow.sujet_kanban_status[sujetId] = normalized;
+    const statusMap = bucket.workflow.sujet_kanban_status;
+    if (typeof statusMap[situationId] !== "object" || Array.isArray(statusMap[situationId])) statusMap[situationId] = {};
+    statusMap[situationId][sujetId] = normalized;
     bucket.activities.push({
       ts,
       entity_type: "situation",
-      entity_id: situation?.id || sujetId,
+      entity_id: situation?.id || situationId || sujetId,
       type: "ACTIVITY",
       kind: "sujet_kanban_status_changed",
       actor,
@@ -1574,6 +1581,7 @@ function setSujetKanbanStatus(sujetId, nextStatus, options = {}) {
       message: "",
       meta: {
         sujet_id: sujetId,
+        situation_id: situationId,
         from: previous,
         to: normalized
       }
@@ -1587,7 +1595,7 @@ function getSituationKanbanColumns(situation) {
   const columns = SUJET_KANBAN_STATUSES.map((status) => ({ ...status, sujets: [] }));
   const columnMap = new Map(columns.map((column) => [column.key, column]));
   for (const sujet of getSituationSubjects(situation)) {
-    const key = getSujetKanbanStatus(sujet?.id);
+    const key = getSujetKanbanStatus(sujet?.id, situation?.id);
     (columnMap.get(key) || columns[0]).sujets.push(sujet);
   }
   return columns;
@@ -2949,8 +2957,8 @@ function renderDetailsBody(selection, options = {}) {
   `;
 }
 
-function renderSituationKanbanCard(sujet) {
-  const kanbanStatus = getSujetKanbanStatus(sujet.id);
+function renderSituationKanbanCard(sujet, situationId = "") {
+  const kanbanStatus = getSujetKanbanStatus(sujet.id, situationId);
   const avisCount = Array.isArray(sujet?.avis) ? sujet.avis.length : 0;
   const effectiveStatus = String(getEffectiveSujetStatus(sujet.id) || sujet?.status || "open").toLowerCase();
   const reviewMeta = getEntityReviewMeta("sujet", sujet.id);
@@ -3037,7 +3045,7 @@ function renderSituationKanbanBody(situation) {
             </div>
             <div class="situation-kanban__hint">${escapeHtml(column.hint)}</div>
             <div class="situation-kanban__cards">
-              ${column.sujets.length ? column.sujets.map((sujet) => renderSituationKanbanCard(sujet)).join("") : `<div class="situation-kanban__empty">Aucun sujet</div>`}
+              ${column.sujets.length ? column.sujets.map((sujet) => renderSituationKanbanCard(sujet, situation?.id)).join("") : `<div class="situation-kanban__empty">Aucun sujet</div>`}
             </div>
           </section>
         `).join("")}
@@ -3762,7 +3770,8 @@ function wireDetailsInteractive(root) {
       const sujetId = String(event.dataTransfer?.getData("text/plain") || store.situationsView.draggedKanbanSujetId || "");
       const nextStatus = String(column.dataset.kanbanColumn || "");
       if (!sujetId || !nextStatus) return;
-      const changed = setSujetKanbanStatus(sujetId, nextStatus, { actor: "Human", agent: "human" });
+      const activeSituationId = String(store.situationsView.selectedSituationId || "");
+      const changed = setSujetKanbanStatus(sujetId, nextStatus, { actor: "Human", agent: "human", situationId: activeSituationId });
       if (!changed) return;
       rerenderPanels();
       if (store.situationsView.drilldown?.isOpen && String(store.situationsView.drilldown.selectedSujetId || "") === sujetId) {
