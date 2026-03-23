@@ -696,6 +696,23 @@ function normalizeSubjectSituationIds(situationIds) {
   return [...new Set((Array.isArray(situationIds) ? situationIds : []).map((value) => String(value || "")).filter(Boolean))];
 }
 
+function normalizeSubjectLabelKey(label) {
+  return String(label || "").trim().toLowerCase();
+}
+
+function normalizeSubjectLabels(labels) {
+  const seen = new Set();
+  return (Array.isArray(labels) ? labels : [])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const key = normalizeSubjectLabelKey(value);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 function getSubjectSidebarMeta(subjectId) {
   const { bucket } = getRunBucket();
   const subjectMeta = bucket?.subjectMeta?.sujet?.[subjectId] || {};
@@ -716,7 +733,7 @@ function getSubjectSidebarMeta(subjectId) {
     : normalizeSubjectSituationIds(derivedSituationIds);
   return {
     assignees: Array.isArray(subjectMeta.assignees) ? subjectMeta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
-    labels: Array.isArray(subjectMeta.labels) ? subjectMeta.labels.map((value) => String(value || "")).filter(Boolean) : [],
+    labels: normalizeSubjectLabels(subjectMeta.labels),
     objectiveIds,
     situationIds,
     relations: Array.isArray(subjectMeta.relations) ? subjectMeta.relations.map((value) => String(value || "")).filter(Boolean) : []
@@ -773,6 +790,33 @@ function toggleSubjectSituation(subjectId, situationId) {
     ? meta.situationIds.filter((id) => id !== situationKey)
     : [...meta.situationIds, situationKey];
   setSubjectSituationIds(subjectKey, nextIds);
+}
+
+function setSubjectLabels(subjectId, labels) {
+  const subjectKey = String(subjectId || "");
+  const nextLabels = normalizeSubjectLabels(labels);
+  persistRunBucket((bucket) => {
+    bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
+    bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
+    const current = bucket.subjectMeta.sujet[subjectKey] && typeof bucket.subjectMeta.sujet[subjectKey] === "object" ? bucket.subjectMeta.sujet[subjectKey] : {};
+    bucket.subjectMeta.sujet[subjectKey] = {
+      ...current,
+      labels: nextLabels
+    };
+  });
+}
+
+function toggleSubjectLabel(subjectId, label) {
+  const subjectKey = String(subjectId || "");
+  const labelValue = String(label || "").trim();
+  const labelKey = normalizeSubjectLabelKey(labelValue);
+  if (!subjectKey || !labelKey) return;
+  const meta = getSubjectSidebarMeta(subjectKey);
+  const hasLabel = meta.labels.some((value) => normalizeSubjectLabelKey(value) === labelKey);
+  const nextLabels = hasLabel
+    ? meta.labels.filter((value) => normalizeSubjectLabelKey(value) !== labelKey)
+    : [...meta.labels, labelValue];
+  setSubjectLabels(subjectKey, nextLabels);
 }
 
 function setSubjectObjective(subjectId, objectiveId) {
@@ -3036,6 +3080,18 @@ function renderSubjectSituationsValue(subjectId) {
 }
 
 
+function renderSubjectLabelsValue(subjectId) {
+  const labels = getSubjectSidebarMeta(subjectId).labels
+    .map((label) => getSubjectLabelDefinition(label))
+    .filter(Boolean);
+  if (!labels.length) return renderSubjectMetaButtonValue("Aucun label");
+  return `
+    <span class="subject-meta-labels-list">
+      ${labels.map((labelDef) => renderSubjectLabelBadge(labelDef)).join("")}
+    </span>
+  `;
+}
+
 function renderSubjectObjectivesValue(subjectId) {
   const objective = getSubjectObjectives(subjectId)[0] || null;
   if (!objective) return renderSubjectMetaButtonValue("Aucun objectif");
@@ -3105,6 +3161,30 @@ function buildSubjectMetaMenuItems(subject, field) {
     };
   }
 
+  if (field === "labels") {
+    const selectedLabelKeys = new Set(getSubjectSidebarMeta(subject.id).labels.map((label) => normalizeSubjectLabelKey(label)));
+    const items = getSubjectLabelDefinitions()
+      .filter((labelDef) => matchSearch([labelDef.label, labelDef.description, labelDef.key], query))
+      .map((labelDef) => ({
+        key: String(labelDef.key || ""),
+        isActive: String(dropdownState.activeKey || "") === String(labelDef.key || ""),
+        isSelected: selectedLabelKeys.has(normalizeSubjectLabelKey(labelDef.key)),
+        iconHtml: `
+          <span class="select-menu__label-iconset" aria-hidden="true">
+            <span class="select-menu__checkbox ${selectedLabelKeys.has(normalizeSubjectLabelKey(labelDef.key)) ? "is-checked" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
+            <span class="select-menu__label-dot" style="--select-menu-label-dot:${escapeHtml(labelDef.textColor || labelDef.borderColor || labelDef.color || '#8b949e')};"></span>
+          </span>
+        `,
+        title: labelDef.label,
+        metaHtml: escapeHtml(labelDef.description),
+        dataAttrs: { "subject-label-toggle": String(labelDef.key || "") }
+      }));
+    return {
+      items,
+      emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucun label disponible."
+    };
+  }
+
   const emptyHintMap = {
     assignees: "Aucun assigné pour le moment.",
     labels: "Aucun label pour le moment.",
@@ -3154,12 +3234,19 @@ function renderSubjectMetaDropdown(subject, field) {
   const { items, emptyHint } = buildSubjectMetaMenuItems(subject, field);
   const titles = {
     assignees: "Assigner ce sujet",
-    labels: "Gérer les labels",
+    labels: "Appliquer des labels au sujet",
     relations: "Gérer les relations"
   };
   return `
     <div class="subject-meta-dropdown gh-menu gh-menu--open" role="dialog">
       <div class="subject-meta-dropdown__title">${escapeHtml(titles[field] || "Paramètres")}</div>
+      ${field === "labels" ? `
+        <div class="subject-meta-dropdown__search">
+          <span class="subject-meta-dropdown__search-icon" aria-hidden="true">${svgIcon("search", { className: "octicon octicon-search" })}</span>
+          <input type="search" class="subject-meta-dropdown__search-input" data-subject-meta-search="${escapeHtml(field)}" value="${escapeHtml(query)}" placeholder="Filtrer les labels" autocomplete="off">
+        </div>
+        <div class="subject-kanban-dropdown__separator" aria-hidden="true"></div>
+      ` : ""}
       <div class="subject-meta-dropdown__body">
         ${renderSelectMenuSection({ items, emptyTitle: "Aucune donnée", emptyHint: emptyHint || "Cette liste sera branchée plus tard." })}
       </div>
@@ -3222,7 +3309,7 @@ function renderSubjectMetaControls(subject) {
       ${renderSubjectMetaField({
         field: "labels",
         label: "Labels",
-        valueHtml: renderSubjectMetaButtonValue(summarizeSubjectMetaValue(meta.labels, "Aucun label"))
+        valueHtml: renderSubjectLabelsValue(subject.id)
       })}
       ${renderSubjectMetaField({
         field: "situations",
@@ -4250,8 +4337,12 @@ function wireDetailsInteractive(root) {
         const selectedObjectiveKey = field === "objectives" && scopedSelection?.type === "sujet"
           ? String(getSubjectSidebarMeta(scopedSelection.item.id).objectiveIds[0] || "")
           : "";
-        dropdown.activeKey = selectedObjectiveKey && entries.some((entry) => String(entry?.key || "") === selectedObjectiveKey)
-          ? selectedObjectiveKey
+        const selectedLabelKey = field === "labels" && scopedSelection?.type === "sujet"
+          ? String((getSubjectSidebarMeta(scopedSelection.item.id).labels[0] || "")).trim().toLowerCase()
+          : "";
+        const preferredKey = selectedObjectiveKey || selectedLabelKey;
+        dropdown.activeKey = preferredKey && entries.some((entry) => String(entry?.key || "") === preferredKey)
+          ? preferredKey
           : String(entries[0]?.key || "");
       }
       rerenderScope(root);
@@ -4339,7 +4430,10 @@ function wireDetailsInteractive(root) {
       store.situationsView.subjectMetaDropdown.query = String(input.value || "");
       const subject = getScopedSelection(root)?.type === "sujet" ? getScopedSelection(root).item : null;
       const entries = subject ? getSubjectMetaMenuEntries(subject, field) : [];
-      store.situationsView.subjectMetaDropdown.activeKey = String(entries[0]?.key || "");
+      const currentKey = String(store.situationsView.subjectMetaDropdown.activeKey || "");
+      store.situationsView.subjectMetaDropdown.activeKey = entries.some((entry) => String(entry?.key || "") === currentKey)
+        ? currentKey
+        : String(entries[0]?.key || "");
       rerenderScope(root);
       focusSubjectMetaSearch(root, field);
       syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
@@ -4379,6 +4473,14 @@ function wireDetailsInteractive(root) {
           rerenderScope(root);
           focusSubjectMetaSearch(root, field);
           syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
+          return;
+        }
+        if (field === "labels") {
+          event.preventDefault();
+          toggleSubjectLabel(subjectSelection.item.id, activeKey);
+          rerenderScope(root);
+          focusSubjectMetaSearch(root, field);
+          syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
         }
       }
     });
@@ -4406,6 +4508,19 @@ function wireDetailsInteractive(root) {
       toggleSubjectSituation(subjectSelection.item.id, String(btn.dataset.situationToggle || ""));
       rerenderScope(root);
       focusSubjectMetaSearch(root, "situations");
+      syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
+    };
+  });
+
+  dropdownHost.querySelectorAll("[data-subject-label-toggle]").forEach((btn) => {
+    btn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const subjectSelection = getScopedSelection(root);
+      if (subjectSelection?.type !== "sujet") return;
+      toggleSubjectLabel(subjectSelection.item.id, String(btn.dataset.subjectLabelToggle || ""));
+      rerenderScope(root);
+      focusSubjectMetaSearch(root, "labels");
       syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
     };
   });
@@ -5319,12 +5434,13 @@ const SUBJECT_DEFAULT_LABEL_DEFINITIONS = [
   { key: "sans suite", label: "sans suite", description: "Point clos sans action complémentaire.", color: "rgba(0, 0, 0, 0)", textColor: "rgb(208, 212, 216)", borderColor: "rgba(208, 212, 216, 0.3)" }
 ];
 
-function normalizeSubjectLabelKey(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
 function getSubjectLabelDefinitions() {
   return SUBJECT_DEFAULT_LABEL_DEFINITIONS;
+}
+
+function getSubjectLabelDefinition(value) {
+  const key = normalizeSubjectLabelKey(value);
+  return getSubjectLabelDefinitions().find((labelDef) => normalizeSubjectLabelKey(labelDef.key) === key) || null;
 }
 
 function getSubjectsLabelUsageCounts() {
