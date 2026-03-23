@@ -6440,7 +6440,7 @@ color:var(--text);
 
 .issue-status-icon__svg--situation.issue-status-icon__svg--open{color:#fff;}
 .issue-status-icon__svg--situation.issue-status-icon__svg--closed{color:var(--muted);}
-.project-situations__table-toolbar{padding: 12px 12px 0 0;margin-bottom: 16px;}
+.project-situations__table-toolbar{padding: 12px 12px 0 12px;margin-bottom: 16px;}
 .project-situations__table-toolbar .project-table-toolbar{margin: 0;}
 
 
