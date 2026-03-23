@@ -1,3 +1,4 @@
+import { svgIcon } from "../../ui/icons.js";
 import { escapeHtml } from "../../utils/escape-html.js";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
@@ -82,7 +83,7 @@ export function renderSharedDatePicker({
         aria-expanded="${isOpen ? "true" : "false"}"
         aria-haspopup="dialog"
       >
-        <span class="shared-date-picker__trigger-icon" aria-hidden="true">📅</span>
+        <span class="shared-date-picker__trigger-icon" aria-hidden="true">${svgIcon("calendar", { className: "octicon octicon-calendar Anchor-module__calendarIcon__VUKUY" })}</span>
         <span class="shared-date-picker__trigger-label">${escapeHtml(inputLabel || placeholder)}</span>
       </button>
       <input type="hidden" id="${escapeHtml(idBase)}" value="${escapeHtml(selectedValue || "")}">
@@ -90,7 +91,7 @@ export function renderSharedDatePicker({
         <div class="shared-date-picker__popover" role="dialog" aria-label="${escapeHtml(calendarLabel)}">
           <div class="shared-date-picker__calendar">
             <div class="shared-date-picker__calendar-head">
-              <button type="button" class="shared-date-picker__nav" data-shared-date-nav="${escapeHtml(idBase)}-prev" aria-label="Mois précédent">&#x2039;</button>
+              <button type="button" class="shared-date-picker__nav" data-shared-date-nav="${escapeHtml(idBase)}-prev" aria-label="Mois prÃŠcÃŠdent">&#x2039;</button>
               <div class="shared-date-picker__month-label">${escapeHtml(formatSharedDateLong(new Date(viewYear, viewMonth, 1)))}</div>
               <button type="button" class="shared-date-picker__nav" data-shared-date-nav="${escapeHtml(idBase)}-next" aria-label="Mois suivant">&#x203A;</button>
             </div>
