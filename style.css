@@ -7530,10 +7530,12 @@ color:#ffff;
   background:transparent;
   color:inherit;
   padding:12px 16px;
-  display:flex;
-  flex-direction:column;
-  align-items:flex-start;
-  gap:4px;
+  display:grid;
+  grid-template-columns:16px minmax(0,1fr) minmax(240px,320px);
+  grid-template-rows:auto auto;
+  column-gap:12px;
+  row-gap:4px;
+  align-items:start;
   text-align:left;
   cursor:pointer;
 }
@@ -7548,11 +7550,17 @@ color:#ffff;
   outline:none;
 }
 
+.objectives-row__icon{grid-column:1;grid-row:1;display:inline-flex;align-items:center;color:var(--muted);margin-top:2px;}
+
 .objectives-row__title{
+  grid-column:2;
+  grid-row:1;
   appearance:none;
   border:0;
   background:none;
   padding:0;
+  min-width:0;
+  text-align:left;
   font:inherit;
   font-size:14px;
   font-weight:600;
@@ -7569,9 +7577,18 @@ color:#ffff;
 }
 
 .objectives-row__meta{
+  grid-column:2;
+  grid-row:2;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
   font-size:12px;
   color:var(--muted);
 }
+
+.objectives-row__progress{grid-column:3;grid-row:1 / span 2;align-self:center;justify-self:stretch;min-width:0;}
 
 .objective-breadcrumb{
   display:flex;
@@ -7634,6 +7651,8 @@ color:#ffff;
 }
 
 .objective-progress__label{font-size:13px;color:var(--muted);white-space:nowrap;}
+.objective-progress__meta{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;}
+.objective-progress__counts{font-size:12px;color:var(--muted);white-space:nowrap;display:inline-flex;align-items:center;gap:6px;}
 
 .objective-progress__track{
   width:100%;
@@ -7671,6 +7690,15 @@ color:#ffff;
 .shared-date-picker{position:relative;max-width:100%;}
 .shared-date-picker__trigger{width:100%;min-height:32px;padding:0 12px;display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--btn-bg);color:var(--text);font:inherit;cursor:pointer;font-size:13px;font-weight:500;}
 .shared-date-picker__trigger-icon{display:inline-flex;align-items:center;color:var(--muted);}
+.shared-date-picker__trigger-icon .ui-icon{display:block;}
+.objective-progress--compact{width:100%;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:stretch;}
+.objective-progress--compact .objective-progress__track{max-width:none;}
+.objective-progress--compact .objective-progress__meta{font-size:12px;}
+
+@media (max-width: 960px){
+  .objectives-row{grid-template-columns:16px minmax(0,1fr);}
+  .objectives-row__progress{grid-column:1 / span 2;grid-row:3;}
+}
 .shared-date-picker__trigger-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .shared-date-picker__popover{position:absolute;z-index:1402;top:calc(100% + 6px);left:0;}
 .shared-date-picker__calendar{width:320px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg);box-shadow:var(--shadow-lg, 0 16px 48px rgba(1,4,9,.4));}
