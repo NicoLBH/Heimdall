@@ -601,6 +601,14 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   color:var(--muted);
 }
 
+
+.subject-meta-labels-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  padding-top:2px;
+}
+
 .subject-meta-situation-card{
   display:grid;
   grid-template-columns:minmax(0,1fr);
@@ -888,6 +896,21 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   background:#1f6feb;
   border-color:#1f6feb;
   color:#fff;
+}
+
+
+.select-menu__label-iconset{
+  display:inline-grid;
+  grid-template-columns:16px 10px;
+  align-items:center;
+  gap:8px;
+}
+
+.select-menu__label-dot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  background:var(--select-menu-label-dot, var(--muted));
 }
 
 .select-menu__item-content{
