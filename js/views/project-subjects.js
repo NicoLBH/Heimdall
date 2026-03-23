@@ -4188,12 +4188,7 @@ function resetSubjectsTabView(reason = "manual") {
   if (subjectsCurrentRoot && subjectsCurrentRoot.isConnected) {
     rerenderPanels();
     syncSituationsPrimaryScrollSource();
-  } else {
   }
-
-    reason,
-    after: getSubjectsTabResetState()
-  });
 }
 
 function bindSubjectsTabReset() {
@@ -4206,9 +4201,6 @@ function bindSubjectsTabReset() {
     if (tabId !== "subjects" && tabId !== "sujets") return;
 
     const state = getSubjectsTabResetState();
-      detail,
-      state
-    });
 
     const activeProjectId = String(store.currentProjectId || "");
     const eventProjectId = String(detail.projectId || "");
