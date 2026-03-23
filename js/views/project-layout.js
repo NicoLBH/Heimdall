@@ -17,7 +17,7 @@ import { renderProjectRisquesSecurite } from "./project-risques-securite.js";
 import { renderProjectInsights } from "./project-insights.js";
 import { renderProjectParametres } from "./project-parametres.js";
 
-import { renderProjectHeader } from "./project-header.js";
+import { renderProjectHeader, bindProjectHeaderNavigation } from "./project-header.js";
 import { renderProjectSituationsTopBanner } from "./project-situations-runbar.js";
 import { mountProjectShellChrome } from "./project-shell-chrome.js";
 
@@ -56,8 +56,10 @@ function normalizeProjectTab(tab) {
 export function renderProjectLayout(root, projectId, tab) {
   const normalizedTab = normalizeProjectTab(tab);
 
+  bindProjectHeaderNavigation();
+
   root.innerHTML = `
-    <div class="project-shell" id="projectShell">
+    <div class="project-shell" id="projectShell" data-project-id="${projectId}">
       ${renderProjectHeader(projectId, normalizedTab)}
 
       <div class="project-shell__body">
