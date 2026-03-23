@@ -4171,7 +4171,6 @@ function getSubjectsTabResetState() {
 
 function resetSubjectsTabView(reason = "manual") {
   const before = getSubjectsTabResetState();
-  console.info("[project-subjects] resetSubjectsTabView:start", { reason, before });
 
   closeSubjectMetaDropdown();
   closeSubjectKanbanDropdown();
@@ -4181,22 +4180,17 @@ function resetSubjectsTabView(reason = "manual") {
   store.situationsView.showTableOnly = true;
 
   if (store.situationsView.detailsModalOpen) {
-    console.info("[project-subjects] resetSubjectsTabView:closeDetailsModal");
     closeDetailsModal();
   }
   if (store.situationsView.drilldown?.isOpen) {
-    console.info("[project-subjects] resetSubjectsTabView:closeDrilldown");
     closeDrilldown();
   }
   if (subjectsCurrentRoot && subjectsCurrentRoot.isConnected) {
-    console.info("[project-subjects] resetSubjectsTabView:rerenderPanels");
     rerenderPanels();
     syncSituationsPrimaryScrollSource();
   } else {
-    console.info("[project-subjects] resetSubjectsTabView:skip-rerender-no-connected-root");
   }
 
-  console.info("[project-subjects] resetSubjectsTabView:done", {
     reason,
     after: getSubjectsTabResetState()
   });
@@ -4205,7 +4199,6 @@ function resetSubjectsTabView(reason = "manual") {
 function bindSubjectsTabReset() {
   if (subjectsTabResetBound) return;
   subjectsTabResetBound = true;
-  console.info("[project-subjects] bindSubjectsTabReset:bound");
 
   window.addEventListener(PROJECT_TAB_RESELECTED_EVENT, (event) => {
     const detail = event?.detail || {};
@@ -4213,7 +4206,6 @@ function bindSubjectsTabReset() {
     if (tabId !== "subjects" && tabId !== "sujets") return;
 
     const state = getSubjectsTabResetState();
-    console.info("[project-subjects] subjects-tab:reselected", {
       detail,
       state
     });
@@ -4221,7 +4213,6 @@ function bindSubjectsTabReset() {
     const activeProjectId = String(store.currentProjectId || "");
     const eventProjectId = String(detail.projectId || "");
     if (eventProjectId && activeProjectId && eventProjectId !== activeProjectId) {
-      console.info("[project-subjects] subjects-tab:skip-project-mismatch", { eventProjectId, activeProjectId });
       return;
     }
 
@@ -4234,15 +4225,12 @@ function bindSubjectsTabReset() {
       || state.objectiveEditOpen;
     const hasMainViewState = !state.showTableOnly;
     if (!hasOverlayState && !hasSubviewState && !hasMainViewState) {
-      console.info("[project-subjects] subjects-tab:skip-already-main-view");
       return;
     }
     if (!state.hasConnectedRoot) {
-      console.info("[project-subjects] subjects-tab:skip-no-connected-root");
       return;
     }
 
-    console.info("[project-subjects] subjects-tab:reset-on-reselect");
     resetSubjectsTabView("subjects-tab-reselected");
   });
 }
