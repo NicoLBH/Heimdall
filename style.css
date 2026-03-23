@@ -7657,11 +7657,11 @@ color:#ffff;
 
 .objective-edit-form{max-width:820px;padding:8px 0 0;}
 .objective-edit-form__header{padding:0 0 12px;}
-.objective-edit-form__title{margin:0;font-size:32px;line-height:1.25;font-weight:600;color:var(--text);}
+.objective-edit-form__title{margin:0;font-size:20px;line-height:1.25;font-weight:600;color:var(--text);}
 .objective-edit-form__separator{height:1px;background:var(--border);margin:0 0 20px;}
 .objective-edit-form__field{display:flex;flex-direction:column;gap:8px;margin:0 0 20px;}
 .objective-edit-form__label{font-size:13px;font-weight:600;color:var(--text);}
-.objective-edit-form__input,.objective-edit-form__textarea{width:100%;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;outline:none;}
+.objective-edit-form__input,.objective-edit-form__textarea{width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font:inherit;outline:none;font-size:13px;}
 .objective-edit-form__input{min-height:32px;padding:0 12px;}
 .objective-edit-form__textarea{min-height:128px;padding:12px;resize:vertical;}
 .objective-edit-form__input:focus,.objective-edit-form__textarea:focus,.shared-date-picker__trigger:focus-visible,.shared-date-picker__day:focus-visible,.shared-date-picker__nav:focus-visible,.shared-date-picker__footer-action:focus-visible{border-color:#1f6feb;box-shadow:0 0 0 3px rgba(31,111,235,.15);}
@@ -7669,20 +7669,20 @@ color:#ffff;
 .objective-edit-form__actions-right{display:flex;align-items:center;gap:8px;}
 
 .shared-date-picker{position:relative;max-width:100%;}
-.shared-date-picker__trigger{width:100%;min-height:32px;padding:0 12px;display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:8px;background:var(--control);color:var(--text);font:inherit;cursor:pointer;}
+.shared-date-picker__trigger{width:100%;min-height:32px;padding:0 12px;display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--btn-bg);color:var(--text);font:inherit;cursor:pointer;font-size:13px;font-weight:500;}
 .shared-date-picker__trigger-icon{display:inline-flex;align-items:center;color:var(--muted);}
 .shared-date-picker__trigger-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .shared-date-picker__popover{position:absolute;z-index:1402;top:calc(100% + 6px);left:0;}
-.shared-date-picker__calendar{width:320px;padding:16px;border:1px solid var(--border);border-radius:16px;background:var(--bg);box-shadow:var(--shadow-lg, 0 16px 48px rgba(1,4,9,.4));}
+.shared-date-picker__calendar{width:320px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg);box-shadow:var(--shadow-lg, 0 16px 48px rgba(1,4,9,.4));}
 .shared-date-picker__calendar-head{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:8px;margin-bottom:16px;}
-.shared-date-picker__nav{width:40px;height:28px;border:1px solid var(--border);border-radius:8px;background:var(--control);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
-.shared-date-picker__month-label{text-align:center;font-size:14px;font-weight:600;color:var(--text);}
+.shared-date-picker__nav{width:40px;height:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--btn-bg);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+.shared-date-picker__month-label{text-align:center;font-size:13px;font-weight:600;color:var(--text);}
 .shared-date-picker__weekdays,.shared-date-picker__days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;}
 .shared-date-picker__weekdays{margin-bottom:12px;}
-.shared-date-picker__weekdays span{font-size:12px;color:var(--muted);text-align:center;padding:4px 0;}
-.shared-date-picker__day{height:36px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;cursor:pointer;}
+.shared-date-picker__weekdays span{font-size:11px;color:var(--muted);text-align:center;padding:4px 0;}
+.shared-date-picker__day{height:36px;border:0;border-radius:var(--radius);background:transparent;color:var(--text);font:inherit;cursor:pointer;font-size:12px}
 .shared-date-picker__day.is-outside{color:color-mix(in srgb, var(--muted) 60%, transparent);}
 .shared-date-picker__day.is-selected{background:#1f6feb;color:#fff;}
-.shared-date-picker__day.is-today{outline:1px solid var(--border);}
+.shared-date-picker__day.is-today{outline:1px solid var(--border);border-radius:var(--radius);}
 .shared-date-picker__footer{display:flex;align-items:center;gap:12px;margin-top:16px;}
 .shared-date-picker__footer-action{border:0;background:none;padding:0;color:var(--blueLink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
