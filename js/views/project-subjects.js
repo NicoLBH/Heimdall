@@ -412,6 +412,32 @@ const DEFAULT_OBJECTIVE_TITLES = [
   "Travaux terminés",
   "Réception prononcée"
 ];
+const DEFAULT_SUBJECT_LABELS = [
+  { key: "bloquant", description: "Empêche l'avancement du sujet.", color: "#f85149" },
+  { key: "critique", description: "Point majeur à traiter en priorité.", color: "#ff7b72" },
+  { key: "sensible", description: "Sujet délicat nécessitant une vigilance renforcée.", color: "#d2a8ff" },
+  { key: "non conforme", description: "Écart identifié par rapport aux exigences applicables.", color: "#fb8500" },
+  { key: "incident", description: "Événement ou dysfonctionnement constaté.", color: "#db6d28" },
+  { key: "réserve", description: "Point restant à lever ou à compléter.", color: "#e3b341" },
+  { key: "question", description: "Demande de clarification en attente.", color: "#a371f7" },
+  { key: "à arbitrer", description: "Décision de pilotage ou d'arbitrage requise.", color: "#8957e5" },
+  { key: "validation requise", description: "Validation explicite attendue avant poursuite.", color: "#1f6feb" },
+  { key: "à préciser", description: "Informations complémentaires attendues.", color: "#58a6ff" },
+  { key: "information", description: "Élément informatif sans action immédiate.", color: "#6e7681" },
+  { key: "refusé", description: "Option, demande ou proposition rejetée.", color: "#f85149" },
+  { key: "variante", description: "Solution alternative proposée à l'étude.", color: "#3fb950" },
+  { key: "modification", description: "Changement demandé sur le sujet courant.", color: "#2ea043" },
+  { key: "optimisation", description: "Piste d'amélioration ou d'optimisation identifiée.", color: "#238636" },
+  { key: "correction", description: "Correction à apporter sur un point relevé.", color: "#9e6a03" },
+  { key: "action moa", description: "Action attendue de la maîtrise d'ouvrage.", color: "#0969da" },
+  { key: "action moe", description: "Action attendue de la maîtrise d'oeuvre.", color: "#1b7f83" },
+  { key: "action entreprise", description: "Action attendue de l'entreprise intervenante.", color: "#bc4c00" },
+  { key: "action bet", description: "Action attendue du BET concerné.", color: "#7c3aed" },
+  { key: "coordination", description: "Coordination nécessaire entre plusieurs acteurs.", color: "#db61a2" },
+  { key: "doublon", description: "Sujet déjà traité ou dupliqué ailleurs.", color: "#8b949e" },
+  { key: "hors périmètre", description: "En dehors du périmètre de traitement du sujet.", color: "#57606a" },
+  { key: "sans suite", description: "Sujet classé sans action complémentaire.", color: "#6e7681" }
+];
 
 function ensureViewUiState() {
   const v = store.situationsView;
@@ -3567,6 +3593,9 @@ function rerenderPanels() {
     if (String(store.situationsView.subjectsSubview || "subjects") === "objectives") {
       panelHost.innerHTML = `<div id="objectivesTableHost" class="project-table-host">${renderObjectivesTableHtml()}</div>`;
       syncSituationsPrimaryScrollSource();
+    } else if (String(store.situationsView.subjectsSubview || "subjects") === "labels") {
+      panelHost.innerHTML = `<div id="labelsTableHost" class="project-table-host">${renderLabelsTableHtml()}</div>`;
+      syncSituationsPrimaryScrollSource();
     } else if (store.situationsView.showTableOnly) {
       panelHost.innerHTML = `<div id="situationsTableHost" class="project-table-host">${renderTableHtml(filteredSituations)}</div>`;
       syncSituationsPrimaryScrollSource();
@@ -4843,7 +4872,7 @@ function bindSituationsEvents(root, headerRoot) {
   toolbarRoot?.addEventListener("ghaction:action", (event) => {
     const action = String(event.detail?.action || "");
     if (!action) return;
-    if (action === "add-sujet" || action === "add-objective" || action === "open-labels") {
+    if (action === "add-sujet" || action === "add-objective" || action === "add-label" || action === "open-labels") {
       event.preventDefault();
       return;
     }
@@ -4851,6 +4880,15 @@ function bindSituationsEvents(root, headerRoot) {
       event.preventDefault();
       resetObjectiveEditState();
       store.situationsView.subjectsSubview = "objectives";
+      store.situationsView.selectedObjectiveId = "";
+      store.situationsView.showTableOnly = true;
+      rerenderPanels();
+      return;
+    }
+    if (action === "open-labels") {
+      event.preventDefault();
+      resetObjectiveEditState();
+      store.situationsView.subjectsSubview = "labels";
       store.situationsView.selectedObjectiveId = "";
       store.situationsView.showTableOnly = true;
       rerenderPanels();
@@ -5155,6 +5193,15 @@ function renderObjectivesCreateAction() {
   });
 }
 
+function renderLabelsCreateAction() {
+  return renderSubjectsToolbarButton({
+    id: "labelsCreateAction",
+    label: "Nouveau label",
+    tone: "primary",
+    action: "add-label"
+  });
+}
+
 function renderSubjectsLabelsAction() {
   return renderSubjectsToolbarButton({
     id: "subjectsLabelsAction",
@@ -5200,6 +5247,18 @@ function renderSituationsViewHeaderHtml() {
       className: "project-table-toolbar--situations project-table-toolbar--objectives",
       leftHtml,
       rightHtml
+    });
+  }
+
+  if (String(store.situationsView.subjectsSubview || "subjects") === "labels") {
+    return renderProjectTableToolbar({
+      className: "project-table-toolbar--situations project-table-toolbar--labels",
+      leftHtml: renderProjectTableToolbarGroup({
+        html: '<div class="project-table-toolbar__title">Labels</div>'
+      }),
+      rightHtml: renderProjectTableToolbarGroup({
+        html: renderLabelsCreateAction()
+      })
     });
   }
 
@@ -5361,6 +5420,62 @@ function formatObjectiveDueDateLabel(objective) {
   const parsed = new Date(objective.dueDate);
   if (Number.isNaN(parsed.getTime())) return String(objective.dueDate);
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(parsed);
+}
+
+function normalizeSubjectLabelKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getSubjectLabelsCatalog() {
+  const counts = new Map();
+  for (const situation of store.situationsView.data || []) {
+    for (const sujet of situation?.sujets || []) {
+      const labels = getSubjectSidebarMeta(sujet?.id).labels;
+      labels.forEach((label) => {
+        const key = normalizeSubjectLabelKey(label);
+        if (!key) return;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+    }
+  }
+  return DEFAULT_SUBJECT_LABELS.map((label) => ({
+    ...label,
+    count: counts.get(label.key) || 0
+  }));
+}
+
+function renderSubjectLabelBadge(label) {
+  const color = String(label?.color || "#6e7681");
+  const name = firstNonEmpty(label?.key, "Label");
+  return `
+    <span class="subject-label-badge" style="--subject-label-color:${escapeHtml(color)}">
+      ${escapeHtml(name)}
+    </span>
+  `;
+}
+
+function renderLabelsTableHtml() {
+  const labels = getSubjectLabelsCatalog();
+  const rowsHtml = labels.length
+    ? labels.map((label) => `
+        <div class="labels-row">
+          <div class="labels-row__name">${renderSubjectLabelBadge(label)}</div>
+          <div class="labels-row__description">${escapeHtml(label.description)}</div>
+          <div class="labels-row__count">${label.count > 0 ? `<span class="labels-row__count-value">${escapeHtml(String(label.count))}</span>` : ""}</div>
+        </div>
+      `).join("")
+    : "";
+
+  return renderIssuesTable({
+    className: "labels-table",
+    headHtml: `<div class="labels-table__head-count">${labels.length} labels</div>`,
+    rowsHtml,
+    headClassName: "labels-table__head",
+    bodyClassName: "labels-table__body",
+    gridTemplate: "minmax(220px, 320px) minmax(0, 1fr) 72px",
+    emptyTitle: "Aucun label",
+    emptyDescription: "Les labels disponibles apparaîtront ici."
+  });
 }
 
 function renderObjectiveStatusBadge(objective) {
