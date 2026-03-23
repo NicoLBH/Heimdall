@@ -69,6 +69,7 @@ import { getSelectionDocumentRefs } from "../services/project-document-selectors
 let subjectsCurrentRoot = null;
 let subjectsTabResetBound = false;
 let objectiveEditCalendarDismissBound = false;
+const DRAFT_SUBJECT_ID = "__draft_subject__";
 
 /* =========================================================
    Legacy DOM / archive parity helpers
@@ -475,6 +476,23 @@ function ensureViewUiState() {
       activeKey: ""
     };
   }
+  if (!v.createSubjectForm || typeof v.createSubjectForm !== "object") {
+    v.createSubjectForm = {
+      isOpen: false,
+      title: "",
+      description: "",
+      previewMode: false,
+      createMore: false,
+      meta: {
+        assignees: [],
+        labels: [],
+        objectiveIds: [],
+        situationIds: [],
+        relations: []
+      },
+      validationError: ""
+    };
+  }
 }
 
 function currentRunKey() {
@@ -536,7 +554,8 @@ function getRunBucket() {
       },
       subjectMeta: {
         sujet: {}
-      }
+      },
+      customSubjects: []
     };
     saveHumanStore(all);
   }
@@ -576,6 +595,10 @@ function getRunBucket() {
   }
   if (!bucket.subjectMeta.sujet || typeof bucket.subjectMeta.sujet !== "object") {
     bucket.subjectMeta.sujet = {};
+    saveHumanStore(all);
+  }
+  if (!Array.isArray(bucket.customSubjects)) {
+    bucket.customSubjects = [];
     saveHumanStore(all);
   }
 
@@ -620,6 +643,161 @@ function persistRunBucket(mutator) {
   mutator(bucket);
   all.runs[key] = bucket;
   saveHumanStore(all);
+}
+
+function getDraftSubjectSelection() {
+  ensureViewUiState();
+  if (!store.situationsView.createSubjectForm?.isOpen) return null;
+  return {
+    type: "sujet",
+    item: {
+      id: DRAFT_SUBJECT_ID,
+      title: String(store.situationsView.createSubjectForm.title || "").trim() || "Nouveau sujet",
+      status: "open",
+      priority: "P3",
+      agent: "human",
+      avis: []
+    }
+  };
+}
+
+function buildDefaultDraftSubjectMeta() {
+  const selectedSituationId = String(
+    store.situationsView.selectedSituationId
+    || (store.situationsView.data || []).find((situation) => String(getEffectiveSituationStatus(situation?.id) || situation?.status || "open").toLowerCase() === "open")?.id
+    || (store.situationsView.data || [])[0]?.id
+    || ""
+  );
+  return {
+    assignees: [],
+    labels: [],
+    objectiveIds: [],
+    situationIds: selectedSituationId ? [selectedSituationId] : [],
+    relations: []
+  };
+}
+
+function resetCreateSubjectForm(options = {}) {
+  ensureViewUiState();
+  const keepCreateMore = !!options.keepCreateMore;
+  const previous = store.situationsView.createSubjectForm || {};
+  store.situationsView.createSubjectForm = {
+    isOpen: false,
+    title: "",
+    description: "",
+    previewMode: false,
+    createMore: keepCreateMore ? !!previous.createMore : false,
+    meta: buildDefaultDraftSubjectMeta(),
+    validationError: ""
+  };
+}
+
+function openCreateSubjectForm() {
+  resetObjectiveEditState();
+  closeSubjectMetaDropdown();
+  closeSubjectKanbanDropdown();
+  ensureViewUiState();
+  const previousCreateMore = !!store.situationsView.createSubjectForm?.createMore;
+  store.situationsView.subjectsSubview = "subjects";
+  store.situationsView.showTableOnly = true;
+  store.situationsView.createSubjectForm = {
+    isOpen: true,
+    title: "",
+    description: "",
+    previewMode: false,
+    createMore: previousCreateMore,
+    meta: buildDefaultDraftSubjectMeta(),
+    validationError: ""
+  };
+}
+
+function getCustomSubjects() {
+  const { bucket } = getRunBucket();
+  return (Array.isArray(bucket.customSubjects) ? bucket.customSubjects : []).map((subject, index) => ({
+    id: String(subject?.id || `sujet-local-${index + 1}`),
+    title: String(subject?.title || `Sujet ${index + 1}`),
+    status: String(subject?.status || "open").toLowerCase(),
+    priority: String(subject?.priority || "P3").toUpperCase(),
+    agent: String(subject?.agent || "human").toLowerCase(),
+    raw: subject?.raw && typeof subject.raw === "object" ? subject.raw : {},
+    avis: Array.isArray(subject?.avis) ? subject.avis : []
+  }));
+}
+
+function createCustomSubjectId() {
+  const stamp = new Date();
+  const compact = [
+    stamp.getFullYear(),
+    String(stamp.getMonth() + 1).padStart(2, "0"),
+    String(stamp.getDate()).padStart(2, "0"),
+    "-",
+    String(stamp.getHours()).padStart(2, "0"),
+    String(stamp.getMinutes()).padStart(2, "0"),
+    String(stamp.getSeconds()).padStart(2, "0"),
+    "-",
+    Math.random().toString(36).slice(2, 6)
+  ].join("");
+  return `sujet-local-${compact}`;
+}
+
+function createSubjectFromDraft() {
+  ensureViewUiState();
+  const draft = store.situationsView.createSubjectForm || {};
+  const title = String(draft.title || "").trim();
+  if (!title) {
+    store.situationsView.createSubjectForm.validationError = "Le titre du sujet est obligatoire.";
+    return { ok: false, reason: "missing-title" };
+  }
+
+  const subjectId = createCustomSubjectId();
+  const nextMeta = {
+    assignees: Array.isArray(draft.meta?.assignees) ? draft.meta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
+    labels: normalizeSubjectLabels(draft.meta?.labels),
+    objectiveIds: normalizeSubjectObjectiveIds(draft.meta?.objectiveIds),
+    situationIds: normalizeSubjectSituationIds(draft.meta?.situationIds),
+    relations: Array.isArray(draft.meta?.relations) ? draft.meta.relations.map((value) => String(value || "")).filter(Boolean) : []
+  };
+
+  persistRunBucket((bucket) => {
+    bucket.customSubjects = Array.isArray(bucket.customSubjects) ? bucket.customSubjects : [];
+    bucket.customSubjects.unshift({
+      id: subjectId,
+      title,
+      status: "open",
+      priority: "P3",
+      agent: "human",
+      raw: {
+        created_by: String(store.user?.id || "human"),
+        created_at: nowIso()
+      },
+      avis: []
+    });
+    bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
+    bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
+    bucket.subjectMeta.sujet[subjectId] = {
+      ...(bucket.subjectMeta.sujet[subjectId] || {}),
+      assignees: nextMeta.assignees,
+      labels: nextMeta.labels,
+      objectiveIds: nextMeta.objectiveIds,
+      situationIds: nextMeta.situationIds,
+      relations: nextMeta.relations
+    };
+  });
+
+  setEntityDescriptionState("sujet", subjectId, {
+    body: String(draft.description || "").trim(),
+    author: firstNonEmpty(store.user?.name, store.user?.firstName, "human"),
+    agent: "human",
+    avatar_type: "human",
+    avatar_initial: "H"
+  }, { actor: "Human", agent: "human" });
+
+  setSubjectObjectiveIds(subjectId, nextMeta.objectiveIds);
+  store.situationsView.selectedSujetId = subjectId;
+  store.situationsView.selectedAvisId = null;
+  store.situationsView.selectedSituationId = nextMeta.situationIds[0] || store.situationsView.selectedSituationId || null;
+  store.situationsView.createSubjectForm.validationError = "";
+  return { ok: true, subjectId };
 }
 
 function normalizeSujetKanbanStatus(value) {
@@ -715,6 +893,17 @@ function normalizeSubjectLabels(labels) {
 }
 
 function getSubjectSidebarMeta(subjectId) {
+  ensureViewUiState();
+  if (String(subjectId || "") === DRAFT_SUBJECT_ID && store.situationsView.createSubjectForm?.isOpen) {
+    const meta = store.situationsView.createSubjectForm.meta || buildDefaultDraftSubjectMeta();
+    return {
+      assignees: Array.isArray(meta.assignees) ? meta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
+      labels: normalizeSubjectLabels(meta.labels),
+      objectiveIds: normalizeSubjectObjectiveIds(meta.objectiveIds),
+      situationIds: normalizeSubjectSituationIds(meta.situationIds),
+      relations: Array.isArray(meta.relations) ? meta.relations.map((value) => String(value || "")).filter(Boolean) : []
+    };
+  }
   const { bucket } = getRunBucket();
   const subjectMeta = bucket?.subjectMeta?.sujet?.[subjectId] || {};
   const objectiveIds = Array.isArray(subjectMeta.objectiveIds)
@@ -749,6 +938,15 @@ function getSubjectObjectives(subjectId) {
 function setSubjectObjectiveIds(subjectId, objectiveIds) {
   const subjectKey = String(subjectId || "");
   const nextIds = normalizeSubjectObjectiveIds(objectiveIds);
+  if (subjectKey === DRAFT_SUBJECT_ID) {
+    ensureViewUiState();
+    store.situationsView.createSubjectForm.meta = {
+      ...buildDefaultDraftSubjectMeta(),
+      ...(store.situationsView.createSubjectForm.meta || {}),
+      objectiveIds: nextIds
+    };
+    return;
+  }
   persistRunBucket((bucket) => {
     bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
     bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
@@ -771,6 +969,15 @@ function setSubjectObjectiveIds(subjectId, objectiveIds) {
 function setSubjectSituationIds(subjectId, situationIds) {
   const subjectKey = String(subjectId || "");
   const nextIds = normalizeSubjectSituationIds(situationIds);
+  if (subjectKey === DRAFT_SUBJECT_ID) {
+    ensureViewUiState();
+    store.situationsView.createSubjectForm.meta = {
+      ...buildDefaultDraftSubjectMeta(),
+      ...(store.situationsView.createSubjectForm.meta || {}),
+      situationIds: nextIds
+    };
+    return;
+  }
   persistRunBucket((bucket) => {
     bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
     bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
@@ -796,6 +1003,15 @@ function toggleSubjectSituation(subjectId, situationId) {
 function setSubjectLabels(subjectId, labels) {
   const subjectKey = String(subjectId || "");
   const nextLabels = normalizeSubjectLabels(labels);
+  if (subjectKey === DRAFT_SUBJECT_ID) {
+    ensureViewUiState();
+    store.situationsView.createSubjectForm.meta = {
+      ...buildDefaultDraftSubjectMeta(),
+      ...(store.situationsView.createSubjectForm.meta || {}),
+      labels: nextLabels
+    };
+    return;
+  }
   persistRunBucket((bucket) => {
     bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
     bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
@@ -2042,11 +2258,13 @@ function getNestedSituation(situationId) {
 }
 
 function getCanonicalSujetById(problemId) {
+  const normalizedId = String(problemId || "");
   for (const situation of store.situationsView.data || []) {
-    const match = getSituationSubjects(situation).find((sujet) => sujet.id === problemId);
+    const match = (Array.isArray(situation?.sujets) ? situation.sujets : []).find((sujet) => String(sujet?.id || "") === normalizedId);
     if (match) return match;
   }
-  return null;
+  const customMatch = getCustomSubjects().find((sujet) => String(sujet?.id || "") === normalizedId);
+  return customMatch || null;
 }
 
 function getSituationSubjects(situation) {
@@ -2071,6 +2289,16 @@ function getSituationSubjects(situation) {
     if (!canonical) continue;
     base.push(canonical);
     existingIds.add(subjectId);
+  }
+
+  for (const customSubject of getCustomSubjects()) {
+    const customId = String(customSubject?.id || "");
+    if (!customId || existingIds.has(customId)) continue;
+    const meta = metaMap[customId];
+    const linkedIds = normalizeSubjectSituationIds(meta?.situationIds);
+    if (!linkedIds.includes(situationId)) continue;
+    base.push(customSubject);
+    existingIds.add(customId);
   }
 
   return base;
@@ -3697,6 +3925,11 @@ function closeDetailsModal() {
 function syncSituationsPrimaryScrollSource() {
   const panelHost = document.getElementById("situationsPanelHost");
 
+  if (store.situationsView.createSubjectForm?.isOpen) {
+    registerProjectPrimaryScrollSource(document.getElementById("projectSituationsScroll") || panelHost || null);
+    return;
+  }
+
   if (store.situationsView.showTableOnly) {
     const mainScrollBody = panelHost?.querySelector(".data-table-shell__body") || null;
     registerProjectPrimaryScrollSource(mainScrollBody);
@@ -3729,7 +3962,12 @@ function rerenderPanels() {
   rerenderSubjectsToolbar();
 
   if (panelHost) {
-    if (String(store.situationsView.subjectsSubview || "subjects") === "labels") {
+    if (store.situationsView.createSubjectForm?.isOpen) {
+      panelHost.innerHTML = `<div id="subjectCreateFormHost" class="project-table-host">${renderCreateSubjectFormHtml()}</div>`;
+      const createFormRoot = panelHost.querySelector("[data-create-subject-form]");
+      wireDetailsInteractive(createFormRoot);
+      syncSituationsPrimaryScrollSource();
+    } else if (String(store.situationsView.subjectsSubview || "subjects") === "labels") {
       panelHost.innerHTML = `<div id="labelsTableHost" class="project-table-host">${renderLabelsTableHtml()}</div>`;
       syncSituationsPrimaryScrollSource();
     } else if (String(store.situationsView.subjectsSubview || "subjects") === "objectives") {
@@ -3819,6 +4057,9 @@ function selectAvis(avisId) {
 ========================================================= */
 
 function getScopedSelection(root) {
+  if (root?.closest?.("[data-create-subject-form]")) {
+    return getDraftSubjectSelection();
+  }
   if (root?.closest?.("#drilldownPanel")) {
     const sel = getDrilldownSelection();
     if (sel) return sel;
@@ -4200,6 +4441,7 @@ function ensureSubjectMetaDropdownHost() {
 }
 
 function getSubjectMetaScopeRoot() {
+  if (store.situationsView.createSubjectForm?.isOpen) return document.querySelector("[data-create-subject-form]");
   if (store.situationsView.drilldown?.isOpen) return document.getElementById("drilldownBody");
   if (store.situationsView.detailsModalOpen) return document.getElementById("detailsBodyModal");
   return document.getElementById("situationsDetailsHost");
@@ -4329,6 +4571,7 @@ function getSubjectsTabResetState() {
     subjectMetaDropdownOpen: !!store.situationsView.subjectMetaDropdown?.field,
     subjectKanbanDropdownOpen: !!store.situationsView.subjectKanbanDropdown?.subjectId,
     objectiveEditOpen: !!store.situationsView.objectiveEdit?.isOpen,
+    createSubjectFormOpen: !!store.situationsView.createSubjectForm?.isOpen,
     hasConnectedRoot: !!(subjectsCurrentRoot && subjectsCurrentRoot.isConnected)
   };
 }
@@ -4342,6 +4585,7 @@ function resetSubjectsTabView(reason = "manual") {
   store.situationsView.subjectsSubview = "subjects";
   store.situationsView.selectedObjectiveId = "";
   store.situationsView.showTableOnly = true;
+  resetCreateSubjectForm();
 
   if (store.situationsView.detailsModalOpen) {
     closeDetailsModal();
@@ -4378,7 +4622,8 @@ function bindSubjectsTabReset() {
       || state.subjectKanbanDropdownOpen;
     const hasSubviewState = state.subjectsSubview !== "subjects"
       || !!state.selectedObjectiveId
-      || state.objectiveEditOpen;
+      || state.objectiveEditOpen
+      || state.createSubjectFormOpen;
     const hasMainViewState = !state.showTableOnly;
     if (!hasOverlayState && !hasSubviewState && !hasMainViewState) {
       return;
@@ -5058,7 +5303,13 @@ function bindSituationsEvents(root, headerRoot) {
   toolbarRoot?.addEventListener("ghaction:action", (event) => {
     const action = String(event.detail?.action || "");
     if (!action) return;
-    if (action === "add-sujet" || action === "add-objective" || action === "add-label") {
+    if (action === "add-sujet") {
+      event.preventDefault();
+      openCreateSubjectForm();
+      rerenderPanels();
+      return;
+    }
+    if (action === "add-objective" || action === "add-label") {
       event.preventDefault();
       return;
     }
@@ -5108,6 +5359,41 @@ function bindSituationsEvents(root, headerRoot) {
   syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
 
   root.addEventListener("click", (event) => {
+    const createSubjectTabButton = event.target.closest("[data-create-subject-tab]");
+    if (createSubjectTabButton && store.situationsView.createSubjectForm?.isOpen) {
+      event.preventDefault();
+      store.situationsView.createSubjectForm.previewMode = String(createSubjectTabButton.dataset.createSubjectTab || "write") === "preview";
+      rerenderPanels();
+      return;
+    }
+
+    const createSubjectCancelButton = event.target.closest("[data-create-subject-cancel]");
+    if (createSubjectCancelButton && store.situationsView.createSubjectForm?.isOpen) {
+      event.preventDefault();
+      closeSubjectMetaDropdown();
+      resetCreateSubjectForm({ keepCreateMore: true });
+      rerenderPanels();
+      return;
+    }
+
+    const createSubjectSubmitButton = event.target.closest("[data-create-subject-submit]");
+    if (createSubjectSubmitButton && store.situationsView.createSubjectForm?.isOpen) {
+      event.preventDefault();
+      const result = createSubjectFromDraft();
+      if (!result.ok) {
+        rerenderPanels();
+        return;
+      }
+      const keepCreateMore = !!store.situationsView.createSubjectForm?.createMore;
+      if (keepCreateMore) {
+        openCreateSubjectForm();
+      } else {
+        resetCreateSubjectForm({ keepCreateMore: true });
+      }
+      rerenderPanels();
+      return;
+    }
+
     const objectivesFilterButton = event.target.closest("[data-objectives-filter]");
     if (objectivesFilterButton) {
       event.preventDefault();
@@ -5375,6 +5661,23 @@ function bindSituationsEvents(root, headerRoot) {
   });
 
   root.addEventListener("input", (event) => {
+    const createSubjectTitle = event.target.closest?.("[data-create-subject-title]");
+    if (createSubjectTitle && store.situationsView.createSubjectForm?.isOpen) {
+      store.situationsView.createSubjectForm.title = String(createSubjectTitle.value || "");
+      store.situationsView.createSubjectForm.validationError = "";
+      return;
+    }
+    const createSubjectDescription = event.target.closest?.("[data-create-subject-description]");
+    if (createSubjectDescription && store.situationsView.createSubjectForm?.isOpen) {
+      store.situationsView.createSubjectForm.description = String(createSubjectDescription.value || "");
+      if (store.situationsView.createSubjectForm.previewMode) rerenderPanels();
+      return;
+    }
+    const createSubjectCreateMore = event.target.closest?.("[data-create-subject-create-more]");
+    if (createSubjectCreateMore && store.situationsView.createSubjectForm?.isOpen) {
+      store.situationsView.createSubjectForm.createMore = !!createSubjectCreateMore.checked;
+      return;
+    }
     const field = event.target.closest?.("[data-objective-edit-field]");
     if (!field) return;
     const key = String(field.dataset.objectiveEditField || "");
@@ -5441,7 +5744,104 @@ function renderSubjectsObjectivesAction() {
   });
 }
 
+function renderCreateSubjectMetaControls() {
+  const subject = getDraftSubjectSelection()?.item || { id: DRAFT_SUBJECT_ID };
+  const meta = getSubjectSidebarMeta(subject.id);
+  const objective = meta.objectiveIds.map((objectiveId) => getObjectiveById(objectiveId)).filter(Boolean)[0] || null;
+  return `
+    <div class="subject-meta-controls subject-meta-controls--create">
+      ${renderSubjectMetaField({
+        field: "assignees",
+        label: "Assigné à",
+        valueHtml: renderSubjectMetaButtonValue(summarizeSubjectMetaValue(meta.assignees, "Personne"))
+      })}
+      ${renderSubjectMetaField({
+        field: "labels",
+        label: "Labels",
+        valueHtml: renderSubjectLabelsValue(subject.id)
+      })}
+      ${renderSubjectMetaField({
+        field: "situations",
+        label: "Situations",
+        valueHtml: renderSubjectSituationsValue(subject.id)
+      })}
+      ${renderSubjectMetaField({
+        field: "objectives",
+        label: "Objectifs",
+        valueHtml: objective ? renderSubjectObjectivesValue(subject.id) : renderSubjectMetaButtonValue("Aucun objectif")
+      })}
+    </div>
+  `;
+}
+
+function renderCreateSubjectFormHtml() {
+  ensureViewUiState();
+  const form = store.situationsView.createSubjectForm || {};
+  const avatar = String(store.user?.avatar || "assets/images/260093543.png");
+  const previewHtml = mdToHtml(String(form.description || "").trim());
+  return `
+    <section class="subject-create-shell" data-create-subject-form>
+      <div class="subject-create-layout">
+        <div class="subject-create-main">
+          <div class="subject-create-header">
+            <img src="${escapeHtml(avatar)}" alt="Avatar" class="subject-create-header__avatar">
+            <div class="subject-create-header__title">Create new issue</div>
+          </div>
+
+          <label class="subject-create-field">
+            <span class="subject-create-field__label">Add a title <span class="subject-create-field__required">*</span></span>
+            <input type="text" class="subject-create-input" data-create-subject-title value="${escapeHtml(String(form.title || ""))}" placeholder="Title" autocomplete="off">
+          </label>
+
+          <div class="subject-create-field subject-create-field--editor">
+            <div class="subject-create-field__label">Add a description</div>
+            <div class="comment-box gh-comment-boxwrap subject-create-editor">
+              <div class="comment-tabs comment-composer__tabs" role="tablist" aria-label="Description tabs">
+                <button class="comment-tab ${!form.previewMode ? "is-active" : ""}" data-create-subject-tab="write" type="button">Write</button>
+                <button class="comment-tab ${form.previewMode ? "is-active" : ""}" data-create-subject-tab="preview" type="button">Preview</button>
+                <div class="subject-create-editor__toolbar" aria-hidden="true">
+                  <span class="subject-create-editor__tool">H</span>
+                  <span class="subject-create-editor__tool">B</span>
+                  <span class="subject-create-editor__tool"><em>I</em></span>
+                  <span class="subject-create-editor__tool">•</span>
+                  <span class="subject-create-editor__tool">&lt;/&gt;</span>
+                  <span class="subject-create-editor__tool">🔗</span>
+                  <span class="subject-create-editor__tool">@</span>
+                </div>
+              </div>
+              <div class="subject-create-editor__body ${form.previewMode ? "is-preview" : ""}">
+                <textarea class="textarea comment-composer__textarea subject-create-textarea ${form.previewMode ? "hidden" : ""}" data-create-subject-description placeholder="Type your description here...">${escapeHtml(String(form.description || ""))}</textarea>
+                <div class="comment-preview comment-composer__preview subject-create-preview ${form.previewMode ? "" : "hidden"}" data-create-subject-preview>${previewHtml || '<span class="project-discussions__form-preview-empty">Aucun contenu à prévisualiser.</span>'}</div>
+              </div>
+            </div>
+            ${form.validationError ? `<div class="subject-create-form__error">${escapeHtml(form.validationError)}</div>` : ""}
+          </div>
+
+          <div class="subject-create-footer">
+            <div class="subject-create-footer__left">
+              <label class="subject-create-checkbox">
+                <input type="checkbox" data-create-subject-create-more ${form.createMore ? "checked" : ""}>
+                <span>Create more</span>
+              </label>
+            </div>
+            <div class="subject-create-footer__right">
+              <button type="button" class="gh-btn" data-create-subject-cancel>Cancel</button>
+              <button type="button" class="gh-btn gh-btn--primary" data-create-subject-submit>Create</button>
+            </div>
+          </div>
+        </div>
+        <aside class="subject-create-aside details-meta-col">
+          ${renderCreateSubjectMetaControls()}
+        </aside>
+      </div>
+    </section>
+  `;
+}
+
 function renderSituationsViewHeaderHtml() {
+  if (store.situationsView.createSubjectForm?.isOpen) {
+    return "";
+  }
   if (String(store.situationsView.subjectsSubview || "subjects") === "labels") {
     return renderProjectTableToolbar({
       className: "project-table-toolbar--situations project-table-toolbar--labels",
@@ -5512,9 +5912,14 @@ function renderSituationsViewHeaderHtml() {
 function rerenderSubjectsToolbar() {
   const toolbarHost = document.getElementById("situationsToolbarHost");
   if (!toolbarHost) return;
+  const headerHtml = renderSituationsViewHeaderHtml();
+  if (!String(headerHtml || "").trim()) {
+    toolbarHost.innerHTML = "";
+    return;
+  }
   toolbarHost.innerHTML = `
     <div class="project-situations__table-toolbar project-page-shell project-page-shell--toolbar">
-      ${renderSituationsViewHeaderHtml()}
+      ${headerHtml}
     </div>
   `;
 }
