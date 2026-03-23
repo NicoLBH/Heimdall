@@ -2741,7 +2741,6 @@ background: var(--btn-bg-success);
 .gh-menu{
 position:absolute;
 top:100%;
-left:0;
 border:none;
 display:none;
 z-index:200;
