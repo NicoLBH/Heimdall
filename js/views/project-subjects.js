@@ -5441,7 +5441,7 @@ function renderObjectiveEditFormHtml(objective) {
   const viewMonth = Number.isFinite(Number(edit?.viewMonth)) ? Number(edit.viewMonth) : (selectedDate?.getMonth?.() ?? fallback.getMonth());
   const isClosed = !!objective?.closed;
   const closeActionLabel = isClosed ? "Rouvrir l'objectif" : "Fermer l'objectif";
-  const saveButtonClassName = isClosed ? "gh-btn gh-btn--comment" : "gh-btn gh-btn--comment";
+  const saveButtonClassName = isClosed ? "gh-btn gh-btn--comment" : "gh-btn gh-btn--primary gh-btn--comment";
 
   return `
     <section class="objective-edit-form">
