@@ -3457,6 +3457,10 @@ function updateDetailsModal() {
   const body = document.getElementById("detailsBodyModal");
   if (!modal || !title || !meta || !body) return;
 
+  const isOpen = !!store.situationsView.detailsModalOpen;
+  setOverlayChromeOpenState(modal, isOpen);
+  document.body.classList.toggle("modal-open", isOpen);
+
   const details = renderDetailsHtml(null, {
     subissuesOptions: {
       sujetRowClass: "js-modal-drilldown-sujet",
@@ -3475,12 +3479,16 @@ function updateDetailsModal() {
 
   ensureDrilldownDom();
 
-  setOverlayChromeOpenState(modal, !!store.situationsView.detailsModalOpen);
-  document.body.classList.toggle("modal-open", !!store.situationsView.detailsModalOpen);
-
   wireDetailsInteractive(body);
   bindDetailsScroll(document);
   body.__syncCondensedTitle?.();
+
+  if (isOpen) {
+    requestAnimationFrame(() => {
+      const currentBody = document.getElementById("detailsBodyModal");
+      currentBody?.__syncCondensedTitle?.();
+    });
+  }
 }
 
 function openDetailsModal() {
@@ -4143,13 +4151,16 @@ function bindSubjectsTabReset() {
   document.addEventListener("click", (event) => {
     const tabLink = event.target.closest?.('.project-tabs a[data-project-tab-id="subjects"]');
     if (!tabLink) return;
-    const href = tabLink.getAttribute("href") || "";
-    if (!href || href !== location.hash) return;
-    const hasOverlayState = !!store.situationsView.detailsModalOpen || !!store.situationsView.drilldown?.isOpen || !!store.situationsView.subjectMetaDropdown?.field;
+    if (!tabLink.classList.contains("active")) return;
+    const hasOverlayState = !!store.situationsView.detailsModalOpen
+      || !!store.situationsView.drilldown?.isOpen
+      || !!store.situationsView.subjectMetaDropdown?.field
+      || !!store.situationsView.subjectKanbanDropdown?.subjectId;
     const hasSubviewState = String(store.situationsView.subjectsSubview || "subjects") !== "subjects" || !!store.situationsView.selectedObjectiveId;
     if (!hasOverlayState && !hasSubviewState) return;
     if (!subjectsCurrentRoot || !subjectsCurrentRoot.isConnected) return;
     event.preventDefault();
+    event.stopPropagation();
     resetSubjectsTabView();
   });
 }
@@ -4802,6 +4813,16 @@ function bindSituationsEvents(root, headerRoot) {
       store.situationsView.showTableOnly = true;
       rerenderPanels();
     }
+  });
+
+  toolbarRoot?.addEventListener("click", (event) => {
+    const objectiveBackButton = event.target.closest("[data-objectives-back]");
+    if (!objectiveBackButton) return;
+    event.preventDefault();
+    store.situationsView.subjectsSubview = "objectives";
+    store.situationsView.selectedObjectiveId = "";
+    store.situationsView.showTableOnly = true;
+    rerenderPanels();
   });
 
   syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
