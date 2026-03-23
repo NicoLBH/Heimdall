@@ -4210,7 +4210,7 @@ function bindSubjectsTabReset() {
   window.addEventListener(PROJECT_TAB_RESELECTED_EVENT, (event) => {
     const detail = event?.detail || {};
     const tabId = String(detail.tabId || "");
-    if (tabId !== "subjects") return;
+    if (tabId !== "subjects" && tabId !== "sujets") return;
 
     const state = getSubjectsTabResetState();
     console.info("[project-subjects] subjects-tab:reselected", {
