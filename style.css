@@ -1200,6 +1200,57 @@ body.modal-open {
 .issue-row:last-child{border-bottom:none;}
 .issue-row:hover{background: rgba(110, 118, 129, .06);}
 
+.subjects-priority-head{
+  position:relative;
+  display:flex;
+  justify-content:flex-end;
+}
+
+.subjects-priority-head__trigger{
+  display:inline-flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  min-height:32px;
+  padding:0 10px;
+  border:0;
+  border-radius:var(--radius);
+  background:transparent;
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+.subjects-priority-head__trigger:hover,
+.subjects-priority-head__trigger[aria-expanded="true"]{
+  background:rgba(110,118,129,.18);
+}
+
+.subjects-priority-head__chevron{
+  display:inline-flex;
+  align-items:center;
+  color:var(--muted);
+}
+
+.subjects-priority-head__dropdown{
+  top:calc(100% + 6px);
+  right:0;
+  left:auto;
+  width:280px;
+  max-width:min(280px, calc(100vw - 24px));
+}
+
+.cell-priority-filter,
+.cell-filter-spacer{
+  justify-self:end;
+}
+
+.cell-filter-spacer{
+  width:140px;
+}
+
 .cell{min-width:0;}
 .cell-theme{display:flex;align-items:center;gap:5px;min-width:0;}
 .chev{width:16px;text-align:center;color:var(--muted);user-select:none;}
