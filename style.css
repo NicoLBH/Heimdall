@@ -248,7 +248,7 @@ body.route--project.project-shell-compact.project-discussions-detail-scrolled .g
 
 .icon-btn{border:none;background:transparent;color:var(--text);border-radius:var(--radius);cursor:pointer;height:30px;width:30px;margin-left:16px;}
 .icon-btn:hover{background-color: var(--btn-bg);}
-#menuBtn .icon-btn{border:solid 1px var(--border);}
+#menuBtn{border:solid 1px var(--border);}
 
 .gh-input{width:100%;padding:7px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-input);outline:none;font-size:13px;font-family: var(--font);font-weight:500;color:rgb(240, 246, 252);}
 .gh-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.15);}
