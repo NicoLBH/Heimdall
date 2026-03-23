@@ -4172,8 +4172,22 @@ function bindSubjectsTabReset() {
   document.addEventListener("click", (event) => {
     const tabLink = event.target.closest?.('.project-tabs a[data-project-tab-id="subjects"]');
     if (!tabLink) return;
-    const href = tabLink.getAttribute("href") || "";
-    if (!href || href !== location.hash) return;
+
+    const href = String(tabLink.getAttribute("href") || "").trim();
+    const normalizedCurrentHash = String(location.hash || "").trim();
+    const resolvesToCurrentHash = (() => {
+      if (!href) return false;
+      if (href === normalizedCurrentHash) return true;
+      try {
+        const url = new URL(href, window.location.href);
+        return `${url.hash || ""}` === normalizedCurrentHash;
+      } catch {
+        return false;
+      }
+    })();
+    const isActiveSubjectsTab = tabLink.classList.contains("active") || tabLink.getAttribute("aria-current") === "page";
+    if (!resolvesToCurrentHash && !isActiveSubjectsTab) return;
+
     const hasOverlayState = !!store.situationsView.detailsModalOpen
       || !!store.situationsView.drilldown?.isOpen
       || !!store.situationsView.subjectMetaDropdown?.field
@@ -4183,6 +4197,7 @@ function bindSubjectsTabReset() {
       || !!store.situationsView.objectiveEdit?.isOpen;
     if (!hasOverlayState && !hasSubviewState) return;
     if (!subjectsCurrentRoot || !subjectsCurrentRoot.isConnected) return;
+
     event.preventDefault();
     event.stopPropagation();
     resetSubjectsTabView();
@@ -4964,7 +4979,9 @@ function bindSituationsEvents(root, headerRoot) {
       } else if (action === "save") {
         saveObjectiveEdit();
       } else if (action === "close") {
-        closeObjective(store.situationsView.selectedObjectiveId);
+        const editingObjective = getEditingObjective();
+        if (editingObjective?.closed) reopenObjective(store.situationsView.selectedObjectiveId);
+        else closeObjective(store.situationsView.selectedObjectiveId);
       }
       rerenderPanels();
       return;
@@ -5293,18 +5310,26 @@ function saveObjectiveEdit() {
   resetObjectiveEditState();
 }
 
-function closeObjective(objectiveId) {
+function setObjectiveClosedState(objectiveId, closed) {
   const targetId = String(objectiveId || store.situationsView.selectedObjectiveId || "");
   if (!targetId) return;
   persistRunBucket((draft) => {
     const objectives = Array.isArray(draft.objectives) ? draft.objectives : [];
     const target = objectives.find((objective) => String(objective?.id || "") === targetId);
     if (!target) return;
-    target.closed = true;
+    target.closed = !!closed;
   });
   resetObjectiveEditState();
   store.situationsView.selectedObjectiveId = "";
-  store.situationsView.objectivesStatusFilter = "open";
+  store.situationsView.objectivesStatusFilter = closed ? "open" : "closed";
+}
+
+function closeObjective(objectiveId) {
+  setObjectiveClosedState(objectiveId, true);
+}
+
+function reopenObjective(objectiveId) {
+  setObjectiveClosedState(objectiveId, false);
 }
 
 function getObjectiveSubjects(objective) {
@@ -5342,15 +5367,30 @@ function renderObjectiveStatusBadge(objective) {
   return statePill(objective?.closed ? "closed" : "open");
 }
 
-function renderObjectiveProgressBar(objective) {
+function renderObjectiveProgressBar(objective, options = {}) {
   const counts = getObjectiveSubjectCounts(objective);
   const percent = counts.total > 0 ? Math.round((counts.closed / counts.total) * 100) : 0;
-  return `
-    <div class="objective-progress" aria-label="${percent}% terminé">
-      <div class="objective-progress__label"><strong>${percent}%</strong> complete</div>
+  const compact = !!options.compact;
+  const rootClassName = compact ? "objective-progress objective-progress--compact" : "objective-progress";
+  const trackFirst = compact
+    ? `
       <div class="objective-progress__track" aria-hidden="true">
         <span class="objective-progress__fill" style="width:${percent}%"></span>
       </div>
+      <div class="objective-progress__meta">
+        <div class="objective-progress__label"><strong>${percent}%</strong> terminé</div>
+        <div class="objective-progress__counts">${counts.open} ouverts <span aria-hidden="true">•</span> ${counts.closed} fermés</div>
+      </div>
+    `
+    : `
+      <div class="objective-progress__label"><strong>${percent}%</strong> terminé</div>
+      <div class="objective-progress__track" aria-hidden="true">
+        <span class="objective-progress__fill" style="width:${percent}%"></span>
+      </div>
+    `;
+  return `
+    <div class="${rootClassName}" aria-label="${percent}% terminé">
+      ${trackFirst}
     </div>
   `;
 }
@@ -5399,6 +5439,9 @@ function renderObjectiveEditFormHtml(objective) {
   const fallback = new Date();
   const viewYear = Number.isFinite(Number(edit?.viewYear)) ? Number(edit.viewYear) : (selectedDate?.getFullYear?.() || fallback.getFullYear());
   const viewMonth = Number.isFinite(Number(edit?.viewMonth)) ? Number(edit.viewMonth) : (selectedDate?.getMonth?.() ?? fallback.getMonth());
+  const isClosed = !!objective?.closed;
+  const closeActionLabel = isClosed ? "Rouvrir l'objectif" : "Fermer l'objectif";
+  const saveButtonClassName = isClosed ? "gh-btn gh-btn--comment" : "gh-btn gh-btn--comment";
 
   return `
     <section class="objective-edit-form">
@@ -5448,10 +5491,10 @@ function renderObjectiveEditFormHtml(objective) {
       <div class="objective-edit-form__separator" aria-hidden="true"></div>
 
       <footer class="objective-edit-form__actions">
-        <button type="button" class="gh-btn" data-objective-edit-action="close">Fermer l'objectif</button>
+        <button type="button" class="gh-btn" data-objective-edit-action="close">${closeActionLabel}</button>
         <div class="objective-edit-form__actions-right">
           <button type="button" class="gh-btn" data-objective-edit-action="cancel">Annuler</button>
-          <button type="button" class="gh-btn gh-btn--comment" data-objective-edit-action="save">Enregistrer</button>
+          <button type="button" class="${saveButtonClassName}" data-objective-edit-action="save">Enregistrer</button>
         </div>
       </footer>
     </section>
@@ -5511,12 +5554,20 @@ function renderObjectivesTableHtml() {
   });
 
   const bodyHtml = visibleObjectives.length
-    ? visibleObjectives.map((objective) => `
+    ? visibleObjectives.map((objective) => {
+        const counts = getObjectiveSubjectCounts(objective);
+        const dueDateLabel = objective?.dueDate
+          ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(objective.dueDate))
+          : "Pas de date définie";
+        return `
         <div class="objectives-row" data-objective-id="${escapeHtml(objective.id)}" tabindex="0" role="button">
+          <span class="objectives-row__icon" aria-hidden="true">${svgIcon("milestone", { className: "octicon octicon-milestone" })}</span>
           <button type="button" class="objectives-row__title" data-objective-id="${escapeHtml(objective.id)}">${escapeHtml(objective.title)}</button>
-          <span class="objectives-row__meta">${escapeHtml(formatObjectiveMeta(objective))}</span>
+          <span class="objectives-row__meta">Échéance au ${escapeHtml(dueDateLabel)} <span aria-hidden="true">-</span> ${problemsCountsIconHtml(counts.closed, counts.total)}</span>
+          <div class="objectives-row__progress">${renderObjectiveProgressBar(objective, { compact: true })}</div>
         </div>
-      `).join("")
+      `;
+      }).join("")
     : renderDataTableEmptyState({
         title: activeFilter === "closed" ? "Aucun objectif fermé" : "Aucun objectif ouvert",
         description: activeFilter === "closed" ? "Les objectifs fermés apparaîtront ici." : "Les objectifs ouverts apparaîtront ici."
