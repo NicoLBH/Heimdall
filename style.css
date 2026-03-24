@@ -200,11 +200,10 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
   color:var(--text);text-decoration:none;min-width:0;
 }
 .gh-brand__logo{
-  width:30px;
-  height:30px;
-  flex:0 0 30px;
+  width:32px;
+  height:32px;
+  flex:0 0 32px;
   display:block;
-  margin-top:-4px;
   filter: drop-shadow(0 0 6px rgba(0,0,0,.6));
 }
 .gh-brand__name{font-weight:700;}
@@ -244,7 +243,7 @@ body.route--project.project-shell-compact.project-discussions-detail-scrolled .g
 .gh-btn--validate{background: var(--btn-bg);color:var(--text);border: solid 1px var(--border);font-weight:500;}
 .gh-btn--sm{padding:4px 10px;font-size:12px;}
 
-.icon-btn{border:none;background:transparent;color:var(--text);border-radius:var(--radius);cursor:pointer;height:30px;width:30px;margin-left:16px;}
+.icon-btn{border:none;background:transparent;color:var(--text);border-radius:var(--radius);cursor:pointer;height:32px;width:32px;margin-left:16px;}
 .icon-btn:hover{background-color: var(--btn-bg);}
 #menuBtn{border:solid 1px var(--border);}
 
