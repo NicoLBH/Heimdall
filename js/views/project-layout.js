@@ -12,8 +12,6 @@ import { renderProjectPropositions } from "./project-propositions.js";
 import { renderProjectDiscussions } from "./project-discussions.js";
 import { renderProjectActions } from "./project-actions.js";
 import { renderProjectSituations } from "./project-situations.js";
-import { renderProjectReferentiel } from "./project-referentiel.js";
-import { renderProjectRisquesSecurite } from "./project-risques-securite.js";
 import { renderProjectInsights } from "./project-insights.js";
 import { renderProjectParametres } from "./project-parametres.js";
 
@@ -34,8 +32,6 @@ function normalizeProjectTab(tab) {
     case PROJECT_TAB_IDS.DISCUSSIONS:
     case PROJECT_TAB_IDS.ACTIONS:
     case PROJECT_TAB_IDS.SITUATIONS:
-    case PROJECT_TAB_IDS.REFERENTIEL:
-    case PROJECT_TAB_IDS.RISQUES_SECURITE:
     case PROJECT_TAB_IDS.INSIGHTS:
     case PROJECT_TAB_IDS.PARAMETRES:
       resolvedTab = normalized;
@@ -105,14 +101,6 @@ export function renderProjectLayout(root, projectId, tab) {
       renderProjectSituations(content);
       break;
     
-    case PROJECT_TAB_IDS.REFERENTIEL:
-      renderProjectReferentiel(content);
-      break;
-
-    case PROJECT_TAB_IDS.RISQUES_SECURITE:
-      renderProjectRisquesSecurite(content);
-      break;
-
     case PROJECT_TAB_IDS.INSIGHTS:
       renderProjectInsights(content);
       break;
