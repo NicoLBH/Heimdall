@@ -480,7 +480,6 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 
 
 
-/* Avis header + table only */
 
 
 
@@ -1261,7 +1260,6 @@ body.modal-open {
 .theme-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .theme-text--sit{font-weight:500;font-size:13px;}
 .theme-text--pb{font-weight:500;font-size:13px;}
-.theme-text--avis{font-size:12px;color:var(--text);font-weight:400;}
 
 .row-title-trigger,
 .documents-repo__name-trigger{
@@ -1300,7 +1298,6 @@ body.modal-open {
   font-weight:400;
   white-space:nowrap;
 }
-.issue-row--avis .cell-id{color:var(--muted);}
 
 .issue-row-title-stack{
   min-width:0;
