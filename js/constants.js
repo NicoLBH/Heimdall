@@ -8,8 +8,6 @@ export const PROJECT_TAB_IDS = {
   DISCUSSIONS: "discussions",
   ACTIONS: "actions",
   SITUATIONS: "situations",
-  REFERENTIEL: "referentiel",
-  RISQUES_SECURITE: "risquesSecurite",
   INSIGHTS: "insights",
   PARAMETRES: "parametres",
 };
@@ -19,23 +17,18 @@ export const PROJECT_TAB_ROUTE_ALIASES = {
   workflows: PROJECT_TAB_IDS.ACTIONS,
   indicateurs: PROJECT_TAB_IDS.INSIGHTS,
   jalons: PROJECT_TAB_IDS.INSIGHTS,
-  "risques-securite": PROJECT_TAB_IDS.RISQUES_SECURITE,
 };
 
 export const PROJECT_TABS_TOGGLEABLE = [
   PROJECT_TAB_IDS.PROPOSITIONS,
   PROJECT_TAB_IDS.DISCUSSIONS,
   PROJECT_TAB_IDS.SITUATIONS,
-  PROJECT_TAB_IDS.REFERENTIEL,
-  PROJECT_TAB_IDS.RISQUES_SECURITE,
 ];
 
 export const DEFAULT_PROJECT_TABS_VISIBILITY = {
   [PROJECT_TAB_IDS.PROPOSITIONS]: true,
   [PROJECT_TAB_IDS.DISCUSSIONS]: false,
   [PROJECT_TAB_IDS.SITUATIONS]: true,
-  [PROJECT_TAB_IDS.REFERENTIEL]: false,
-  [PROJECT_TAB_IDS.RISQUES_SECURITE]: false,
 };
 
 export function normalizeProjectTabId(tab) {
@@ -92,16 +85,6 @@ export const PROJECT_TABS = [
     id: PROJECT_TAB_IDS.SITUATIONS,
     label: "Situations",
     icon: svgIcon("table", { className: "octicon octicon-table" })
-  },
-  {
-    id: PROJECT_TAB_IDS.REFERENTIEL,
-    label: "Référentiel",
-    icon: svgIcon("book", { className: "octicon octicon-book" })
-  },
-  {
-    id: PROJECT_TAB_IDS.RISQUES_SECURITE,
-    label: "Risques & sécurité",
-    icon: svgIcon("shield", { className: "octicon octicon-shield" })
   },
   {
     id: PROJECT_TAB_IDS.INSIGHTS,
