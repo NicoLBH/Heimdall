@@ -348,8 +348,7 @@ const PARAMETRES_NAV_GROUPS = [
   {
     sectionLabel: "Caractérisations techniques",
     items: [
-      { targetId: "parametres-parasismiques", label: "Protection parasismique", icon: "shield" },
-      { targetId: "parametres-doctrines", label: "Doctrines particulières MOA", icon: "book" }
+      { targetId: "parametres-parasismiques", label: "Protection parasismique", icon: "shield" }
     ]
   },
   {
@@ -1830,21 +1829,6 @@ function getPageHtml(form) {
                         </div>
                       </div>
                     </div>`
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-doctrines",
-                title: "Référentiels techniques",
-                lead: "Exigences internes et doctrines projet non strictement réglementaires.",
-                cards: [
-                  renderSectionCard({
-                    title: "Doctrines particulières du maître d’ouvrage",
-                    description: "Exigences internes et doctrines projet non strictement réglementaires.",
-                    body: renderPlaceholderList([
-                      "Standards internes, listes rouges, bibliothèques de détails, prescriptions d’exploitation et d’entretien."
-                    ])
                   })
                 ]
               })}
