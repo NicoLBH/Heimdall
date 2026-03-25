@@ -7,7 +7,6 @@ import { store } from "../store.js";
 
 import { renderProjectDocuments } from "./project-documents.js";
 import { renderProjectSubjects } from "./project-subjects.js";
-import { renderProjectDiscussions } from "./project-discussions.js";
 import { renderProjectActions } from "./project-actions.js";
 import { renderProjectSituations } from "./project-situations.js";
 import { renderProjectInsights } from "./project-insights.js";
@@ -25,7 +24,6 @@ function normalizeProjectTab(tab) {
   switch (normalized) {
     case PROJECT_TAB_IDS.DOCUMENTS:
     case PROJECT_TAB_IDS.SUBJECTS:
-    case PROJECT_TAB_IDS.DISCUSSIONS:
     case PROJECT_TAB_IDS.ACTIONS:
     case PROJECT_TAB_IDS.SITUATIONS:
     case PROJECT_TAB_IDS.INSIGHTS:
@@ -76,10 +74,6 @@ export function renderProjectLayout(root, projectId, tab) {
 
     case PROJECT_TAB_IDS.SUBJECTS:
       renderProjectSubjects(content);
-      break;
-
-    case PROJECT_TAB_IDS.DISCUSSIONS:
-      renderProjectDiscussions(content);
       break;
 
     case PROJECT_TAB_IDS.ACTIONS:
