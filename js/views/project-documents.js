@@ -597,11 +597,7 @@ function renderUploadProgress() {
 }
 
 function canSubmitUpload() {
-  if (!docsViewState.file || docsViewState.isUploading) return false;
-  if (docsViewState.depositMode === "proposal") {
-    return docsViewState.proposalName.trim().length > 0;
-  }
-  return true;
+  return !!docsViewState.file && !docsViewState.isUploading;
 }
 
 function renderProposalField() {
@@ -624,9 +620,7 @@ function renderProposalField() {
 function renderUploadView() {
   const isBusy = docsViewState.isUploading ? "is-busy" : "";
   const isDisabled = docsViewState.isUploading ? "disabled" : "";
-  const submitLabel = docsViewState.depositMode === "proposal"
-    ? "Proposer la modification"
-    : "Valider";
+  const submitLabel = "Valider";
 
   return `
     <section class="project-simple-page project-simple-page--documents">
@@ -653,7 +647,7 @@ function renderUploadView() {
             <div class="documents-commit-shell">
               <div class="documents-commit-shell__avatar">
                 <img
-                  src="assets/images/260093543.png"
+                  src="${escapeHtml(String(store.user?.avatar || "assets/images/260093543.png"))}"
                   alt="Avatar"
                   class="documents-commit-shell__avatar-img"
                 >
@@ -678,26 +672,6 @@ function renderUploadView() {
                     placeholder="Décrivez brièvement le contenu, le contexte ou les points d'attention."
                   >${escapeHtml(docsViewState.description)}</textarea>
                 </div>
-
-                <div class="documents-radio-group">
-                  <label class="documents-radio-option">
-                    <input type="radio" name="documentsDepositMode" value="direct" ${docsViewState.depositMode === "direct" ? "checked" : ""}>
-                    <span class="documents-radio-option__icon">${getCommitIconSvg()}</span>
-                    <span class="documents-radio-option__text">
-                      Déposer directement les documents
-                    </span>
-                  </label>
-
-                  <label class="documents-radio-option">
-                    <input type="radio" name="documentsDepositMode" value="proposal" ${docsViewState.depositMode === "proposal" ? "checked" : ""}>
-                    <span class="documents-radio-option__icon">${getProposalIconSvg()}</span>
-                    <span class="documents-radio-option__text">
-                      Créer une proposition avec demande de visa
-                    </span>
-                  </label>
-                </div>
-
-                ${renderProposalField()}
               </section>
 
               <section class="documents-commit-card documents-commit-card-actions">
@@ -900,10 +874,6 @@ function commitProposal(root) {
 
 function handleSubmit(root) {
   if (!canSubmitUpload()) return;
-  if (docsViewState.depositMode === "proposal") {
-    commitProposal(root);
-    return;
-  }
   commitDirectDocument(root);
 }
 
@@ -1071,22 +1041,6 @@ function bindDocumentsView(root) {
       docsViewState.description = event.target.value;
     });
   }
-
-  const proposalNameInput = document.getElementById("documentsProposalNameInput");
-  if (proposalNameInput) {
-    proposalNameInput.addEventListener("input", (event) => {
-      docsViewState.proposalName = event.target.value;
-      const submit = document.getElementById("documentsSubmitBtn");
-      if (submit) submit.disabled = !canSubmitUpload();
-    });
-  }
-
-  document.querySelectorAll('input[name="documentsDepositMode"]').forEach((radio) => {
-    radio.addEventListener("change", (event) => {
-      docsViewState.depositMode = event.target.value;
-      renderProjectDocuments(root);
-    });
-  });
 }
 
 export function renderProjectDocuments(root) {
