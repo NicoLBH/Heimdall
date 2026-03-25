@@ -38,7 +38,6 @@ import {
   resolveFrenchCommune,
   resolveFrenchPostalCode
 } from "../services/georisques-service.js";
-import { getWindRegion } from "../../assets/wind-regions.js";
 import {
   getSeismicSizingValues,
   buildElasticResponseSpectrumTable,
@@ -91,27 +90,6 @@ function getEnabledProjectPhases() {
   return getProjectPhasesCatalog().filter((item) => item.enabled);
 }
 
-function renderCurrentProjectPhaseCard() {
-  const enabledPhases = getEnabledProjectPhases();
-  const fallbackPhase = enabledPhases[0]?.code || "APS";
-  const currentPhase = enabledPhases.some((item) => item.code === store.projectForm.currentPhase)
-    ? store.projectForm.currentPhase
-    : fallbackPhase;
-
-  return `
-    <div class="settings-form-grid settings-form-grid--thirds">
-      ${renderSelectField({
-        id: "currentProjectPhase",
-        label: "",
-        value: currentPhase,
-        options: enabledPhases.map((item) => ({
-          value: item.code,
-          label: `${item.code} - ${item.label}`
-        }))
-      })}
-    </div>
-  `;
-}
 
 function renderProjectPhasesCard() {
   const items = getProjectPhasesCatalog();
@@ -235,9 +213,6 @@ function ensureProjectFormDefaults() {
     form.altitude = null;
   }
 
-  if (form.workContext !== "new" && form.workContext !== "existing") {
-    form.workContext = "new";
-  }
 
   if (typeof form.dampingRatio !== "string" || !form.dampingRatio.trim()) {
     form.dampingRatio = "5";
@@ -362,50 +337,25 @@ const PARAMETRES_NAV_GROUPS = [
   {
     sectionLabel: "Données de base projet",
     items: [
-      { targetId: "parametres-localisation", label: "Localisation & travaux", icon: "pin" },
-      { targetId: "parametres-phase", label: "Phase", icon: "checklist" },
+      { targetId: "parametres-localisation", label: "Localisation", icon: "pin" },
+      { targetId: "parametres-phase", label: "Phases", icon: "checklist" },
       { targetId: "parametres-collaborateurs", label: "Collaborateurs", icon: "people" },
       { targetId: "parametres-agents-actives", label: "Agents activés", icon: "shield" },
       { targetId: "parametres-lots", label: "Lots activés", icon: "book" },
-      { targetId: "parametres-zones-batiments", label: "Zones / bâtiments / niveaux", icon: "book" },
       { targetId: "parametres-georisques", label: "Géorisques", icon: "shield" }
     ]
   },
   {
     sectionLabel: "Caractérisations techniques",
     items: [
-      { targetId: "parametres-zones-reglementaires", label: "Solidité des ouvrages", icon: "shield" },
-      { targetId: "parametres-incendie", label: "Sécurité incendie", icon: "shield" },
       { targetId: "parametres-parasismiques", label: "Protection parasismique", icon: "shield" },
-      { targetId: "parametres-accessibilite", label: "Accessibilité PMR", icon: "book" },
-      { targetId: "parametres-thermiques", label: "Performances thermiques", icon: "book" },
-      { targetId: "parametres-acoustique", label: "Performances acoustiques", icon: "book" },
-      { targetId: "parametres-normes", label: "DTU / Eurocodes / normes", icon: "book" },
       { targetId: "parametres-doctrines", label: "Doctrines particulières MOA", icon: "book" }
-    ]
-  },
-  {
-    sectionLabel: "Gouvernance",
-    items: [
-      { targetId: "parametres-droits", label: "Droits par acteur", icon: "people" },
-      { targetId: "parametres-circuits", label: "Circuits de validation", icon: "checklist" },
-      { targetId: "parametres-taxonomie", label: "Taxonomie des sujets", icon: "book" },
-      { targetId: "parametres-criticite", label: "Règles de criticité", icon: "shield" },
-      { targetId: "parametres-nomenclature", label: "Nomenclature documentaire", icon: "book" },
-      { targetId: "parametres-workflow-pr", label: "Workflow de PR", icon: "checklist" },
-      { targetId: "parametres-cloture", label: "Politique de clôture des sujets", icon: "shield" }
     ]
   },
   {
     sectionLabel: "Paramètres opérationnels",
     items: [
-      { targetId: "parametres-jalons", label: "Jalons", icon: "checklist" },
-      { targetId: "parametres-responsabilites", label: "Responsabilités", icon: "people" },
-      { targetId: "parametres-automatisations", label: "Automatisations", icon: "checklist" },
-      { targetId: "parametres-champs", label: "Champs obligatoires", icon: "checklist" },
-      { targetId: "parametres-modeles", label: "Modèles de documents", icon: "book" },
-      { targetId: "parametres-templates", label: "Templates de remarques", icon: "book" },
-      { targetId: "parametres-diffusion", label: "Matrices de diffusion", icon: "people" }
+      { targetId: "parametres-automatisations", label: "Automatisations", icon: "checklist" }
     ]
   }
 ];
@@ -529,25 +479,6 @@ function renderSelectField({ id, label, value = "", options = [] }) {
   });
 }
 
-function renderWorkContextField(value = "new") {
-  const currentValue = value === "existing" ? "existing" : "new";
-
-  return `
-    <div class="settings-work-context-field">
-      <div class="settings-work-context-field__label">Construction neuve / Cadre bâti existant</div>
-      <div class="documents-radio-group settings-radio-group">
-        <label class="documents-radio-option">
-          <input type="radio" name="projectWorkContext" value="new" ${currentValue === "new" ? "checked" : ""}>
-          <span class="documents-radio-option__text">Neuf</span>
-        </label>
-        <label class="documents-radio-option">
-          <input type="radio" name="projectWorkContext" value="existing" ${currentValue === "existing" ? "checked" : ""}>
-          <span class="documents-radio-option__text">Existant</span>
-        </label>
-      </div>
-    </div>
-  `;
-}
 
 function formatSizingValue(value, unit = "") {
   if (!Number.isFinite(value)) return "—";
@@ -839,7 +770,6 @@ function getProjectBaseDataEnrichmentButtonTooltip() {
 
 function buildProjectBaseDataEnrichmentDetails({ georisquesStatus = "pending", georisquesError = "" } = {}) {
   const georisques = ensureGeorisquesState();
-  const windSummary = getWindRegionSummary();
   const seismicSummary = getGeorisquesSismiqueSummary();
   const successCount = georisques.datasets.filter((item) => item.status === "success").length;
   const errorCount = georisques.datasets.filter((item) => item.status !== "success").length;
@@ -863,11 +793,6 @@ function buildProjectBaseDataEnrichmentDetails({ georisquesStatus = "pending", g
         errorCount,
         error: georisquesError || georisques.error || ""
       },
-      windRegion: {
-        status: windSummary ? "success" : "pending",
-        source: "ui",
-        value: windSummary || ""
-      },
       seismicZone: {
         status: seismicSummary ? "success" : "pending",
         source: "ui",
@@ -879,7 +804,6 @@ function buildProjectBaseDataEnrichmentDetails({ georisquesStatus = "pending", g
 
 function getProjectBaseDataEnrichmentSummary(details = {}) {
   const georisques = details?.steps?.georisques || {};
-  const windRegion = details?.steps?.windRegion || {};
   const seismicZone = details?.steps?.seismicZone || {};
   const parts = [];
 
@@ -892,9 +816,6 @@ function getProjectBaseDataEnrichmentSummary(details = {}) {
     parts.push(`Géorisques : ${georisques.error}`);
   }
 
-  if (windRegion.value) {
-    parts.push(`Vent : ${windRegion.value}`);
-  }
 
   if (seismicZone.value) {
     parts.push(`Sismique : ${seismicZone.value}`);
@@ -1210,32 +1131,6 @@ function getGeorisquesSismiqueSummary() {
   return formatSeismicZoneSummary(directZone, directLabel);
 }
 
-function getWindRegionSummary() {
-  const city = String(store.projectForm.city || "").trim();
-  const postalCode = String(store.projectForm.postalCode || "").trim();
-  const georisques = ensureGeorisquesState();
-
-  const wind = getWindRegion({
-    postalCode,
-    communeName: city,
-    georisquesCommuneName: georisques.commune?.name || null,
-    georisquesDepartmentCode: georisques.commune?.departmentCode || null,
-    georisquesInseeCode: georisques.commune?.codeInsee || null
-  });
-
-  if (!wind || wind.error) return "";
-
-  if (wind.ambiguous) {
-    const regions = Array.isArray(wind.possibleRegions) ? wind.possibleRegions.join(" / ") : "";
-    return regions
-      ? `Ambiguë (${regions})${wind.defaultRegion ? ` · défaut ${wind.defaultRegion}` : ""}`
-      : "";
-  }
-
-  if (!Number.isFinite(wind.region)) return "";
-
-  return `Région ${wind.region}`;
-}
 
 function renderAutoResolvedField(label, value, hint = "Données récupérées automatiquement sur Géorisques.", options = {}) {
   const mutedClass = options?.muted ? " is-muted" : "";
@@ -1834,11 +1729,6 @@ function getPageHtml(form) {
                         )}
                       </div>
                     ` : ""}`
-                  }),
-                  renderSectionCard({
-                    title: "Nature des travaux",
-                    description: "Définition de la nature des travaux envisagés dans le cadre du projet.",
-                    body: renderWorkContextField(form.workContext || "new")
                   })
                 ]
               })}
@@ -1849,12 +1739,7 @@ function getPageHtml(form) {
                 lead: "",
                 cards: [
                   renderSectionCard({
-                    title: "Phase",
-                    description: "Phase en cours du projet.",
-                    body: renderCurrentProjectPhaseCard()
-                  }),
-                  renderSectionCard({
-                    title: "Phases activables",
+                    title: "Phases",
                     description: "Les cases sont toutes cochées par défaut. Cette structure est stockée dans le store pour préparer le branchement backend.",
                     body: renderProjectPhasesCard()
                   })
@@ -1904,58 +1789,7 @@ function getPageHtml(form) {
                 ]
               })}
 
-              ${renderSettingsBlock({
-                id: "parametres-zones-batiments",
-                title: "",
-                lead: "",
-                cards: [
-                  renderSectionCard({
-                    title: "Zones / bâtiments / niveaux",
-                    description: "Découpage spatial utilisé dans les analyses et les livrables.",
-                    body: renderPlaceholderList([
-                      "Bâtiments, ailes, niveaux, zones techniques, secteurs fonctionnels et zones de diffusion."
-                    ])
-                  })
-                ]
-              })}
-
               ${renderGeorisquesSection()}
-
-              ${renderSettingsBlock({
-                id: "parametres-zones-reglementaires",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Cadre réglementaire principal lié à la solidité et à la structure.",
-                cards: [
-                  renderSectionCard({
-                    title: "Solidité des ouvrages",
-                    description: "Références réglementaires, hypothèses générales et domaine d’application.",
-                    body: `${getWindRegionSummary() ? `
-                      <div class="settings-auto-fields settings-auto-fields--single">
-                        ${renderAutoResolvedField("Zone de vent calculée", getWindRegionSummary(), "Valeur calculée automatiquement à partir de la localisation projet et des tables vent internes.", { muted: hasStaleLocationDerivedData() })}
-                      </div>
-                    ` : ""}
-                    ${renderPlaceholderList([
-                      "Code de la construction, Eurocodes, règles professionnelles, cas particuliers et exigences du programme."
-                    ])}`
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-incendie",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Corpus incendie principal retenu pour le projet.",
-                cards: [
-                  renderSectionCard({
-                    title: "Règlement incendie applicable",
-                    description: "Corpus incendie principal retenu pour le projet.",
-                    body: renderPlaceholderList([
-                      "ERP / IGH / habitation / bureaux / code du travail / ICPE selon le cas.",
-                      "Références d’arrêtés, versions et doctrines internes applicables."
-                    ])
-                  })
-                ]
-              })}
 
               ${renderSettingsBlock({
                 id: "parametres-parasismiques",
@@ -2001,66 +1835,6 @@ function getPageHtml(form) {
               })}
 
               ${renderSettingsBlock({
-                id: "parametres-accessibilite",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Base normative accessibilité PMR et dispositions complémentaires retenues.",
-                cards: [
-                  renderSectionCard({
-                    title: "Règlement accessibilité",
-                    description: "Base normative accessibilité PMR et dispositions complémentaires retenues.",
-                    body: renderPlaceholderList([
-                      "Exigences réglementaires, cas particuliers, dérogations et pièces justificatives attendues."
-                    ])
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-thermiques",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Références thermiques et énergétiques applicables.",
-                cards: [
-                  renderSectionCard({
-                    title: "Référentiels thermiques",
-                    description: "Références thermiques et énergétiques applicables.",
-                    body: renderPlaceholderList([
-                      "RE2020, RT existant, labels et exigences contractuelles complémentaires."
-                    ])
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-acoustique",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Normes, objectifs contractuels et seuils d’acceptation acoustiques.",
-                cards: [
-                  renderSectionCard({
-                    title: "Référentiels acoustique",
-                    description: "Normes, objectifs contractuels et seuils d’acceptation acoustiques.",
-                    body: renderPlaceholderList([
-                      "NRA, programmes spécifiques, cahiers des charges de performance et modalités de contrôle."
-                    ])
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-normes",
-                title: "Référentiels techniques et réglementaires",
-                lead: "Bibliothèque normative de référence du projet.",
-                cards: [
-                  renderSectionCard({
-                    title: "DTU / Eurocodes / normes projet",
-                    description: "Bibliothèque normative de référence du projet.",
-                    body: renderPlaceholderList([
-                      "DTU, Eurocodes, NF, guides, règles professionnelles et prescriptions spécifiques."
-                    ])
-                  })
-                ]
-              })}
-
-              ${renderSettingsBlock({
                 id: "parametres-doctrines",
                 title: "Référentiels techniques",
                 lead: "Exigences internes et doctrines projet non strictement réglementaires.",
@@ -2076,96 +1850,6 @@ function getPageHtml(form) {
               })}
 
               ${renderSettingsBlock({
-                id: "parametres-droits",
-                title: "Gouvernance",
-                lead: "Garde-fous organisationnels qui encadrent la production, la revue, la qualification et la clôture.",
-                cards: [
-                  renderSectionCard({ title: "Droits par acteur", body: renderPlaceholderList(["Droits d’ouverture, commentaire, validation, rejet, diffusion et clôture par rôle."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-circuits",
-                title: "Gouvernance",
-                lead: "Règles d’approbation et d’escalade du projet.",
-                cards: [
-                  renderSectionCard({ title: "Circuits de validation", body: renderPlaceholderList(["Règles d’approbation, escalade, quorum et cas bloquants selon la nature du sujet."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-taxonomie",
-                title: "Gouvernance",
-                lead: "Structuration de la classification métier.",
-                cards: [
-                  renderSectionCard({ title: "Taxonomie des sujets", body: renderPlaceholderList(["Arborescence de thèmes, sous-thèmes, disciplines et codes de classification réutilisés partout."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-criticite",
-                title: "Gouvernance",
-                lead: "Critères de sévérité, impact et urgence.",
-                cards: [
-                  renderSectionCard({ title: "Règles de criticité", body: renderPlaceholderList(["Critères de sévérité, probabilité, impact, urgence et seuils d’alerte."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-nomenclature",
-                title: "Gouvernance",
-                lead: "Convention de nommage et d’identification documentaire.",
-                cards: [
-                  renderSectionCard({ title: "Nomenclature documentaire", body: renderPlaceholderList(["Convention de nommage, identifiants, versions, lots, zones et statuts documentaires."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-cloture",
-                title: "Gouvernance",
-                lead: "Règles de fermeture et de réouverture.",
-                cards: [
-                  renderSectionCard({ title: "Politique de clôture des sujets", body: renderPlaceholderList(["Preuves minimales, validations attendues et critères de fermeture / réouverture."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-jalons",
-                title: "Paramètres opérationnels",
-                lead: "Échéances et points de passage du projet.",
-                cards: [
-                  renderSectionCard({ title: "Jalons", body: renderPlaceholderList(["Jalons de revue, échéances, fenêtres de diffusion et points de contrôle."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-responsabilites",
-                title: "Paramètres opérationnels",
-                lead: "Répartition des rôles d’exécution.",
-                cards: [
-                  renderSectionCard({ title: "Responsabilités", body: renderPlaceholderList(["Répartition RACI ou équivalent par type d’action, lot et phase."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-champs",
-                title: "Paramètres opérationnels",
-                lead: "Informations minimales imposées selon les objets créés.",
-                cards: [
-                  renderSectionCard({ title: "Champs obligatoires", body: renderPlaceholderList(["Données minimales exigées selon l’objet créé : sujet, avis, document, proposition, diffusion."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-modeles",
-                title: "Paramètres opérationnels",
-                lead: "Gabarits de livrables et supports projet.",
-                cards: [
-                  renderSectionCard({ title: "Modèles de documents", body: renderPlaceholderList(["Gabarits de fiches, bordereaux, rapports, notices et documents de synthèse."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
                 id: "parametres-automatisations",
                 title: "",
                 lead: "",
@@ -2176,24 +1860,6 @@ function getPageHtml(form) {
                     badge: "PoC",
                     body: renderAutomationsFeatureCard()
                   })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-templates",
-                title: "Paramètres opérationnels",
-                lead: "Bibliothèque de formulations réutilisables.",
-                cards: [
-                  renderSectionCard({ title: "Templates de remarques", body: renderPlaceholderList(["Bibliothèque de formulations normalisées par discipline et niveau de criticité."]) })
-                ]
-              })}
-
-              ${renderSettingsBlock({
-                id: "parametres-diffusion",
-                title: "Paramètres opérationnels",
-                lead: "Règles de diffusion selon le contexte et les destinataires.",
-                cards: [
-                  renderSectionCard({ title: "Matrices de diffusion", body: renderPlaceholderList(["Destinataires, visas, pièces jointes et conditions de diffusion selon le contexte."]) })
                 ]
               })}
             `
@@ -2316,15 +1982,6 @@ function bindProjectAutomationToggles() {
   });
 }
 
-function bindProjectWorkContextField() {
-  document.querySelectorAll('input[name="projectWorkContext"]').forEach((input) => {
-    input.addEventListener("change", (event) => {
-      const value = event.target?.value === "existing" ? "existing" : "new";
-      store.projectForm.workContext = value;
-      rerenderProjectParametres();
-    });
-  });
-}
 
 function bindProjectPhaseToggles() {
   document.querySelectorAll("[data-project-phase-toggle]").forEach((input) => {
@@ -2842,7 +2499,6 @@ function bindParametresEvents() {
   bindProjectTabToggles();
   bindProjectPhaseToggles();
   bindProjectAutomationToggles();
-  bindProjectWorkContextField();
   refreshProjectTabsVisibility();
 
   document.querySelectorAll("[data-open-collaborator-modal]").forEach((btn) => {
