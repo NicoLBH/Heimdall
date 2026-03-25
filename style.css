@@ -7929,3 +7929,9 @@ color:var(--text);
     grid-template-columns:minmax(0,1fr);
   }
 }
+
+.subject-create-preview-empty{
+  display:block;
+  color:var(--fg-muted);
+  font-style:italic;
+}
