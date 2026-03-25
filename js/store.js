@@ -80,7 +80,6 @@ export const store = {
     runLog: []
   },
 
-  projectProposals: [],
 
   projectDocuments: {
     items: [],
