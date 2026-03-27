@@ -183,15 +183,13 @@ function renderIdentitySection() {
 
   return `
     <div class="settings-card settings-card--param arkolia-identity-card">
-      <div class="settings-card__head arkolia-identity-card__head">
-        <div>
+      <div class="settings-stack settings-stack--lg">
+        <div class="settings-card__head arkolia-identity-card__head arkolia-section-heading">
           <span class="settings-card__head-title"><h4>Fiche d'identité</h4></span>
         </div>
-      </div>
 
-      <div class="settings-stack settings-stack--lg">
-        <div class="arkolia-identity-layout">
-          <div class="arkolia-identity-layout__main settings-stack settings-stack--lg">
+        <div class="settings-seismic-sizing-layout__row arkolia-identity-row">
+          <div class="settings-stack settings-stack--lg">
             <div class="arkolia-identity-section">
               <div class="arkolia-identity-section__title">Dimensions du bâtiment</div>
               <div class="arkolia-identity-dimensions">
@@ -260,7 +258,7 @@ function renderIdentitySection() {
             </div>
           </div>
 
-          <div class="arkolia-identity-layout__side settings-stack settings-stack--lg">
+          <div class="settings-stack settings-stack--lg">
             <div class="arkolia-identity-preview">
               <div class="arkolia-identity-preview__head">
                 <div class="arkolia-identity-preview__title">Description de l'ouvrage</div>
@@ -289,55 +287,51 @@ function renderIdentitySection() {
           </div>
         </div>
 
-        <div class="arkolia-relation-card">
-          <div class="arkolia-relation-card__head">
-            <div class="arkolia-relation-card__title">Relation et avis</div>
+        <div class="settings-card__head arkolia-section-heading">
+          <span class="settings-card__head-title"><h4>Relation et avis</h4></span>
+        </div>
+
+        <div class="arkolia-identity-section arkolia-relation-generalities-card">
+          <div class="arkolia-identity-section__title">Généralités</div>
+          <div class="arkolia-relation-generalities arkolia-relation-generalities--inline">
+            ${renderIdentityRadioGroup('buildingOpen', [
+              { value: 'open', label: 'Bâtiment ouvert' }
+            ], relation.buildingOpen ? 'open' : '', { dataAttribute: 'data-arkolia-relation-radio' })}
+            <div class="arkolia-relation-generalities__line arkolia-relation-generalities__line--inline">
+              <div class="arkolia-relation-generalities__label">Bâtiment fermé :</div>
+              ${renderIdentityRadioGroup('closedFacades', [
+                { value: 'Nord', label: 'Nord' },
+                { value: 'Sud', label: 'Sud' },
+                { value: 'Est', label: 'Est' },
+                { value: 'Ouest', label: 'Ouest' }
+              ], relation.closedFacades, { type: 'checkbox', dataAttribute: 'data-arkolia-relation-checkbox' })}
+            </div>
+          </div>
+        </div>
+
+        <div class="arkolia-relation-cards-grid">
+          <div class="arkolia-identity-preview arkolia-identity-preview--compact">
+            <div class="arkolia-identity-preview__head">
+              <div class="arkolia-identity-preview__title">Relation</div>
+              ${renderCopyButton({ action: '', value: 'relationName', title: 'Copier la relation' })}
+            </div>
+            <div class="arkolia-identity-sidecard__value" data-arkolia-relation-name-output>${escapeHtml(relation.builderName || 'ARKOLIA')}</div>
           </div>
 
-          <div class="settings-stack settings-stack--lg">
-            <div class="arkolia-identity-preview arkolia-identity-preview--compact">
-              <div class="arkolia-identity-preview__head">
-                <div class="arkolia-identity-preview__title">Relation</div>
-                ${renderCopyButton({ action: '', value: 'relationName', title: 'Copier la relation' })}
-              </div>
-              <div class="arkolia-identity-sidecard__value" data-arkolia-relation-name-output>${escapeHtml(relation.builderName || 'ARKOLIA')}</div>
+          <div class="arkolia-identity-preview arkolia-identity-preview--compact">
+            <div class="arkolia-identity-preview__head">
+              <div class="arkolia-identity-preview__title">Avis</div>
+              ${renderCopyButton({ action: '', value: 'relationSummary', title: 'Copier le texte' })}
             </div>
+            <textarea class="gh-textarea arkolia-identity-preview__textarea" readonly data-arkolia-relation-summary-output>${escapeHtml(relationSummary)}</textarea>
+          </div>
 
-            <div class="arkolia-identity-section">
-              <div class="arkolia-identity-section__title">Généralités</div>
-              <div class="arkolia-relation-generalities">
-                <div class="arkolia-relation-generalities__line">
-                  ${renderIdentityRadioGroup('buildingOpen', [
-                    { value: 'open', label: 'Bâtiment ouvert' }
-                  ], relation.buildingOpen ? 'open' : '', { dataAttribute: 'data-arkolia-relation-radio' })}
-                </div>
-                <div class="arkolia-relation-generalities__line">
-                  <div class="arkolia-relation-generalities__label">Bâtiment fermé :</div>
-                  ${renderIdentityRadioGroup('closedFacades', [
-                    { value: 'Nord', label: 'Nord' },
-                    { value: 'Sud', label: 'Sud' },
-                    { value: 'Est', label: 'Est' },
-                    { value: 'Ouest', label: 'Ouest' }
-                  ], relation.closedFacades, { type: 'checkbox', dataAttribute: 'data-arkolia-relation-checkbox' })}
-                </div>
-              </div>
+          <div class="arkolia-identity-preview arkolia-identity-preview--compact">
+            <div class="arkolia-identity-preview__head">
+              <div class="arkolia-identity-preview__title">Paramètres climatiques</div>
+              ${renderCopyButton({ action: '', value: 'climate', title: 'Copier les paramètres climatiques' })}
             </div>
-
-            <div class="arkolia-identity-preview arkolia-identity-preview--compact">
-              <div class="arkolia-identity-preview__head">
-                <div class="arkolia-identity-preview__title">Avis</div>
-                ${renderCopyButton({ action: '', value: 'relationSummary', title: 'Copier le texte' })}
-              </div>
-              <textarea class="gh-textarea arkolia-identity-preview__textarea" readonly data-arkolia-relation-summary-output>${escapeHtml(relationSummary)}</textarea>
-            </div>
-
-            <div class="arkolia-identity-preview arkolia-identity-preview--compact">
-              <div class="arkolia-identity-preview__head">
-                <div class="arkolia-identity-preview__title">Paramètres climatiques</div>
-                ${renderCopyButton({ action: '', value: 'climate', title: 'Copier les paramètres climatiques' })}
-              </div>
-              <textarea class="gh-textarea arkolia-identity-preview__textarea" readonly data-arkolia-climate-output>${escapeHtml(climateText)}</textarea>
-            </div>
+            <textarea class="gh-textarea arkolia-identity-preview__textarea" readonly data-arkolia-climate-output>${escapeHtml(climateText)}</textarea>
           </div>
         </div>
       </div>
