@@ -341,14 +341,7 @@ const PARAMETRES_NAV_GROUPS = [
       { targetId: "parametres-phase", label: "Phases", icon: "checklist" },
       { targetId: "parametres-collaborateurs", label: "Collaborateurs", icon: "people" },
       { targetId: "parametres-agents-actives", label: "Agents activés", icon: "shield" },
-      { targetId: "parametres-lots", label: "Lots activés", icon: "book" },
-      { targetId: "parametres-georisques", label: "Géorisques", icon: "shield" }
-    ]
-  },
-  {
-    sectionLabel: "Caractérisations techniques",
-    items: [
-      { targetId: "parametres-parasismiques", label: "Protection parasismique", icon: "shield" }
+      { targetId: "parametres-lots", label: "Lots activés", icon: "book" }
     ]
   },
   {
@@ -1788,51 +1781,6 @@ function getPageHtml(form) {
                 ]
               })}
 
-              ${renderGeorisquesSection()}
-
-              ${renderSettingsBlock({
-                id: "parametres-parasismiques",
-                title: "",
-                lead: "",
-                cards: [
-                  renderSectionCard({
-                    title: "Protection parasismique",
-                    description: "Paramètres d’entrée du cadre parasismique à utiliser pour le projet.",
-                    badge: "LIVE",
-                    body: `${getGeorisquesSismiqueSummary() ? `
-                      <div class="settings-auto-fields settings-auto-fields--single">
-                        ${renderAutoResolvedField("Zone sismique Géorisques", getGeorisquesSismiqueSummary(), "Données récupérées automatiquement sur Géorisques.", { muted: hasStaleLocationDerivedData() })}
-                      </div>
-                    ` : ""}
-                    <div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderSelectField({ id: "riskCategory", label: "Catégorie de risque", value: form.riskCategory || form.risk || "Risque normal", options: ["Risque normal", "Risque spécial"] })}
-                      ${renderSelectField({ id: "importanceCategory", label: "Catégorie d'importance", value: form.importanceCategory || form.importance || "II", options: ["Catégorie d'importance I", "Catégorie d'importance II", "Catégorie d'importance III", "Catégorie d'importance IV"] })}
-                      ${renderSelectField({ id: "zoneSismique", label: "Zone sismique", value: form.zoneSismique || "4", options: ["1", "2", "3", "4", "5"] })}
-                      ${renderSelectField({ id: "liquefactionText", label: "Liquéfaction", value: form.liquefactionText || "Sol non liquéfiable", options: ["Sol non liquéfiable", "Sol liquéfiable", "Non défini à ce stade"] })}
-                      ${renderSelectField({ id: "soilClass", label: "Classe de sol", value: form.soilClass || "A", options: ["A", "B", "C", "D", "E"] })}
-                      ${renderSelectField({ id: "referential", label: "Référentiel parasismique", value: form.referential || "EC8", options: ["EC8", "PS92"] })}
-                    </div>`
-                  }),
-                  renderSectionCard({
-                    title: "Données de dimensionnement",
-                    description: "Premières données de calcul du spectre de dimensionnement élastique et des accélérations réglementaires du projet.",
-                    body: `<div class="settings-seismic-sizing-layout">
-                      <div class="settings-form-grid settings-form-grid--thirds settings-seismic-sizing-layout__controls">
-                        ${renderInputField({ id: "dampingRatio", label: "ξ coefficient d'amortissement visqueux, exprimé en pourcentage", value: form.dampingRatio || "5", placeholder: "5" })}
-                      </div>
-                      <div class="settings-seismic-sizing-layout__row settings-seismic-sizing-layout__row--top">
-                        <div class="settings-seismic-sizing-main">
-                          ${renderSeismicSpectrumChart(form)}
-                        </div>
-                        <div class="settings-seismic-sizing-side">
-                          ${renderSeismicAccelerationCard(form)}
-                        </div>
-                      </div>
-                    </div>`
-                  })
-                ]
-              })}
-
               ${renderSettingsBlock({
                 id: "parametres-automatisations",
                 title: "",
@@ -1890,9 +1838,6 @@ export function renderProjectParametres(root) {
   bindParametresEvents();
   bindParametresNav();
 
-  if (parametresUiState.activeSectionId === "parametres-georisques") {
-    loadGeorisquesForCurrentProject();
-  }
 }
 
 function bindValue(id, handler, eventName = "input") {
@@ -2641,9 +2586,6 @@ function bindParametresNav() {
       const targetId = btn.getAttribute("data-side-nav-target");
       if (targetId) {
         parametresUiState.activeSectionId = targetId;
-        if (targetId === "parametres-georisques") {
-          loadGeorisquesForCurrentProject();
-        }
       }
     });
   });
