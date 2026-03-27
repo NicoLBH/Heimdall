@@ -8521,6 +8521,7 @@ color:var(--text);
   display:flex;
   flex-direction:column;
   gap:10px;
+  padding-top:8px;
 }
 
 .arkolia-relation-generalities__line{
