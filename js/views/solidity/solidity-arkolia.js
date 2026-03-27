@@ -18,10 +18,299 @@ const arkoliaUiState = {
   isOpen: false,
   requestSequence: 0,
   debounceTimer: null,
-  detailsExpanded: false
+  detailsExpanded: false,
+  identity: {
+    length: "",
+    width: "",
+    spanPreset: "",
+    spanOther: "",
+    intermediatePosts: "",
+    windBeams: "",
+    longitudinalBracing: []
+  }
 };
 
 let currentRoot = null;
+
+
+function escapeAttribute(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
+function normalizeDimension(value) {
+  const trimmed = String(value ?? "").trim().replace(',', '.');
+  if (!trimmed) return "";
+  const number = Number(trimmed);
+  if (!Number.isFinite(number)) return String(value ?? "").trim();
+  return Number.isInteger(number) ? String(number) : String(number).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+}
+
+function formatLongitudinalBracing(values = []) {
+  const labels = Array.isArray(values) ? values.filter(Boolean) : [];
+  if (!labels.length) return 'non précisé';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} et ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')} et ${labels[labels.length - 1]}`;
+}
+
+function getIdentityDescription() {
+  const identity = arkoliaUiState.identity || {};
+  const length = normalizeDimension(identity.length) || '…';
+  const width = normalizeDimension(identity.width) || '…';
+  const spanValue = identity.spanPreset === 'other'
+    ? (normalizeDimension(identity.spanOther) || '…')
+    : (normalizeDimension(identity.spanPreset) || '…');
+
+  const beamLabelMap = {
+    '1': 'une seule poutre',
+    '2': 'deux poutres',
+    '3': 'trois poutres'
+  };
+
+  const postLabelMap = {
+    '0': 'sans poteau intermédiaire',
+    '1': 'avec un poteau intermédiaire',
+    '2': 'avec deux poteaux intermédiaires',
+    '3': 'avec trois poteaux intermédiaires',
+    '4': 'avec quatre poteaux intermédiaires'
+  };
+
+  const beamText = beamLabelMap[String(identity.windBeams || '')] || 'nombre de poutres au vent non précisé';
+  const postsText = postLabelMap[String(identity.intermediatePosts || '')] || 'avec un nombre de poteaux intermédiaires non précisé';
+  const bracingText = formatLongitudinalBracing(identity.longitudinalBracing);
+
+  return `Construction d'un hangar agricole neuf de ${length} m x ${width} m en charpente métallique, travée ${spanValue} m avec ${beamText} au vent ; stabilité transversale par portiques ${postsText} et contreventement longitudinal par ${bracingText}, pannes Z, couverture en bac acier et panneaux photovoltaïques.`;
+}
+
+function renderIdentityRadioGroup(name, options, selectedValue) {
+  return `
+    <div class="arkolia-identity-options" role="radiogroup">
+      ${options.map((option) => {
+        const checked = String(selectedValue || '') === String(option.value);
+        const optionId = `${name}_${String(option.value).replace(/[^a-zA-Z0-9_-]+/g, '_')}`;
+        return `
+          <label class="arkolia-identity-chip" for="${escapeAttribute(optionId)}">
+            <input
+              id="${escapeAttribute(optionId)}"
+              type="radio"
+              name="${escapeAttribute(name)}"
+              value="${escapeAttribute(option.value)}"
+              data-arkolia-identity-radio="${escapeAttribute(name)}"
+              ${checked ? 'checked' : ''}
+            >
+            <span>${escapeHtml(option.label)}</span>
+          </label>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderIdentityCheckboxGroup(name, options, selectedValues = []) {
+  const selected = new Set(Array.isArray(selectedValues) ? selectedValues.map(String) : []);
+  return `
+    <div class="arkolia-identity-options arkolia-identity-options--checkboxes">
+      ${options.map((option) => {
+        const checked = selected.has(String(option.value));
+        const optionId = `${name}_${String(option.value).replace(/[^a-zA-Z0-9_-]+/g, '_')}`;
+        return `
+          <label class="arkolia-identity-chip arkolia-identity-chip--checkbox" for="${escapeAttribute(optionId)}">
+            <input
+              id="${escapeAttribute(optionId)}"
+              type="checkbox"
+              value="${escapeAttribute(option.value)}"
+              data-arkolia-identity-checkbox="${escapeAttribute(name)}"
+              ${checked ? 'checked' : ''}
+            >
+            <span>${escapeHtml(option.label)}</span>
+          </label>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderIdentitySection() {
+  const identity = arkoliaUiState.identity || {};
+  const description = getIdentityDescription();
+
+  return `
+    <div class="settings-card settings-card--param arkolia-identity-card">
+      <div class="settings-card__head arkolia-identity-card__head">
+        <div>
+          <span class="settings-card__head-title"><h4>Fiche d'identité</h4></span>
+        </div>
+      </div>
+
+      <div class="settings-stack settings-stack--lg">
+        <div class="arkolia-identity-section">
+          <div class="arkolia-identity-section__title">Dimensions du bâtiment</div>
+          <div class="arkolia-identity-dimensions">
+            <label class="gh-editable-field">
+              <span class="gh-editable-field__label">Longueur (m)</span>
+              <span class="gh-editable-field__control">
+                <input type="text" class="gh-input" data-arkolia-identity-input="length" value="${escapeAttribute(identity.length || '')}">
+              </span>
+            </label>
+            <label class="gh-editable-field">
+              <span class="gh-editable-field__label">Largeur (m)</span>
+              <span class="gh-editable-field__control">
+                <input type="text" class="gh-input" data-arkolia-identity-input="width" value="${escapeAttribute(identity.width || '')}">
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="arkolia-identity-section">
+          <div class="arkolia-identity-section__title">Travée</div>
+          ${renderIdentityRadioGroup('spanPreset', [
+            { value: '6', label: '6 m' },
+            { value: '7', label: '7 m' },
+            { value: '8', label: '8 m' },
+            { value: '9', label: '9 m' },
+            { value: '10', label: '10 m' },
+            { value: '10.5', label: '10,5 m' },
+            { value: '11', label: '11 m' },
+            { value: 'other', label: 'Autre' }
+          ], identity.spanPreset)}
+          <label class="gh-editable-field arkolia-identity-other-field">
+            <span class="gh-editable-field__label">Autre (m)</span>
+            <span class="gh-editable-field__control">
+              <input type="text" class="gh-input" data-arkolia-identity-input="spanOther" value="${escapeAttribute(identity.spanOther || '')}" ${identity.spanPreset === 'other' ? '' : 'disabled'}>
+            </span>
+          </label>
+        </div>
+
+        <div class="arkolia-identity-section">
+          <div class="arkolia-identity-section__title">Nombre de poteau(x) en travée</div>
+          ${renderIdentityRadioGroup('intermediatePosts', [
+            { value: '0', label: 'Aucun' },
+            { value: '1', label: 'Un' },
+            { value: '2', label: 'Deux' },
+            { value: '3', label: 'Trois' },
+            { value: '4', label: 'Quatre' }
+          ], identity.intermediatePosts)}
+        </div>
+
+        <div class="arkolia-identity-section">
+          <div class="arkolia-identity-section__title">Nombre de poutre au vent</div>
+          ${renderIdentityRadioGroup('windBeams', [
+            { value: '1', label: 'Une' },
+            { value: '2', label: 'Deux' },
+            { value: '3', label: 'Trois' }
+          ], identity.windBeams)}
+        </div>
+
+        <div class="arkolia-identity-section">
+          <div class="arkolia-identity-section__title">Contreventement longitudinal</div>
+          ${renderIdentityCheckboxGroup('longitudinalBracing', [
+            { value: 'croix de Saint-André', label: 'Croix de St-André' },
+            { value: 'portique', label: 'Portique' },
+            { value: 'murs', label: 'Murs' }
+          ], identity.longitudinalBracing)}
+        </div>
+
+        <div class="arkolia-identity-preview">
+          <div class="arkolia-identity-preview__head">
+            <div class="arkolia-identity-preview__title">Texte généré automatiquement</div>
+            <button type="button" class="arkolia-identity-preview__copy" data-arkolia-copy-description title="Copier dans le presse-papier" aria-label="Copier dans le presse-papier">
+              ${svgIcon('copy', { className: 'octicon octicon-copy' })}
+            </button>
+          </div>
+          <textarea class="gh-input gh-textarea arkolia-identity-preview__textarea" readonly data-arkolia-description-output>${escapeHtml(description)}</textarea>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindIdentityActions() {
+  if (!currentRoot) return;
+  const scope = currentRoot.querySelector('[data-arkolia-result]');
+  if (!scope || scope.dataset.identityBound === 'true') return;
+  scope.dataset.identityBound = 'true';
+
+  scope.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-arkolia-identity-input]');
+    if (!input) return;
+    const key = input.getAttribute('data-arkolia-identity-input');
+    arkoliaUiState.identity = {
+      ...arkoliaUiState.identity,
+      [key]: input.value
+    };
+
+    updateIdentityDescriptionOutput();
+  });
+
+  scope.addEventListener('change', (event) => {
+    const radio = event.target.closest('[data-arkolia-identity-radio]');
+    if (radio) {
+      const key = radio.getAttribute('data-arkolia-identity-radio');
+      arkoliaUiState.identity = {
+        ...arkoliaUiState.identity,
+        [key]: radio.value
+      };
+      renderResultCard();
+      return;
+    }
+
+    const checkbox = event.target.closest('[data-arkolia-identity-checkbox]');
+    if (checkbox) {
+      const key = checkbox.getAttribute('data-arkolia-identity-checkbox');
+      const previous = Array.isArray(arkoliaUiState.identity[key]) ? [...arkoliaUiState.identity[key]] : [];
+      const next = checkbox.checked
+        ? Array.from(new Set([...previous, checkbox.value]))
+        : previous.filter((item) => item !== checkbox.value);
+      arkoliaUiState.identity = {
+        ...arkoliaUiState.identity,
+        [key]: next
+      };
+      updateIdentityDescriptionOutput();
+      return;
+    }
+  });
+
+  scope.addEventListener('click', async (event) => {
+    const copyButton = event.target.closest('[data-arkolia-copy-description]');
+    if (!copyButton) return;
+    const description = getIdentityDescription();
+    const textarea = currentRoot.querySelector('[data-arkolia-description-output]');
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(description);
+      } else if (textarea) {
+        textarea.removeAttribute('readonly');
+        textarea.select();
+        document.execCommand('copy');
+        textarea.setAttribute('readonly', 'readonly');
+      }
+      copyButton.classList.add('is-copied');
+      copyButton.setAttribute('title', 'Texte copié');
+      window.setTimeout(() => {
+        copyButton.classList.remove('is-copied');
+        copyButton.setAttribute('title', 'Copier dans le presse-papier');
+      }, 1200);
+    } catch (_error) {
+      if (textarea) {
+        textarea.focus();
+        textarea.select();
+      }
+    }
+  });
+}
+
+function updateIdentityDescriptionOutput() {
+  if (!currentRoot) return;
+  const output = currentRoot.querySelector('[data-arkolia-description-output]');
+  if (!output) return;
+  output.value = getIdentityDescription();
+}
 
 function resetSuggestions() {
   arkoliaUiState.suggestions = [];
@@ -215,10 +504,16 @@ function renderResultCard() {
           ${renderSummaryCard(selected)}
         </div>
       </div>
+
+      <div class="settings-seismic-sizing-layout__row">
+        ${renderIdentitySection()}
+      </div>
     </div>
   `;
 
   bindSummaryCardActions();
+  bindIdentityActions();
+  updateIdentityDescriptionOutput();
 }
 async function applySelection(item) {
   if (!item || !currentRoot) return;
@@ -470,6 +765,15 @@ export async function renderSolidityArkolia(root) {
   arkoliaUiState.selected = null;
   arkoliaUiState.query = "";
   arkoliaUiState.detailsExpanded = false;
+  arkoliaUiState.identity = {
+    length: "",
+    width: "",
+    spanPreset: "",
+    spanOther: "",
+    intermediatePosts: "",
+    windBeams: "",
+    longitudinalBracing: []
+  };
 
   root.innerHTML = `
     <section class="settings-section is-active">
