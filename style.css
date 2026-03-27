@@ -8427,6 +8427,7 @@ color:var(--text);
 .arkolia-identity-preview,
 .arkolia-relation-card{
   padding:14px;
+  margin-bottom: 8px;
 }
 
 .arkolia-identity-sidecard{
