@@ -3825,8 +3825,8 @@ color:var(--text);
 
 .gh-input{
   width:100%;
-  min-height:32px;
-  padding:7px 10px;
+  min-height:30px;
+  padding:4px 8px;
   border-radius:var(--radius);
   border:1px solid var(--border);
   background:var(--bg-input);
