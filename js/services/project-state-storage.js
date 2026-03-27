@@ -47,6 +47,25 @@ export function persistCurrentProjectState() {
   }
 }
 
+
+export function readPersistedProjectState(projectId) {
+  const storageKey = getStorageKey(projectId);
+  if (!storageKey) return null;
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readPersistedCurrentProjectState() {
+  return readPersistedProjectState(store.currentProjectId);
+}
+
 export function hydrateProjectState(projectId) {
   const storageKey = getStorageKey(projectId);
   if (!storageKey) return null;
