@@ -8177,7 +8177,7 @@ color:var(--text);
   display:flex;
   flex-direction:column;
   gap:10px;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
 }
 
 .arkolia-identity-section__title,
