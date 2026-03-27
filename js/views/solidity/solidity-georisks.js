@@ -3,6 +3,7 @@ import { fetchGeorisquesForCommune } from "../../services/georisques-service.js"
 import { escapeHtml } from "../../utils/escape-html.js";
 import { registerProjectPrimaryScrollSource } from "../project-shell-chrome.js";
 import { persistCurrentProjectState } from "../../services/project-state-storage.js";
+import { shouldAutoRunProjectBaseDataEnrichment } from "../../services/project-automation.js";
 
 const georisksUiState = {
   isLoading: false,
@@ -224,12 +225,19 @@ function getLocationDerivedMutedClass() {
 }
 
 function getButtonLabel() {
-  return georisksUiState.isLoading ? "Chargement Géorisques…" : "Récupérer les données Géorisques";
+  if (georisksUiState.isLoading) return "Récupération…";
+
+  return shouldAutoRunProjectBaseDataEnrichment()
+    ? "Enrichissement automatique activé"
+    : "Récupérer les données Géorisques";
 }
 
 function getButtonTooltip() {
   if (georisksUiState.isLoading) return "Récupération en cours…";
-  return "Chargement manuel des données Géorisques à partir de la localisation projet.";
+  if (!shouldAutoRunProjectBaseDataEnrichment()) {
+    return "Relancer manuellement l’enrichissement des données de base projet.";
+  }
+  return "Un enrichissement est lancé automatiquement après validation d’une modification de la localisation projet. Ce bouton permet aussi un relancement manuel.";
 }
 
 function getViewHtml() {
