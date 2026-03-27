@@ -495,7 +495,7 @@ function bindIdentityActions() {
       relationSummary: {
         text: getRelationSummary(),
         copiedTitle: 'Avis copié',
-        defaultTitle: 'Copier l'avis'
+        defaultTitle: 'Copier le texte'
       },
       climate: {
         text: getClimateText(),
