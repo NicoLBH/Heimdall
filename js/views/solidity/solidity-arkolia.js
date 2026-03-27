@@ -17,7 +17,8 @@ const arkoliaUiState = {
   activeIndex: -1,
   isOpen: false,
   requestSequence: 0,
-  debounceTimer: null
+  debounceTimer: null,
+  detailsExpanded: false
 };
 
 let currentRoot = null;
@@ -49,17 +50,13 @@ function formatSnowRegions(regions = []) {
 function renderGoogleMapsBlock(selected) {
   const latitude = Number(selected?.lat);
   const longitude = Number(selected?.lon);
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
 
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+  if (!hasCoordinates || !hasGoogleMapsEmbedApiKey()) {
     return `
-      <div class="arkolia-map__notice">Coordonnées indisponibles : la carte ne peut pas être affichée.</div>
-    `;
-  }
-
-  if (!hasGoogleMapsEmbedApiKey()) {
-    return `
-      <div class="arkolia-map__notice">
-        Clé Google Maps absente. Renseignez <code>window.MDALL_CONFIG.googleMapsEmbedApiKey</code> dans <code>index.html</code> ou la meta <code>google-maps-embed-api-key</code> pour afficher la carte interactive.
+      <div class="arkolia-map arkolia-map--placeholder${!selected ? ' is-empty' : ''}" aria-hidden="true">
+        <div class="arkolia-map__placeholder-surface"></div>
+        <div class="arkolia-map__placeholder-blur"></div>
       </div>
     `;
   }
@@ -67,13 +64,16 @@ function renderGoogleMapsBlock(selected) {
   const embedUrl = buildGoogleMapsPlaceEmbedUrl({
     latitude,
     longitude,
-    zoom: 17,
+    zoom: 16,
     mapType: "satellite"
   });
 
   if (!embedUrl) {
     return `
-      <div class="arkolia-map__notice">La carte Google Maps n'a pas pu être générée.</div>
+      <div class="arkolia-map arkolia-map--placeholder" aria-hidden="true">
+        <div class="arkolia-map__placeholder-surface"></div>
+        <div class="arkolia-map__placeholder-blur"></div>
+      </div>
     `;
   }
 
@@ -90,24 +90,108 @@ function renderGoogleMapsBlock(selected) {
   `;
 }
 
-function renderSummaryCard(title, items = []) {
-  const safeItems = items.filter((item) => item && (item.label || item.value || item.hint));
+function renderCityHeader(selected) {
+  if (!selected) {
+    return `
+      <div class="arkolia-summary-card__header">
+        <div class="arkolia-summary-card__title-wrap">
+          <div class="arkolia-summary-card__eyebrow">Ville</div>
+          <div class="arkolia-summary-card__title is-placeholder">Aucune ville sélectionnée</div>
+        </div>
+      </div>
+    `;
+  }
+
+  const cityTitle = escapeHtml(selected.name || selected.label || "Ville sélectionnée");
+  const alertIcon = selected.hasCantonMismatch
+    ? `<span class="arkolia-summary-card__alert" title="Attention : canton actuel différent du canton 2014">${svgIcon("alert", { className: "octicon octicon-alert" })}</span>`
+    : "";
+
   return `
-    <div class="settings-seismic-summary-card">
-      <div class="settings-seismic-summary-card__title">${escapeHtml(title)}</div>
-      <div class="settings-seismic-summary-list">
-        ${safeItems.map((item) => `
-          <div class="settings-seismic-summary-item">
-            <div class="settings-seismic-summary-item__head">
-              <strong>${escapeHtml(item.label || "")}</strong>
-              ${item.hint ? `<span>${escapeHtml(item.hint)}</span>` : ""}
-            </div>
-            <div class="settings-seismic-summary-item__value${item.muted ? " is-muted" : ""}">${escapeHtml(item.value || "—")}</div>
-          </div>
-        `).join("")}
+    <div class="arkolia-summary-card__header">
+      <div class="arkolia-summary-card__title-wrap">
+        <div class="arkolia-summary-card__eyebrow">Ville</div>
+        <div class="arkolia-summary-card__title-row">
+          <div class="arkolia-summary-card__title">${cityTitle}</div>
+          ${alertIcon}
+        </div>
       </div>
     </div>
   `;
+}
+
+function renderKeyValue(label, value, options = {}) {
+  const classes = ['arkolia-summary-card__item'];
+  if (options.compact) classes.push('is-compact');
+  if (options.muted) classes.push('is-muted');
+  return `
+    <div class="${classes.join(' ')}">
+      <div class="arkolia-summary-card__item-label">${escapeHtml(label)}</div>
+      <div class="arkolia-summary-card__item-value">${escapeHtml(value || '—')}</div>
+    </div>
+  `;
+}
+
+function renderSummaryCard(selected) {
+  const hasSelection = Boolean(selected);
+  const postalCode = hasSelection ? ((selected.postalCodes && selected.postalCodes[0]) || selected.postalCode || '—') : '—';
+  const departmentValue = hasSelection
+    ? [selected.departmentCode || '', selected.departmentName || ''].filter(Boolean).join(' — ') || '—'
+    : '—';
+
+  const extraRows = hasSelection ? [
+    renderKeyValue('Code INSEE', selected.codeInsee || '—', { compact: true }),
+    renderKeyValue('Coordonnées', `${normalizeCoordinate(selected.lat)} / ${normalizeCoordinate(selected.lon)}`, { compact: true }),
+    renderKeyValue('Altitude', normalizeAltitude(selected.altitude), { compact: true }),
+    renderKeyValue('Canton actuel', selected.currentCantonName || '—', { compact: true }),
+    renderKeyValue('Canton 2014', selected.cantonName2014 || selected.cantonName || '—', { compact: true, muted: selected.hasCantonMismatch }),
+    renderKeyValue('Zone de vent', selected.windZone || '—', { compact: true }),
+    renderKeyValue('Zone de neige', selected.snowZone || '—', { compact: true })
+  ].join('') : '';
+
+  return `
+    <div class="settings-seismic-summary-card arkolia-summary-card">
+      ${renderCityHeader(selected)}
+
+      <div class="arkolia-summary-card__body">
+        <div class="arkolia-summary-card__main-list">
+          ${renderKeyValue('Code postal', postalCode)}
+          ${renderKeyValue('Département', departmentValue)}
+        </div>
+
+        <div class="arkolia-summary-card__divider"></div>
+
+        <div class="arkolia-summary-card__actions">
+          <button
+            type="button"
+            class="arkolia-summary-card__toggle"
+            data-arkolia-toggle-details
+            aria-expanded="${arkoliaUiState.detailsExpanded ? 'true' : 'false'}"
+          >
+            <span>${arkoliaUiState.detailsExpanded ? 'Afficher moins' : 'Afficher +'}</span>
+            <span class="arkolia-summary-card__toggle-chevron${arkoliaUiState.detailsExpanded ? ' is-open' : ''}">${svgIcon('chevron-down')}</span>
+          </button>
+        </div>
+
+        <div class="arkolia-summary-card__details${arkoliaUiState.detailsExpanded ? ' is-expanded' : ''}">
+          <div class="arkolia-summary-card__details-scroll">
+            ${extraRows || '<div class="arkolia-summary-card__empty">Sélectionnez une ville pour afficher les détails complémentaires.</div>'}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindSummaryCardActions() {
+  if (!currentRoot) return;
+  const toggle = currentRoot.querySelector('[data-arkolia-toggle-details]');
+  if (!toggle || toggle.dataset.bound === 'true') return;
+  toggle.dataset.bound = 'true';
+  toggle.addEventListener('click', () => {
+    arkoliaUiState.detailsExpanded = !arkoliaUiState.detailsExpanded;
+    renderResultCard();
+  });
 }
 
 function renderResultCard() {
@@ -117,60 +201,25 @@ function renderResultCard() {
   if (!mount) return;
 
   const selected = arkoliaUiState.selected;
-  if (!selected) {
-    mount.innerHTML = "";
-    return;
-  }
-
-  const cityTitle = escapeHtml(selected.name || selected.label || "Ville sélectionnée");
-  const hasCantonMismatch = Boolean(selected.hasCantonMismatch);
-  const cityTitleHtml = hasCantonMismatch
-    ? `<span style="display:inline-flex;align-items:center;gap:8px;">${svgIcon("alert", { className: "octicon octicon-alert", title: "Attention : canton actuel différent du canton 2014" })}<span>${cityTitle}</span></span>`
-    : cityTitle;
 
   mount.innerHTML = `
     <div class="settings-seismic-sizing-layout">
-      <div class="settings-seismic-sizing-layout__row settings-seismic-sizing-layout__row--top">
+      <div class="settings-seismic-sizing-layout__row settings-seismic-sizing-layout__row--top arkolia-result-layout">
         <div class="settings-seismic-sizing-main">
-          <div class="settings-seismic-chart-card">
-            <div class="svg-line-chart__meta svg-line-chart__meta--top">
-              <div class="svg-line-chart__title">Carte de localisation</div>
-              <div class="svg-line-chart__subtitle">Vue satellite centrée sur la commune sélectionnée, avec niveau de zoom renforcé.</div>
-            </div>
+          <div class="settings-seismic-chart-card arkolia-map-card${!selected ? ' is-empty' : ''}">
             ${renderGoogleMapsBlock(selected)}
           </div>
         </div>
 
         <div class="settings-seismic-sizing-side">
-          ${renderSummaryCard(cityTitleHtml, [
-            { label: 'Commune', value: selected.name || selected.label || '—', hint: 'Résultat issu de la suggestion sélectionnée.' },
-            { label: 'Code INSEE', value: selected.codeInsee || '—' },
-            { label: 'Code postal', value: (selected.postalCodes && selected.postalCodes[0]) || selected.postalCode || '—' },
-            { label: 'Département', value: [selected.departmentCode || '', selected.departmentName || ''].filter(Boolean).join(' — ') || '—' },
-            { label: 'Latitude / Longitude', value: `${normalizeCoordinate(selected.lat)} / ${normalizeCoordinate(selected.lon)}`, hint: 'Coordonnées géographiques de la commune.' }
-          ])}
-
-          ${renderSummaryCard('Cantons et relief', [
-            { label: 'Canton actuel', value: selected.currentCantonName || '—', hint: 'Canton en vigueur.' },
-            { label: 'Canton 2014', value: selected.cantonName2014 || selected.cantonName || '—', hint: 'Référence utilisée pour le zonage.', muted: hasCantonMismatch },
-            { label: 'Altitude', value: normalizeAltitude(selected.altitude), hint: 'Altitude récupérée depuis les coordonnées.' }
-          ])}
-
-          ${renderSummaryCard('Vent', [
-            { label: 'Région(s) vent', value: formatWindRegions(selected.windRegions), hint: 'Régions réglementaires du département.' },
-            { label: 'Zone de vent', value: selected.windZone || '—', hint: 'Détermination par département et canton.' }
-          ])}
-
-          ${renderSummaryCard('Neige', [
-            { label: 'Région(s) neige', value: formatSnowRegions(selected.snowRegions), hint: 'Régions réglementaires du département.' },
-            { label: 'Zone de neige', value: selected.snowZone || '—', hint: 'Détermination par département et canton.' }
-          ])}
+          ${renderSummaryCard(selected)}
         </div>
       </div>
     </div>
   `;
-}
 
+  bindSummaryCardActions();
+}
 async function applySelection(item) {
   if (!item || !currentRoot) return;
 
@@ -420,6 +469,7 @@ export async function renderSolidityArkolia(root) {
   resetSuggestions();
   arkoliaUiState.selected = null;
   arkoliaUiState.query = "";
+  arkoliaUiState.detailsExpanded = false;
 
   root.innerHTML = `
     <section class="settings-section is-active">
