@@ -218,6 +218,60 @@ H > ${hValue} m
 Nota: Profondeur hors gel et atteinte du bon sol à vérifier à l'ouverture des fouilles.`;
 }
 
+
+function getSelectedSpanForPortance() {
+  const identity = arkoliaUiState.identity || {};
+  const rawSpan = identity.spanPreset === 'other'
+    ? normalizeDimension(identity.spanOther)
+    : normalizeDimension(identity.spanPreset);
+  const spanNumber = Number(String(rawSpan || '').replace(',', '.'));
+  return Number.isFinite(spanNumber) ? spanNumber : null;
+}
+
+function getPortanceText() {
+  const selected = arkoliaUiState.selected || {};
+  const relation = arkoliaUiState.relation || {};
+  const windRegion = String(selected.windZone || '').trim();
+  const terrainRoughness = String(relation.terrainRoughness || 'IIIa').trim();
+  const span = getSelectedSpanForPortance();
+
+  const portanceMatrix = {
+    6: {
+      '1': { II: 'large', IIIa: 'small', IIIb: 'small', IV: 'small' },
+      '2': { II: 'large', IIIa: 'small', IIIb: 'small', IV: 'small' },
+      '3': { II: 'large', IIIa: 'large', IIIb: 'small', IV: 'small' }
+    },
+    7: {
+      '1': { II: 'large', IIIa: 'large', IIIb: 'small', IV: 'small' },
+      '2': { II: 'large', IIIa: 'large', IIIb: 'small', IV: 'small' },
+      '3': { II: 'large', IIIa: 'large', IIIb: 'large', IV: 'large' }
+    }
+  };
+
+  const normalizedSpan = span === 6 || span === 7 ? span : null;
+  const resultCode = normalizedSpan && portanceMatrix[normalizedSpan]?.[windRegion]?.[terrainRoughness];
+
+  if (resultCode === 'large') {
+    return 'Massif de 2 m x 1 m x 1 m';
+  }
+  if (resultCode === 'small') {
+    return 'Massif de 1 m x 1 m x 1 m';
+  }
+  return '—';
+}
+
+function renderPortanceCard() {
+  return `
+    <div class="arkolia-identity-preview arkolia-portance-card">
+      <div class="arkolia-identity-preview__head">
+        <div class="arkolia-identity-preview__title">Portance :</div>
+        ${renderCopyButton({ action: '', value: 'portance', title: 'Copier le texte de portance' })}
+      </div>
+      <textarea class="gh-textarea arkolia-identity-preview__textarea" readonly data-arkolia-portance-output>${escapeHtml(getPortanceText())}</textarea>
+    </div>
+  `;
+}
+
 function renderAssiseCard() {
   const { hasMultipleH0Values } = getFrostDepthCalculation();
   const alertIcon = hasMultipleH0Values
@@ -408,6 +462,7 @@ function renderIdentitySection() {
     </div>
 
     ${renderAssiseCard()}
+    ${renderPortanceCard()}
   `;
 }
 
@@ -579,6 +634,11 @@ function bindIdentityActions() {
         text: getAssiseText(),
         copiedTitle: "Texte du niveau d'assise copié",
         defaultTitle: "Copier le texte du niveau d'assise"
+      },
+      portance: {
+        text: getPortanceText(),
+        copiedTitle: 'Texte de portance copié',
+        defaultTitle: 'Copier le texte de portance'
       }
     };
     const config = valueMap[kind];
@@ -589,7 +649,9 @@ function bindIdentityActions() {
         ? currentRoot.querySelector('[data-arkolia-climate-output]')
         : kind === 'assise'
           ? currentRoot.querySelector('[data-arkolia-assise-output]')
-          : null;
+          : kind === 'portance'
+            ? currentRoot.querySelector('[data-arkolia-portance-output]')
+            : null;
     await copyIdentityText({
       button: copyValueButton,
       text: config.text,
@@ -695,6 +757,11 @@ function updateIdentityDescriptionOutput() {
   const assiseOutput = currentRoot.querySelector('[data-arkolia-assise-output]');
   if (assiseOutput) {
     assiseOutput.value = getAssiseText();
+  }
+
+  const portanceOutput = currentRoot.querySelector('[data-arkolia-portance-output]');
+  if (portanceOutput) {
+    portanceOutput.value = getPortanceText();
   }
 }
 
