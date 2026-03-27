@@ -8185,6 +8185,7 @@ color:var(--text);
   display:flex;
   flex-direction:column;
   gap:10px;
+  padding-bottom: 12px;
 }
 
 .arkolia-identity-section__title,
@@ -8302,6 +8303,10 @@ color:var(--text);
   padding:0;
   background:transparent;
   box-shadow:none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
 }
 
 .arkolia-identity-preview__textarea:focus{
