@@ -8172,7 +8172,137 @@ color:var(--text);
   color:var(--muted);
 }
 
+
+.arkolia-identity-card{
+  margin-top:16px;
+}
+
+.arkolia-identity-card__head{
+  margin-bottom:0;
+}
+
+.arkolia-identity-section{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.arkolia-identity-section__title,
+.arkolia-identity-preview__title{
+  font-size:13px;
+  line-height:1.4;
+  font-weight:600;
+  color:var(--text);
+}
+
+.arkolia-identity-dimensions{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+
+.arkolia-identity-options{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.arkolia-identity-chip{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:32px;
+  padding:0 12px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:var(--panel);
+  color:var(--text);
+  cursor:pointer;
+  transition:border-color .15s ease, background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.arkolia-identity-chip input{
+  position:absolute;
+  inset:0;
+  opacity:0;
+  pointer-events:none;
+}
+
+.arkolia-identity-chip span{
+  font-size:13px;
+  line-height:1.3;
+  font-weight:500;
+  white-space:nowrap;
+}
+
+.arkolia-identity-chip:hover{
+  border-color:var(--borderSubtle);
+  background:var(--bgSubtle);
+}
+
+.arkolia-identity-chip:has(input:checked){
+  border-color:rgba(47,129,247,.45);
+  background:rgba(56,139,253,.12);
+  color:var(--blueLink);
+  box-shadow:inset 0 0 0 1px rgba(47,129,247,.12);
+}
+
+.arkolia-identity-other-field{
+  max-width:180px;
+}
+
+.arkolia-identity-preview{
+  position:relative;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--panel);
+  padding:12px;
+}
+
+.arkolia-identity-preview__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.arkolia-identity-preview__copy{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:32px;
+  height:32px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--bgSubtle);
+  color:var(--muted);
+  cursor:pointer;
+}
+
+.arkolia-identity-preview__copy:hover,
+.arkolia-identity-preview__copy.is-copied{
+  color:var(--blueLink);
+  border-color:rgba(47,129,247,.35);
+  background:rgba(56,139,253,.1);
+}
+
+.arkolia-identity-preview__textarea{
+  min-height:120px;
+  resize:vertical;
+  background:var(--canvas);
+}
+
 @media (max-width: 960px){
+  .arkolia-identity-dimensions{
+    grid-template-columns:minmax(0,1fr);
+  }
+
+  .arkolia-identity-other-field{
+    max-width:none;
+  }
+
   .arkolia-result-layout{
     grid-template-columns:minmax(0,1fr);
   }
