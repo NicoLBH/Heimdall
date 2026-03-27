@@ -4,6 +4,7 @@ import { getWindRegionsByDepartmentCode } from "../../services/zoning/wind-regio
 import { getSnowRegionsByDepartmentCode } from "../../services/zoning/snow-regions-service.js";
 import { getWindZoneByDepartmentAndCanton } from "../../services/zoning/wind-canton-regions-service.js";
 import { getSnowZoneByDepartmentAndCanton } from "../../services/zoning/snow-canton-regions-service.js";
+import { getAllFrostDepthDepartments } from "../../services/zoning/frost-depth-service.js";
 import { escapeHtml } from "../../utils/escape-html.js";
 import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../../services/google-maps-embed-service.js";
 import { registerProjectPrimaryScrollSource } from "../project-shell-chrome.js";
