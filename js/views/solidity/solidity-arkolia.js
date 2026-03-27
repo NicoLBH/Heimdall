@@ -3,7 +3,7 @@ import { getCantonByCommuneCode } from "../../services/zoning/canton-service.js"
 import { getWindRegionsByDepartmentCode } from "../../services/zoning/wind-regions-service.js";
 import { getSnowRegionsByDepartmentCode } from "../../services/zoning/snow-regions-service.js";
 import { getWindZoneByDepartmentAndCanton } from "../../services/zoning/wind-canton-regions-service.js";
-import { getSnowZoneByDepartmentAndCanton, getAllSnowCantonRegions } from "../../services/zoning/snow-canton-regions-service.js";
+import { getSnowZoneByDepartmentAndCanton } from "../../services/zoning/snow-canton-regions-service.js";
 import { escapeHtml } from "../../utils/escape-html.js";
 import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../../services/google-maps-embed-service.js";
 import { registerProjectPrimaryScrollSource } from "../project-shell-chrome.js";
@@ -21,7 +21,6 @@ const arkoliaUiState = {
 };
 
 let currentRoot = null;
-let snowCantonRegionsCache = [];
 
 function resetSuggestions() {
   arkoliaUiState.suggestions = [];
@@ -37,6 +36,14 @@ function normalizeAltitude(value) {
 function normalizeCoordinate(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number.toFixed(6) : "—";
+}
+
+function formatWindRegions(regions = []) {
+  return Array.isArray(regions) && regions.length ? regions.join(" ; ") : "—";
+}
+
+function formatSnowRegions(regions = []) {
+  return Array.isArray(regions) && regions.length ? regions.join(" / ") : "—";
 }
 
 function renderGoogleMapsBlock(selected) {
@@ -57,7 +64,13 @@ function renderGoogleMapsBlock(selected) {
     `;
   }
 
-  const embedUrl = buildGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: 14 });
+  const embedUrl = buildGoogleMapsPlaceEmbedUrl({
+    latitude,
+    longitude,
+    zoom: 17,
+    mapType: "satellite"
+  });
+
   if (!embedUrl) {
     return `
       <div class="arkolia-map__notice">La carte Google Maps n'a pas pu être générée.</div>
@@ -77,108 +90,25 @@ function renderGoogleMapsBlock(selected) {
   `;
 }
 
-function formatWindRegions(regions = []) {
-  return Array.isArray(regions) && regions.length ? regions.join(" ; ") : "—";
-}
-
-function formatSnowRegions(regions = []) {
-  return Array.isArray(regions) && regions.length ? regions.join(" / ") : "—";
-}
-
-function renderSnowCantonsVerificationTable() {
-  if (!Array.isArray(snowCantonRegionsCache) || !snowCantonRegionsCache.length) {
-    return `
-      <div class="settings-card settings-card--param">
-        <div class="settings-card__head">
-          <div>
-            <span class="settings-card__head-title"><h4>Répartition des zones de neige par canton</h4></span>
-            <p>Chargement du tableau de vérification…</p>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  const rows = snowCantonRegionsCache.map((department) => {
-    const zoneRows = Array.isArray(department.zoneRows) ? department.zoneRows : [];
-    return zoneRows.map((zoneRow, index) => `
-      <tr>
-        <td>${index === 0 ? escapeHtml(department.departmentCode || "—") : ""}</td>
-        <td>${index === 0 ? escapeHtml(department.departmentName || "—") : ""}</td>
-        <td>${escapeHtml(zoneRow.snowRegion || "—")}</td>
-        <td>${escapeHtml((Array.isArray(zoneRow.cantons) ? zoneRow.cantons : []).join(", ") || "—")}</td>
-      </tr>
-    `).join("");
-  }).join("");
-
+function renderSummaryCard(title, items = []) {
+  const safeItems = items.filter((item) => item && (item.label || item.value || item.hint));
   return `
-    <div class="settings-card settings-card--param">
-      <div class="settings-card__head">
-        <div>
-          <span class="settings-card__head-title"><h4>Répartition des zones de neige par canton</h4></span>
-          <p>Tableau complet de contrôle du JSON neige canton, sur le modèle du tableau source.</p>
-        </div>
-      </div>
-      <div class="settings-table-wrap">
-        <table class="settings-table settings-table--compact">
-          <thead>
-            <tr>
-              <th>N° département</th>
-              <th>Département</th>
-              <th>Région(s)</th>
-              <th>Cantons</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+    <div class="settings-seismic-summary-card">
+      <div class="settings-seismic-summary-card__title">${escapeHtml(title)}</div>
+      <div class="settings-seismic-summary-list">
+        ${safeItems.map((item) => `
+          <div class="settings-seismic-summary-item">
+            <div class="settings-seismic-summary-item__head">
+              <strong>${escapeHtml(item.label || "")}</strong>
+              ${item.hint ? `<span>${escapeHtml(item.hint)}</span>` : ""}
+            </div>
+            <div class="settings-seismic-summary-item__value${item.muted ? " is-muted" : ""}">${escapeHtml(item.value || "—")}</div>
+          </div>
+        `).join("")}
       </div>
     </div>
   `;
 }
-
-function renderAutocompleteDropdown() {
-  if (!currentRoot) return;
-
-  const input = currentRoot.querySelector('[data-arkolia-city-input]');
-  const dropdown = currentRoot.querySelector('[data-arkolia-city-suggestions]');
-  if (!input || !dropdown) return;
-
-  const isOpen = arkoliaUiState.isOpen && (arkoliaUiState.isLoading || arkoliaUiState.suggestions.length > 0);
-  input.setAttribute("aria-expanded", isOpen ? "true" : "false");
-  dropdown.hidden = !isOpen;
-
-  if (!isOpen) {
-    dropdown.innerHTML = "";
-    return;
-  }
-
-  if (arkoliaUiState.isLoading) {
-    dropdown.innerHTML = '<div class="gh-autocomplete__status">Recherche…</div>';
-    return;
-  }
-
-  dropdown.innerHTML = arkoliaUiState.suggestions.map((item, index) => {
-    const isActive = index === arkoliaUiState.activeIndex;
-    const primary = item.label || item.name || "—";
-    const meta = [item.postalCodes?.join(", ") || item.postalCode || "", item.codeInsee ? `INSEE ${item.codeInsee}` : ""]
-      .filter(Boolean)
-      .join(" · ");
-
-    return `
-      <button
-        type="button"
-        class="gh-autocomplete__item ${isActive ? "is-active" : ""}"
-        data-arkolia-city-option-index="${index}"
-        role="option"
-        aria-selected="${isActive ? "true" : "false"}"
-      >
-        <span class="gh-autocomplete__item-main">${escapeHtml(primary)}</span>
-        ${meta ? `<span class="gh-autocomplete__item-meta">${escapeHtml(meta)}</span>` : ""}
-      </button>
-    `;
-  }).join("");
-}
-
 
 function renderResultCard() {
   if (!currentRoot) return;
@@ -188,7 +118,7 @@ function renderResultCard() {
 
   const selected = arkoliaUiState.selected;
   if (!selected) {
-    mount.innerHTML = renderSnowCantonsVerificationTable();
+    mount.innerHTML = "";
     return;
   }
 
@@ -199,35 +129,45 @@ function renderResultCard() {
     : cityTitle;
 
   mount.innerHTML = `
-    <div class="settings-card settings-card--param">
-      <div class="settings-card__head">
-        <div>
-          <span class="settings-card__head-title"><h4>${cityTitleHtml}</h4></span>
-          <p>Données récupérées à partir de la suggestion sélectionnée.</p>
+    <div class="settings-seismic-sizing-layout">
+      <div class="settings-seismic-sizing-layout__row settings-seismic-sizing-layout__row--top">
+        <div class="settings-seismic-sizing-main">
+          <div class="settings-seismic-chart-card">
+            <div class="svg-line-chart__meta svg-line-chart__meta--top">
+              <div class="svg-line-chart__title">Carte de localisation</div>
+              <div class="svg-line-chart__subtitle">Vue satellite centrée sur la commune sélectionnée, avec niveau de zoom renforcé.</div>
+            </div>
+            ${renderGoogleMapsBlock(selected)}
+          </div>
+        </div>
+
+        <div class="settings-seismic-sizing-side">
+          ${renderSummaryCard(cityTitleHtml, [
+            { label: 'Commune', value: selected.name || selected.label || '—', hint: 'Résultat issu de la suggestion sélectionnée.' },
+            { label: 'Code INSEE', value: selected.codeInsee || '—' },
+            { label: 'Code postal', value: (selected.postalCodes && selected.postalCodes[0]) || selected.postalCode || '—' },
+            { label: 'Département', value: [selected.departmentCode || '', selected.departmentName || ''].filter(Boolean).join(' — ') || '—' },
+            { label: 'Latitude / Longitude', value: `${normalizeCoordinate(selected.lat)} / ${normalizeCoordinate(selected.lon)}`, hint: 'Coordonnées géographiques de la commune.' }
+          ])}
+
+          ${renderSummaryCard('Cantons et relief', [
+            { label: 'Canton actuel', value: selected.currentCantonName || '—', hint: 'Canton en vigueur.' },
+            { label: 'Canton 2014', value: selected.cantonName2014 || selected.cantonName || '—', hint: 'Référence utilisée pour le zonage.', muted: hasCantonMismatch },
+            { label: 'Altitude', value: normalizeAltitude(selected.altitude), hint: 'Altitude récupérée depuis les coordonnées.' }
+          ])}
+
+          ${renderSummaryCard('Vent', [
+            { label: 'Région(s) vent', value: formatWindRegions(selected.windRegions), hint: 'Régions réglementaires du département.' },
+            { label: 'Zone de vent', value: selected.windZone || '—', hint: 'Détermination par département et canton.' }
+          ])}
+
+          ${renderSummaryCard('Neige', [
+            { label: 'Région(s) neige', value: formatSnowRegions(selected.snowRegions), hint: 'Régions réglementaires du département.' },
+            { label: 'Zone de neige', value: selected.snowZone || '—', hint: 'Détermination par département et canton.' }
+          ])}
         </div>
       </div>
-      <div class="settings-stack settings-stack--sm">
-        <div><strong>code INSEE :</strong> ${escapeHtml(selected.codeInsee || "—")}</div>
-        <div><strong>département :</strong> ${escapeHtml(selected.departmentCode || "—")}</div>
-        <div><strong>canton actuel :</strong> ${escapeHtml(selected.currentCantonName || "—")}</div>
-        <div><strong>canton 2014 :</strong> ${escapeHtml(selected.cantonName || "—")}</div>
-        <div><strong>Altitude :</strong> ${escapeHtml(normalizeAltitude(selected.altitude))}</div>
-        <div><strong>Latitude :</strong> ${escapeHtml(normalizeCoordinate(selected.lat))}</div>
-        <div><strong>Longitude :</strong> ${escapeHtml(normalizeCoordinate(selected.lon))}</div>
-        <div><strong>N° département :</strong> ${escapeHtml(selected.departmentCode || "—")}</div>
-        <div><strong>Nom département :</strong> ${escapeHtml(selected.departmentName || "—")}</div>
-        <div><strong>régions vent :</strong> ${escapeHtml(formatWindRegions(selected.windRegions))}</div>
-        <div><strong>zone de vent :</strong> ${escapeHtml(selected.windZone || "—")}</div>
-        <div><strong>régions neige :</strong> ${escapeHtml(formatSnowRegions(selected.snowRegions))}</div>
-        <div><strong>zone de neige :</strong> ${escapeHtml(selected.snowZone || "—")}</div>
-      </div>
-      <div class="settings-stack settings-stack--sm arkolia-map-block">
-        <div><strong>Carte :</strong></div>
-        ${renderGoogleMapsBlock(selected)}
-      </div>
     </div>
-
-    ${renderSnowCantonsVerificationTable()}
   `;
 }
 
@@ -431,18 +371,55 @@ function bindCityAutocomplete() {
   });
 }
 
+function renderAutocompleteDropdown() {
+  if (!currentRoot) return;
+
+  const input = currentRoot.querySelector('[data-arkolia-city-input]');
+  const dropdown = currentRoot.querySelector('[data-arkolia-city-suggestions]');
+  if (!input || !dropdown) return;
+
+  const isOpen = arkoliaUiState.isOpen && (arkoliaUiState.isLoading || arkoliaUiState.suggestions.length > 0);
+  input.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  dropdown.hidden = !isOpen;
+
+  if (!isOpen) {
+    dropdown.innerHTML = '';
+    return;
+  }
+
+  if (arkoliaUiState.isLoading) {
+    dropdown.innerHTML = '<div class="gh-autocomplete__status">Recherche…</div>';
+    return;
+  }
+
+  dropdown.innerHTML = arkoliaUiState.suggestions.map((item, index) => {
+    const isActive = index === arkoliaUiState.activeIndex;
+    const primary = item.label || item.name || '—';
+    const meta = [item.postalCodes?.join(', ') || item.postalCode || '', item.codeInsee ? `INSEE ${item.codeInsee}` : '']
+      .filter(Boolean)
+      .join(' · ');
+
+    return `
+      <button
+        type="button"
+        class="gh-autocomplete__item ${isActive ? 'is-active' : ''}"
+        data-arkolia-city-option-index="${index}"
+        role="option"
+        aria-selected="${isActive ? 'true' : 'false'}"
+      >
+        <span class="gh-autocomplete__item-main">${escapeHtml(primary)}</span>
+        ${meta ? `<span class="gh-autocomplete__item-meta">${escapeHtml(meta)}</span>` : ''}
+      </button>
+    `;
+  }).join('');
+}
+
 export async function renderSolidityArkolia(root) {
   if (!root) return;
   currentRoot = root;
   resetSuggestions();
   arkoliaUiState.selected = null;
   arkoliaUiState.query = "";
-
-  try {
-    snowCantonRegionsCache = await getAllSnowCantonRegions();
-  } catch (_error) {
-    snowCantonRegionsCache = [];
-  }
 
   root.innerHTML = `
     <section class="settings-section is-active">
@@ -452,7 +429,7 @@ export async function renderSolidityArkolia(root) {
             <span class="settings-card__head-title">
               <h4>Arkolia</h4>
             </span>
-            <p>Utilitaire autonome de recherche par ville avec auto-complétion, récupération du canton 2014 par code INSEE, affichage des coordonnées, détermination automatique des zones de vent et de neige, avec tableau complet de vérification du découpage neige par canton.</p>
+            <p>Utilitaire autonome de recherche par ville avec auto-complétion, récupération du canton 2014 par code INSEE, affichage des coordonnées, détermination automatique des zones de vent et de neige.</p>
           </div>
         </div>
 
