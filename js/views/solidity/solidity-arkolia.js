@@ -23,7 +23,8 @@ const DEFAULT_IDENTITY = {
 const DEFAULT_RELATION = {
   builderName: "ARKOLIA",
   buildingOpen: true,
-  closedFacades: []
+  closedFacades: [],
+  terrainRoughness: "IIIa"
 };
 
 const arkoliaUiState = {
@@ -123,10 +124,12 @@ function getRelationSummary() {
 
 function getClimateText() {
   const selected = arkoliaUiState.selected || {};
+  const relation = arkoliaUiState.relation || {};
   const windRegion = selected.windZone || '—';
   const snowRegion = selected.snowZone || '—';
   const altitude = Number.isFinite(selected.altitude) ? String(selected.altitude) : '—';
-  return `Vent : région ${windRegion}, rugosité IIIa
+  const terrainRoughness = relation.terrainRoughness || 'IIIa';
+  return `Vent : région ${windRegion}, rugosité ${terrainRoughness}
 Neige : région ${snowRegion}, altitude ${altitude} mètres.`;
 }
 
@@ -352,11 +355,11 @@ function renderIdentitySection() {
 
     <div class="arkolia-relation-generalities-card">
       <div class="arkolia-identity-section__title">Généralités</div>
-      <div class="arkolia-relation-generalities arkolia-relation-generalities--inline">
-        ${renderIdentityRadioGroup('buildingOpen', [
-          { value: 'open', label: 'Bâtiment ouvert' }
-        ], relation.buildingOpen ? 'open' : '', { dataAttribute: 'data-arkolia-relation-radio' })}
+      <div class="arkolia-relation-generalities">
         <div class="arkolia-relation-generalities__line arkolia-relation-generalities__line--inline">
+          ${renderIdentityRadioGroup('buildingOpen', [
+            { value: 'open', label: 'Bâtiment ouvert' }
+          ], relation.buildingOpen ? 'open' : '', { dataAttribute: 'data-arkolia-relation-radio' })}
           <div class="arkolia-relation-generalities__label">Bâtiment fermé :</div>
           ${renderIdentityRadioGroup('closedFacades', [
             { value: 'Nord', label: 'Nord' },
@@ -364,6 +367,16 @@ function renderIdentitySection() {
             { value: 'Est', label: 'Est' },
             { value: 'Ouest', label: 'Ouest' }
           ], relation.closedFacades, { type: 'checkbox', dataAttribute: 'data-arkolia-relation-checkbox' })}
+        </div>
+
+        <div class="arkolia-relation-generalities__line arkolia-relation-generalities__line--inline">
+          <div class="arkolia-relation-generalities__label">Rugosité du terrain :</div>
+          ${renderIdentityRadioGroup('terrainRoughness', [
+            { value: 'II', label: 'II' },
+            { value: 'IIIa', label: 'IIIa' },
+            { value: 'IIIb', label: 'IIIb' },
+            { value: 'IV', label: 'IV' }
+          ], relation.terrainRoughness || 'IIIa', { dataAttribute: 'data-arkolia-relation-radio' })}
         </div>
       </div>
     </div>
@@ -488,6 +501,13 @@ function bindIdentityActions() {
           ...arkoliaUiState.relation,
           buildingOpen: true,
           closedFacades: []
+        };
+        syncRelationControls();
+        updateIdentityDescriptionOutput();
+      } else if (key === 'terrainRoughness') {
+        arkoliaUiState.relation = {
+          ...arkoliaUiState.relation,
+          terrainRoughness: relationRadio.value || 'IIIa'
         };
         syncRelationControls();
         updateIdentityDescriptionOutput();
@@ -628,6 +648,11 @@ function syncRelationControls() {
   if (openRadio) {
     openRadio.checked = Boolean(arkoliaUiState.relation.buildingOpen);
   }
+
+  const terrainRoughness = arkoliaUiState.relation.terrainRoughness || 'IIIa';
+  currentRoot.querySelectorAll('[data-arkolia-relation-radio="terrainRoughness"]').forEach((radio) => {
+    radio.checked = radio.value === terrainRoughness;
+  });
 
   const selectedFacades = new Set(Array.isArray(arkoliaUiState.relation.closedFacades) ? arkoliaUiState.relation.closedFacades : []);
   currentRoot.querySelectorAll('[data-arkolia-relation-checkbox="closedFacades"]').forEach((checkbox) => {
