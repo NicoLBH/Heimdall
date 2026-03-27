@@ -8252,7 +8252,15 @@ color:var(--text);
   max-width:180px;
 }
 
-.arkolia-identity-preview{
+.arkolia-identity-preview-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.8fr) minmax(220px,.9fr);
+  gap:12px;
+  align-items:stretch;
+}
+
+.arkolia-identity-preview,
+.arkolia-identity-sidecard{
   position:relative;
   border:1px solid var(--border);
   border-radius:12px;
@@ -8274,9 +8282,9 @@ color:var(--text);
   justify-content:center;
   width:32px;
   height:32px;
-  border:1px solid var(--border);
+  border:none;
   border-radius:8px;
-  background:var(--bgSubtle);
+  background:transparent;
   color:var(--muted);
   cursor:pointer;
 }
@@ -8284,14 +8292,64 @@ color:var(--text);
 .arkolia-identity-preview__copy:hover,
 .arkolia-identity-preview__copy.is-copied{
   color:var(--blueLink);
-  border-color:rgba(47,129,247,.35);
   background:rgba(56,139,253,.1);
 }
 
 .arkolia-identity-preview__textarea{
   min-height:120px;
   resize:vertical;
-  background:var(--canvas);
+  border:none;
+  padding:0;
+  background:transparent;
+  box-shadow:none;
+}
+
+.arkolia-identity-preview__textarea:focus{
+  border:none;
+  outline:none;
+  box-shadow:none;
+}
+
+.arkolia-identity-sidecard{
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  gap:12px;
+}
+
+.arkolia-identity-sidecard__item{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.arkolia-identity-sidecard__item + .arkolia-identity-sidecard__item{
+  padding-top:12px;
+  border-top:1px solid var(--border);
+}
+
+.arkolia-identity-sidecard__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.arkolia-identity-sidecard__label{
+  font-size:12px;
+  line-height:1.4;
+  font-weight:600;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.02em;
+}
+
+.arkolia-identity-sidecard__value{
+  font-size:14px;
+  line-height:1.4;
+  font-weight:600;
+  color:var(--text);
+  word-break:break-word;
 }
 
 @media (max-width: 960px){
@@ -8301,6 +8359,10 @@ color:var(--text);
 
   .arkolia-identity-other-field{
     max-width:none;
+  }
+
+  .arkolia-identity-preview-grid{
+    grid-template-columns:minmax(0,1fr);
   }
 
   .arkolia-result-layout{
