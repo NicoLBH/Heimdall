@@ -228,7 +228,7 @@ export function renderProjectStudio(root) {
   const acousticFirstItemRoot = root.querySelector("#projectStudioAcousticFirstItemPanel");
 
   if (generalRoot) renderStudioGeneral(generalRoot);
-  if (solidityGeneralRoot) renderSolidityGeneral(solidityGeneralRoot);
+  if (solidityGeneralRoot) renderSolidityGeneral(solidityGeneralRoot, { force: true });
   if (solidityGeorisksRoot) renderSolidityGeorisks(solidityGeorisksRoot);
   if (solidityArkoliaRoot) renderSolidityArkolia(solidityArkoliaRoot);
   if (fireGeneralRoot) renderFireProtectionGeneral(fireGeneralRoot);
@@ -252,6 +252,11 @@ export function renderProjectStudio(root) {
   root.querySelectorAll("[data-side-nav-target]").forEach((button) => {
     button.addEventListener("click", () => {
       registerProjectPrimaryScrollSource(getScrollSource());
+
+      const targetId = String(button.dataset.sideNavTarget || "").trim();
+      if (targetId === "solidity-general" && solidityGeneralRoot) {
+        renderSolidityGeneral(solidityGeneralRoot, { force: true });
+      }
     });
   });
 
