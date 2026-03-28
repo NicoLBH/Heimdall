@@ -314,11 +314,16 @@ function getPortanceText() {
     : '';
 
   if (normalizedSpan && massifText) {
-    const exampleText = normalizedSpan === 6
-      ? ' : par exemple 2 m x 1 m x 1 m ht ou équivalent.'
-      : '.';
+    const shouldShowSingleWindBeamNote = Number.isFinite(windBeamsCount) ? windBeamsCount <= 1 : true;
+    const singleWindBeamNote = shouldShowSingleWindBeamNote
+      ? `
 
-    return `Dimensions minimales des massifs courants à respecter (travée ${spanLabel} m): ${massifText} ht ou équivalent.\n\nLa descente de charges des croix de stabilité verticales doit être ajoutée aux massifs courants pour le dimensionnement des massifs des stabilités (présence d'une seule poutre au vent en charpente métallique)${exampleText}\n${intermediatePostsText}\nNota: Le dimensionnement et la vérification des contraintes appliquées au sol restent de la responsabilité de l'entreprise.`;
+La descente de charges des croix de stabilité verticales doit être ajoutée aux massifs courants pour le dimensionnement des massifs des stabilités (présence d'une seule poutre au vent en charpente métallique).`
+      : '';
+
+    return `Dimensions minimales des massifs courants à respecter (travée ${spanLabel} m): ${massifText} ht ou équivalent.${singleWindBeamNote}${intermediatePostsText}
+
+Nota: Le dimensionnement et la vérification des contraintes appliquées au sol restent de la responsabilité de l'entreprise.`;
   }
 
   if (Number.isFinite(span) && span > 7) {
@@ -695,7 +700,7 @@ function bindIdentityActions() {
         defaultTitle: 'Copier la relation'
       },
       referenceName: {
-        text: arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE,
+        text: currentRoot?.querySelector('#solidityArkoliaReference')?.value || arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE,
         copiedTitle: 'Référence copiée',
         defaultTitle: 'Copier la référence de projet'
       },
