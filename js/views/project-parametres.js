@@ -45,6 +45,7 @@ import {
 } from "../services/seismic-spectrum.js";
 import { renderSvgLineChart, getNiceChartTicks } from "../utils/svg-line-chart.js";
 import { persistCurrentProjectState } from "../services/project-state-storage.js";
+import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../services/google-maps-embed-service.js";
 
 const DEFAULT_PROJECT_COLLABORATORS = [
   { id: "collab-1", email: "nicolas.lebihan@socotec.com", status: "Actif", role: "Admin" },
@@ -695,6 +696,55 @@ function getProjectLocationSignature() {
 
 function getLocationEditBaseSignature() {
   return String(parametresUiState.locationEditBaseSignature || "") || getProjectLocationSignature();
+}
+
+function renderProjectLocationMapBlock() {
+  const latitude = Number(store.projectForm.latitude);
+  const longitude = Number(store.projectForm.longitude);
+  const isValidLocation = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+  if (!isValidLocation || !hasGoogleMapsEmbedApiKey()) {
+    return `
+      <div class="settings-location-map-card${!isValidLocation ? ' is-blurred' : ''}">
+        <div class="arkolia-map arkolia-map--placeholder${!isValidLocation ? ' is-empty' : ''}" aria-hidden="true">
+          <div class="arkolia-map__placeholder-surface"></div>
+          <div class="arkolia-map__placeholder-blur"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  const embedUrl = buildGoogleMapsPlaceEmbedUrl({
+    latitude,
+    longitude,
+    zoom: 16,
+    mapType: 'satellite'
+  });
+
+  if (!embedUrl) {
+    return `
+      <div class="settings-location-map-card is-blurred">
+        <div class="arkolia-map arkolia-map--placeholder" aria-hidden="true">
+          <div class="arkolia-map__placeholder-surface"></div>
+          <div class="arkolia-map__placeholder-blur"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="settings-location-map-card">
+      <div class="arkolia-map">
+        <iframe
+          title="Carte Google Maps de la localisation projet"
+          src="${escapeHtml(embedUrl)}"
+          loading="lazy"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
+    </div>
+  `;
 }
 
 function hasProjectLocationChanged(previousSignature = "") {
@@ -1726,7 +1776,8 @@ function getPageHtml(form) {
                           { muted: hasStaleLocationDerivedData() }
                         )}
                       </div>
-                    ` : ""}`
+                    ` : ""}
+                    ${renderProjectLocationMapBlock()}
                   })
                 ]
               })}
