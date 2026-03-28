@@ -17,7 +17,9 @@ const solidityGeneralUiState = {
   loading: false,
   error: "",
   detailsExpanded: false,
-  selected: null
+  selected: null,
+  locationSignature: "",
+  requestSequence: 0
 };
 
 let currentRoot = null;
@@ -110,6 +112,67 @@ function getEffectiveProjectLocation() {
     codeInsee: String(liveForm.codeInsee || persistedForm.codeInsee || "").trim()
   };
 }
+
+function getProjectLocationSignature() {
+  const location = getEffectiveProjectLocation();
+  return [
+    String(location.address || "").trim().toLowerCase(),
+    String(location.city || "").trim().toLowerCase(),
+    String(location.postalCode || "").trim(),
+    Number.isFinite(location.latitude) ? Number(location.latitude).toFixed(6) : "",
+    Number.isFinite(location.longitude) ? Number(location.longitude).toFixed(6) : "",
+    Number.isFinite(location.altitude) ? String(Number(location.altitude)) : "",
+    String(location.codeInsee || "").trim()
+  ].join("|");
+}
+
+async function refreshSolidityGeneralData({ force = false } = {}) {
+  if (!currentRoot) return;
+
+  const nextLocationSignature = getProjectLocationSignature();
+  if (
+    !force
+    && !solidityGeneralUiState.loading
+    && nextLocationSignature === solidityGeneralUiState.locationSignature
+    && (solidityGeneralUiState.selected || solidityGeneralUiState.error)
+  ) {
+    return;
+  }
+
+  const requestId = ++solidityGeneralUiState.requestSequence;
+  solidityGeneralUiState.loading = true;
+  solidityGeneralUiState.error = "";
+  solidityGeneralUiState.selected = null;
+  solidityGeneralUiState.locationSignature = nextLocationSignature;
+  renderContent();
+
+  try {
+    const selection = await buildProjectClimateSelection();
+    if (requestId !== solidityGeneralUiState.requestSequence) return;
+    solidityGeneralUiState.selected = selection;
+    if (!selection) {
+      solidityGeneralUiState.error = "Aucune localisation projet complète n'est actuellement disponible dans Paramètres → Localisation.";
+    }
+  } catch (error) {
+    if (requestId !== solidityGeneralUiState.requestSequence) return;
+    solidityGeneralUiState.error = error instanceof Error ? error.message : "Impossible de charger les données climatiques du projet.";
+  } finally {
+    if (requestId !== solidityGeneralUiState.requestSequence) return;
+    solidityGeneralUiState.loading = false;
+    renderContent();
+  }
+}
+
+function bindSolidityGeneralLifecycle(root) {
+  if (!root || root.dataset.solidityGeneralLifecycleBound === "true") return;
+  root.dataset.solidityGeneralLifecycleBound = "true";
+
+  document.addEventListener("projectLocationChanged", () => {
+    if (!currentRoot || currentRoot !== root) return;
+    refreshSolidityGeneralData({ force: true });
+  });
+}
+
 
 function parseFrenchDecimalToNumber(value) {
   const normalized = String(value ?? "").trim().replace(/,/g, ".");
@@ -503,51 +566,41 @@ async function buildProjectClimateSelection() {
   };
 }
 
-export async function renderSolidityGeneral(root) {
+export async function renderSolidityGeneral(root, { force = true } = {}) {
   if (!root) return;
   currentRoot = root;
-  solidityGeneralUiState.loading = false;
   solidityGeneralUiState.error = "";
-  solidityGeneralUiState.selected = null;
   solidityGeneralUiState.detailsExpanded = false;
 
-  root.innerHTML = `
-    <section class="settings-section is-active">
-      <div class="settings-card settings-card--param">
-        <div class="settings-card__head settings-card__head--arkolia">
-          <div class="arkolia-head-main">
-            <div class="arkolia-head-main__top">
-              <span class="settings-card__head-title">
-                <h4>Zones et charges climatiques</h4>
-              </span>
-              <div class="arkolia-head-main__actions">
-                ${renderNewSubjectButton()}
+  if (root.dataset.solidityGeneralRendered !== "true") {
+    root.innerHTML = `
+      <section class="settings-section is-active">
+        <div class="settings-card settings-card--param">
+          <div class="settings-card__head settings-card__head--arkolia">
+            <div class="arkolia-head-main">
+              <div class="arkolia-head-main__top">
+                <span class="settings-card__head-title">
+                  <h4>Zones et charges climatiques</h4>
+                </span>
+                <div class="arkolia-head-main__actions">
+                  ${renderNewSubjectButton()}
+                </div>
               </div>
+              <p>Définition automatique des zones climatiques et des charges associées à partir de la localisation de projet définie dans Paramètres.</p>
             </div>
-            <p>Définition automatique des zones climatiques et des charges associées à partir de la localisation de projet définie dans Paramètres.</p>
+          </div>
+
+          <div class="settings-stack settings-stack--lg">
+            <div data-solidity-general-result></div>
           </div>
         </div>
+      </section>
+    `;
+    root.dataset.solidityGeneralRendered = "true";
+  }
 
-        <div class="settings-stack settings-stack--lg">
-          <div data-solidity-general-result></div>
-        </div>
-      </div>
-    </section>
-  `;
-
-  solidityGeneralUiState.loading = true;
+  bindSolidityGeneralLifecycle(root);
   renderContent();
   registerProjectPrimaryScrollSource(root.closest("#projectSolidityRouterScroll") || document.getElementById("projectSolidityRouterScroll"));
-
-  try {
-    solidityGeneralUiState.selected = await buildProjectClimateSelection();
-    if (!solidityGeneralUiState.selected) {
-      solidityGeneralUiState.error = "Aucune localisation projet complète n'est actuellement disponible dans Paramètres → Localisation.";
-    }
-  } catch (error) {
-    solidityGeneralUiState.error = error instanceof Error ? error.message : "Impossible de charger les données climatiques du projet.";
-  } finally {
-    solidityGeneralUiState.loading = false;
-    renderContent();
-  }
+  await refreshSolidityGeneralData({ force });
 }
