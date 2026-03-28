@@ -685,7 +685,7 @@ function bindIdentityActions() {
       referenceName: {
         text: arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE,
         copiedTitle: 'Référence copiée',
-        defaultTitle: 'Copier la référence Arkolia'
+        defaultTitle: 'Copier la référence de projet'
       },
       relationSummary: {
         text: getRelationSummary(),
@@ -1318,9 +1318,9 @@ export async function renderSolidityArkolia(root) {
         <div class="settings-card__head settings-card__head--arkolia">
           <div>
             <span class="settings-card__head-title">
-              <h4>Arkolia</h4>
+              <h4>PV hangar agricole</h4>
             </span>
-            <p>Utilitaire autonome de recherche par ville avec auto-complétion, récupération du canton 2014 par code INSEE, affichage des coordonnées, détermination automatique des zones de vent et de neige.</p>
+            <p>Analyse autonome des fondations pour les hangars agricoles neufs avec panneaux photovoltaïques sur couverture bac acier. Recherche par ville avec auto-complétion, récupération du canton 2014 par code INSEE, affichage des coordonnées, détermination automatique des zones de vent et de neige. Définition automatique des dimensions minimales des fondations et profondeur hors gel à respecter.</p>
           </div>
           <div class="arkolia-head-reference">
             <label class="arkolia-head-reference__field" for="solidityArkoliaReference">
