@@ -9,6 +9,7 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../../services/google-maps-embed-service.js";
 import { registerProjectPrimaryScrollSource } from "../project-shell-chrome.js";
 import { svgIcon } from "../../ui/icons.js";
+import { store } from "../../store.js";
 
 const DEFAULT_IDENTITY = {
   length: "",
@@ -27,6 +28,8 @@ const DEFAULT_RELATION = {
   terrainRoughness: "IIIa"
 };
 
+const DEFAULT_ARKOLIA_REFERENCE = "31_L'ISLE-EN-DODON_GAYE Jerome Bat Sud Sud_Affaire 24B01054_ARKOLIA_CT";
+
 const arkoliaUiState = {
   query: "",
   suggestions: [],
@@ -38,10 +41,38 @@ const arkoliaUiState = {
   debounceTimer: null,
   detailsExpanded: false,
   identity: { ...DEFAULT_IDENTITY },
-  relation: { ...DEFAULT_RELATION }
+  relation: { ...DEFAULT_RELATION },
+  referenceName: DEFAULT_ARKOLIA_REFERENCE
 };
 
 let currentRoot = null;
+
+
+function getArkoliaReferenceStorageKey() {
+  const projectId = String(store.currentProjectId || "default").trim() || "default";
+  return `rapsobot.arkolia.reference.${projectId}`;
+}
+
+function readPersistedArkoliaReference() {
+  try {
+    const raw = localStorage.getItem(getArkoliaReferenceStorageKey());
+    return String(raw || '').trim() || DEFAULT_ARKOLIA_REFERENCE;
+  } catch {
+    return DEFAULT_ARKOLIA_REFERENCE;
+  }
+}
+
+function persistArkoliaReference(value) {
+  const nextValue = String(value ?? '').trim() || DEFAULT_ARKOLIA_REFERENCE;
+  arkoliaUiState.referenceName = nextValue;
+  try {
+    localStorage.setItem(getArkoliaReferenceStorageKey(), nextValue);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 function escapeAttribute(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -231,9 +262,11 @@ function getSelectedSpanForPortance() {
 function getPortanceText() {
   const selected = arkoliaUiState.selected || {};
   const relation = arkoliaUiState.relation || {};
+  const identity = arkoliaUiState.identity || {};
   const windRegion = String(selected.windZone || '').trim();
   const terrainRoughness = String(relation.terrainRoughness || 'IIIa').trim();
   const span = getSelectedSpanForPortance();
+  const intermediatePosts = String(identity.intermediatePosts || '0').trim();
 
   const portanceMatrix = {
     6: {
@@ -250,14 +283,37 @@ function getPortanceText() {
 
   const normalizedSpan = span === 6 || span === 7 ? span : null;
   const resultCode = normalizedSpan && portanceMatrix[normalizedSpan]?.[windRegion]?.[terrainRoughness];
+  const massifText = resultCode === 'large'
+    ? '2 m x 1 m x 1 m'
+    : resultCode === 'small'
+      ? '1 m x 1 m x 1 m'
+      : null;
+  const spanLabel = normalizeDimension(span);
 
-  if (resultCode === 'large') {
-    return 'Massif de 2 m x 1 m x 1 m';
+  const postsLabelMap = {
+    '1': '1',
+    '2': '2',
+    '3': '3',
+    '4': '4'
+  };
+  const postsCount = postsLabelMap[intermediatePosts] || '';
+  const intermediatePostsText = postsCount
+    ? `\n\nNota: La présence de ${postsCount} ${Number(postsCount) > 1 ? 'poteaux intermédiaires de portique peuvent' : 'poteau intermédiaire de portique peut'} permettre l'optimisation des massifs forfaitaires de stabilité.`
+    : '';
+
+  if (normalizedSpan && massifText) {
+    const exampleText = normalizedSpan === 6
+      ? ' : par exemple 2 m x 1 m x 1 m ht ou équivalent.'
+      : '.';
+
+    return `Dimensions minimales des massifs courants à respecter (travée ${spanLabel} m): ${massifText} ht ou équivalent.${exampleText}\nLa descente de charges des croix de stabilité verticales doit être ajoutée aux massifs courants pour le dimensionnement des massifs des stabilités (présence d'une seule poutre au vent en charpente métallique)${intermediatePostsText}\n\nNota: Le dimensionnement et la vérification des contraintes appliquées au sol restent de la responsabilité de l'entreprise.`;
   }
-  if (resultCode === 'small') {
-    return 'Massif de 1 m x 1 m x 1 m';
+
+  if (Number.isFinite(span) && span > 7) {
+    return `Travée supérieure à 7 m (prévu ${spanLabel} m), hors cadre d'application du guide Socotec - une étude spécifique est à prévoir.${intermediatePostsText}\n\nNota: Le dimensionnement et la vérification des contraintes appliquées au sol restent de la responsabilité de l'entreprise.`;
   }
-  return '—';
+
+  return `Travée non renseignée ou hors matrice de calcul.${intermediatePostsText}\n\nNota: Le dimensionnement et la vérification des contraintes appliquées au sol restent de la responsabilité de l'entreprise.`;
 }
 
 function renderPortanceCard() {
@@ -473,6 +529,12 @@ function bindIdentityActions() {
   scope.dataset.identityBound = 'true';
 
   scope.addEventListener('input', (event) => {
+    const referenceInput = event.target.closest('[data-arkolia-reference-input]');
+    if (referenceInput) {
+      persistArkoliaReference(referenceInput.value);
+      return;
+    }
+
     const input = event.target.closest('[data-arkolia-identity-input]');
     if (!input) return;
     const key = input.getAttribute('data-arkolia-identity-input');
@@ -620,6 +682,11 @@ function bindIdentityActions() {
         copiedTitle: 'Relation copiée',
         defaultTitle: 'Copier la relation'
       },
+      referenceName: {
+        text: arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE,
+        copiedTitle: 'Référence copiée',
+        defaultTitle: 'Copier la référence Arkolia'
+      },
       relationSummary: {
         text: getRelationSummary(),
         copiedTitle: 'Avis copié',
@@ -742,6 +809,11 @@ function updateIdentityDescriptionOutput() {
   const relationNameOutput = currentRoot.querySelector('[data-arkolia-relation-name-output]');
   if (relationNameOutput) {
     relationNameOutput.textContent = arkoliaUiState.relation.builderName || 'ARKOLIA';
+  }
+
+  const referenceInput = currentRoot.querySelector('[data-arkolia-reference-input]');
+  if (referenceInput && referenceInput.value !== String(arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE)) {
+    referenceInput.value = arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE;
   }
 
   const relationSummaryOutput = currentRoot.querySelector('[data-arkolia-relation-summary-output]');
@@ -1238,16 +1310,32 @@ export async function renderSolidityArkolia(root) {
   arkoliaUiState.detailsExpanded = false;
   arkoliaUiState.identity = { ...DEFAULT_IDENTITY };
   arkoliaUiState.relation = { ...DEFAULT_RELATION };
+  arkoliaUiState.referenceName = readPersistedArkoliaReference();
 
   root.innerHTML = `
     <section class="settings-section is-active">
       <div class="settings-card settings-card--param">
-        <div class="settings-card__head">
+        <div class="settings-card__head settings-card__head--arkolia">
           <div>
             <span class="settings-card__head-title">
               <h4>Arkolia</h4>
             </span>
             <p>Utilitaire autonome de recherche par ville avec auto-complétion, récupération du canton 2014 par code INSEE, affichage des coordonnées, détermination automatique des zones de vent et de neige.</p>
+          </div>
+          <div class="arkolia-head-reference">
+            <label class="arkolia-head-reference__field" for="solidityArkoliaReference">
+              <span class="arkolia-head-reference__label">Référence</span>
+              <span class="arkolia-head-reference__control">
+                <input
+                  id="solidityArkoliaReference"
+                  type="text"
+                  class="gh-input"
+                  value="${escapeAttribute(arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE)}"
+                  data-arkolia-reference-input
+                >
+                ${renderCopyButton({ action: '', value: 'referenceName', title: 'Copier la référence Arkolia' })}
+              </span>
+            </label>
           </div>
         </div>
 
