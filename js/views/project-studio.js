@@ -52,7 +52,7 @@ function renderStudioNav() {
           iconHtml: svgIcon("shield", { className: "octicon octicon-shield" })
         }),
         renderSideNavItem({
-          label: "Arkolia",
+          label: "PV hangar agricole",
           targetId: "solidity-arkolia",
           iconHtml: svgIcon("arkolia-a", { className: "octicon octicon-arkolia" })
         })
