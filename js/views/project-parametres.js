@@ -1851,6 +1851,7 @@ function getPageHtml(form) {
                   })
                 ]
               })}
+            `
           })}
         </div>
       </div>
