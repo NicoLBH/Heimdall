@@ -3224,7 +3224,7 @@ color:var(--text);
 }
 
 .settings-card--param{
-  padding:40px 0 0px;
+  padding:0px 0 0px;
 }
 
 .settings-block--no-head > .settings-card--param:first-of-type{
