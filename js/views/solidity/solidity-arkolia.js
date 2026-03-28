@@ -314,11 +314,14 @@ function getPortanceText() {
     : '';
 
   if (normalizedSpan && massifText) {
+    const exampleText = normalizedSpan === 6
+      ? ' : par exemple 2 m x 1 m x 1 m ht ou équivalent.'
+      : '.';
     const shouldShowSingleWindBeamNote = Number.isFinite(windBeamsCount) ? windBeamsCount <= 1 : true;
     const singleWindBeamNote = shouldShowSingleWindBeamNote
       ? `
 
-La descente de charges des croix de stabilité verticales doit être ajoutée aux massifs courants pour le dimensionnement des massifs des stabilités (présence d'une seule poutre au vent en charpente métallique).`
+La descente de charges des croix de stabilité verticales doit être ajoutée aux massifs courants pour le dimensionnement des massifs des stabilités (présence d'une seule poutre au vent en charpente métallique).${exampleText}`
       : '';
 
     return `Dimensions minimales des massifs courants à respecter (travée ${spanLabel} m): ${massifText} ht ou équivalent.${singleWindBeamNote}${intermediatePostsText}
@@ -1366,7 +1369,7 @@ export async function renderSolidityArkolia(root) {
                   value="${escapeAttribute(arkoliaUiState.referenceName || DEFAULT_ARKOLIA_REFERENCE)}"
                   data-arkolia-reference-input
                 >
-                ${renderCopyButton({ action: '', value: 'referenceName', title: 'Copier la référence Arkolia' })}
+                ${renderCopyButton({ action: '', value: 'referenceName', title: 'Copier la référence de projet' })}
               </span>
             </label>
           </div>
