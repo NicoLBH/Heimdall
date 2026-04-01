@@ -1,0 +1,996 @@
+import { store } from "../store.js";
+import { registerProjectPrimaryScrollSource, setProjectViewHeader } from "./project-shell-chrome.js";
+import {
+  bindGhActionButtons,
+  initGhActionButton,
+  renderGhActionButton
+} from "./ui/gh-split-button.js";
+import {
+  renderProjectTableToolbar,
+  renderProjectTableToolbarGroup
+} from "./ui/project-table-toolbar.js";
+import { renderGhInput } from "./ui/gh-input.js";
+import { renderStateDot } from "./ui/status-badges.js";
+import { svgIcon } from "../ui/icons.js";
+import { renderDataTableShell, renderDataTableHead, renderDataTableEmptyState } from "./ui/data-table-shell.js";
+import { escapeHtml } from "../utils/escape-html.js";
+import { shouldAutoRunAnalysisAfterUpload } from "../services/project-automation.js";
+import {
+  getCurrentAnalysisRunMeta,
+  isAnalysisRunning,
+  runAnalysis
+} from "../services/analysis-runner.js";
+import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
+import { getDocumentStatsMap } from "../services/project-document-selectors.js";
+import { getEffectiveAvisVerdict, getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
+
+const docsViewState = {
+  mode: "list", // "list" | "upload" | "report-preview" | "pdf-preview"
+  file: null,
+  title: "",
+  description: "",
+  isUploading: false,
+  uploadProgress: 0,
+  uploadTimer: null,
+  selectedPhase: store.projectForm?.currentPhase || store.projectForm?.phase || "APS",
+  reportNumber: 1,
+  activity: {
+    tone: "info",
+    title: "",
+    message: ""
+  }
+};
+
+function syncDocumentsSelectedPhase() {
+  const enabledPhases = getEnabledProjectPhasesCatalog();
+  const fallbackPhase = enabledPhases[0]?.code || "APS";
+
+  if (!enabledPhases.some((item) => item.code === docsViewState.selectedPhase)) {
+    docsViewState.selectedPhase =
+      enabledPhases.find((item) => item.code === store.projectForm?.currentPhase)?.code ||
+      enabledPhases.find((item) => item.code === store.projectForm?.phase)?.code ||
+      fallbackPhase;
+  }
+}
+
+function getDocumentIconSvg() {
+  return svgIcon("file", { className: "octicon octicon-file color-fg-muted" });
+}
+
+function getPlusIconSvg() {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  `;
+}
+
+function getLargeDocumentIconSvg() {
+  return svgIcon("file", {
+    className: "octicon octicon-file mb-2 color-fg-muted",
+    width: 32,
+    height: 32
+  });
+}
+
+function getCommitIconSvg() {
+  return svgIcon("git-commit", { className: "octicon octicon-git-commit" });
+}
+
+function getSocotecLogoSvg() {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="50" height="52" fill="none"><path d="M21.09 27.614c-3.879 0-7.03-3.17-7.03-7.07 0-3.902 3.151-7.072 7.03-7.072a7.005 7.005 0 0 1 5.46 2.62c1.623-1.324 3.5-2.845 5.46-4.45-2.577-3.198-6.51-5.24-10.92-5.24-7.771 0-14.057 6.338-14.057 14.141 0 7.818 6.3 14.142 14.056 14.142 4.41 0 8.344-2.042 10.92-5.24l-5.46-4.45a7.005 7.005 0 0 1-5.46 2.62Z" fill="#0082DE"/><path d="M26.55 24.98a7.052 7.052 0 0 0 1.567-4.451c0-1.69-.588-3.24-1.568-4.451-3.22 2.62-5.46 4.451-5.46 4.451l5.46 4.451ZM42.173 20.543c0-5.057-1.764-9.705-4.704-13.353-1.806 1.479-3.668 3-5.46 4.451a14.134 14.134 0 0 1 3.136 8.902c0 3.367-1.176 6.465-3.136 8.902l5.46 4.451c2.954-3.648 4.704-8.296 4.704-13.353Z" fill="#00ACE8"/><path d="M32.023 11.641c-1.96 1.606-3.836 3.127-5.46 4.451a7.052 7.052 0 0 1 1.568 4.451c0 1.69-.588 3.24-1.568 4.451l5.46 4.451a14.134 14.134 0 0 0 3.136-8.902c-.014-3.38-1.176-6.48-3.136-8.902Z" fill="#005499"/><path d="M21.108 43.853c-.311.275-.699.405-1.14.42-.448-.015-.85-.16-1.162-.443-.319-.298-.478-.68-.47-1.145 0-.458.167-.847.478-1.153.304-.297.691-.45 1.147-.465.433 0 .806.137 1.132.374l.988-1.008a2.942 2.942 0 0 0-1.337-.633 3.31 3.31 0 0 0-.623-.07h-.16c-.038 0-.076 0-.114.009h-.015a3.319 3.319 0 0 0-.623.084 3.036 3.036 0 0 0-1.444.755c-.584.557-.888 1.26-.896 2.122-.008.863.289 1.558.874 2.1.197.183.41.328.646.45.455.229.964.343 1.534.336h.046a3.297 3.297 0 0 0 1.512-.397 2.72 2.72 0 0 0 .577-.405l-.95-.931Zm22.876 0c-.312.275-.7.405-1.14.42-.448-.015-.85-.16-1.162-.443-.32-.298-.479-.68-.471-1.145 0-.458.167-.847.478-1.153.304-.297.692-.45 1.148-.465.433 0 .805.137 1.131.374l.988-1.008a2.942 2.942 0 0 0-1.337-.633 3.312 3.312 0 0 0-.623-.07h-.16c-.037 0-.075 0-.113.009h-.016a3.319 3.319 0 0 0-.623.084 3.036 3.036 0 0 0-1.443.755c-.585.557-.889 1.26-.896 2.122-.008.863.288 1.558.873 2.1.198.183.41.328.646.45.456.229.965.343 1.535.336h.045a3.297 3.297 0 0 0 1.512-.397 2.72 2.72 0 0 0 .577-.405l-.95-.931Zm-18.636 1.756c-.859 0-1.573-.283-2.143-.863-.57-.58-.85-1.275-.85-2.1 0-.824.28-1.518.85-2.098.57-.58 1.284-.863 2.143-.863.858 0 1.572.282 2.142.863.57.58.851 1.274.851 2.099 0 .824-.281 1.519-.85 2.1-.57.58-1.285.862-2.143.862Zm0-1.351c.433 0 .775-.153 1.063-.458.281-.298.433-.695.433-1.153 0-.466-.144-.855-.433-1.153a1.402 1.402 0 0 0-1.063-.458c-.433 0-.783.153-1.072.458-.28.298-.417.695-.417 1.153 0 .466.136.855.417 1.153.282.305.639.458 1.072.458Zm-12.346 1.35c-.858 0-1.573-.282-2.142-.862-.57-.58-.851-1.275-.851-2.1 0-.824.28-1.518.85-2.098.57-.58 1.285-.863 2.143-.863.859 0 1.573.282 2.143.863.57.58.85 1.274.85 2.099 0 .824-.28 1.519-.85 2.1-.57.58-1.284.862-2.143.862Zm0-1.35c.433 0 .775-.153 1.064-.458.28-.298.433-.695.433-1.153 0-.466-.145-.855-.433-1.153a1.402 1.402 0 0 0-1.064-.458c-.433 0-.783.153-1.071.458-.281.298-.418.695-.418 1.153 0 .466.137.855.418 1.153.289.305.646.458 1.071.458Zm20.581-4.45h-4.87v1.29h1.406c.167 0 .296.137.296.297v4.114h1.459v-4.114c0-.168.136-.298.296-.298h1.413v-1.29Zm5.356 4.42h-2.545a.297.297 0 0 1-.296-.299v-.687h2.173v-1.198h-2.173v-.634c0-.168.136-.297.296-.297h2.477V39.83h-4.24v5.702h4.3v-1.305h.008ZM7.372 42.09c-1.132-.214-1.26-.435-1.245-.672.022-.26.334-.39.767-.405a3.092 3.092 0 0 1 1.58.374l.904-.984c-.699-.45-1.595-.687-2.507-.657-1.36.046-2.241.802-2.203 1.832v.015c.03.978.813 1.42 2.09 1.665 1.116.213 1.253.404 1.26.603v.015c.008.26-.44.435-.942.45-.63.023-1.36-.137-1.937-.572H5.13l-.881.977.076.053c.767.558 1.747.84 2.773.81 1.489-.054 2.408-.87 2.37-1.886v-.015c-.038-.962-.835-1.36-2.097-1.603Z" fill="#000"/></svg>
+  `;
+}
+
+function getRemoveIconSvg() {
+  return svgIcon("x");
+}
+
+function getDocumentsTableGridTemplate() {
+  return "minmax(280px, 1.2fr) minmax(220px, 1fr) 180px minmax(260px, 1.1fr)";
+}
+
+function getFileExtension(value = "") {
+  const match = String(value || "").trim().toLowerCase().match(/\.([^.]+)$/);
+  return match ? match[1] : "";
+}
+
+function isPdfDocument(documentItem = null) {
+  if (!documentItem) return false;
+  const mimeType = String(documentItem.mimeType || "").toLowerCase();
+  const extension = String(documentItem.extension || getFileExtension(documentItem.fileName || documentItem.name || "")).toLowerCase();
+  return mimeType === "application/pdf" || extension === "pdf";
+}
+
+function canPreviewPdf(documentItem = null) {
+  return isPdfDocument(documentItem) && !!String(getProjectDocumentPreviewUrl(documentItem) || "").trim();
+}
+
+function getSelectedPdfDocument() {
+  const activeDocumentId = String(store.projectDocuments?.activeDocumentId || "").trim();
+  return activeDocumentId ? getProjectDocumentById(activeDocumentId) : null;
+}
+
+function setDocumentsActivity({ tone = "info", title = "", message = "" } = {}) {
+  docsViewState.activity = {
+    tone,
+    title,
+    message
+  };
+}
+
+function clearDocumentsActivity() {
+  docsViewState.activity = {
+    tone: "info",
+    title: "",
+    message: ""
+  };
+}
+
+function renderDocumentsActivityBanner() {
+  const title = String(docsViewState.activity?.title || "").trim();
+  const message = String(docsViewState.activity?.message || "").trim();
+
+  if (!title && !message) return "";
+
+  const tone = String(docsViewState.activity?.tone || "info").toLowerCase();
+  const className =
+    tone === "success"
+      ? "documents-activity-banner documents-activity-banner--success"
+      : tone === "warning"
+        ? "documents-activity-banner documents-activity-banner--warning"
+        : tone === "error"
+          ? "documents-activity-banner documents-activity-banner--error"
+          : "documents-activity-banner documents-activity-banner--info";
+
+  return `
+    <div class="${className}" role="status" aria-live="polite">
+      <div class="documents-activity-banner__body">
+        ${title ? `<div class="documents-activity-banner__title">${escapeHtml(title)}</div>` : ""}
+        ${message ? `<div class="documents-activity-banner__message">${escapeHtml(message)}</div>` : ""}
+      </div>
+      <button
+        type="button"
+        class="documents-activity-banner__close"
+        id="documentsActivityCloseBtn"
+        aria-label="Fermer"
+        title="Fermer"
+      >
+        ${getRemoveIconSvg()}
+      </button>
+    </div>
+  `;
+}
+
+function renderDocumentsTableHeadHtml() {
+  return renderDataTableHead({
+    columns: [
+      { className: "documents-repo__col documents-repo__col--name", label: "Nom" },
+      { className: "documents-repo__col documents-repo__col--message", label: "Description" },
+      { className: "documents-repo__col documents-repo__col--date", label: "Dernière mise à jour" },
+      { className: "documents-repo__col documents-repo__col--stats", label: "Compteurs" }
+    ]
+  });
+}
+
+function renderDocumentsToolbar() {
+  const documentsButton = renderGhActionButton({
+    id: "documentsAddAction",
+    label: "Documents",
+    icon: getPlusIconSvg(),
+    tone: "primary",
+    mainAction: "add-documents"
+  });
+
+  const rightHtml = [
+    renderProjectTableToolbarGroup({ html: documentsButton })
+  ].join("");
+
+  return renderProjectTableToolbar({
+    className: "project-table-toolbar--documents",
+    leftHtml: "",
+    rightHtml
+  });
+}
+
+
+function renderDocumentsCountBadge({ iconHtml = "", label = "", count = 0 } = {}) {
+  return `
+    <span class="documents-count-badge" title="${escapeHtml(`${label} : ${count}`)}">
+      <span class="documents-count-badge__icon" aria-hidden="true">${iconHtml}</span>
+      <span class="documents-count-badge__count">${escapeHtml(String(count))}</span>
+    </span>
+  `;
+}
+
+function renderDocumentStatsCell(doc) {
+  const statsMap = getDocumentStatsMap({
+    getSituationStatus: getEffectiveSituationStatus,
+    getSujetStatus: getEffectiveSujetStatus,
+    getAvisVerdict: getEffectiveAvisVerdict
+  });
+  const stats = statsMap.get(doc.id) || {
+    openSituations: 0,
+    openSujets: 0,
+    avisVerdicts: { F: 0, S: 0, D: 0, HM: 0, PM: 0, SO: 0 }
+  };
+
+  return `
+    <div class="documents-repo__stats" aria-label="Compteurs liés au document">
+      ${renderDocumentsCountBadge({ iconHtml: svgIcon("issue-opened"), label: "Situations ouvertes", count: stats.openSituations })}
+      ${renderDocumentsCountBadge({ iconHtml: svgIcon("issue-opened"), label: "Sujets ouverts", count: stats.openSujets })}
+      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("F"), label: "Avis F", count: stats.avisVerdicts.F })}
+      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("S"), label: "Avis S", count: stats.avisVerdicts.S })}
+      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("D"), label: "Avis D", count: stats.avisVerdicts.D })}
+      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("HM"), label: "Avis HM", count: stats.avisVerdicts.HM })}
+      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("PM"), label: "Avis PM", count: stats.avisVerdicts.PM })}
+      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("SO"), label: "Avis SO", count: stats.avisVerdicts.SO })}
+    </div>
+  `;
+}
+
+function renderRepoDocumentRow(doc) {
+  const decoratedDoc = decorateDocumentWithPhase(doc);
+  const isPdf = isPdfDocument(decoratedDoc);
+  const isPreviewablePdf = canPreviewPdf(decoratedDoc);
+
+  return `
+    <div
+      class="documents-repo__row documents-repo__row--file${isPdf ? " documents-repo__row--pdf" : ""}${isPreviewablePdf ? " is-clickable" : ""}"
+      data-document-id="${escapeHtml(decoratedDoc.id || "")}"
+      ${isPreviewablePdf ? 'role="button" tabindex="0" aria-label="Ouvrir l’aperçu du PDF"' : ""}
+    >
+      <div class="documents-repo__cell documents-repo__cell--name">
+        <span class="documents-repo__icon documents-repo__icon--document">${getDocumentIconSvg()}</span>
+        <button type="button" class="documents-repo__name documents-repo__name-trigger js-document-title-trigger" data-document-id="${escapeHtml(decoratedDoc.id || "")}">${escapeHtml(decoratedDoc.name)}</button>
+      </div>
+      <div class="documents-repo__cell documents-repo__cell--message">
+        <div class="documents-repo__message-main">${escapeHtml(decoratedDoc.note || "Document prêt pour l'analyse")}</div>
+        <div class="documents-repo__message-meta">${escapeHtml(`${decoratedDoc.phaseCode}${decoratedDoc.phaseLabel ? ` - ${decoratedDoc.phaseLabel}` : ""}`)}</div>
+      </div>
+      <div class="documents-repo__cell documents-repo__cell--date">${escapeHtml(decoratedDoc.updatedAt || "À l'instant")}</div>
+      <div class="documents-repo__cell documents-repo__cell--stats">${renderDocumentStatsCell(decoratedDoc)}</div>
+    </div>
+  `;
+}
+
+function getReportTitle() {
+  return `Rapport chrono n° ${docsViewState.reportNumber}`;
+}
+
+function formatReportDate(value = new Date()) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  }).format(value);
+}
+
+function getReportAuthorName() {
+  return String(store.user?.name || "demo");
+}
+
+function getEntitySummary(entity = null) {
+  const raw = entity?.raw || {};
+  return String(raw.summary || raw.message || raw.comment || raw.reasoning || raw.analysis || entity?.title || "Aucune synthèse disponible.");
+}
+
+function getEntityReferenceLine(entity = null) {
+  const refs = resolveDocumentRefs(Array.isArray(entity?.document_ref_ids) ? entity.document_ref_ids : [])
+    .map((doc) => decorateDocumentWithPhase(doc))
+    .filter(Boolean);
+
+  if (!refs.length) {
+    return "Références documentaires : —";
+  }
+
+  return `Références documentaires : ${refs.map((doc) => `${doc.name}${doc.phaseCode ? ` (${doc.phaseCode})` : ""}`).join(" · ")}`;
+}
+
+function normalizeWorkflowStatus(status = "open") {
+  const value = String(status || "open").trim().toLowerCase();
+  if (["closed", "close", "ferme", "fermé"].includes(value)) return "fermé";
+  if (["reopened", "reopen", "réouvert", "reopenend"].includes(value)) return "réouvert";
+  return "ouvert";
+}
+
+function isHumanValidated(entity = null) {
+  return String(entity?.review_state || "pending").toLowerCase() === "validated";
+}
+
+function shouldIncludeInReport(entity = null) {
+  if (!entity) return false;
+  return !entity.is_published || !!entity.has_changes_since_publish;
+}
+
+function buildReportPreviewItems() {
+  const situations = Array.isArray(store.situationsView?.data) ? store.situationsView.data : [];
+  const items = [];
+
+  for (const situation of situations) {
+    const includedSituation = shouldIncludeInReport(situation);
+    const includedSujets = [];
+
+    for (const sujet of situation.sujets || []) {
+      const includedSujet = shouldIncludeInReport(sujet);
+      const includedAvis = (sujet.avis || []).filter((avis) => shouldIncludeInReport(avis));
+
+      if (includedSujet || includedAvis.length) {
+        includedSujets.push({ sujet, includedSujet, includedAvis });
+      }
+    }
+
+    if (!includedSituation && !includedSujets.length) continue;
+
+    items.push({
+      key: `situation:${situation.id}`,
+      entityType: "situation",
+      entity: situation,
+      number: situation.id,
+      stateLabel: normalizeWorkflowStatus(getEffectiveSituationStatus(situation.id)),
+      title: situation.title || situation.id,
+      depth: 0
+    });
+
+    for (const { sujet, includedSujet, includedAvis } of includedSujets) {
+      if (includedSujet || includedAvis.length) {
+        items.push({
+          key: `sujet:${sujet.id}`,
+          entityType: "sujet",
+          entity: sujet,
+          number: sujet.id,
+          stateLabel: normalizeWorkflowStatus(getEffectiveSujetStatus(sujet.id)),
+          title: sujet.title || sujet.id,
+          depth: 1
+        });
+      }
+
+      for (const avis of includedAvis) {
+        items.push({
+          key: `avis:${avis.id}`,
+          entityType: "avis",
+          entity: avis,
+          number: avis.id,
+          stateLabel: getEffectiveAvisVerdict(avis.id),
+          title: avis.title || avis.id,
+          depth: 2
+        });
+      }
+    }
+  }
+
+  return items;
+}
+
+function renderReportPreviewItem(item) {
+  const entity = item.entity || null;
+  const invalidClass = isHumanValidated(entity) ? "" : " documents-report-item--needs-review";
+  const depth = Number.isFinite(item.depth) ? Math.max(0, Math.min(2, item.depth)) : 0;
+
+  return `
+    <article class="documents-report-item documents-report-item--depth-${depth}${invalidClass}" data-report-entity-type="${escapeHtml(item.entityType)}">
+      <div class="documents-report-item__line documents-report-item__line--title">
+        <span class="documents-report-item__number">#${escapeHtml(String(item.number || ""))}</span>
+        <span class="documents-report-item__state">${escapeHtml(String(item.stateLabel || ""))}</span>
+        <span class="documents-report-item__title">${escapeHtml(String(item.title || "Sans titre"))}</span>
+      </div>
+      <div class="documents-report-item__line documents-report-item__line--description">
+        ${escapeHtml(getEntitySummary(entity))}
+      </div>
+      <div class="documents-report-item__line documents-report-item__line--references">
+        ${escapeHtml(getEntityReferenceLine(entity))}
+      </div>
+    </article>
+  `;
+}
+
+function renderReportPreviewView() {
+  const previewItems = buildReportPreviewItems();
+  const reportTitle = getReportTitle();
+  const projectName = String(store.projectForm?.projectName || "Projet");
+  const breadcrumb = `${projectName} / Documents / ${reportTitle}`;
+  const authorName = getReportAuthorName();
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
+        <div class="documents-shell documents-shell--report" id="projectDocumentScroll">
+          ${renderDocumentsActivityBanner()}
+
+          <div class="documents-report">
+            <div class="documents-report__path">${escapeHtml(breadcrumb)}</div>
+
+            <section class="documents-report-table">
+              <header class="documents-report-table__header">
+                <div class="documents-report-table__author">${escapeHtml(authorName)}</div>
+                <div class="documents-report-table__actions">
+                  <button type="button" class="gh-btn" id="documentsReportBackBtn">Annuler</button>
+                  <button type="button" class="gh-btn gh-btn--validate" disabled>Valider</button>
+                  <button type="button" class="gh-btn" disabled>Modifier</button>
+                  <button type="button" class="gh-btn" disabled>Diffuser</button>
+                </div>
+              </header>
+
+              <div class="documents-report-table__body">
+                <header class="documents-report__hero">
+                  <div class="documents-report__hero-brand">
+                    <div class="documents-report__logo-wrap">${getSocotecLogoSvg()}</div>
+                    <div class="documents-report__hero-copy">
+                      <h1 class="documents-report__title">${escapeHtml(reportTitle)}</h1>
+                      <div class="documents-report__meta">Intervenant : ${escapeHtml(authorName)}</div>
+                      <div class="documents-report__meta">Date du rapport : ${escapeHtml(formatReportDate())}</div>
+                    </div>
+                  </div>
+                </header>
+
+                <div class="documents-report__page-break" aria-hidden="true"></div>
+
+                ${previewItems.length
+                  ? previewItems.map(renderReportPreviewItem).join("")
+                  : `<div class="documents-report__empty">Aucun élément nouveau ou modifié à inclure dans ce rapport.</div>`}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderPdfPreviewView() {
+  const projectName = String(store.projectForm?.projectName || "Projet");
+  const documentItem = decorateDocumentWithPhase(getSelectedPdfDocument());
+
+  if (!documentItem) {
+    return renderDocumentsListView();
+  }
+
+  const breadcrumb = `${projectName} / Documents / ${documentItem.name}`;
+  const metaLine = [
+    documentItem.phaseCode ? `${documentItem.phaseCode}${documentItem.phaseLabel ? ` - ${documentItem.phaseLabel}` : ""}` : "",
+    documentItem.updatedAt || ""
+  ].filter(Boolean).join(" · ");
+  const previewUrl = getProjectDocumentPreviewUrl(documentItem);
+  const isLocalPreview = !String(documentItem.previewUrl || "").trim() && !!String(previewUrl || "").trim();
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
+        <div class="documents-shell documents-shell--report" id="projectDocumentScroll">
+          ${renderDocumentsActivityBanner()}
+
+          <div class="documents-report">
+            <div class="documents-report__path">${escapeHtml(breadcrumb)}</div>
+
+            <section class="documents-report-table documents-report-table--pdf">
+              <header class="documents-report-table__header">
+                <div class="documents-report-table__author">${escapeHtml(documentItem.name || "Document")}</div>
+                <div class="documents-report-table__actions">
+                  <button type="button" class="gh-btn" id="documentsPdfBackBtn">Annuler</button>
+                </div>
+              </header>
+
+              <div class="documents-report-table__body documents-report-table__body--pdf">
+                <div class="documents-pdf-viewer__meta">
+                  <div class="documents-pdf-viewer__title-wrap">
+                    <div class="documents-pdf-viewer__title">${escapeHtml(documentItem.name || "Document")}</div>
+                    <div class="documents-pdf-viewer__subtitle">${escapeHtml(metaLine || "Document PDF")}</div>
+                  </div>
+                  ${isLocalPreview
+                    ? `<div class="documents-pdf-viewer__hint">Prévisualisation locale temporaire en mémoire avant branchement Supabase.</div>`
+                    : ""}
+                </div>
+
+                <section class="documents-pdf-viewer">
+                  ${previewUrl
+                    ? `
+                      <object
+                        class="documents-pdf-viewer__frame"
+                        type="application/pdf"
+                        data="${escapeHtml(previewUrl)}#toolbar=1&navpanes=0"
+                      >
+                        <div class="documents-pdf-viewer__fallback">
+                          <p>La prévisualisation intégrée du PDF n'est pas disponible dans ce navigateur.</p>
+                          <a class="gh-btn gh-btn--primary" href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a>
+                        </div>
+                      </object>
+                    `
+                    : `
+                      <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
+                        <p>Impossible de générer la prévisualisation locale de ce PDF pour cette session.</p>
+                      </div>
+                    `}
+                </section>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderDocumentsListView() {
+  const documents = getProjectDocuments();
+  const hasDocuments = documents.length > 0;
+  const bodyHtml = documents.map(renderRepoDocumentRow).join("");
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
+        <div class="documents-shell" id="projectDocumentScroll">
+          ${renderDocumentsToolbar()}
+          ${renderDocumentsActivityBanner()}
+
+          ${renderDataTableShell({
+            className: "documents-repo",
+            gridTemplate: getDocumentsTableGridTemplate(),
+            headHtml: renderDocumentsTableHeadHtml(),
+            bodyHtml,
+            state: hasDocuments ? "ready" : "empty",
+            emptyHtml: renderDataTableEmptyState({
+              title: "Aucun document n’a encore été déposé.",
+              description: "Ajoutez des documents pour commencer à constituer le dossier du projet."
+            })
+          })}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderUploadProgress() {
+  if (!docsViewState.file) return "";
+
+  if (docsViewState.isUploading) {
+    return `
+      <div class="documents-upload-progress">
+        <div class="documents-upload-progress__file">
+          <span class="documents-upload-progress__icon">${getLargeDocumentIconSvg()}</span>
+          <span class="documents-upload-progress__name">${escapeHtml(docsViewState.file.name)}</span>
+        </div>
+        <div class="documents-upload-progress__meta">
+          Chargement du fichier... ${docsViewState.uploadProgress}%
+        </div>
+        <div class="documents-upload-progress__bar">
+          <div class="documents-upload-progress__bar-fill" style="width:${docsViewState.uploadProgress}%"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="documents-uploaded-file">
+      <div class="documents-uploaded-file__left">
+        <span class="documents-uploaded-file__icon">${getLargeDocumentIconSvg()}</span>
+        <span class="documents-uploaded-file__name">${escapeHtml(docsViewState.file.name)}</span>
+      </div>
+      <button
+        type="button"
+        class="documents-uploaded-file__remove"
+        id="documentsRemoveFileBtn"
+        aria-label="Retirer le fichier"
+        title="Retirer le fichier"
+      >
+        ${getRemoveIconSvg()}
+      </button>
+    </div>
+  `;
+}
+
+function canSubmitUpload() {
+  return !!docsViewState.file && !docsViewState.isUploading;
+}
+
+function renderUploadView() {
+  const isBusy = docsViewState.isUploading ? "is-busy" : "";
+  const isDisabled = docsViewState.isUploading ? "disabled" : "";
+  const submitLabel = "Valider";
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="project-simple-scroll project-simple-scroll--documents" id="projectDocumentsScroll">
+        ${renderDocumentsActivityBanner()}
+        <div class="documents-shell documents-shell--upload" id="projectDocumentScroll">
+          <div class="documents-upload-layout">
+            <section class="documents-dropzone ${isBusy}" id="documentsDropzone">
+              <input id="documentsFileInput" type="file" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,image/*">
+              <div class="documents-dropzone__inner">
+                <div class="documents-dropzone__icon">
+                  ${getLargeDocumentIconSvg()}
+                </div>
+                <h3>Glissez vos fichiers ici pour les ajouter au projet</h3>
+                <p>
+                  Ou
+                  <button type="button" class="documents-dropzone__link" id="documentsChooseBtn" ${isDisabled}>choisissez votre fichier</button>
+                </p>
+              </div>
+            </section>
+
+            ${renderUploadProgress()}
+
+            <div class="documents-commit-shell">
+              <div class="documents-commit-shell__avatar">
+                <img
+                  src="${escapeHtml(String(store.user?.avatar || "assets/images/260093543.png"))}"
+                  alt="Avatar"
+                  class="documents-commit-shell__avatar-img"
+                >
+              </div>
+
+              <section class="documents-commit-card">
+                <div class="documents-commit-card__title">Déposer le document</div>
+
+                <div class="documents-form-field">
+                  ${renderGhInput({
+                    id: "documentsTitleInput",
+                    value: docsViewState.title,
+                    placeholder: "Ex. Note d'hypothèses parasismiques - version 03",
+                    icon: getDocumentIconSvg()
+                  })}
+                </div>
+
+                <div class="documents-form-field">
+                  <textarea
+                    id="documentsDescriptionInput"
+                    class="gh-input gh-textarea"
+                    placeholder="Décrivez brièvement le contenu, le contexte ou les points d'attention."
+                  >${escapeHtml(docsViewState.description)}</textarea>
+                </div>
+              </section>
+
+              <section class="documents-commit-card documents-commit-card-actions">
+                <div class="documents-commit-card__actions">
+                  <button type="button" class="gh-btn gh-btn--validate" id="documentsSubmitBtn" ${canSubmitUpload() ? "" : "disabled"}>${submitLabel}</button>
+                  <button type="button" class="gh-btn" id="documentsCancelBtn">Annuler</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function stopUploadSimulation() {
+  if (docsViewState.uploadTimer) {
+    clearInterval(docsViewState.uploadTimer);
+    docsViewState.uploadTimer = null;
+  }
+}
+
+function resetUploadState() {
+  stopUploadSimulation();
+  docsViewState.file = null;
+  docsViewState.isUploading = false;
+  docsViewState.uploadProgress = 0;
+  docsViewState.title = "";
+  docsViewState.description = "";
+
+  const fileInput = document.getElementById("documentsFileInput");
+  if (fileInput) {
+    fileInput.value = "";
+  }
+}
+
+function simulateUpload(root, file) {
+  stopUploadSimulation();
+  docsViewState.file = file;
+  docsViewState.isUploading = true;
+  docsViewState.uploadProgress = 0;
+  renderProjectDocuments(root);
+
+  docsViewState.uploadTimer = setInterval(() => {
+    const increment = docsViewState.uploadProgress < 70 ? 9 : 4;
+    docsViewState.uploadProgress = Math.min(100, docsViewState.uploadProgress + increment);
+
+    if (docsViewState.uploadProgress >= 100) {
+      stopUploadSimulation();
+      docsViewState.isUploading = false;
+      docsViewState.uploadProgress = 100;
+    }
+
+    renderProjectDocuments(root);
+  }, 120);
+}
+
+function closeUploadView(root) {
+  resetUploadState();
+  docsViewState.mode = "list";
+  renderProjectDocuments(root);
+}
+
+function closeReportPreview(root) {
+  docsViewState.mode = "list";
+  renderProjectDocuments(root);
+}
+
+export function setProjectDocumentsViewMode(mode = "list") {
+  docsViewState.mode = String(mode || "list");
+}
+
+function openReportPreview(root) {
+  setProjectDocumentsViewMode("report-preview");
+  renderProjectDocuments(root);
+}
+
+function openPdfPreview(root, documentId) {
+  const documentItem = getProjectDocumentById(documentId);
+  if (!canPreviewPdf(documentItem)) return;
+  setActiveProjectDocument(documentItem.id);
+  docsViewState.mode = "pdf-preview";
+  renderProjectDocuments(root);
+}
+
+function closePdfPreview(root) {
+  docsViewState.mode = "list";
+  renderProjectDocuments(root);
+}
+
+function renderFromSelectedFile(root, file) {
+  if (!file) return;
+  if (!docsViewState.title) {
+    docsViewState.title = file.name.replace(/\.[^.]+$/, "");
+  }
+  simulateUpload(root, file);
+}
+
+function buildRepoDocumentFromState() {
+  const title = docsViewState.title.trim();
+  const description = docsViewState.description.trim();
+  const baseNote = title || description || "Document prêt pour l'analyse";
+  const enabledPhases = getEnabledProjectPhasesCatalog();
+  const currentPhase = enabledPhases.find((item) => item.code === docsViewState.selectedPhase) || null;
+  const fileName = docsViewState.file?.name || "Document";
+  const mimeType = String(docsViewState.file?.type || "").trim();
+  const extension = getFileExtension(fileName);
+  const previewUrl = "";
+
+  return {
+    name: fileName,
+    title: title || fileName || "Document",
+    note: baseNote,
+    updatedAt: "À l'instant",
+    phaseCode: currentPhase?.code || docsViewState.selectedPhase || "APS",
+    phaseLabel: currentPhase?.label || "",
+    fileName,
+    mimeType,
+    extension,
+    previewUrl,
+    localFile: mimeType === "application/pdf" ? docsViewState.file : null
+  };
+}
+
+function triggerAutoAnalysisAfterDirectUpload(root, document = null) {
+  const documentName = document?.name || "";
+  if (!shouldAutoRunAnalysisAfterUpload()) {
+    setDocumentsActivity({
+      tone: "info",
+      title: "Document déposé",
+      message: "Le dépôt a été enregistré. L’analyse automatique n’est pas activée pour ce projet."
+    });
+    return;
+  }
+
+  if (isAnalysisRunning()) {
+    const currentRun = getCurrentAnalysisRunMeta();
+    setDocumentsActivity({
+      tone: "warning",
+      title: "Document déposé",
+      message: `Le dépôt a été enregistré, mais l’analyse automatique n’a pas été relancée car un traitement est déjà en cours${currentRun.runId ? ` (${currentRun.runId})` : ""}.`
+    });
+    return;
+  }
+
+  setDocumentsActivity({
+    tone: "success",
+    title: "Document déposé",
+    message: "Le dépôt a été enregistré et l’analyse parasismique automatique a été lancée."
+  });
+
+  runAnalysis({
+    triggerType: "document-upload",
+    triggerLabel: "Dépôt de document",
+    documentName,
+    documentIds: document?.id ? [document.id] : [],
+    summary: "Analyse déclenchée automatiquement après dépôt réussi d’un document."
+  });
+
+  renderProjectDocuments(root);
+}
+
+function commitDirectDocument(root) {
+  if (!docsViewState.file) return;
+
+  const documentFile = docsViewState.file;
+  const repoDocument = addProjectDocument(buildRepoDocumentFromState());
+
+  store.projectForm.pdfFile = documentFile;
+
+  closeUploadView(root);
+  triggerAutoAnalysisAfterDirectUpload(root, repoDocument);
+}
+
+function handleSubmit(root) {
+  if (!canSubmitUpload()) return;
+  commitDirectDocument(root);
+}
+
+function bindDocumentsSplitActions(root) {
+  bindGhActionButtons();
+
+
+  const addAction = document.querySelector('[data-action-id="documentsAddAction"]');
+  if (addAction) {
+    initGhActionButton(addAction, { mainAction: "add-documents" });
+    addAction.addEventListener("ghaction:action", (event) => {
+      const action = event.detail?.action || "";
+      if (action === "add-documents") {
+        docsViewState.mode = "upload";
+        renderProjectDocuments(root);
+      }
+    });
+  }
+}
+
+function bindDocumentsView(root) {
+  const scrollEl = document.getElementById("projectDocumentsScroll");
+  registerProjectPrimaryScrollSource(scrollEl);
+
+  bindDocumentsSplitActions(root);
+
+    const activityCloseBtn = document.getElementById("documentsActivityCloseBtn");
+  if (activityCloseBtn) {
+    activityCloseBtn.addEventListener("click", () => {
+      clearDocumentsActivity();
+      renderProjectDocuments(root);
+    });
+  }
+
+  const submitBtn = document.getElementById("documentsSubmitBtn");
+  const syncSubmitState = () => {
+    if (!submitBtn) return;
+    submitBtn.disabled = !canSubmitUpload();
+  };
+
+  syncSubmitState();
+
+  const handleAnalysisStateChanged = () => {
+    if (docsViewState.mode !== "list") return;
+    renderProjectDocuments(root);
+  };
+
+  document.removeEventListener("analysisStateChanged", handleAnalysisStateChanged);
+  document.addEventListener("analysisStateChanged", handleAnalysisStateChanged, { once: true });
+
+  const cancelBtn = document.getElementById("documentsCancelBtn");
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      closeUploadView(root);
+    });
+  }
+
+  const reportBackBtn = document.getElementById("documentsReportBackBtn");
+  if (reportBackBtn) {
+    reportBackBtn.addEventListener("click", () => {
+      closeReportPreview(root);
+    });
+  }
+
+  const pdfBackBtn = document.getElementById("documentsPdfBackBtn");
+  if (pdfBackBtn) {
+    pdfBackBtn.addEventListener("click", () => {
+      closePdfPreview(root);
+    });
+  }
+
+  document.querySelectorAll(".js-document-title-trigger[data-document-id]").forEach((trigger) => {
+    const documentId = trigger.getAttribute("data-document-id") || "";
+    const documentItem = getProjectDocumentById(documentId);
+    if (!canPreviewPdf(documentItem)) return;
+
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      openPdfPreview(root, documentId);
+    });
+  });
+
+  if (submitBtn) {
+    submitBtn.addEventListener("click", () => {
+      if (!canSubmitUpload()) return;
+      submitBtn.disabled = true;
+      handleSubmit(root);
+    });
+  }
+
+  const chooseBtn = document.getElementById("documentsChooseBtn");
+  const fileInput = document.getElementById("documentsFileInput");
+  const dropzone = document.getElementById("documentsDropzone");
+
+  if (chooseBtn && fileInput) {
+    chooseBtn.addEventListener("click", () => {
+      if (docsViewState.isUploading) return;
+      fileInput.value = "";
+      fileInput.click();
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener("change", (event) => {
+      const file = event.target.files?.[0] || null;
+      renderFromSelectedFile(root, file);
+    });
+  }
+
+  if (dropzone && fileInput) {
+    ["dragenter", "dragover"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        if (!docsViewState.isUploading) {
+          dropzone.classList.add("is-dragover");
+        }
+      });
+    });
+
+    ["dragleave", "drop"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.remove("is-dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", (event) => {
+      if (docsViewState.isUploading) return;
+      const file = event.dataTransfer?.files?.[0] || null;
+      renderFromSelectedFile(root, file);
+    });
+  }
+
+  const removeFileBtn = document.getElementById("documentsRemoveFileBtn");
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener("click", () => {
+      stopUploadSimulation();
+      docsViewState.file = null;
+      docsViewState.isUploading = false;
+      docsViewState.uploadProgress = 0;
+      renderProjectDocuments(root);
+    });
+  }
+
+  const titleInput = document.getElementById("documentsTitleInput");
+  if (titleInput) {
+    titleInput.addEventListener("input", (event) => {
+      docsViewState.title = event.target.value;
+    });
+  }
+
+  const descriptionInput = document.getElementById("documentsDescriptionInput");
+  if (descriptionInput) {
+    descriptionInput.addEventListener("input", (event) => {
+      docsViewState.description = event.target.value;
+    });
+  }
+}
+
+export function renderProjectDocuments(root) {
+  syncDocumentsSelectedPhase();
+  
+  root.className = "project-shell__content";
+
+  setProjectViewHeader({
+    contextLabel: "Documents",
+    variant: "documents"
+  });
+
+  root.innerHTML = docsViewState.mode === "upload"
+    ? renderUploadView()
+    : docsViewState.mode === "report-preview"
+      ? renderReportPreviewView()
+      : docsViewState.mode === "pdf-preview"
+        ? renderPdfPreviewView()
+        : renderDocumentsListView();
+
+  bindDocumentsView(root);
+}
