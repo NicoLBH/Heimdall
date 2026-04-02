@@ -171,9 +171,12 @@ function normalizeStatusResponse(data) {
 }
 
 async function fetchRunRowFromSupabase(runId) {
-  const url = new URL(`${SUPABASE_URL}/rest/v1/rapsobot_runs`);
-  url.searchParams.set("select", "run_id,status,phase,phase_progress,phase_msg,payload,updated_at");
-  url.searchParams.set("run_id", `eq.${runId}`);
+  const url = new URL(`${SUPABASE_URL}/rest/v1/analysis_runs`);
+  url.searchParams.set(
+    "select",
+    "id,status,started_at,finished_at,error_message,structured_output_json,updated_at"
+  );
+  url.searchParams.set("id", `eq.${runId}`);
   url.searchParams.set("limit", "1");
 
   const res = await fetch(url.toString(), {
@@ -192,7 +195,26 @@ async function fetchRunRowFromSupabase(runId) {
   }
 
   const rows = await res.json();
-  return rows?.[0] || { status: "UNKNOWN", payload: null };
+  const row = rows?.[0] || null;
+
+  if (!row) {
+    return {
+      id: runId,
+      status: "UNKNOWN",
+      payload: null,
+      updated_at: null
+    };
+  }
+
+  return {
+    id: row.id,
+    status: row.status,
+    payload: row.structured_output_json ?? null,
+    error_message: row.error_message ?? null,
+    updated_at: row.updated_at ?? null,
+    started_at: row.started_at ?? null,
+    finished_at: row.finished_at ?? null
+  };
 }
 
 function computePollDelayMs(tries, progress) {
