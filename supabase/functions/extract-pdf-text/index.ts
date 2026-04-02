@@ -115,9 +115,11 @@ Deno.serve(async (req: Request) => {
     // 7) Mettre à jour le run
     const { error: runUpdateError } = await supabase
       .from('analysis_runs')
+      const { error: runUpdateError } = await supabase
+      .from('analysis_runs')
       .update({
-        status: 'succeeded',
-        finished_at: new Date().toISOString(),
+        status: 'running',
+        finished_at: null,
         raw_text: extractedText,
         normalized_text_json: {
           stage: 'pdf_text_extraction',
@@ -130,9 +132,10 @@ Deno.serve(async (req: Request) => {
           stage: 'pdf_text_extraction',
           page_count: totalPages,
           extracted_char_count: extractedText.length,
-          next_step: 'subject_generation',
+          next_step: 'generate_observations',
         },
       })
+      .eq('id', runId)
       .eq('id', runId)
 
     if (runUpdateError) {
