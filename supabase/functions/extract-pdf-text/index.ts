@@ -115,8 +115,6 @@ Deno.serve(async (req: Request) => {
     // 7) Mettre à jour le run
     const { error: runUpdateError } = await supabase
       .from('analysis_runs')
-      const { error: runUpdateError } = await supabase
-      .from('analysis_runs')
       .update({
         status: 'running',
         finished_at: null,
@@ -135,7 +133,6 @@ Deno.serve(async (req: Request) => {
           next_step: 'generate_observations',
         },
       })
-      .eq('id', runId)
       .eq('id', runId)
 
     if (runUpdateError) {
