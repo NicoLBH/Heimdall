@@ -126,12 +126,18 @@ serve(async (req) => {
       }
     }
 
-    return json({
-      success: true,
-      resolved: resolvedCount,
-      total: observations.length,
-      errors
-    });
+    await supabase
+      .from("analysis_runs")
+      .update({
+        structured_output_json: {
+          stage: "resolve_observations",
+          resolved: resolvedCount,
+          total: observations.length,
+          errors
+        },
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", analysisRunId);
   } catch (e) {
     console.error("resolve-observations fatal error", serializeError(e));
     return json({ error: serializeError(e) }, 500);
