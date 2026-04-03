@@ -475,9 +475,10 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   border:1px solid var(--border);background:rgba(110,118,129,.12);
   font-size:12px;color:var(--muted);white-space:nowrap;
 }
-.badge--p1{color:#ffdcd7;border-color:rgba(248,81,73,.45);background:rgba(248,81,73,.12);}
-.badge--p2{color:#ffe7b3;border-color:rgba(210,153,34,.55);background:rgba(210,153,34,.12);}
-.badge--p3{color:#c7f0d8;border-color:rgba(63,185,80,.45);background:rgba(63,185,80,.12);}
+.badge--p1,.badge--critical{color:#ffdcd7;border-color:rgba(248,81,73,.45);background:rgba(248,81,73,.12);}
+.badge--p2,.badge--high{color:#ffe7b3;border-color:rgba(210,153,34,.55);background:rgba(210,153,34,.12);}
+.badge--p3,.badge--medium{color:#c7f0d8;border-color:rgba(63,185,80,.45);background:rgba(63,185,80,.12);}
+.badge--low{color:#d2e4ff;border-color:rgba(56,139,253,.45);background:rgba(56,139,253,.12);}
 
 
 
@@ -1242,12 +1243,14 @@ body.modal-open {
 }
 
 .cell-priority-filter,
-.cell-filter-spacer{
+.cell-priority-value{
   justify-self:end;
 }
 
-.cell-filter-spacer{
+.cell-priority-value{
   width:140px;
+  display:flex;
+  justify-content:flex-end;
 }
 
 .cell{min-width:0;}
