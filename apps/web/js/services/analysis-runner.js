@@ -762,6 +762,7 @@ function applyRunResult(final, runId, statusLabel, runLogId = "", options = {}) 
 
   store.situationsView.data = nested;
   store.situationsView.rawResult = final;
+  store.situationsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
   store.situationsView.page = 1;
   store.situationsView.expandedSituations = new Set();
   store.situationsView.expandedSujets = new Set();
@@ -1019,14 +1020,16 @@ function getMappedBackendProjectId() {
 
 export async function loadExistingSubjectsForCurrentProject(options = {}) {
   const force = !!options.force;
+  const currentProjectScopeId = String(store.currentProjectId || "").trim() || null;
   const existing = Array.isArray(store.situationsView?.data) ? store.situationsView.data : [];
-  if (!force && existing.length) {
+  if (!force && existing.length && store.situationsView?.projectScopeId === currentProjectScopeId) {
     return existing;
   }
 
   const backendProjectId = getMappedBackendProjectId();
   if (!backendProjectId) {
     store.situationsView.data = [];
+    store.situationsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
     store.situationsView.rawResult = {
       run_id: store.ui.runId || "",
       status: "IDLE",
@@ -1041,6 +1044,7 @@ export async function loadExistingSubjectsForCurrentProject(options = {}) {
 
   store.situationsView.data = nested;
   store.situationsView.rawResult = final;
+  store.situationsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
   store.situationsView.page = 1;
   store.situationsView.expandedSituations = new Set(nested[0]?.id ? [nested[0].id] : []);
   store.situationsView.expandedSujets = new Set();
@@ -1058,6 +1062,7 @@ export function resetAnalysisUi() {
 
   store.situationsView.data = [];
   store.situationsView.rawResult = null;
+  store.situationsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
   store.situationsView.expandedSituations = new Set();
   store.situationsView.expandedSujets = new Set();
   store.situationsView.selectedSituationId = null;
