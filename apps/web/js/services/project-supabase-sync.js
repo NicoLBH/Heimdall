@@ -69,6 +69,85 @@ async function restFetch(table, params = new URLSearchParams()) {
   return res.json();
 }
 
+
+async function restUpdate(table, match = {}, payload = {}, options = {}) {
+  const select = typeof options.select === "string" ? options.select.trim() : "";
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  if (select) {
+    url.searchParams.set("select", select);
+  }
+
+  Object.entries(match || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    url.searchParams.set(key, `eq.${value}`);
+  });
+
+  const res = await fetch(url.toString(), {
+    method: "PATCH",
+    headers: getSupabaseAuthHeaders({
+      "Content-Type": "application/json",
+      Prefer: select ? "return=representation" : "return=minimal"
+    }),
+    body: JSON.stringify(payload || {})
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`${table} update failed (${res.status}): ${txt}`);
+  }
+
+  if (!select) return null;
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? (rows[0] || null) : rows;
+}
+
+async function restInsert(table, payload, options = {}) {
+  const select = typeof options.select === "string" ? options.select.trim() : "";
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  if (select) {
+    url.searchParams.set("select", select);
+  }
+
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: getSupabaseAuthHeaders({
+      "Content-Type": "application/json",
+      Prefer: select ? "return=representation" : "return=minimal"
+    }),
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`${table} insert failed (${res.status}): ${txt}`);
+  }
+
+  if (!select) return null;
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? (rows[0] || null) : rows;
+}
+
+async function rpcCall(functionName, payload = {}) {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/${functionName}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: getSupabaseAuthHeaders({
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    }),
+    body: JSON.stringify(payload || {})
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`rpc ${functionName} failed (${res.status}): ${txt}`);
+  }
+
+  return res.json().catch(() => null);
+}
+
 function ensureSupabaseSyncState() {
   if (!store.projectSupabaseSync || typeof store.projectSupabaseSync !== "object") {
     store.projectSupabaseSync = {
@@ -364,6 +443,136 @@ export async function syncProjectSubjectCountersFromSupabase(options = {}) {
 
   dispatchProjectSupabaseSync({ section: "subjects", subjectCounters: projectBucket.subjectCounters });
   return projectBucket.subjectCounters;
+}
+
+
+function mapIssueActionToSubjectUpdate(action) {
+  const normalizedAction = safeString(action);
+
+  switch (normalizedAction) {
+    case "issue:reopen":
+      return {
+        status: "open",
+        closure_reason: null,
+        closed_at: null,
+        history: {
+          event_type: "subject_reopened",
+          title: "Sujet rouvert",
+          description: "Le sujet a été rouvert depuis l’interface Mdall."
+        }
+      };
+    case "issue:close:realized":
+      return {
+        status: "closed",
+        closure_reason: "realized",
+        closed_at: new Date().toISOString(),
+        history: {
+          event_type: "subject_closed",
+          title: "Sujet fermé comme réalisé",
+          description: "Le sujet a été marqué comme réalisé depuis l’interface Mdall."
+        }
+      };
+    case "issue:close:dismissed":
+      return {
+        status: "closed_invalid",
+        closure_reason: "non_pertinent",
+        closed_at: new Date().toISOString(),
+        history: {
+          event_type: "subject_closed",
+          title: "Sujet fermé comme non pertinent",
+          description: "Le sujet a été marqué comme non pertinent depuis l’interface Mdall."
+        }
+      };
+    case "issue:close:duplicate":
+      return {
+        status: "closed_duplicate",
+        closure_reason: "duplicate",
+        closed_at: new Date().toISOString(),
+        history: {
+          event_type: "subject_marked_duplicate",
+          title: "Sujet fermé comme dupliqué",
+          description: "Le sujet a été marqué comme dupliqué depuis l’interface Mdall."
+        }
+      };
+    default:
+      return null;
+  }
+}
+
+export async function persistSubjectIssueActionToSupabase(subject = {}, action = "") {
+  const actionConfig = mapIssueActionToSubjectUpdate(action);
+  const subjectId = safeString(subject?.id || subject?.raw?.id || "");
+  const projectId = safeString(subject?.raw?.project_id || subject?.project_id || "");
+  const analysisRunId = safeString(subject?.raw?.analysis_run_id || subject?.analysis_run_id || "");
+  const documentId = safeString(subject?.raw?.document_id || subject?.document_id || "");
+  const situationId = safeString(subject?.raw?.situation_id || subject?.situation_id || "");
+
+  if (!actionConfig) {
+    throw new Error(`Unsupported subject issue action: ${action}`);
+  }
+
+  if (!subjectId) {
+    throw new Error("Subject id missing for Supabase status update.");
+  }
+
+  const updatedSubject = await restUpdate(
+    "subjects",
+    { id: subjectId },
+    {
+      status: actionConfig.status,
+      closure_reason: actionConfig.closure_reason,
+      closed_at: actionConfig.closed_at
+    },
+    {
+      select: "id,status,closure_reason,closed_at,updated_at"
+    }
+  );
+
+  if (projectId) {
+    await restInsert("subject_history", {
+      project_id: projectId,
+      subject_id: subjectId,
+      analysis_run_id: analysisRunId || null,
+      document_id: documentId || null,
+      event_type: actionConfig.history.event_type,
+      actor_type: "user",
+      actor_label: "Mdall",
+      title: actionConfig.history.title,
+      description: actionConfig.history.description,
+      event_payload: {
+        source: "mdall_frontend",
+        action: safeString(action),
+        previous_status: safeString(subject?.raw?.status || subject?.status || ""),
+        new_status: actionConfig.status,
+        closure_reason: actionConfig.closure_reason
+      }
+    });
+  }
+
+  if (situationId) {
+    try {
+      await rpcCall("refresh_situation_progress", {
+        p_situation_id: situationId
+      });
+    } catch (error) {
+      console.warn("refresh_situation_progress failed", error);
+    }
+  }
+
+  const frontendProjectId = getFrontendProjectKey();
+  const projectBucket = getProjectSyncBucket(frontendProjectId);
+  projectBucket.subjectsCountLoaded = false;
+  projectBucket.lastSubjectsCountAt = 0;
+  await syncProjectSubjectCountersFromSupabase({ force: true });
+
+  dispatchProjectSupabaseSync({
+    section: "subjects",
+    subjectId,
+    action: safeString(action),
+    status: actionConfig.status
+  });
+
+  return updatedSubject;
 }
 
 export function getCurrentProjectSubjectCounters() {
