@@ -9,8 +9,8 @@ import {
 } from "./project-automation.js";
 
 const START_URL_PROD = "https://nicolbh.app.n8n.cloud/webhook/rapsobot-poc";
-const SUPABASE_URL = "https://smsizuijtrqogupgjnyj.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_0JlI9Nc1tyGmjuBZX9Oznw_Zlnfq6gC";
+const SUPABASE_URL = "https://olgxhfgdzyghlzxmremz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_08nUL61_ATl-6KpD8dOYPw_RM5lMtEz";
 
 const FETCH_TIMEOUT_MS = 60_000;
 
@@ -170,7 +170,31 @@ function normalizeStatusResponse(data) {
   return value || {};
 }
 
+function assertSupabaseFrontConfig() {
+  const missing = [];
+
+  if (!SUPABASE_URL || SUPABASE_URL.includes("__NEW_SUPABASE_URL__")) {
+    missing.push("SUPABASE_URL");
+  }
+
+  if (
+    !SUPABASE_ANON_KEY ||
+    SUPABASE_ANON_KEY.includes("__NEW_SUPABASE_PUBLISHABLE_KEY__")
+  ) {
+    missing.push("SUPABASE_ANON_KEY");
+  }
+
+  if (!missing.length) return;
+
+  throw new Error(
+    `Configuration front Supabase incomplète: ${missing.join(", ")}. ` +
+      "Mets à jour apps/web/js/services/analysis-runner.js avec les valeurs du nouveau projet Supabase."
+  );
+}
+
 async function fetchRunRowFromSupabase(runId) {
+  assertSupabaseFrontConfig();
+
   const url = new URL(`${SUPABASE_URL}/rest/v1/analysis_runs`);
   url.searchParams.set(
     "select",
