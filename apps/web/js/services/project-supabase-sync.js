@@ -229,7 +229,7 @@ function mapRunRowToLogEntry(row = {}) {
 
   return {
     id: safeString(row.id),
-    name: "Analyse parasismique",
+    name: "Analyse de document",
     kind: "analysis",
     agentKey: safeString(row.llm_model ? "parasismique" : "parasismique"),
     lifecycleStatus,
