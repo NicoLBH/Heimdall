@@ -7,7 +7,7 @@ import { syncCurrentProjectFromRoute } from "./demo-context.js";
 
 function parseHash() {
   const hash = location.hash.replace(/^#/, "").trim();
-  if (!hash) return ["dashboard"];
+  if (!hash) return ["projects"];
   return hash.split("/");
 }
 
