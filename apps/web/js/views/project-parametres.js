@@ -46,6 +46,7 @@ import {
 import { renderSvgLineChart, getNiceChartTicks } from "../utils/svg-line-chart.js";
 import { persistCurrentProjectState } from "../services/project-state-storage.js";
 import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../services/google-maps-embed-service.js";
+import { persistCurrentProjectNameToSupabase } from "../services/project-supabase-sync.js";
 
 const DEFAULT_PROJECT_COLLABORATORS = [
   { id: "collab-1", email: "nicolas.lebihan@socotec.com", status: "Actif", role: "Admin" },
@@ -2356,9 +2357,14 @@ function bindParametresEvents() {
     },
     onValidate: async (id, value) => {
       switch (id) {
-        case "projectName":
-          store.projectForm.projectName = value;
+        case "projectName": {
+          const previousProjectName = String(store.projectForm.projectName || store.currentProject?.name || "Projet demo");
+          persistCurrentProjectNameToSupabase(value).catch((error) => {
+            console.warn("persistCurrentProjectNameToSupabase failed", error);
+            persistCurrentProjectNameToSupabase(previousProjectName).catch(() => undefined);
+          });
           break;
+        }
         case "projectAddress": {
           const previousLocationSignature = getLocationEditBaseSignature();
           try {
