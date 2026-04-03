@@ -170,7 +170,7 @@ function renderDocumentsTableHeadHtml() {
       { className: "documents-repo__col documents-repo__col--name", label: "Nom" },
       { className: "documents-repo__col documents-repo__col--message", label: "Description" },
       { className: "documents-repo__col documents-repo__col--date", label: "Dernière mise à jour" },
-      { className: "documents-repo__col documents-repo__col--stats", label: "Compteurs" }
+      { className: "documents-repo__col documents-repo__col--stats", label: "Indicateurs" }
     ]
   });
 }
@@ -218,15 +218,9 @@ function renderDocumentStatsCell(doc) {
   };
 
   return `
-    <div class="documents-repo__stats" aria-label="Compteurs liés au document">
-      ${renderDocumentsCountBadge({ iconHtml: svgIcon("issue-opened"), label: "Situations ouvertes", count: stats.openSituations })}
+    <div class="documents-repo__stats" aria-label="Indicateurs liés au document">
+      ${renderDocumentsCountBadge({ iconHtml: svgIcon("table"), label: "Situations ouvertes", count: stats.openSituations })}
       ${renderDocumentsCountBadge({ iconHtml: svgIcon("issue-opened"), label: "Sujets ouverts", count: stats.openSujets })}
-      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("F"), label: "Avis F", count: stats.avisVerdicts.F })}
-      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("S"), label: "Avis S", count: stats.avisVerdicts.S })}
-      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("D"), label: "Avis D", count: stats.avisVerdicts.D })}
-      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("HM"), label: "Avis HM", count: stats.avisVerdicts.HM })}
-      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("PM"), label: "Avis PM", count: stats.avisVerdicts.PM })}
-      ${renderDocumentsCountBadge({ iconHtml: renderStateDot("SO"), label: "Avis SO", count: stats.avisVerdicts.SO })}
     </div>
   `;
 }
