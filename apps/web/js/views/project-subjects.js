@@ -66,6 +66,7 @@ import {
   toSharedDateInputValue
 } from "./ui/shared-date-picker.js";
 import { getSelectionDocumentRefs } from "../services/project-document-selectors.js";
+import { persistSubjectIssueActionToSupabase } from "../services/project-supabase-sync.js";
 
 let subjectsCurrentRoot = null;
 let subjectsTabResetBound = false;
@@ -4400,29 +4401,61 @@ function applyIssueCloseOrReopen(nextStatus, root) {
   rerenderScope(root);
 }
 
-function applyIssueStatusAction(root, action) {
+async function applyIssueStatusAction(root, action) {
   const normalized = String(action || "");
   if (!normalized) return;
 
+  const target = currentDecisionTarget(root);
+  const isSubjectTarget = target?.type === "sujet";
+
+  if (isSubjectTarget) {
+    const subject = getNestedSujet(target.id);
+    if (!subject) return;
+
+    try {
+      await persistSubjectIssueActionToSupabase(subject, normalized);
+    } catch (error) {
+      console.warn("persistSubjectIssueActionToSupabase failed", error);
+      showError(`Mise à jour Supabase impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+      return;
+    }
+  }
+
   if (normalized === "issue:reopen") {
+    if (isSubjectTarget) {
+      await reloadSubjectsFromSupabase(root, { rerender: true, updateModal: true });
+      return;
+    }
     applyIssueCloseOrReopen("open", root);
     return;
   }
 
   if (normalized === "issue:close:realized") {
+    if (isSubjectTarget) {
+      await reloadSubjectsFromSupabase(root, { rerender: true, updateModal: true });
+      return;
+    }
     applyIssueCloseOrReopen("closed", root);
     return;
   }
 
   if (normalized === "issue:close:dismissed") {
-    applyIssueCloseOrReopen("closed", root);
     applyReviewStateChange(root, "dismissed");
+    if (isSubjectTarget) {
+      await reloadSubjectsFromSupabase(root, { rerender: true, updateModal: true });
+      return;
+    }
+    applyIssueCloseOrReopen("closed", root);
     return;
   }
 
   if (normalized === "issue:close:duplicate") {
-    applyIssueCloseOrReopen("closed", root);
     applyReviewStateChange(root, "rejected");
+    if (isSubjectTarget) {
+      await reloadSubjectsFromSupabase(root, { rerender: true, updateModal: true });
+      return;
+    }
+    applyIssueCloseOrReopen("closed", root);
   }
 }
 
@@ -4991,9 +5024,14 @@ function wireDetailsInteractive(root) {
       if (actionRoot.dataset.issueStatusBound === "true") return;
       actionRoot.dataset.issueStatusBound = "true";
 
-      actionRoot.addEventListener("ghaction:action", (event) => {
+      actionRoot.addEventListener("ghaction:action", async (event) => {
         const action = String(event.detail?.action || "");
-        applyIssueStatusAction(root, action);
+        try {
+          await applyIssueStatusAction(root, action);
+        } catch (error) {
+          console.warn("applyIssueStatusAction failed", error);
+          showError(`Action impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+        }
       });
     });
   }
