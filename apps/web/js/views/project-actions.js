@@ -1,6 +1,7 @@
 import { escapeHtml } from "../utils/escape-html.js";
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "./project-shell-chrome.js";
 import { getRunLogEntries, getRunMetrics } from "../services/project-automation.js";
+import { syncProjectActionsFromSupabase } from "../services/project-supabase-sync.js";
 import { svgIcon } from "../ui/icons.js";
 import {
   renderDataTableEmptyState,
@@ -356,14 +357,7 @@ function renderRunsTable() {
   });
 }
 
-export function renderProjectActions(root) {
-  root.className = "project-shell__content";
-
-  setProjectViewHeader({
-    contextLabel: "Actions",
-    variant: "actions"
-  });
-
+function renderProjectActionsContent(root) {
   root.innerHTML = `
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="projectActionsScroll">
@@ -375,4 +369,24 @@ export function renderProjectActions(root) {
   `;
 
   registerProjectPrimaryScrollSource(document.getElementById("projectActionsScroll"));
+}
+
+export function renderProjectActions(root) {
+  root.className = "project-shell__content";
+
+  setProjectViewHeader({
+    contextLabel: "Actions",
+    variant: "actions"
+  });
+
+  renderProjectActionsContent(root);
+
+  syncProjectActionsFromSupabase({ force: true })
+    .then(() => {
+      if (!root?.isConnected) return;
+      renderProjectActionsContent(root);
+    })
+    .catch((error) => {
+      console.warn("syncProjectActionsFromSupabase failed", error);
+    });
 }
