@@ -22,6 +22,7 @@ import {
 } from "../services/analysis-runner.js";
 import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
 import { getDocumentStatsMap } from "../services/project-document-selectors.js";
+import { syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveAvisVerdict, getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 
 const docsViewState = {
@@ -974,16 +975,7 @@ function bindDocumentsView(root) {
   }
 }
 
-export function renderProjectDocuments(root) {
-  syncDocumentsSelectedPhase();
-  
-  root.className = "project-shell__content";
-
-  setProjectViewHeader({
-    contextLabel: "Documents",
-    variant: "documents"
-  });
-
+function renderProjectDocumentsContent(root) {
   root.innerHTML = docsViewState.mode === "upload"
     ? renderUploadView()
     : docsViewState.mode === "report-preview"
@@ -993,4 +985,26 @@ export function renderProjectDocuments(root) {
         : renderDocumentsListView();
 
   bindDocumentsView(root);
+}
+
+export function renderProjectDocuments(root) {
+  syncDocumentsSelectedPhase();
+
+  root.className = "project-shell__content";
+
+  setProjectViewHeader({
+    contextLabel: "Documents",
+    variant: "documents"
+  });
+
+  renderProjectDocumentsContent(root);
+
+  syncProjectDocumentsFromSupabase({ force: true })
+    .then(() => {
+      if (!root?.isConnected) return;
+      renderProjectDocumentsContent(root);
+    })
+    .catch((error) => {
+      console.warn("syncProjectDocumentsFromSupabase failed", error);
+    });
 }
