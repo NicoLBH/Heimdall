@@ -362,16 +362,23 @@ async function fetchSubjectsByProject(projectId) {
 }
 
 function createSubjectViewNode(subject, documentIds = []) {
+  const description = firstNonEmpty(subject?.description, "");
   return withDocumentRefs({
     id: String(subject?.id || ""),
     title: firstNonEmpty(subject?.title, subject?.id, "Sujet sans titre"),
-    description: firstNonEmpty(subject?.description, ""),
+    description,
+    message: description,
+    verdict: firstNonEmpty(subject?.verdict, "-"),
     priority: firstNonEmpty(subject?.priority, "medium"),
     status: firstNonEmpty(subject?.status, "open"),
     agent: firstNonEmpty(subject?.subject_type, "system"),
     parentSubjectId: firstNonEmpty(subject?.parent_subject_id, ""),
     avis: [],
-    raw: subject,
+    raw: {
+      ...subject,
+      message: firstNonEmpty(subject?.message, description),
+      description
+    },
     ...defaultReviewMeta(subject)
   }, documentIds);
 }
