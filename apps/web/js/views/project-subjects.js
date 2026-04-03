@@ -6435,7 +6435,10 @@ export function renderProjectSubjects(root) {
   store.situationsView.showTableOnly = true;
   store.situationsView.displayDepth = "sujets";
 
-  const shouldLoadExistingSubjects = !(Array.isArray(store.situationsView?.data) && store.situationsView.data.length);
+  const currentProjectScopeId = String(store.currentProjectId || "").trim() || null;
+  const shouldLoadExistingSubjects =
+    !(Array.isArray(store.situationsView?.data) && store.situationsView.data.length)
+    || store.situationsView?.projectScopeId !== currentProjectScopeId;
   if (shouldLoadExistingSubjects) {
     loadExistingSubjectsForCurrentProject()
       .then(() => {
