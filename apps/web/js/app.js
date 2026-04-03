@@ -5,7 +5,7 @@ import { renderGlobalShell } from "./views/global-shell.js";
 import { runAnalysis, resetAnalysisUi } from "./services/analysis-runner.js";
 import { ensureProjectAutomationDefaults } from "./services/project-automation.js";
 import { bindGhActionButtons } from "./views/ui/gh-split-button.js";
-import { initializeDemoContext, getPersistedDemoProjectId } from "./demo-context.js";
+import { initializeDemoContext } from "./demo-context.js";
 
 let analysisEventsBound = false;
 
@@ -40,7 +40,7 @@ function bootstrap() {
   initRouter();
 
   if (!location.hash) {
-    location.hash = `#project/${getPersistedDemoProjectId()}/situations`;
+    location.hash = "#projects";
   }
 }
 
