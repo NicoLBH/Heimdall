@@ -1,12 +1,12 @@
 import { store } from "../store.js";
-import { getPreferredAnalysisDocumentIds, normalizeDocumentRefIds, setLastAnalysisDocumentIds } from "./project-documents-store.js";
+import { getPreferredAnalysisDocumentIds, normalizeDocumentRefIds, setLastAnalysisDocumentIds } from "../services/project-documents-store.js";
 import { rerenderRoute } from "../router.js";
 import { syncProjectSituationsRunbar } from "../views/project-situations-runbar.js";
 import {
   finishRunLogEntry,
   getPrimaryAnalysisAgent,
   startRunLogEntry
-} from "./project-automation.js";
+} from "../services/project-automation.js";
 
 const SUPABASE_URL = "https://olgxhfgdzyghlzxmremz.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_08nUL61_ATl-6KpD8dOYPw_RM5lMtEz";
