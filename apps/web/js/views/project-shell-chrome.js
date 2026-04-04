@@ -10,6 +10,7 @@ const shellState = {
   viewHeaderHostEl: null,
   compactTabHostEl: null,
   compactTabLabelEl: null,
+  compactTabCustomLabel: "",
   primaryScrollSourceEl: null,
   cleanupScrollSource: null,
   cleanupWindow: null
@@ -44,7 +45,7 @@ function getViewHeaderEl() {
 }
 
 function syncCompactTabLabel() {
-  const label = getTabLabel(shellState.tab);
+  const label = String(shellState.compactTabCustomLabel || getTabLabel(shellState.tab) || "").trim();
   if (shellState.compactTabLabelEl) {
     shellState.compactTabLabelEl.textContent = label;
   }
@@ -149,6 +150,8 @@ export function mountProjectShellChrome({ projectId, tab }) {
 export function setProjectViewHeader(config = {}) {
   if (!shellState.viewHeaderHostEl) return;
 
+  shellState.compactTabCustomLabel = String(config.compactLabel || config.contextLabel || "").trim();
+
   shellState.viewHeaderHostEl.innerHTML = renderProjectViewHeader({
     contextLabel: config.contextLabel || getTabLabel(shellState.tab),
     title: config.title || "",
@@ -215,4 +218,5 @@ export function unmountProjectShellChrome() {
   shellState.viewHeaderHostEl = null;
   shellState.compactTabHostEl = null;
   shellState.compactTabLabelEl = null;
+  shellState.compactTabCustomLabel = "";
 }
