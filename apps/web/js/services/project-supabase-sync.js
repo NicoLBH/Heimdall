@@ -424,13 +424,6 @@ function formatDocumentUpdatedAt(value) {
   }).format(date);
 }
 
-function buildStoragePublicUrl(bucket, path) {
-  const safeBucket = safeString(bucket);
-  const safePath = safeString(path);
-  if (!safeBucket || !safePath) return "";
-  return `${SUPABASE_URL}/storage/v1/object/public/${encodeURIComponent(safeBucket)}/${safePath.split("/").map(encodeURIComponent).join("/")}`;
-}
-
 function mapDocumentRowToViewModel(row = {}) {
   const displayName = safeString(row.original_filename || row.filename || "Document");
   const mimeType = safeString(row.mime_type || "");
@@ -447,9 +440,7 @@ function mapDocumentRowToViewModel(row = {}) {
     fileName: displayName,
     kind: "file",
     mimeType,
-    previewUrl: mimeType === "application/pdf"
-      ? buildStoragePublicUrl(row.storage_bucket, row.storage_path)
-      : "",
+    previewUrl: "",
     localPreviewUrl: "",
     localFile: null,
     extension: displayName.includes(".") ? displayName.split(".").pop().toLowerCase() : "",
