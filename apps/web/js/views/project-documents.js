@@ -488,7 +488,11 @@ function updatePdfPreviewZoom(root, direction = 0) {
   if (Math.abs(nextZoom - currentZoom) < 0.001) return;
   docsViewState.pdfPreview.zoomLevel = nextZoom;
   if (root?.isConnected) {
-    renderPdfPreviewPages(root);
+    queueMicrotask(() => {
+      if (root?.isConnected && docsViewState.mode === "pdf-preview") {
+        renderPdfPreviewPages(root);
+      }
+    });
   }
 }
 
@@ -500,7 +504,11 @@ function updatePdfPreviewRotation(root, direction = 0) {
   if (nextRotation === currentRotation) return;
   docsViewState.pdfPreview.rotation = nextRotation;
   if (root?.isConnected) {
-    renderPdfPreviewPages(root);
+    queueMicrotask(() => {
+      if (root?.isConnected && docsViewState.mode === "pdf-preview") {
+        renderPdfPreviewPages(root);
+      }
+    });
   }
 }
 
@@ -858,6 +866,7 @@ function renderPdfPreviewView() {
                       type="button"
                       class="gh-btn documents-report-table__icon-btn"
                       id="documentsPdfRotateCounterClockwiseBtn"
+                      data-pdf-preview-action="rotate-ccw"
                       aria-label="Rotation -90°"
                       title="Rotation -90°"
                     >
@@ -867,6 +876,7 @@ function renderPdfPreviewView() {
                       type="button"
                       class="gh-btn documents-report-table__icon-btn"
                       id="documentsPdfRotateClockwiseBtn"
+                      data-pdf-preview-action="rotate-cw"
                       aria-label="Rotation +90°"
                       title="Rotation +90°"
                     >
@@ -876,6 +886,7 @@ function renderPdfPreviewView() {
                       type="button"
                       class="gh-btn documents-report-table__icon-btn"
                       id="documentsPdfZoomOutBtn"
+                      data-pdf-preview-action="zoom-out"
                       aria-label="Zoom arrière"
                       title="Zoom arrière"
                     >
@@ -885,6 +896,7 @@ function renderPdfPreviewView() {
                       type="button"
                       class="gh-btn documents-report-table__icon-btn"
                       id="documentsPdfZoomInBtn"
+                      data-pdf-preview-action="zoom-in"
                       aria-label="Zoom avant"
                       title="Zoom avant"
                     >
@@ -1363,33 +1375,29 @@ function bindDocumentsView(root) {
     });
   }
 
-  const pdfRotateCounterClockwiseBtn = document.getElementById("documentsPdfRotateCounterClockwiseBtn");
-  if (pdfRotateCounterClockwiseBtn) {
-    pdfRotateCounterClockwiseBtn.addEventListener("click", () => {
-      updatePdfPreviewRotation(root, -90);
+  const pdfPreviewActionButtons = root?.querySelectorAll?.("[data-pdf-preview-action]") || [];
+  pdfPreviewActionButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const action = String(button.getAttribute("data-pdf-preview-action") || "").trim();
+      if (action === "rotate-ccw") {
+        updatePdfPreviewRotation(root, -90);
+        return;
+      }
+      if (action === "rotate-cw") {
+        updatePdfPreviewRotation(root, 90);
+        return;
+      }
+      if (action === "zoom-out") {
+        updatePdfPreviewZoom(root, -0.25);
+        return;
+      }
+      if (action === "zoom-in") {
+        updatePdfPreviewZoom(root, 0.25);
+      }
     });
-  }
-
-  const pdfRotateClockwiseBtn = document.getElementById("documentsPdfRotateClockwiseBtn");
-  if (pdfRotateClockwiseBtn) {
-    pdfRotateClockwiseBtn.addEventListener("click", () => {
-      updatePdfPreviewRotation(root, 90);
-    });
-  }
-
-  const pdfZoomOutBtn = document.getElementById("documentsPdfZoomOutBtn");
-  if (pdfZoomOutBtn) {
-    pdfZoomOutBtn.addEventListener("click", () => {
-      updatePdfPreviewZoom(root, -0.1);
-    });
-  }
-
-  const pdfZoomInBtn = document.getElementById("documentsPdfZoomInBtn");
-  if (pdfZoomInBtn) {
-    pdfZoomInBtn.addEventListener("click", () => {
-      updatePdfPreviewZoom(root, 0.1);
-    });
-  }
+  });
 
   if (docsViewState.mode === "pdf-preview" && docsViewState.pdfPreview?.bytes instanceof Uint8Array) {
     queueMicrotask(() => {
