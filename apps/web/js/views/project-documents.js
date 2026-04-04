@@ -56,7 +56,8 @@ const docsViewState = {
     isLoading: false,
     errorMessage: "",
     bytes: null,
-    pageCount: 0
+    pageCount: 0,
+    zoomLevel: 1
   }
 };
 
@@ -110,6 +111,20 @@ function getDownloadIconSvg() {
   return svgIcon("download");
 }
 
+function getPdfZoomInIconSvg() {
+  return svgIcon("plus");
+}
+
+function getPdfZoomOutIconSvg() {
+  return svgIcon("minus");
+}
+
+function getProjectViewCompactLabel() {
+  const documentItem = docsViewState.mode === "pdf-preview" ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null;
+  const documentName = String(documentItem?.name || "").trim();
+  return documentName ? `Documents / ${documentName}` : "Documents";
+}
+
 function getDocumentsTableGridTemplate() {
   return "minmax(280px, 1.2fr) minmax(220px, 1fr) 180px minmax(260px, 1.1fr)";
 }
@@ -160,7 +175,8 @@ function resetPdfPreviewState() {
     isLoading: false,
     errorMessage: "",
     bytes: null,
-    pageCount: 0
+    pageCount: 0,
+    zoomLevel: 1
   };
 }
 
@@ -335,7 +351,9 @@ async function renderPdfPreviewPages(root) {
 
       const page = await pdfDocument.getPage(pageNumber);
       const baseViewport = page.getViewport({ scale: 1 });
-      const scale = availableWidth / Math.max(baseViewport.width, 1);
+      const fitScale = availableWidth / Math.max(baseViewport.width, 1);
+      const zoomLevel = Number(docsViewState.pdfPreview?.zoomLevel || 1);
+      const scale = fitScale * Math.min(3, Math.max(0.5, zoomLevel));
       const viewport = page.getViewport({ scale });
 
       const pageNode = document.createElement("div");
@@ -404,7 +422,8 @@ async function ensurePdfPreviewObjectUrl(documentItem = null) {
       isLoading: false,
       errorMessage: "",
       bytes: null,
-      pageCount: 0
+      pageCount: 0,
+      zoomLevel: 1
     };
     return localPreviewUrl;
   }
@@ -416,7 +435,8 @@ async function ensurePdfPreviewObjectUrl(documentItem = null) {
     isLoading: true,
     errorMessage: "",
     bytes: null,
-    pageCount: 0
+    pageCount: 0,
+    zoomLevel: 1
   };
 
   const signedUrl = await createSupabaseSignedStorageUrl(documentItem);
@@ -430,10 +450,23 @@ async function ensurePdfPreviewObjectUrl(documentItem = null) {
     isLoading: false,
     errorMessage: objectUrl ? "" : "Impossible de charger ce PDF pour cette session.",
     bytes: previewPayload?.bytes instanceof Uint8Array ? previewPayload.bytes : null,
-    pageCount: 0
+    pageCount: 0,
+    zoomLevel: 1
   };
 
   return objectUrl || signedUrl;
+}
+
+
+function updatePdfPreviewZoom(root, direction = 0) {
+  if (docsViewState.mode !== "pdf-preview") return;
+  const currentZoom = Number(docsViewState.pdfPreview?.zoomLevel || 1);
+  const nextZoom = Math.min(3, Math.max(0.5, currentZoom + direction));
+  if (Math.abs(nextZoom - currentZoom) < 0.001) return;
+  docsViewState.pdfPreview.zoomLevel = nextZoom;
+  if (root?.isConnected) {
+    renderPdfPreviewPages(root);
+  }
 }
 
 function setDocumentsActivity({ tone = "info", title = "", message = "" } = {}) {
@@ -785,29 +818,51 @@ function renderPdfPreviewView() {
             <section class="documents-report-table documents-report-table--pdf">
               <header class="documents-report-table__header documents-report-table__header--pdf-preview">
                 <div class="documents-report-table__actions documents-report-table__actions--pdf-preview">
-                  ${openInBrowserUrl
-                    ? `
-                      <a
-                        class="gh-btn documents-report-table__icon-btn"
-                        href="${escapeHtml(openInBrowserUrl)}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Télécharger le PDF"
-                        title="Télécharger le PDF"
-                      >
-                        ${getDownloadIconSvg()}
-                      </a>
-                    `
-                    : ""}
-                  <button
-                    type="button"
-                    class="gh-btn documents-report-table__icon-btn"
-                    id="documentsPdfBackBtn"
-                    aria-label="Fermer la prévisualisation"
-                    title="Fermer la prévisualisation"
-                  >
-                    ${getRemoveIconSvg()}
-                  </button>
+                  <div class="documents-report-table__actions-group documents-report-table__actions-group--start">
+                    <button
+                      type="button"
+                      class="gh-btn documents-report-table__icon-btn"
+                      id="documentsPdfZoomOutBtn"
+                      aria-label="Zoom arrière"
+                      title="Zoom arrière"
+                    >
+                      ${getPdfZoomOutIconSvg()}
+                    </button>
+                    <button
+                      type="button"
+                      class="gh-btn documents-report-table__icon-btn"
+                      id="documentsPdfZoomInBtn"
+                      aria-label="Zoom avant"
+                      title="Zoom avant"
+                    >
+                      ${getPdfZoomInIconSvg()}
+                    </button>
+                  </div>
+                  <div class="documents-report-table__actions-group documents-report-table__actions-group--end">
+                    ${openInBrowserUrl
+                      ? `
+                        <a
+                          class="gh-btn documents-report-table__icon-btn"
+                          href="${escapeHtml(openInBrowserUrl)}"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Télécharger le PDF"
+                          title="Télécharger le PDF"
+                        >
+                          ${getDownloadIconSvg()}
+                        </a>
+                      `
+                      : ""}
+                    <button
+                      type="button"
+                      class="gh-btn documents-report-table__icon-btn"
+                      id="documentsPdfBackBtn"
+                      aria-label="Fermer la prévisualisation"
+                      title="Fermer la prévisualisation"
+                    >
+                      ${getRemoveIconSvg()}
+                    </button>
+                  </div>
                 </div>
               </header>
 
@@ -1066,7 +1121,8 @@ async function openPdfPreview(root, documentId) {
     isLoading: true,
     errorMessage: "",
     bytes: null,
-    pageCount: 0
+    pageCount: 0,
+    zoomLevel: 1
   };
   renderProjectDocumentsContent(root);
 
@@ -1080,7 +1136,8 @@ async function openPdfPreview(root, documentId) {
       isLoading: false,
       errorMessage: error instanceof Error ? error.message : "Impossible de charger ce PDF depuis Supabase.",
       bytes: null,
-      pageCount: 0
+      pageCount: 0,
+      zoomLevel: 1
     };
   }
 
@@ -1251,6 +1308,20 @@ function bindDocumentsView(root) {
     });
   }
 
+  const pdfZoomOutBtn = document.getElementById("documentsPdfZoomOutBtn");
+  if (pdfZoomOutBtn) {
+    pdfZoomOutBtn.addEventListener("click", () => {
+      updatePdfPreviewZoom(root, -0.1);
+    });
+  }
+
+  const pdfZoomInBtn = document.getElementById("documentsPdfZoomInBtn");
+  if (pdfZoomInBtn) {
+    pdfZoomInBtn.addEventListener("click", () => {
+      updatePdfPreviewZoom(root, 0.1);
+    });
+  }
+
   if (docsViewState.mode === "pdf-preview" && docsViewState.pdfPreview?.bytes instanceof Uint8Array) {
     queueMicrotask(() => {
       if (root?.isConnected && docsViewState.mode === "pdf-preview") {
@@ -1366,6 +1437,7 @@ export function renderProjectDocuments(root) {
 
   setProjectViewHeader({
     contextLabel: "Documents",
+    compactLabel: getProjectViewCompactLabel(),
     variant: "documents"
   });
 
