@@ -1,5 +1,5 @@
 import { store } from "./store.js";
-import { syncCurrentProjectIdentityFromSupabase, syncKnownProjectNamesFromSupabase } from "./services/project-supabase-sync.js";
+import { syncCurrentProjectIdentityFromSupabase, syncProjectsCatalogFromSupabase } from "./services/project-supabase-sync.js";
 
 const STORAGE_KEYS = {
   userId: "rapsobot.demoUserId",
@@ -87,11 +87,27 @@ export function getDemoUserById(userId) {
 }
 
 export function getDemoProjectById(projectId) {
-  const sourceProjects = Array.isArray(store.projects) && store.projects.length
-    ? store.projects
-    : DEMO_PROJECTS;
+  const sourceProjects = Array.isArray(store.projects) ? store.projects : [];
+  const normalizedProjectId = String(projectId || "").trim();
 
-  return sourceProjects.find((project) => project.id === projectId) || sourceProjects[0] || DEMO_PROJECTS[0];
+  const matchedProject = sourceProjects.find((project) => project.id === normalizedProjectId);
+  if (matchedProject) return matchedProject;
+
+  if (sourceProjects.length) {
+    return sourceProjects[0];
+  }
+
+  if (normalizedProjectId) {
+    return {
+      id: normalizedProjectId,
+      name: "Projet",
+      clientName: "—",
+      city: "",
+      currentPhase: store.projectForm?.currentPhase || store.projectForm?.phase || "APS"
+    };
+  }
+
+  return null;
 }
 
 export function persistDemoUserId(userId) {
@@ -107,7 +123,7 @@ export function getPersistedDemoUserId() {
 }
 
 export function getPersistedDemoProjectId() {
-  return localStorage.getItem(STORAGE_KEYS.projectId) || DEMO_PROJECTS[0].id;
+  return localStorage.getItem(STORAGE_KEYS.projectId) || "";
 }
 
 export function setCurrentDemoUser(userId) {
@@ -129,9 +145,12 @@ export function setCurrentDemoUser(userId) {
 export function setCurrentDemoProject(projectId) {
   const project = getDemoProjectById(projectId);
 
-  if (!Array.isArray(store.projects) || !store.projects.length) {
-    store.projects = DEMO_PROJECTS.map((item) => ({ ...item }));
+  if (!project) {
+    store.currentProjectId = null;
+    store.currentProject = null;
+    return null;
   }
+
   store.currentProjectId = project.id;
   store.currentProject = { ...project };
   store.projectForm.projectName = project.name;
@@ -144,11 +163,27 @@ export function setCurrentDemoProject(projectId) {
 }
 
 export function initializeDemoContext() {
-  store.projects = DEMO_PROJECTS.map((item) => ({ ...item }));
+  store.projects = [];
   setCurrentDemoUser(getPersistedDemoUserId());
-  setCurrentDemoProject(getPersistedDemoProjectId());
-  syncKnownProjectNamesFromSupabase().catch(() => undefined);
-  syncCurrentProjectIdentityFromSupabase().catch(() => undefined);
+  const persistedProjectId = getPersistedDemoProjectId();
+  if (persistedProjectId) {
+    setCurrentDemoProject(persistedProjectId);
+  } else {
+    store.currentProjectId = null;
+    store.currentProject = null;
+  }
+  syncProjectsCatalogFromSupabase()
+    .then((projects) => {
+      const catalog = Array.isArray(projects) ? projects : [];
+      if (!catalog.length) return;
+
+      const persistedProjectId = getPersistedDemoProjectId();
+      const activeProjectId = String(store.currentProjectId || persistedProjectId || "").trim();
+      const hasActiveProject = catalog.some((project) => project.id === activeProjectId);
+      setCurrentDemoProject(hasActiveProject ? activeProjectId : catalog[0].id);
+      syncCurrentProjectIdentityFromSupabase().catch(() => undefined);
+    })
+    .catch(() => undefined);
 }
 
 export function syncCurrentProjectFromRoute(projectId) {
