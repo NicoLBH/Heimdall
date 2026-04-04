@@ -179,7 +179,19 @@ async function createSupabaseSignedStorageUrl(documentItem = null, expiresInSeco
     throw new Error("Supabase n'a pas retourné d'URL signée pour ce document.");
   }
 
-  return /^https?:\/\//i.test(signedPath) ? signedPath : `${SUPABASE_URL}${signedPath}`;
+  if (/^https?:\/\//i.test(signedPath)) {
+    return signedPath;
+  }
+
+  if (signedPath.startsWith('/storage/v1/')) {
+    return `${SUPABASE_URL}${signedPath}`;
+  }
+
+  if (signedPath.startsWith('/object/')) {
+    return `${SUPABASE_URL}/storage/v1${signedPath}`;
+  }
+
+  return `${SUPABASE_URL}/storage/v1/${signedPath.replace(/^\/+/, '')}`;
 }
 
 async function ensurePdfPreviewObjectUrl(documentItem = null) {
@@ -217,43 +229,15 @@ async function ensurePdfPreviewObjectUrl(documentItem = null) {
 
   const signedUrl = await createSupabaseSignedStorageUrl(documentItem);
 
-  let objectUrl = "";
-  let errorMessage = "";
-
-  try {
-    const response = await fetch(signedUrl, {
-      method: "GET",
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      const responseText = await response.text().catch(() => "");
-      throw new Error(responseText || `storage fetch failed (${response.status})`);
-    }
-
-    const pdfBlob = await response.blob();
-    revokePdfPreviewObjectUrl();
-
-    objectUrl = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
-      ? URL.createObjectURL(pdfBlob)
-      : "";
-
-    if (!objectUrl) {
-      errorMessage = "Le navigateur n'a pas permis de créer une URL locale pour ce PDF.";
-    }
-  } catch (error) {
-    errorMessage = error instanceof Error ? error.message : "Impossible de télécharger le PDF depuis Supabase.";
-  }
-
   docsViewState.pdfPreview = {
-    objectUrl,
+    objectUrl: "",
     signedUrl,
     sourceDocumentId: String(documentItem.id || "").trim(),
     isLoading: false,
-    errorMessage
+    errorMessage: signedUrl ? "" : "Impossible de générer une URL signée pour ce PDF."
   };
 
-  return objectUrl || signedUrl;
+  return signedUrl;
 }
 
 function setDocumentsActivity({ tone = "info", title = "", message = "" } = {}) {
