@@ -20,10 +20,13 @@ import {
   isAnalysisRunning,
   runAnalysis
 } from "../services/analysis-runner.js";
-import { addProjectDocument, decorateDocumentWithPhase, ensureProjectDocumentPreviewUrl, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
+import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
 import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveAvisVerdict, getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
+
+const SUPABASE_URL = "https://olgxhfgdzyghlzxmremz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_08nUL61_ATl-6KpD8dOYPw_RM5lMtEz";
 
 const docsViewState = {
   mode: "list", // "list" | "upload" | "report-preview" | "pdf-preview"
@@ -40,8 +43,12 @@ const docsViewState = {
     title: "",
     message: ""
   },
-  pdfPreviewLoading: false,
-  pdfPreviewError: ""
+  pdfPreview: {
+    objectUrl: "",
+    sourceDocumentId: "",
+    isLoading: false,
+    errorMessage: ""
+  }
 };
 
 function syncDocumentsSelectedPhase() {
@@ -107,12 +114,121 @@ function isPdfDocument(documentItem = null) {
 }
 
 function canPreviewPdf(documentItem = null) {
-  return isPdfDocument(documentItem);
+  return isPdfDocument(documentItem) && (
+    !!String(getProjectDocumentPreviewUrl(documentItem) || "").trim() ||
+    (!!String(documentItem?.storageBucket || "").trim() && !!String(documentItem?.storagePath || "").trim())
+  );
 }
 
 function getSelectedPdfDocument() {
   const activeDocumentId = String(store.projectDocuments?.activeDocumentId || "").trim();
   return activeDocumentId ? getProjectDocumentById(activeDocumentId) : null;
+}
+
+function revokePdfPreviewObjectUrl() {
+  const currentObjectUrl = String(docsViewState.pdfPreview?.objectUrl || "").trim();
+  if (!currentObjectUrl || typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function") return;
+
+  try {
+    URL.revokeObjectURL(currentObjectUrl);
+  } catch {
+    // ignore cleanup errors
+  }
+
+  docsViewState.pdfPreview.objectUrl = "";
+}
+
+function resetPdfPreviewState() {
+  revokePdfPreviewObjectUrl();
+  docsViewState.pdfPreview = {
+    objectUrl: "",
+    sourceDocumentId: "",
+    isLoading: false,
+    errorMessage: ""
+  };
+}
+
+function getSupabaseStorageObjectUrl(documentItem = null) {
+  const storageBucket = String(documentItem?.storageBucket || "").trim();
+  const storagePath = String(documentItem?.storagePath || "").trim();
+  if (!storageBucket || !storagePath) return "";
+
+  const encodedBucket = encodeURIComponent(storageBucket);
+  const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
+  return `${SUPABASE_URL}/storage/v1/object/authenticated/${encodedBucket}/${encodedPath}`;
+}
+
+async function ensurePdfPreviewObjectUrl(documentItem = null) {
+  if (!documentItem || !isPdfDocument(documentItem)) {
+    resetPdfPreviewState();
+    return "";
+  }
+
+  if (
+    docsViewState.pdfPreview.objectUrl &&
+    docsViewState.pdfPreview.sourceDocumentId === String(documentItem.id || "").trim()
+  ) {
+    return docsViewState.pdfPreview.objectUrl;
+  }
+
+  const localPreviewUrl = getProjectDocumentPreviewUrl(documentItem);
+  if (!String(documentItem.storageBucket || "").trim() || !String(documentItem.storagePath || "").trim()) {
+    docsViewState.pdfPreview = {
+      objectUrl: localPreviewUrl,
+      sourceDocumentId: String(documentItem.id || "").trim(),
+      isLoading: false,
+      errorMessage: ""
+    };
+    return localPreviewUrl;
+  }
+
+  const storageObjectUrl = getSupabaseStorageObjectUrl(documentItem);
+  if (!storageObjectUrl) {
+    docsViewState.pdfPreview = {
+      objectUrl: "",
+      sourceDocumentId: String(documentItem.id || "").trim(),
+      isLoading: false,
+      errorMessage: "Aucun chemin de stockage Supabase n'est disponible pour ce document."
+    };
+    return "";
+  }
+
+  docsViewState.pdfPreview = {
+    objectUrl: "",
+    sourceDocumentId: String(documentItem.id || "").trim(),
+    isLoading: true,
+    errorMessage: ""
+  };
+
+  const response = await fetch(storageObjectUrl, {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+    },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const responseText = await response.text().catch(() => "");
+    throw new Error(responseText || `storage fetch failed (${response.status})`);
+  }
+
+  const pdfBlob = await response.blob();
+  revokePdfPreviewObjectUrl();
+
+  const objectUrl = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+    ? URL.createObjectURL(pdfBlob)
+    : "";
+
+  docsViewState.pdfPreview = {
+    objectUrl,
+    sourceDocumentId: String(documentItem.id || "").trim(),
+    isLoading: false,
+    errorMessage: objectUrl ? "" : "Le navigateur n'a pas permis de créer une URL locale pour ce PDF."
+  };
+
+  return objectUrl;
 }
 
 function setDocumentsActivity({ tone = "info", title = "", message = "" } = {}) {
@@ -435,28 +551,6 @@ function renderReportPreviewView() {
   `;
 }
 
-function renderPdfLoadingState(documentItem = null) {
-  return `
-    <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
-      <p>Chargement du PDF en cours…</p>
-      ${documentItem?.name ? `<p>${escapeHtml(documentItem.name)}</p>` : ""}
-    </div>
-  `;
-}
-
-function renderPdfErrorState(documentItem = null) {
-  const previewUrl = getProjectDocumentPreviewUrl(documentItem);
-  return `
-    <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
-      <p>Impossible d’afficher ce PDF dans le visualisateur intégré.</p>
-      ${docsViewState.pdfPreviewError ? `<p>${escapeHtml(docsViewState.pdfPreviewError)}</p>` : ""}
-      ${previewUrl
-        ? `<a class="gh-btn gh-btn--primary" href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a>`
-        : ""}
-    </div>
-  `;
-}
-
 function renderPdfPreviewView() {
   const projectName = String(store.projectForm?.projectName || "Projet");
   const documentItem = decorateDocumentWithPhase(getSelectedPdfDocument());
@@ -470,8 +564,10 @@ function renderPdfPreviewView() {
     documentItem.phaseCode ? `${documentItem.phaseCode}${documentItem.phaseLabel ? ` - ${documentItem.phaseLabel}` : ""}` : "",
     documentItem.updatedAt || ""
   ].filter(Boolean).join(" · ");
-  const previewUrl = getProjectDocumentPreviewUrl(documentItem);
-  const isLocalPreview = !String(documentItem.previewUrl || "").trim() && !!String(previewUrl || "").trim();
+  const previewUrl = String(docsViewState.pdfPreview?.objectUrl || "").trim() || getProjectDocumentPreviewUrl(documentItem);
+  const isLocalPreview = !String(documentItem.storageBucket || "").trim() && !!String(previewUrl || "").trim();
+  const isLoadingPreview = Boolean(docsViewState.pdfPreview?.isLoading);
+  const previewErrorMessage = String(docsViewState.pdfPreview?.errorMessage || "").trim();
 
   return `
     <section class="project-simple-page project-simple-page--documents">
@@ -502,8 +598,12 @@ function renderPdfPreviewView() {
                 </div>
 
                 <section class="documents-pdf-viewer">
-                  ${docsViewState.pdfPreviewLoading
-                    ? renderPdfLoadingState(documentItem)
+                  ${isLoadingPreview
+                    ? `
+                      <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
+                        <p>Chargement du PDF depuis Supabase…</p>
+                      </div>
+                    `
                     : previewUrl
                       ? `
                         <object
@@ -517,7 +617,11 @@ function renderPdfPreviewView() {
                           </div>
                         </object>
                       `
-                      : renderPdfErrorState(documentItem)}
+                      : `
+                        <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
+                          <p>${escapeHtml(previewErrorMessage || "Impossible de charger ce PDF pour cette session.")}</p>
+                        </div>
+                      `}
                 </section>
               </div>
             </section>
@@ -733,41 +837,39 @@ function openReportPreview(root) {
   renderProjectDocuments(root);
 }
 
-function openPdfPreview(root, documentId) {
+async function openPdfPreview(root, documentId) {
   const documentItem = getProjectDocumentById(documentId);
   if (!canPreviewPdf(documentItem)) return;
+
   setActiveProjectDocument(documentItem.id);
   docsViewState.mode = "pdf-preview";
-  docsViewState.pdfPreviewError = "";
+  docsViewState.pdfPreview = {
+    objectUrl: "",
+    sourceDocumentId: String(documentItem.id || "").trim(),
+    isLoading: true,
+    errorMessage: ""
+  };
   renderProjectDocumentsContent(root);
-  loadPdfPreview(root, documentItem);
+
+  try {
+    await ensurePdfPreviewObjectUrl(documentItem);
+  } catch (error) {
+    docsViewState.pdfPreview = {
+      objectUrl: "",
+      sourceDocumentId: String(documentItem.id || "").trim(),
+      isLoading: false,
+      errorMessage: error instanceof Error ? error.message : "Impossible de charger ce PDF depuis Supabase."
+    };
+  }
+
+  if (!root?.isConnected || docsViewState.mode !== "pdf-preview") return;
+  renderProjectDocumentsContent(root);
 }
 
 function closePdfPreview(root) {
+  resetPdfPreviewState();
   docsViewState.mode = "list";
-  docsViewState.pdfPreviewLoading = false;
-  docsViewState.pdfPreviewError = "";
   renderProjectDocuments(root);
-}
-
-function loadPdfPreview(root, documentItem = null) {
-  if (!documentItem || !isPdfDocument(documentItem)) return;
-
-  docsViewState.pdfPreviewLoading = true;
-  docsViewState.pdfPreviewError = "";
-  renderProjectDocumentsContent(root);
-
-  ensureProjectDocumentPreviewUrl(documentItem)
-    .catch((error) => {
-      docsViewState.pdfPreviewError = error instanceof Error ? error.message : String(error || "Erreur de chargement du PDF");
-    })
-    .finally(() => {
-      docsViewState.pdfPreviewLoading = false;
-      if (!root?.isConnected) return;
-      const activeDocument = getSelectedPdfDocument();
-      if (!activeDocument || activeDocument.id !== documentItem.id || docsViewState.mode !== "pdf-preview") return;
-      renderProjectDocumentsContent(root);
-    });
 }
 
 function renderFromSelectedFile(root, file) {
@@ -932,9 +1034,9 @@ function bindDocumentsView(root) {
     const documentItem = getProjectDocumentById(documentId);
     if (!canPreviewPdf(documentItem)) return;
 
-    trigger.addEventListener("click", (event) => {
+    trigger.addEventListener("click", async (event) => {
       event.preventDefault();
-      openPdfPreview(root, documentId);
+      await openPdfPreview(root, documentId);
     });
   });
 
@@ -1043,9 +1145,6 @@ export function renderProjectDocuments(root) {
     .then(() => {
       if (!root?.isConnected) return;
       renderProjectDocumentsContent(root);
-      if (docsViewState.mode === "pdf-preview") {
-        loadPdfPreview(root, getSelectedPdfDocument());
-      }
     })
     .catch((error) => {
       console.warn("syncProjectDocumentsFromSupabase failed", error);
