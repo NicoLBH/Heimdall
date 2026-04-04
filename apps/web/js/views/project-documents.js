@@ -20,7 +20,7 @@ import {
   isAnalysisRunning,
   runAnalysis
 } from "../services/analysis-runner.js";
-import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
+import { addProjectDocument, decorateDocumentWithPhase, ensureProjectDocumentPreviewUrl, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
 import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveAvisVerdict, getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
@@ -39,7 +39,9 @@ const docsViewState = {
     tone: "info",
     title: "",
     message: ""
-  }
+  },
+  pdfPreviewLoading: false,
+  pdfPreviewError: ""
 };
 
 function syncDocumentsSelectedPhase() {
@@ -105,7 +107,7 @@ function isPdfDocument(documentItem = null) {
 }
 
 function canPreviewPdf(documentItem = null) {
-  return isPdfDocument(documentItem) && !!String(getProjectDocumentPreviewUrl(documentItem) || "").trim();
+  return isPdfDocument(documentItem);
 }
 
 function getSelectedPdfDocument() {
@@ -433,6 +435,28 @@ function renderReportPreviewView() {
   `;
 }
 
+function renderPdfLoadingState(documentItem = null) {
+  return `
+    <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
+      <p>Chargement du PDF en cours…</p>
+      ${documentItem?.name ? `<p>${escapeHtml(documentItem.name)}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderPdfErrorState(documentItem = null) {
+  const previewUrl = getProjectDocumentPreviewUrl(documentItem);
+  return `
+    <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
+      <p>Impossible d’afficher ce PDF dans le visualisateur intégré.</p>
+      ${docsViewState.pdfPreviewError ? `<p>${escapeHtml(docsViewState.pdfPreviewError)}</p>` : ""}
+      ${previewUrl
+        ? `<a class="gh-btn gh-btn--primary" href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a>`
+        : ""}
+    </div>
+  `;
+}
+
 function renderPdfPreviewView() {
   const projectName = String(store.projectForm?.projectName || "Projet");
   const documentItem = decorateDocumentWithPhase(getSelectedPdfDocument());
@@ -478,24 +502,22 @@ function renderPdfPreviewView() {
                 </div>
 
                 <section class="documents-pdf-viewer">
-                  ${previewUrl
-                    ? `
-                      <object
-                        class="documents-pdf-viewer__frame"
-                        type="application/pdf"
-                        data="${escapeHtml(previewUrl)}#toolbar=1&navpanes=0"
-                      >
-                        <div class="documents-pdf-viewer__fallback">
-                          <p>La prévisualisation intégrée du PDF n'est pas disponible dans ce navigateur.</p>
-                          <a class="gh-btn gh-btn--primary" href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a>
-                        </div>
-                      </object>
-                    `
-                    : `
-                      <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
-                        <p>Impossible de générer la prévisualisation locale de ce PDF pour cette session.</p>
-                      </div>
-                    `}
+                  ${docsViewState.pdfPreviewLoading
+                    ? renderPdfLoadingState(documentItem)
+                    : previewUrl
+                      ? `
+                        <object
+                          class="documents-pdf-viewer__frame"
+                          type="application/pdf"
+                          data="${escapeHtml(previewUrl)}#toolbar=1&navpanes=0"
+                        >
+                          <div class="documents-pdf-viewer__fallback">
+                            <p>La prévisualisation intégrée du PDF n'est pas disponible dans ce navigateur.</p>
+                            <a class="gh-btn gh-btn--primary" href="${escapeHtml(previewUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a>
+                          </div>
+                        </object>
+                      `
+                      : renderPdfErrorState(documentItem)}
                 </section>
               </div>
             </section>
@@ -716,12 +738,36 @@ function openPdfPreview(root, documentId) {
   if (!canPreviewPdf(documentItem)) return;
   setActiveProjectDocument(documentItem.id);
   docsViewState.mode = "pdf-preview";
-  renderProjectDocuments(root);
+  docsViewState.pdfPreviewError = "";
+  renderProjectDocumentsContent(root);
+  loadPdfPreview(root, documentItem);
 }
 
 function closePdfPreview(root) {
   docsViewState.mode = "list";
+  docsViewState.pdfPreviewLoading = false;
+  docsViewState.pdfPreviewError = "";
   renderProjectDocuments(root);
+}
+
+function loadPdfPreview(root, documentItem = null) {
+  if (!documentItem || !isPdfDocument(documentItem)) return;
+
+  docsViewState.pdfPreviewLoading = true;
+  docsViewState.pdfPreviewError = "";
+  renderProjectDocumentsContent(root);
+
+  ensureProjectDocumentPreviewUrl(documentItem)
+    .catch((error) => {
+      docsViewState.pdfPreviewError = error instanceof Error ? error.message : String(error || "Erreur de chargement du PDF");
+    })
+    .finally(() => {
+      docsViewState.pdfPreviewLoading = false;
+      if (!root?.isConnected) return;
+      const activeDocument = getSelectedPdfDocument();
+      if (!activeDocument || activeDocument.id !== documentItem.id || docsViewState.mode !== "pdf-preview") return;
+      renderProjectDocumentsContent(root);
+    });
 }
 
 function renderFromSelectedFile(root, file) {
@@ -997,6 +1043,9 @@ export function renderProjectDocuments(root) {
     .then(() => {
       if (!root?.isConnected) return;
       renderProjectDocumentsContent(root);
+      if (docsViewState.mode === "pdf-preview") {
+        loadPdfPreview(root, getSelectedPdfDocument());
+      }
     })
     .catch((error) => {
       console.warn("syncProjectDocumentsFromSupabase failed", error);
