@@ -3645,8 +3645,14 @@ color:var(--text);
 }
 
 .documents-report-table__header--pdf-preview{
+  position:sticky;
+  top:0;
+  z-index:7;
   justify-content:flex-end;
   padding:10px 16px;
+}
+body.route--project.project-shell-compact .documents-report-table__header--pdf-preview{
+  top:var(--header-h-compact);
 }
 
 .documents-report-table__author{
@@ -3662,8 +3668,14 @@ color:var(--text);
 
 .documents-report-table__actions--pdf-preview{
   width:100%;
-  justify-content:flex-end;
+  justify-content:space-between;
   gap:10px;
+}
+
+.documents-report-table__actions-group{
+  display:flex;
+  align-items:center;
+  gap:8px;
 }
 
 .documents-report-table__icon-btn{
