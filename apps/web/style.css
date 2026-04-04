@@ -3657,7 +3657,7 @@ color:var(--text);
   backdrop-filter:blur(8px);
 }
 body.route--project.project-shell-compact .documents-report-table__header--pdf-preview{
-  /* top:var(--header-h-compact);*/
+  border-radius: 0px;
 }
 
 .documents-report-table__author{
