@@ -27,6 +27,11 @@ import { getEffectiveAvisVerdict, getEffectiveSituationStatus, getEffectiveSujet
 
 const SUPABASE_URL = "https://olgxhfgdzyghlzxmremz.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_08nUL61_ATl-6KpD8dOYPw_RM5lMtEz";
+const PDFJS_CDN_VERSION = "4.4.168";
+const PDFJS_MODULE_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_CDN_VERSION}/build/pdf.min.mjs`;
+
+let pdfJsLibPromise = null;
+let pdfPreviewRenderToken = 0;
 
 const docsViewState = {
   mode: "list", // "list" | "upload" | "report-preview" | "pdf-preview"
@@ -48,7 +53,9 @@ const docsViewState = {
     signedUrl: "",
     sourceDocumentId: "",
     isLoading: false,
-    errorMessage: ""
+    errorMessage: "",
+    bytes: null,
+    pageCount: 0
   }
 };
 
@@ -146,7 +153,9 @@ function resetPdfPreviewState() {
     signedUrl: "",
     sourceDocumentId: "",
     isLoading: false,
-    errorMessage: ""
+    errorMessage: "",
+    bytes: null,
+    pageCount: 0
   };
 }
 
@@ -204,7 +213,7 @@ function buildSupabaseStorageObjectUrl(documentItem = null) {
   return `${SUPABASE_URL}/storage/v1/object/authenticated/${encodedBucket}/${encodedPath}`;
 }
 
-async function fetchPdfBlobUrl(documentItem = null, signedUrl = "") {
+async function fetchPdfPreviewPayload(documentItem = null, signedUrl = "") {
   const objectUrl = buildSupabaseStorageObjectUrl(documentItem);
   const fetchTargets = [
     objectUrl
@@ -253,13 +262,113 @@ async function fetchPdfBlobUrl(documentItem = null, signedUrl = "") {
         : new Blob([pdfBuffer], { type: "application/pdf" });
 
       revokePdfPreviewObjectUrl();
-      return URL.createObjectURL(normalizedPdfBlob);
+      return {
+        objectUrl: URL.createObjectURL(normalizedPdfBlob),
+        bytes: new Uint8Array(pdfBuffer)
+      };
     } catch (error) {
       lastError = error;
     }
   }
 
   throw lastError instanceof Error ? lastError : new Error("Impossible de charger le PDF pour la prévisualisation.");
+}
+
+async function loadPdfJsLib() {
+  if (!pdfJsLibPromise) {
+    pdfJsLibPromise = import(PDFJS_MODULE_URL)
+      .then((module) => module?.default || module)
+      .catch((error) => {
+        pdfJsLibPromise = null;
+        throw error;
+      });
+  }
+
+  return pdfJsLibPromise;
+}
+
+async function renderPdfPreviewPages(root) {
+  const container = root?.querySelector?.("#documentsPdfCanvasHost");
+  const loadingNode = root?.querySelector?.("#documentsPdfCanvasLoading");
+  if (!container) return;
+
+  const bytes = docsViewState.pdfPreview?.bytes;
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength <= 0) return;
+
+  const renderToken = ++pdfPreviewRenderToken;
+  container.innerHTML = "";
+  container.setAttribute("aria-busy", "true");
+  if (loadingNode) loadingNode.hidden = false;
+
+  try {
+    const pdfjsLib = await loadPdfJsLib();
+    if (renderToken !== pdfPreviewRenderToken || docsViewState.mode !== "pdf-preview") return;
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: bytes,
+      disableWorker: true,
+      useSystemFonts: true
+    });
+    const pdfDocument = await loadingTask.promise;
+
+    if (renderToken !== pdfPreviewRenderToken || docsViewState.mode !== "pdf-preview") {
+      await pdfDocument.destroy().catch(() => {});
+      return;
+    }
+
+    docsViewState.pdfPreview.pageCount = Number(pdfDocument.numPages || 0);
+    const availableWidth = Math.max(320, Math.min(container.clientWidth || 960, 1100) - 32);
+
+    for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+      if (renderToken !== pdfPreviewRenderToken || docsViewState.mode !== "pdf-preview") break;
+
+      const page = await pdfDocument.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = availableWidth / Math.max(baseViewport.width, 1);
+      const viewport = page.getViewport({ scale });
+
+      const pageNode = document.createElement("div");
+      pageNode.className = "documents-pdf-viewer__page";
+
+      const canvas = document.createElement("canvas");
+      canvas.className = "documents-pdf-viewer__canvas";
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) {
+        throw new Error("Impossible d'initialiser le rendu PDF dans ce navigateur.");
+      }
+
+      const outputScale = window.devicePixelRatio && window.devicePixelRatio > 1 ? window.devicePixelRatio : 1;
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+      await page.render({
+        canvasContext: context,
+        viewport,
+        transform
+      }).promise;
+
+      pageNode.appendChild(canvas);
+      container.appendChild(pageNode);
+    }
+
+    await pdfDocument.destroy().catch(() => {});
+    if (renderToken !== pdfPreviewRenderToken || docsViewState.mode !== "pdf-preview") return;
+    if (loadingNode) loadingNode.hidden = true;
+    container.setAttribute("aria-busy", "false");
+  } catch (error) {
+    console.warn("PDF preview render failed", error);
+    if (renderToken !== pdfPreviewRenderToken || docsViewState.mode !== "pdf-preview") return;
+    docsViewState.pdfPreview.errorMessage = error instanceof Error
+      ? error.message
+      : "Impossible de générer la prévisualisation PDF dans le navigateur.";
+    docsViewState.pdfPreview.bytes = null;
+    if (loadingNode) loadingNode.hidden = true;
+    container.setAttribute("aria-busy", "false");
+    renderProjectDocumentsContent(root);
+  }
 }
 
 async function ensurePdfPreviewObjectUrl(documentItem = null) {
@@ -282,7 +391,9 @@ async function ensurePdfPreviewObjectUrl(documentItem = null) {
       signedUrl: "",
       sourceDocumentId: String(documentItem.id || "").trim(),
       isLoading: false,
-      errorMessage: ""
+      errorMessage: "",
+      bytes: null,
+      pageCount: 0
     };
     return localPreviewUrl;
   }
@@ -292,18 +403,23 @@ async function ensurePdfPreviewObjectUrl(documentItem = null) {
     signedUrl: "",
     sourceDocumentId: String(documentItem.id || "").trim(),
     isLoading: true,
-    errorMessage: ""
+    errorMessage: "",
+    bytes: null,
+    pageCount: 0
   };
 
   const signedUrl = await createSupabaseSignedStorageUrl(documentItem);
-  const objectUrl = await fetchPdfBlobUrl(documentItem, signedUrl);
+  const previewPayload = await fetchPdfPreviewPayload(documentItem, signedUrl);
+  const objectUrl = String(previewPayload?.objectUrl || "").trim();
 
   docsViewState.pdfPreview = {
     objectUrl,
     signedUrl,
     sourceDocumentId: String(documentItem.id || "").trim(),
     isLoading: false,
-    errorMessage: objectUrl ? "" : "Impossible de charger ce PDF pour cette session."
+    errorMessage: objectUrl ? "" : "Impossible de charger ce PDF pour cette session.",
+    bytes: previewPayload?.bytes instanceof Uint8Array ? previewPayload.bytes : null,
+    pageCount: 0
   };
 
   return objectUrl || signedUrl;
@@ -649,6 +765,7 @@ function renderPdfPreviewView() {
   const isLocalPreview = !String(documentItem.storageBucket || "").trim() && !!String(previewUrl || "").trim();
   const isLoadingPreview = Boolean(docsViewState.pdfPreview?.isLoading);
   const previewErrorMessage = String(docsViewState.pdfPreview?.errorMessage || "").trim();
+  const hasPdfBytes = docsViewState.pdfPreview?.bytes instanceof Uint8Array && docsViewState.pdfPreview.bytes.byteLength > 0;
 
   return `
     <section class="project-simple-page project-simple-page--documents">
@@ -688,13 +805,19 @@ function renderPdfPreviewView() {
                         <p>Chargement du PDF depuis Supabase…</p>
                       </div>
                     `
-                    : previewUrl
+                    : previewUrl && hasPdfBytes
                       ? `
-                        <iframe
-                          class="documents-pdf-viewer__frame"
-                          src="${escapeHtml(previewUrl)}#toolbar=1&navpanes=0"
-                          title="Prévisualisation PDF ${escapeHtml(documentItem.name || "Document")}" 
-                        ></iframe>
+                        <div class="documents-pdf-viewer__canvas-shell">
+                          <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty" id="documentsPdfCanvasLoading">
+                            <p>Préparation de la prévisualisation du PDF…</p>
+                          </div>
+                          <div
+                            class="documents-pdf-viewer__pages"
+                            id="documentsPdfCanvasHost"
+                            aria-label="Prévisualisation PDF ${escapeHtml(documentItem.name || "Document")}"
+                            aria-busy="true"
+                          ></div>
+                        </div>
                       `
                       : `
                         <div class="documents-pdf-viewer__fallback documents-pdf-viewer__fallback--empty">
@@ -927,7 +1050,9 @@ async function openPdfPreview(root, documentId) {
     signedUrl: "",
     sourceDocumentId: String(documentItem.id || "").trim(),
     isLoading: true,
-    errorMessage: ""
+    errorMessage: "",
+    bytes: null,
+    pageCount: 0
   };
   renderProjectDocumentsContent(root);
 
@@ -939,7 +1064,9 @@ async function openPdfPreview(root, documentId) {
       signedUrl: "",
       sourceDocumentId: String(documentItem.id || "").trim(),
       isLoading: false,
-      errorMessage: error instanceof Error ? error.message : "Impossible de charger ce PDF depuis Supabase."
+      errorMessage: error instanceof Error ? error.message : "Impossible de charger ce PDF depuis Supabase.",
+      bytes: null,
+      pageCount: 0
     };
   }
 
@@ -1107,6 +1234,14 @@ function bindDocumentsView(root) {
   if (pdfBackBtn) {
     pdfBackBtn.addEventListener("click", () => {
       closePdfPreview(root);
+    });
+  }
+
+  if (docsViewState.mode === "pdf-preview" && docsViewState.pdfPreview?.bytes instanceof Uint8Array) {
+    queueMicrotask(() => {
+      if (root?.isConnected && docsViewState.mode === "pdf-preview") {
+        renderPdfPreviewPages(root);
+      }
     });
   }
 
