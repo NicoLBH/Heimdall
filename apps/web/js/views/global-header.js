@@ -12,7 +12,14 @@ function parseHash() {
 function getProjectDisplayName(projectId) {
   const explicitName =
     store.currentProject?.name ||
-    store.currentProject?.title ||import { store } from "../store.js";
+    store.currentProject?.title ||
+    "";
+
+  if (explicitName) return explicitName;
+  if (projectId) return `Projet ${projectId}`;
+  return "Projet";
+}
+
 import { svgIcon } from "../ui/icons.js";
 import { DEMO_USERS, setCurrentDemoUser } from "../demo-context.js";
 import { rerenderRoute } from "../router.js";
@@ -192,12 +199,6 @@ export function bindGlobalHeader() {
   });
 
   userMenuBound = true;
-}
-    "";
-
-  if (explicitName) return explicitName;
-  if (projectId) return `Projet ${projectId}`;
-  return "Projet";
 }
 
 function getHeaderModel() {
