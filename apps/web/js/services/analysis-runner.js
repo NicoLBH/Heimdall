@@ -7,9 +7,10 @@ import {
   getPrimaryAnalysisAgent,
   startRunLogEntry
 } from "./project-automation.js";
+import { buildSupabaseAuthHeaders, getCurrentUser, getSupabaseAnonKey, getSupabaseUrl } from "../../assets/js/auth.js";
 
-const SUPABASE_URL = "https://olgxhfgdzyghlzxmremz.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_08nUL61_ATl-6KpD8dOYPw_RM5lMtEz";
+const SUPABASE_URL = getSupabaseUrl();
+const SUPABASE_ANON_KEY = getSupabaseAnonKey();
 const STORAGE_BUCKET = "documents";
 const FRONT_PROJECT_MAP_STORAGE_KEY = "mdall.supabaseProjectMap.v1";
 
@@ -156,12 +157,8 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS)
 }
 
 
-function getSupabaseAuthHeaders(extra = {}) {
-  return {
-    apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    ...extra
-  };
+async function getSupabaseAuthHeaders(extra = {}) {
+  return buildSupabaseAuthHeaders(extra);
 }
 
 function sanitizeFileName(fileName = "document.pdf") {
@@ -203,7 +200,7 @@ async function restInsert(table, payload, select = "*") {
 
   const res = await fetch(url.toString(), {
     method: "POST",
-    headers: getSupabaseAuthHeaders({
+    headers: await getSupabaseAuthHeaders({
       "Content-Type": "application/json",
       Prefer: "return=representation"
     }),
@@ -220,6 +217,10 @@ async function restInsert(table, payload, select = "*") {
 }
 
 async function ensureBackendProject() {
+  const currentUser = await getCurrentUser();
+  if (!currentUser?.id) {
+    throw new Error("Utilisateur authentifié introuvable pour la création du projet.");
+  }
   const frontendProjectKey = getFrontendProjectKey();
   const map = readFrontendProjectMap();
   if (map[frontendProjectKey]) {
@@ -238,7 +239,8 @@ async function ensureBackendProject() {
 
   const row = await restInsert("projects", {
     name: projectName,
-    description
+    description,
+    owner_id: currentUser.id
   }, "id,name");
 
   if (!row?.id) {
@@ -251,13 +253,18 @@ async function ensureBackendProject() {
 }
 
 async function uploadFileToStorage(file, projectId, runId) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser?.id) {
+    throw new Error("Utilisateur authentifié introuvable pour l'upload du document.");
+  }
+
   const safeFileName = sanitizeFileName(file?.name || "document.pdf");
-  const path = `${projectId}/${runId}/${safeFileName}`;
+  const path = `${currentUser.id}/${projectId}/${runId}/${safeFileName}`;
   const url = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`;
 
   const res = await fetch(url, {
     method: "POST",
-    headers: getSupabaseAuthHeaders({
+    headers: await getSupabaseAuthHeaders({
       "x-upsert": "false",
       "Content-Type": file?.type || "application/pdf"
     }),
@@ -278,7 +285,7 @@ async function uploadFileToStorage(file, projectId, runId) {
 async function invokeRunAnalysis(runId) {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/run-analysis`, {
     method: "POST",
-    headers: getSupabaseAuthHeaders({
+    headers: await getSupabaseAuthHeaders({
       "Content-Type": "application/json"
     }),
     body: JSON.stringify({ run_id: runId })
@@ -303,7 +310,7 @@ async function fetchSubjectsForRun(runId) {
 
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: getSupabaseAuthHeaders({ Accept: "application/json" }),
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
     cache: "no-store"
   });
 
@@ -323,7 +330,7 @@ async function fetchAnalysisRunProjectId(runId) {
 
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: getSupabaseAuthHeaders({ Accept: "application/json" }),
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
     cache: "no-store"
   });
 
@@ -349,7 +356,7 @@ async function fetchSubjectsByProject(projectId) {
 
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: getSupabaseAuthHeaders({ Accept: "application/json" }),
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
     cache: "no-store"
   });
 
@@ -547,11 +554,9 @@ async function fetchRunRowFromSupabase(runId) {
 
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    headers: await getSupabaseAuthHeaders({
       Accept: "application/json"
-    },
+    }),
     cache: "no-store"
   });
 
@@ -943,8 +948,11 @@ export async function runAnalysis(options = {}) {
       const storageInfo = await uploadFileToStorage(inputs.pdfFile, backendProjectId, runId);
 
       setSystemStatus("running", "En cours d’analyse", "Création du document");
+      const currentUser = await getCurrentUser();
+
       const documentRow = await restInsert("documents", {
         project_id: backendProjectId,
+        created_by: currentUser?.id || null,
         filename: inputs.pdfFile.name,
         original_filename: inputs.pdfFile.name,
         mime_type: inputs.pdfFile.type || "application/pdf",
