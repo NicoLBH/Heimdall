@@ -34,6 +34,12 @@ function isAuthSessionMissingError(error) {
   return name === 'AuthSessionMissingError' || /auth session missing/i.test(message)
 }
 
+export function isRateLimitError(error) {
+  const status = Number(error?.status || error?.statusCode || error?.code || 0)
+  const message = String(error?.message || '')
+  return status === 429 || /too many requests/i.test(message) || /rate limit/i.test(message)
+}
+
 export function getSupabaseUrl() {
   return SUPABASE_URL
 }
