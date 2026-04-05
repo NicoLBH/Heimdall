@@ -24,6 +24,16 @@ function resolveAppUrl(target = 'index.html') {
   return new URL(target, window.location.href).toString()
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function isAuthSessionMissingError(error) {
+  const message = String(error?.message || '')
+  const name = String(error?.name || '')
+  return name === 'AuthSessionMissingError' || /auth session missing/i.test(message)
+}
+
 export function getSupabaseUrl() {
   return SUPABASE_URL
 }
@@ -50,14 +60,40 @@ export async function getSession() {
   return data?.session || null
 }
 
+export async function getSessionSafe() {
+  try {
+    return await getSession()
+  } catch (error) {
+    if (isAuthSessionMissingError(error)) {
+      return null
+    }
+    throw error
+  }
+}
+
+export async function waitForSession(options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs) : 2500
+  const intervalMs = Number.isFinite(options.intervalMs) ? Number(options.intervalMs) : 100
+  const deadline = Date.now() + Math.max(0, timeoutMs)
+
+  while (Date.now() <= deadline) {
+    const session = await getSessionSafe()
+    if (session?.user) {
+      return session
+    }
+    await sleep(intervalMs)
+  }
+
+  return null
+}
+
 export async function getCurrentUser() {
-  const { data, error } = await supabase.auth.getUser()
-  if (error) throw error
-  return data?.user || null
+  const session = await getSessionSafe()
+  return session?.user || null
 }
 
 export async function getAccessToken() {
-  const session = await getSession()
+  const session = await getSessionSafe()
   return session?.access_token || ''
 }
 
