@@ -1,9 +1,36 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabase = createClient(
-  window.SUPABASE_URL,
-  window.SUPABASE_ANON_KEY
-)
+const SUPABASE_URL = String(
+  window.MDALL_CONFIG?.supabaseUrl ||
+  window.SUPABASE_URL ||
+  'https://olgxhfgdzyghlzxmremz.supabase.co'
+).trim();
+
+const SUPABASE_ANON_KEY = String(
+  window.MDALL_CONFIG?.supabaseAnonKey ||
+  window.SUPABASE_ANON_KEY ||
+  'sb_publishable_08nUL61_ATl-6KpD8dOYPw_RM5lMtEz'
+).trim();
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+})
+
+function resolveAppUrl(target = 'index.html') {
+  return new URL(target, window.location.href).toString()
+}
+
+export function getSupabaseUrl() {
+  return SUPABASE_URL
+}
+
+export function getSupabaseAnonKey() {
+  return SUPABASE_ANON_KEY
+}
 
 export async function signUp(email, password) {
   return await supabase.auth.signUp({ email, password })
@@ -17,12 +44,41 @@ export async function signOut() {
   return await supabase.auth.signOut()
 }
 
+export async function getSession() {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  return data?.session || null
+}
+
+export async function getCurrentUser() {
+  const { data, error } = await supabase.auth.getUser()
+  if (error) throw error
+  return data?.user || null
+}
+
+export async function getAccessToken() {
+  const session = await getSession()
+  return session?.access_token || ''
+}
+
+export async function buildSupabaseAuthHeaders(extra = {}) {
+  const accessToken = await getAccessToken()
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+    ...extra
+  }
+}
+
 export async function requireAuth() {
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) {
-    window.location.href = '/login.html'
+    window.location.replace(resolveAppUrl('login.html'))
+    return null
   }
   return user
 }
 
-export { supabase }
+export function redirectToAppHome() {
+  window.location.replace(resolveAppUrl('./'))
+}
