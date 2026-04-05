@@ -164,7 +164,11 @@ export function setCurrentDemoProject(projectId) {
 
 export function initializeDemoContext() {
   store.projects = [];
-  setCurrentDemoUser(getPersistedDemoUserId());
+
+  const hasAuthenticatedUser = Boolean(store.user?.email && store.user?.id);
+  if (!hasAuthenticatedUser) {
+    setCurrentDemoUser(getPersistedDemoUserId());
+  }
   const persistedProjectId = getPersistedDemoProjectId();
   if (persistedProjectId) {
     setCurrentDemoProject(persistedProjectId);
