@@ -25,7 +25,8 @@ body.auth-page{
 }
 
 .auth-page--signin .auth-layout,
-.auth-page--forgot .auth-layout{
+.auth-page--forgot .auth-layout,
+.auth-page--reset .auth-layout{
   display:flex;
   align-items:center;
   justify-content:center;
@@ -137,7 +138,8 @@ body.auth-page{
 }
 
 .auth-page--signin .auth-panel-wrap,
-.auth-page--forgot .auth-panel-wrap{
+.auth-page--forgot .auth-panel-wrap,
+.auth-page--reset .auth-panel-wrap{
   display:flex;
   align-items:center;
   justify-content:center;
@@ -146,7 +148,8 @@ body.auth-page{
 }
 
 .auth-page--signin .auth-panel--signin,
-.auth-page--forgot .auth-panel--forgot{
+.auth-page--forgot .auth-panel--forgot,
+.auth-page--reset .auth-panel--reset{
   display:flex;
   align-items:center;
   justify-content:center;
@@ -157,7 +160,8 @@ body.auth-page{
 }
 
 .auth-card--signin,
-.auth-card--forgot{
+.auth-card--forgot,
+.auth-card--reset{
   padding-top:0;
 }
 
@@ -281,6 +285,10 @@ body.auth-page{
   color:#57606a;
 }
 
+.auth-helper--dark{
+  color:#8b949e;
+}
+
 .auth-hint{
   min-height:20px;
   margin-top:10px;
@@ -355,10 +363,16 @@ body.auth-page{
 
 .auth-page--signup .auth-panel--signin,
 .auth-page--signup .auth-panel--forgot,
+.auth-page--signup .auth-panel--reset,
 .auth-page--signin .auth-panel--signup,
 .auth-page--signin .auth-panel--forgot,
+.auth-page--signin .auth-panel--reset,
 .auth-page--forgot .auth-panel--signup,
-.auth-page--forgot .auth-panel--signin{
+.auth-page--forgot .auth-panel--signin,
+.auth-page--forgot .auth-panel--reset,
+.auth-page--reset .auth-panel--signup,
+.auth-page--reset .auth-panel--signin,
+.auth-page--reset .auth-panel--forgot{
   display:none !important;
 }
 
@@ -416,7 +430,8 @@ body.auth-page{
 
 
 .auth-page--signin .auth-hero,
-.auth-page--forgot .auth-hero{
+.auth-page--forgot .auth-hero,
+.auth-page--reset .auth-hero{
   display:none;
 }
 
