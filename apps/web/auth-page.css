@@ -1,14 +1,21 @@
 body.auth-page{
-  overflow:auto;
+  overflow:hidden;
   min-height:100vh;
+  height:100vh;
   background:#0d1117;
   color:#f0f6fc;
 }
 
 .auth-page *{box-sizing:border-box;}
 
+.auth-hero[hidden],
+.auth-panel[hidden]{
+  display:none !important;
+}
+
 .auth-layout{
   min-height:100vh;
+  height:100vh;
 }
 
 .auth-page--signup .auth-layout{
@@ -19,8 +26,11 @@ body.auth-page{
 
 .auth-page--signin .auth-layout,
 .auth-page--forgot .auth-layout{
-  display:block;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   background:#0d1117;
+  overflow:hidden;
 }
 
 .auth-hero{
@@ -76,6 +86,7 @@ body.auth-page{
 
 .auth-panel-wrap{
   min-height:100vh;
+  height:100vh;
 }
 
 .auth-panel{
@@ -125,8 +136,29 @@ body.auth-page{
   margin:0 auto;
 }
 
-.auth-card--signin{
-  padding-top:92px;
+.auth-page--signin .auth-panel-wrap,
+.auth-page--forgot .auth-panel-wrap{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  padding:32px 16px;
+}
+
+.auth-page--signin .auth-panel--signin,
+.auth-page--forgot .auth-panel--forgot{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:auto;
+  padding:0;
+  background:#0d1117;
+}
+
+.auth-card--signin,
+.auth-card--forgot{
+  padding-top:0;
 }
 
 .auth-card__header{
@@ -321,9 +353,13 @@ body.auth-page{
   font-size:14px;
 }
 
+.auth-page--signup .auth-panel--signin,
+.auth-page--signup .auth-panel--forgot,
 .auth-page--signin .auth-panel--signup,
-.auth-page--signup .auth-panel--signin{
-  display:none;
+.auth-page--signin .auth-panel--forgot,
+.auth-page--forgot .auth-panel--signup,
+.auth-page--forgot .auth-panel--signin{
+  display:none !important;
 }
 
 @media (max-width: 1100px){
@@ -339,6 +375,7 @@ body.auth-page{
   .auth-panel-wrap,
   .auth-panel{
     min-height:auto;
+    height:auto;
   }
 
   .auth-page--signup .auth-panel--signup{
@@ -365,13 +402,10 @@ body.auth-page{
   }
 
   .auth-page--signup .auth-panel--signup,
-  .auth-card--signin{
+  .auth-card--signin,
+  .auth-card--forgot{
     padding-left:16px;
     padding-right:16px;
-  }
-
-  .auth-card--signin{
-    padding-top:64px;
   }
 
   .auth-topbar{
@@ -387,16 +421,8 @@ body.auth-page{
 }
 
 .auth-panel--forgot{
-  min-height:100vh;
-  display:flex;
-  align-items:flex-start;
-  justify-content:center;
-  padding:44px 16px 32px;
+  min-height:auto;
   background:#0d1117;
-}
-
-.auth-card--forgot{
-  padding-top:0;
 }
 
 .auth-card__header--forgot{
