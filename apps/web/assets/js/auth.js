@@ -48,8 +48,19 @@ export function getSupabaseAnonKey() {
   return SUPABASE_ANON_KEY
 }
 
-export async function signUp(email, password) {
-  return await supabase.auth.signUp({ email, password })
+export function getEmailRedirectUrl() {
+  return resolveAppUrl('login.html')
+}
+
+export async function signUp(email, password, options = {}) {
+  const emailRedirectTo = String(options.emailRedirectTo || getEmailRedirectUrl()).trim()
+  return await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo
+    }
+  })
 }
 
 export async function signIn(email, password) {
