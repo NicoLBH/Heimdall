@@ -7,6 +7,7 @@ import { ensureProjectAutomationDefaults } from "./services/project-automation.j
 import { bindGhActionButtons } from "./views/ui/gh-split-button.js";
 import { initializeDemoContext } from "./demo-context.js";
 import { PROJECT_IDENTITY_UPDATED_EVENT } from "./services/project-supabase-sync.js";
+import { getCurrentUser, requireAuth } from "../assets/js/auth.js";
 
 let analysisEventsBound = false;
 let projectIdentityEventsBound = false;
@@ -36,8 +37,25 @@ function bindProjectIdentityEvents() {
   projectIdentityEventsBound = true;
 }
 
-function bootstrap() {
+async function bootstrap() {
   console.log("RAPSOBOT V2 boot");
+
+  const authenticatedUser = await requireAuth();
+  if (!authenticatedUser) return;
+
+  store.user = {
+    id: authenticatedUser.id,
+    email: authenticatedUser.email || "",
+    firstName: authenticatedUser.user_metadata?.first_name || "",
+    lastName: authenticatedUser.user_metadata?.last_name || "",
+    name:
+      authenticatedUser.user_metadata?.full_name
+      || authenticatedUser.user_metadata?.name
+      || authenticatedUser.email
+      || "Utilisateur",
+    role: authenticatedUser.user_metadata?.role || "Utilisateur",
+    avatar: "assets/images/260093543.png"
+  };
 
   initializeDemoContext();
 
@@ -58,4 +76,6 @@ function bootstrap() {
   }
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error("bootstrap failed", error);
+});
