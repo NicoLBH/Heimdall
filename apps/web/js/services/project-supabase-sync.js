@@ -304,9 +304,10 @@ function mapProjectRowToCatalogItem(row = {}) {
   return {
     id: safeString(row.id),
     name: safeString(row.name) || "Projet sans nom",
-    clientName: "—",
-    city: "—",
-    currentPhase: "—",
+    clientName: safeString(row.project_owner_name) || "—",
+    city: safeString(row.city) || "—",
+    postalCode: safeString(row.postal_code) || "",
+    currentPhase: safeString(row.current_phase_code) || "—",
     description: safeString(row.description || ""),
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null
@@ -322,6 +323,9 @@ function haveSameProjectCatalog(a = [], b = []) {
       safeString(left.id) !== safeString(right.id)
       || safeString(left.name) !== safeString(right.name)
       || safeString(left.description) !== safeString(right.description)
+      || safeString(left.clientName) !== safeString(right.clientName)
+      || safeString(left.city) !== safeString(right.city)
+      || safeString(left.currentPhase) !== safeString(right.currentPhase)
       || safeString(left.updatedAt) !== safeString(right.updatedAt)
     ) {
       return false;
@@ -332,7 +336,7 @@ function haveSameProjectCatalog(a = [], b = []) {
 
 export async function syncProjectsCatalogFromSupabase() {
   const params = new URLSearchParams();
-  params.set("select", "id,name,description,created_at,updated_at");
+  params.set("select", "id,name,description,postal_code,city,project_owner_name,current_phase_code,created_at,updated_at");
   params.set("archived_at", "is.null");
   params.set("order", "updated_at.desc.nullslast,created_at.desc");
 
@@ -436,6 +440,43 @@ export async function syncCurrentProjectIdentityFromSupabase(options = {}) {
   }
 
   return row;
+}
+
+export async function createProjectWithDefaultPhases(payload = {}) {
+  const row = await rpcCall("create_project_with_default_phases", {
+    p_project_name: safeString(payload.projectName),
+    p_description: safeString(payload.description) || null,
+    p_city: safeString(payload.city),
+    p_postal_code: safeString(payload.postalCode),
+    p_project_owner_name: safeString(payload.clientName),
+    p_current_phase_code: safeString(payload.currentPhaseCode || "PC") || "PC"
+  });
+
+  const project = mapProjectRowToCatalogItem(row || {});
+  if (!safeString(project.id)) {
+    throw new Error("Project creation returned an empty payload.");
+  }
+
+  const currentProjects = Array.isArray(store.projects) ? store.projects : [];
+  const hasProject = currentProjects.some((item) => safeString(item.id) === safeString(project.id));
+  store.projects = hasProject
+    ? currentProjects.map((item) => safeString(item.id) === safeString(project.id) ? { ...item, ...project } : item)
+    : [project, ...currentProjects];
+
+  applyProjectIdentityLocally({
+    frontendProjectId: project.id,
+    backendProjectId: project.id,
+    name: project.name
+  });
+
+  dispatchProjectIdentityUpdated({
+    section: "projects",
+    backendProjectId: project.id,
+    projectName: project.name,
+    projectsCount: store.projects.length
+  });
+
+  return project;
 }
 
 export async function persistCurrentProjectNameToSupabase(nextProjectName) {
