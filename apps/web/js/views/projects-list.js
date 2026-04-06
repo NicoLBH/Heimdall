@@ -1,6 +1,6 @@
 import { setCurrentDemoProject } from "../demo-context.js";
 import { store } from "../store.js";
-import { syncProjectsCatalogFromSupabase } from "../services/project-supabase-sync.js";
+import { createProjectWithDefaultPhases, syncProjectsCatalogFromSupabase } from "../services/project-supabase-sync.js";
 import { searchFrenchCommunes } from "../services/georisques-service.js";
 import { svgIcon } from "../ui/icons.js";
 import { escapeHtml } from "../utils/escape-html.js";
@@ -23,7 +23,9 @@ const projectCreateUiState = {
     postalCode: "",
     communeCp: "",
     clientName: ""
-  }
+  },
+  isSubmitting: false,
+  submitError: ""
 };
 
 function parseHash() {
@@ -130,7 +132,7 @@ function renderProjectCreatePage(root) {
     <section class="page projects-page projects-page--create">
       <div class="projects-page__head">
         <h1>Nouveau projet</h1>
-        <p class="projects-page__lead">Prépare l’espace projet avant le branchement à Supabase.</p>
+        <p class="projects-page__lead">Crée un nouveau projet et initialise automatiquement ses phases dans Supabase.</p>
       </div>
 
       <div class="project-create-shell">
@@ -175,7 +177,7 @@ function renderProjectCreatePage(root) {
 
             <div class="project-create-form__grid">
               <label class="project-create-form__field project-create-form__field--autocomplete">
-                <span class="project-create-form__label">Ville</span>
+                <span class="project-create-form__label">Ville <span class="project-create-form__required">*</span></span>
                 <input
                   id="projectCreateCityInput"
                   class="project-create-form__input"
@@ -188,16 +190,19 @@ function renderProjectCreatePage(root) {
               </label>
 
               <label class="project-create-form__field">
-                <span class="project-create-form__label">Nom du Maître d'Ouvrage</span>
+                <span class="project-create-form__label">Nom du Maître d'Ouvrage <span class="project-create-form__required">*</span></span>
                 <input id="projectCreateClientInput" class="project-create-form__input" type="text" maxlength="140" value="${escapeHtml(draft.clientName)}">
               </label>
             </div>
           </section>
 
           <div class="project-create-shell__footer">
-            <button id="projectCreateSubmitBtn" class="gh-btn gh-btn--primary project-create-shell__submit" type="button">
-              Ajouter le projet
+            <div class="project-create-shell__footer-main">
+            <button id="projectCreateSubmitBtn" class="gh-btn gh-btn--primary project-create-shell__submit" type="button" ${projectCreateUiState.isSubmitting ? "disabled" : ""}>
+              ${projectCreateUiState.isSubmitting ? "Ajout du projet…" : "Ajouter le projet"}
             </button>
+            ${projectCreateUiState.submitError ? `<p class="project-create-shell__error">${escapeHtml(projectCreateUiState.submitError)}</p>` : ""}
+          </div>
           </div>
         </div>
       </div>
@@ -334,8 +339,58 @@ function bindProjectCreatePage(root) {
     projectCreateUiState.draft.clientName = clientInput.value;
   });
 
-  submitBtn?.addEventListener("click", () => {
+  submitBtn?.addEventListener("click", async () => {
     submitBtn.blur();
+    if (projectCreateUiState.isSubmitting) return;
+
+    projectCreateUiState.submitError = "";
+
+    const projectName = String(projectCreateUiState.draft.projectName || "").trim();
+    const city = String(projectCreateUiState.draft.city || "").trim();
+    const postalCode = String(projectCreateUiState.draft.postalCode || "").trim();
+    const clientName = String(projectCreateUiState.draft.clientName || "").trim();
+
+    if (!projectName) {
+      projectCreateUiState.submitError = "Le nom du projet est obligatoire.";
+      renderProjectCreatePage(root);
+      return;
+    }
+
+    if (!city || !postalCode) {
+      projectCreateUiState.submitError = "Sélectionne une ville dans l’autocomplétion pour récupérer la commune et le code postal.";
+      renderProjectCreatePage(root);
+      return;
+    }
+
+    if (!clientName) {
+      projectCreateUiState.submitError = "Le nom du Maître d’Ouvrage est obligatoire.";
+      renderProjectCreatePage(root);
+      return;
+    }
+
+    projectCreateUiState.isSubmitting = true;
+    renderProjectCreatePage(root);
+
+    try {
+      const createdProject = await createProjectWithDefaultPhases({
+        projectName,
+        description: projectCreateUiState.draft.description,
+        city,
+        postalCode,
+        clientName,
+        currentPhaseCode: "PC"
+      });
+
+      await syncProjectsCatalogFromSupabase();
+      setCurrentDemoProject(createdProject.id);
+      projectCreateUiState.isSubmitting = false;
+      projectCreateUiState.submitError = "";
+      location.hash = `#project/${createdProject.id}/documents`;
+    } catch (error) {
+      projectCreateUiState.isSubmitting = false;
+      projectCreateUiState.submitError = error instanceof Error ? error.message : "Impossible de créer le projet.";
+      renderProjectCreatePage(root);
+    }
   });
 }
 
