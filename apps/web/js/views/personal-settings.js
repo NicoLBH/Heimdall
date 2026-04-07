@@ -8,7 +8,10 @@ import {
 } from "./ui/side-nav-layout.js";
 
 const DEFAULT_AVATAR = "assets/images/260093543.png";
-const CROP_VIEWPORT_SIZE = 420;
+const CROP_VIEWPORT_SIZE = 412;
+const DEFAULT_SELECTION_DIAMETER = 290;
+const MIN_SELECTION_DIAMETER = 120;
+const OUTPUT_AVATAR_SIZE = 512;
 
 const personalSettingsUiState = {
   photoMenuOpen: false,
@@ -16,14 +19,23 @@ const personalSettingsUiState = {
   cropImageSrc: "",
   cropImageNaturalWidth: 0,
   cropImageNaturalHeight: 0,
-  cropScale: 1,
-  cropOffsetX: 0,
-  cropOffsetY: 0,
-  isDraggingCrop: false,
+  cropDisplayWidth: 0,
+  cropDisplayHeight: 0,
+  cropDisplayLeft: 0,
+  cropDisplayTop: 0,
+  selectionCenterX: CROP_VIEWPORT_SIZE / 2,
+  selectionCenterY: CROP_VIEWPORT_SIZE / 2,
+  selectionDiameter: DEFAULT_SELECTION_DIAMETER,
+  pointerMode: "idle",
+  activeHandle: "",
   dragStartX: 0,
   dragStartY: 0,
-  dragOriginX: 0,
-  dragOriginY: 0
+  dragOriginCenterX: CROP_VIEWPORT_SIZE / 2,
+  dragOriginCenterY: CROP_VIEWPORT_SIZE / 2,
+  dragOriginDiameter: DEFAULT_SELECTION_DIAMETER,
+  dragOriginVectorX: 0,
+  dragOriginVectorY: 0,
+  dragOriginDistance: 0
 };
 
 let currentPersonalSettingsRoot = null;
@@ -105,10 +117,10 @@ function renderAvatarMenu(model) {
 function renderCropModal() {
   if (!personalSettingsUiState.cropModalOpen || !personalSettingsUiState.cropImageSrc) return "";
 
-  const imageWidth = Math.max(1, Math.round(personalSettingsUiState.cropImageNaturalWidth * personalSettingsUiState.cropScale));
-  const imageHeight = Math.max(1, Math.round(personalSettingsUiState.cropImageNaturalHeight * personalSettingsUiState.cropScale));
-  const imageLeft = Math.round((CROP_VIEWPORT_SIZE - imageWidth) / 2 + personalSettingsUiState.cropOffsetX);
-  const imageTop = Math.round((CROP_VIEWPORT_SIZE - imageHeight) / 2 + personalSettingsUiState.cropOffsetY);
+  const radius = personalSettingsUiState.selectionDiameter / 2;
+  const left = Math.round(personalSettingsUiState.selectionCenterX - radius);
+  const top = Math.round(personalSettingsUiState.selectionCenterY - radius);
+  const size = Math.round(personalSettingsUiState.selectionDiameter);
 
   return `
     <div class="personal-settings-crop-modal" id="personalSettingsCropModal">
@@ -135,10 +147,21 @@ function renderCropModal() {
               class="personal-settings-cropper__image"
               id="personalSettingsCropImage"
               draggable="false"
-              style="width:${imageWidth}px;height:${imageHeight}px;left:${imageLeft}px;top:${imageTop}px;"
+              style="width:${Math.round(personalSettingsUiState.cropDisplayWidth)}px;height:${Math.round(personalSettingsUiState.cropDisplayHeight)}px;left:${Math.round(personalSettingsUiState.cropDisplayLeft)}px;top:${Math.round(personalSettingsUiState.cropDisplayTop)}px;"
             >
             <div class="personal-settings-cropper__mask" aria-hidden="true"></div>
-            <div class="personal-settings-cropper__circle" aria-hidden="true"></div>
+            <div
+              class="personal-settings-cropper__selection"
+              id="personalSettingsCropSelection"
+              style="width:${size}px;height:${size}px;left:${left}px;top:${top}px;"
+              aria-hidden="true"
+            >
+              <div class="personal-settings-cropper__circle"></div>
+              <button type="button" class="personal-settings-cropper__handle personal-settings-cropper__handle--nw" data-resize-handle="nw" tabindex="-1" aria-hidden="true"></button>
+              <button type="button" class="personal-settings-cropper__handle personal-settings-cropper__handle--ne" data-resize-handle="ne" tabindex="-1" aria-hidden="true"></button>
+              <button type="button" class="personal-settings-cropper__handle personal-settings-cropper__handle--sw" data-resize-handle="sw" tabindex="-1" aria-hidden="true"></button>
+              <button type="button" class="personal-settings-cropper__handle personal-settings-cropper__handle--se" data-resize-handle="se" tabindex="-1" aria-hidden="true"></button>
+            </div>
           </div>
         </div>
 
@@ -227,29 +250,81 @@ function closeAvatarMenu() {
   rerenderPersonalSettings();
 }
 
+function resetCropInteraction() {
+  personalSettingsUiState.pointerMode = "idle";
+  personalSettingsUiState.activeHandle = "";
+}
+
 function closeCropModal() {
   personalSettingsUiState.cropModalOpen = false;
   personalSettingsUiState.cropImageSrc = "";
   personalSettingsUiState.cropImageNaturalWidth = 0;
   personalSettingsUiState.cropImageNaturalHeight = 0;
-  personalSettingsUiState.cropScale = 1;
-  personalSettingsUiState.cropOffsetX = 0;
-  personalSettingsUiState.cropOffsetY = 0;
-  personalSettingsUiState.isDraggingCrop = false;
+  personalSettingsUiState.cropDisplayWidth = 0;
+  personalSettingsUiState.cropDisplayHeight = 0;
+  personalSettingsUiState.cropDisplayLeft = 0;
+  personalSettingsUiState.cropDisplayTop = 0;
+  personalSettingsUiState.selectionCenterX = CROP_VIEWPORT_SIZE / 2;
+  personalSettingsUiState.selectionCenterY = CROP_VIEWPORT_SIZE / 2;
+  personalSettingsUiState.selectionDiameter = DEFAULT_SELECTION_DIAMETER;
+  resetCropInteraction();
   rerenderPersonalSettings();
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getMaxDiameterForCenter(centerX, centerY) {
+  const radiusLimit = Math.min(centerX, CROP_VIEWPORT_SIZE - centerX, centerY, CROP_VIEWPORT_SIZE - centerY);
+  return Math.max(MIN_SELECTION_DIAMETER, radiusLimit * 2);
+}
+
+function syncSelectionElement() {
+  const selection = document.getElementById("personalSettingsCropSelection");
+  if (!(selection instanceof HTMLElement)) return;
+
+  const size = Math.round(personalSettingsUiState.selectionDiameter);
+  const left = Math.round(personalSettingsUiState.selectionCenterX - (size / 2));
+  const top = Math.round(personalSettingsUiState.selectionCenterY - (size / 2));
+
+  selection.style.width = `${size}px`;
+  selection.style.height = `${size}px`;
+  selection.style.left = `${left}px`;
+  selection.style.top = `${top}px`;
+}
+
+function setSelectionGeometry(centerX, centerY, diameter) {
+  const safeDiameter = clamp(diameter, MIN_SELECTION_DIAMETER, CROP_VIEWPORT_SIZE);
+  const radius = safeDiameter / 2;
+  const clampedCenterX = clamp(centerX, radius, CROP_VIEWPORT_SIZE - radius);
+  const clampedCenterY = clamp(centerY, radius, CROP_VIEWPORT_SIZE - radius);
+  const maxDiameter = getMaxDiameterForCenter(clampedCenterX, clampedCenterY);
+
+  personalSettingsUiState.selectionCenterX = clampedCenterX;
+  personalSettingsUiState.selectionCenterY = clampedCenterY;
+  personalSettingsUiState.selectionDiameter = clamp(safeDiameter, MIN_SELECTION_DIAMETER, maxDiameter);
+
+  syncSelectionElement();
+}
+
 function openCropModal(imageSrc, imageWidth, imageHeight) {
-  const fitScale = Math.max(CROP_VIEWPORT_SIZE / Math.max(1, imageWidth), CROP_VIEWPORT_SIZE / Math.max(1, imageHeight));
+  const fitScale = Math.min(CROP_VIEWPORT_SIZE / Math.max(1, imageWidth), CROP_VIEWPORT_SIZE / Math.max(1, imageHeight));
+  const displayWidth = imageWidth * fitScale;
+  const displayHeight = imageHeight * fitScale;
 
   personalSettingsUiState.cropModalOpen = true;
   personalSettingsUiState.cropImageSrc = imageSrc;
   personalSettingsUiState.cropImageNaturalWidth = imageWidth;
   personalSettingsUiState.cropImageNaturalHeight = imageHeight;
-  personalSettingsUiState.cropScale = fitScale;
-  personalSettingsUiState.cropOffsetX = 0;
-  personalSettingsUiState.cropOffsetY = 0;
-  personalSettingsUiState.isDraggingCrop = false;
+  personalSettingsUiState.cropDisplayWidth = displayWidth;
+  personalSettingsUiState.cropDisplayHeight = displayHeight;
+  personalSettingsUiState.cropDisplayLeft = (CROP_VIEWPORT_SIZE - displayWidth) / 2;
+  personalSettingsUiState.cropDisplayTop = (CROP_VIEWPORT_SIZE - displayHeight) / 2;
+  personalSettingsUiState.selectionCenterX = CROP_VIEWPORT_SIZE / 2;
+  personalSettingsUiState.selectionCenterY = CROP_VIEWPORT_SIZE / 2;
+  personalSettingsUiState.selectionDiameter = Math.min(DEFAULT_SELECTION_DIAMETER, getMaxDiameterForCenter(CROP_VIEWPORT_SIZE / 2, CROP_VIEWPORT_SIZE / 2));
+  resetCropInteraction();
 
   rerenderPersonalSettings();
 }
@@ -273,25 +348,32 @@ function readSelectedImage(file) {
 
 function buildCroppedAvatarDataUrl() {
   const canvas = document.createElement("canvas");
-  canvas.width = CROP_VIEWPORT_SIZE;
-  canvas.height = CROP_VIEWPORT_SIZE;
+  canvas.width = OUTPUT_AVATAR_SIZE;
+  canvas.height = OUTPUT_AVATAR_SIZE;
 
   const context = canvas.getContext("2d");
   const image = document.getElementById("personalSettingsCropImage");
   if (!context || !(image instanceof HTMLImageElement)) return "";
 
-  const imageWidth = personalSettingsUiState.cropImageNaturalWidth * personalSettingsUiState.cropScale;
-  const imageHeight = personalSettingsUiState.cropImageNaturalHeight * personalSettingsUiState.cropScale;
-  const drawX = (CROP_VIEWPORT_SIZE - imageWidth) / 2 + personalSettingsUiState.cropOffsetX;
-  const drawY = (CROP_VIEWPORT_SIZE - imageHeight) / 2 + personalSettingsUiState.cropOffsetY;
+  const diameter = personalSettingsUiState.selectionDiameter;
+  const radius = diameter / 2;
+  const selectionLeft = personalSettingsUiState.selectionCenterX - radius;
+  const selectionTop = personalSettingsUiState.selectionCenterY - radius;
+  const scaleToCanvas = OUTPUT_AVATAR_SIZE / diameter;
 
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.save();
   context.beginPath();
-  context.arc(CROP_VIEWPORT_SIZE / 2, CROP_VIEWPORT_SIZE / 2, CROP_VIEWPORT_SIZE / 2 - 1, 0, Math.PI * 2);
+  context.arc(OUTPUT_AVATAR_SIZE / 2, OUTPUT_AVATAR_SIZE / 2, OUTPUT_AVATAR_SIZE / 2 - 1, 0, Math.PI * 2);
   context.closePath();
   context.clip();
-  context.drawImage(image, drawX, drawY, imageWidth, imageHeight);
+
+  const drawX = (personalSettingsUiState.cropDisplayLeft - selectionLeft) * scaleToCanvas;
+  const drawY = (personalSettingsUiState.cropDisplayTop - selectionTop) * scaleToCanvas;
+  const drawWidth = personalSettingsUiState.cropDisplayWidth * scaleToCanvas;
+  const drawHeight = personalSettingsUiState.cropDisplayHeight * scaleToCanvas;
+
+  context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
   context.restore();
 
   return canvas.toDataURL("image/png");
@@ -319,6 +401,33 @@ function removeAvatar() {
   closeAvatarMenu();
 }
 
+function startMoveSelection(clientX, clientY, cropper) {
+  personalSettingsUiState.pointerMode = "move";
+  personalSettingsUiState.dragStartX = clientX;
+  personalSettingsUiState.dragStartY = clientY;
+  personalSettingsUiState.dragOriginCenterX = personalSettingsUiState.selectionCenterX;
+  personalSettingsUiState.dragOriginCenterY = personalSettingsUiState.selectionCenterY;
+  cropper.classList.add("is-moving-selection");
+}
+
+function startResizeSelection(clientX, clientY, handle, cropper) {
+  personalSettingsUiState.pointerMode = "resize";
+  personalSettingsUiState.activeHandle = handle;
+  personalSettingsUiState.dragStartX = clientX;
+  personalSettingsUiState.dragStartY = clientY;
+  personalSettingsUiState.dragOriginCenterX = personalSettingsUiState.selectionCenterX;
+  personalSettingsUiState.dragOriginCenterY = personalSettingsUiState.selectionCenterY;
+  personalSettingsUiState.dragOriginDiameter = personalSettingsUiState.selectionDiameter;
+
+  const vectorX = clientX - personalSettingsUiState.selectionCenterX;
+  const vectorY = clientY - personalSettingsUiState.selectionCenterY;
+  personalSettingsUiState.dragOriginVectorX = vectorX;
+  personalSettingsUiState.dragOriginVectorY = vectorY;
+  personalSettingsUiState.dragOriginDistance = Math.max(1, Math.hypot(vectorX, vectorY));
+
+  cropper.classList.add("is-resizing-selection");
+}
+
 function bindAvatarCropper(root) {
   const cropper = root.querySelector("#personalSettingsCropper");
   if (!cropper) return;
@@ -327,24 +436,32 @@ function bindAvatarCropper(root) {
     cropper.dataset.bound = "true";
 
     cropper.addEventListener("mousedown", (event) => {
+      const handle = event.target.closest?.("[data-resize-handle]")?.getAttribute("data-resize-handle") || "";
+      const selection = event.target.closest?.("#personalSettingsCropSelection");
+      if (!handle && !selection) return;
+
       event.preventDefault();
-      personalSettingsUiState.isDraggingCrop = true;
-      personalSettingsUiState.dragStartX = event.clientX;
-      personalSettingsUiState.dragStartY = event.clientY;
-      personalSettingsUiState.dragOriginX = personalSettingsUiState.cropOffsetX;
-      personalSettingsUiState.dragOriginY = personalSettingsUiState.cropOffsetY;
-      cropper.classList.add("is-dragging");
+      if (handle) {
+        startResizeSelection(event.clientX, event.clientY, handle, cropper);
+        return;
+      }
+      startMoveSelection(event.clientX, event.clientY, cropper);
     });
 
     cropper.addEventListener("touchstart", (event) => {
       const touch = event.touches?.[0];
       if (!touch) return;
-      personalSettingsUiState.isDraggingCrop = true;
-      personalSettingsUiState.dragStartX = touch.clientX;
-      personalSettingsUiState.dragStartY = touch.clientY;
-      personalSettingsUiState.dragOriginX = personalSettingsUiState.cropOffsetX;
-      personalSettingsUiState.dragOriginY = personalSettingsUiState.cropOffsetY;
-      cropper.classList.add("is-dragging");
+
+      const touchTarget = event.target;
+      const handle = touchTarget.closest?.("[data-resize-handle]")?.getAttribute("data-resize-handle") || "";
+      const selection = touchTarget.closest?.("#personalSettingsCropSelection");
+      if (!handle && !selection) return;
+
+      if (handle) {
+        startResizeSelection(touch.clientX, touch.clientY, handle, cropper);
+      } else {
+        startMoveSelection(touch.clientX, touch.clientY, cropper);
+      }
     }, { passive: true });
   }
 
@@ -352,22 +469,25 @@ function bindAvatarCropper(root) {
   personalSettingsCropperBound = true;
 
   const onMove = (clientX, clientY) => {
-    if (!personalSettingsUiState.isDraggingCrop) return;
-    personalSettingsUiState.cropOffsetX = personalSettingsUiState.dragOriginX + (clientX - personalSettingsUiState.dragStartX);
-    personalSettingsUiState.cropOffsetY = personalSettingsUiState.dragOriginY + (clientY - personalSettingsUiState.dragStartY);
+    if (personalSettingsUiState.pointerMode === "move") {
+      const nextCenterX = personalSettingsUiState.dragOriginCenterX + (clientX - personalSettingsUiState.dragStartX);
+      const nextCenterY = personalSettingsUiState.dragOriginCenterY + (clientY - personalSettingsUiState.dragStartY);
+      setSelectionGeometry(nextCenterX, nextCenterY, personalSettingsUiState.selectionDiameter);
+      return;
+    }
 
-    const image = document.getElementById("personalSettingsCropImage");
-    if (!(image instanceof HTMLImageElement)) return;
-
-    const imageWidth = Math.max(1, Math.round(personalSettingsUiState.cropImageNaturalWidth * personalSettingsUiState.cropScale));
-    const imageHeight = Math.max(1, Math.round(personalSettingsUiState.cropImageNaturalHeight * personalSettingsUiState.cropScale));
-    image.style.left = `${Math.round((CROP_VIEWPORT_SIZE - imageWidth) / 2 + personalSettingsUiState.cropOffsetX)}px`;
-    image.style.top = `${Math.round((CROP_VIEWPORT_SIZE - imageHeight) / 2 + personalSettingsUiState.cropOffsetY)}px`;
+    if (personalSettingsUiState.pointerMode === "resize") {
+      const vectorX = clientX - personalSettingsUiState.selectionCenterX;
+      const vectorY = clientY - personalSettingsUiState.selectionCenterY;
+      const distance = Math.hypot(vectorX, vectorY);
+      const newDiameter = clamp(distance * 2, MIN_SELECTION_DIAMETER, getMaxDiameterForCenter(personalSettingsUiState.selectionCenterX, personalSettingsUiState.selectionCenterY));
+      setSelectionGeometry(personalSettingsUiState.selectionCenterX, personalSettingsUiState.selectionCenterY, newDiameter);
+    }
   };
 
-  const stopDrag = () => {
-    personalSettingsUiState.isDraggingCrop = false;
-    document.getElementById("personalSettingsCropper")?.classList.remove("is-dragging");
+  const stopInteraction = () => {
+    resetCropInteraction();
+    document.getElementById("personalSettingsCropper")?.classList.remove("is-moving-selection", "is-resizing-selection");
   };
 
   window.addEventListener("mousemove", (event) => onMove(event.clientX, event.clientY));
@@ -376,9 +496,9 @@ function bindAvatarCropper(root) {
     if (!touch) return;
     onMove(touch.clientX, touch.clientY);
   }, { passive: true });
-  window.addEventListener("mouseup", stopDrag);
-  window.addEventListener("touchend", stopDrag);
-  window.addEventListener("blur", stopDrag);
+  window.addEventListener("mouseup", stopInteraction);
+  window.addEventListener("touchend", stopInteraction);
+  window.addEventListener("blur", stopInteraction);
 }
 
 function bindPersonalSettings(root) {
