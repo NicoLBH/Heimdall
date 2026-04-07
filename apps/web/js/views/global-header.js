@@ -1,8 +1,6 @@
 import { store } from "../store.js";
 import { svgIcon } from "../ui/icons.js";
-import { DEMO_USERS, setCurrentDemoUser } from "../demo-context.js";
 import { signOut } from "../../assets/js/auth.js";
-import { rerenderRoute } from "../router.js";
 
 function parseHash() {
   const hash = String(location.hash || "").replace(/^#/, "").trim();
@@ -19,6 +17,36 @@ function getProjectDisplayName(projectId) {
   if (explicitName) return explicitName;
   if (projectId) return `Projet ${projectId}`;
   return "Projet";
+}
+
+
+function getUserDisplayIdentity() {
+  const firstName = String(store.user?.firstName || "").trim();
+  const lastName = String(store.user?.lastName || "").trim();
+  const fullName = String(store.user?.name || "").trim();
+  const email = String(store.user?.email || "").trim();
+
+  let resolvedFirstName = firstName;
+  let resolvedLastName = lastName;
+
+  if ((!resolvedFirstName || !resolvedLastName) && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (!resolvedFirstName && parts.length) {
+      resolvedFirstName = parts[0] || "";
+    }
+    if (!resolvedLastName && parts.length > 1) {
+      resolvedLastName = parts.slice(1).join(" ");
+    }
+  }
+
+  const fullLabel = [resolvedFirstName, resolvedLastName].filter(Boolean).join(" ").trim() || fullName;
+
+  return {
+    firstName: resolvedFirstName,
+    lastName: resolvedLastName,
+    fullLabel: fullLabel || email || "Utilisateur",
+    secondaryLabel: fullLabel ? (email || "") : (email || "")
+  };
 }
 
 function getHeaderModel() {
@@ -45,6 +73,16 @@ function getHeaderModel() {
     };
   }
 
+  if (parts[0] === "settings" || parts[0] === "profile") {
+    return {
+      primary: "Réglages",
+      secondary: "",
+      showSecondary: false,
+      href: "#settings/profile",
+      headerClass: "gh-header gh-header--global"
+    };
+  }
+
   return {
     primary: "Accueil",
     secondary: "",
@@ -57,7 +95,9 @@ function getHeaderModel() {
 function renderUserMenu() {
   const currentAvatar = store.user?.avatar || "assets/images/260093543.png";
   const isAuthenticatedUser = Boolean(store.user?.email && store.user?.id);
-  const otherUsers = DEMO_USERS.filter((user) => user.id !== store.user?.id);
+  const identity = getUserDisplayIdentity();
+  const topLabel = identity.fullLabel || identity.secondaryLabel || "Utilisateur";
+  const secondaryLabel = identity.fullLabel ? (identity.secondaryLabel || "") : "";
 
   return `
     <div class="gh-user-menu gh-action" id="ghUserMenu">
@@ -73,33 +113,47 @@ function renderUserMenu() {
       </button>
 
       <div class="gh-user-menu__dropdown gh-menu" id="ghUserMenuDropdown" role="menu">
-        ${isAuthenticatedUser ? `
-          <div class="gh-user-menu__item" role="presentation">
-            <span class="gh-user-menu__item-meta">
-              <span class="gh-user-menu__item-name">${store.user?.name || "Utilisateur"}</span>
-              <span class="gh-user-menu__item-role">${store.user?.email || ""}</span>
-            </span>
-          </div>
-          <button type="button" class="gh-user-menu__item" id="ghUserMenuLogout" role="menuitem">
-            <span class="gh-user-menu__item-meta">
-              <span class="gh-user-menu__item-name">Se déconnecter</span>
-              <span class="gh-user-menu__item-role">Fermer la session Supabase</span>
-            </span>
-          </button>
-        ` : otherUsers.map((user) => `
-          <button
-            type="button"
-            class="gh-user-menu__item"
-            data-user-switch="${user.id}"
-            role="menuitem"
-          >
-            <img src="${user.avatar}" alt="" class="gh-user-menu__item-avatar">
-            <span class="gh-user-menu__item-meta">
-              <span class="gh-user-menu__item-name">${user.firstName} ${user.lastName}</span>
-              <span class="gh-user-menu__item-role">${user.role}</span>
-            </span>
-          </button>
-        `).join("")}
+        <div class="gh-user-menu__profile-head" role="presentation">
+          <img src="${currentAvatar}" alt="Avatar" class="gh-user-menu__profile-avatar">
+          <span class="gh-user-menu__profile-meta">
+            <span class="gh-user-menu__profile-name">${topLabel}</span>
+            ${secondaryLabel ? `<span class="gh-user-menu__profile-email">${secondaryLabel}</span>` : ""}
+          </span>
+        </div>
+
+        <div class="gh-user-menu__divider" role="separator"></div>
+
+        <a href="#profile" class="gh-user-menu__item" role="menuitem">
+          <span class="gh-user-menu__item-icon">${svgIcon("person", { className: "octicon octicon-person" })}</span>
+          <span class="gh-user-menu__item-meta">
+            <span class="gh-user-menu__item-name">Profile</span>
+          </span>
+        </a>
+
+        <a href="#projects" class="gh-user-menu__item" role="menuitem">
+          <span class="gh-user-menu__item-icon">${svgIcon("repo", { className: "octicon octicon-repo" })}</span>
+          <span class="gh-user-menu__item-meta">
+            <span class="gh-user-menu__item-name">Projets</span>
+          </span>
+        </a>
+
+        <div class="gh-user-menu__divider" role="separator"></div>
+
+        <a href="#settings/profile" class="gh-user-menu__item" role="menuitem">
+          <span class="gh-user-menu__item-icon">${svgIcon("gear", { className: "octicon octicon-gear" })}</span>
+          <span class="gh-user-menu__item-meta">
+            <span class="gh-user-menu__item-name">Réglages</span>
+          </span>
+        </a>
+
+        <div class="gh-user-menu__divider" role="separator"></div>
+
+        <button type="button" class="gh-user-menu__item" id="ghUserMenuLogout" role="menuitem">
+          <span class="gh-user-menu__item-icon">${svgIcon("sign-out", { className: "octicon octicon-sign-out" })}</span>
+          <span class="gh-user-menu__item-meta">
+            <span class="gh-user-menu__item-name">Se déconnecter</span>
+          </span>
+        </button>
       </div>
     </div>
   `;
@@ -158,7 +212,6 @@ export function bindGlobalHeader() {
 
   document.addEventListener("click", (event) => {
     const trigger = event.target.closest?.("#ghUserMenuBtn");
-    const switchBtn = event.target.closest?.("[data-user-switch]");
     const logoutBtn = event.target.closest?.("#ghUserMenuLogout");
     const menu = document.getElementById("ghUserMenu");
     const dropdown = document.getElementById("ghUserMenuDropdown");
@@ -170,13 +223,6 @@ export function bindGlobalHeader() {
         .finally(() => {
           window.location.replace(new URL("login.html", window.location.href).toString());
         });
-      return;
-    }
-
-    if (switchBtn) {
-      setCurrentDemoUser(switchBtn.dataset.userSwitch || "");
-      renderGlobalHeader();
-      rerenderRoute();
       return;
     }
 
