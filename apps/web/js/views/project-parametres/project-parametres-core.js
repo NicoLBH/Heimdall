@@ -2,7 +2,6 @@ import { store, DEFAULT_PROJECT_PHASES } from "../../store.js";
 import { setProjectViewHeader, registerProjectPrimaryScrollSource } from "../project-shell-chrome.js";
 import {
   DEFAULT_PROJECT_TABS_VISIBILITY,
-  PROJECT_TAB_IDS,
   isToggleableProjectTab
 } from "../../constants.js";
 import { svgIcon } from "../../ui/icons.js";
@@ -40,7 +39,6 @@ import { renderSvgLineChart, getNiceChartTicks } from "../../utils/svg-line-char
 import { persistCurrentProjectState } from "../../services/project-state-storage.js";
 import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../../services/google-maps-embed-service.js";
 import {
-  persistCurrentProjectNameToSupabase,
   syncProjectLotsFromSupabase,
   persistProjectLotActivationToSupabase,
   addCustomProjectLotToSupabase,
@@ -98,7 +96,6 @@ function getProjectPhasesCatalog() {
 function getEnabledProjectPhases() {
   return getProjectPhasesCatalog().filter((item) => item.enabled);
 }
-
 
 function renderProjectPhasesCard() {
   const items = getProjectPhasesCatalog();
@@ -221,7 +218,6 @@ function ensureProjectFormDefaults() {
   if (typeof form.altitude !== "number" || !Number.isFinite(form.altitude)) {
     form.altitude = null;
   }
-
 
   if (typeof form.dampingRatio !== "string" || !form.dampingRatio.trim()) {
     form.dampingRatio = "5";
@@ -383,7 +379,7 @@ function renderParametresNav() {
   }).join("");
 }
 
-function renderSectionCard({ id = "", title, description = "", body = "", badge = "", action = "" }) {
+export function renderSectionCard({ id = "", title, description = "", body = "", badge = "", action = "" }) {
   return `
     <div class="settings-card settings-card--param" ${id ? `id="${escapeHtml(id)}"` : ""}>
       <div class="settings-card__head">
@@ -629,7 +625,7 @@ function renderLocationAutocompleteField({ id, label, value = "", placeholder = 
   `;
 }
 
-function renderInputField({ id, label, value = "", placeholder = "", width = "", inputMode = "text" }) {
+export function renderInputField({ id, label, value = "", placeholder = "", width = "", inputMode = "text" }) {
   return `
     <div class="${width}">
       ${renderGhEditableField({
@@ -653,7 +649,6 @@ function renderSelectField({ id, label, value = "", options = [] }) {
     size: "md"
   });
 }
-
 
 function formatSizingValue(value, unit = "") {
   if (!Number.isFinite(value)) return "—";
@@ -860,7 +855,6 @@ function getGeorisquesRequestKey(city = "", postalCode = "") {
   return `${String(city || "").trim().toLowerCase()}::${String(postalCode || "").trim()}`;
 }
 
-
 function getCurrentProjectLocationRequestKey() {
   return getGeorisquesRequestKey(store.projectForm.city, store.projectForm.postalCode);
 }
@@ -1039,7 +1033,6 @@ function getProjectBaseDataEnrichmentSummary(details = {}) {
   } else if (georisques.error) {
     parts.push(`Géorisques : ${georisques.error}`);
   }
-
 
   if (seismicZone.value) {
     parts.push(`Sismique : ${seismicZone.value}`);
@@ -1360,7 +1353,6 @@ function getGeorisquesSismiqueSummary() {
   return formatSeismicZoneSummary(directZone, directLabel);
 }
 
-
 function renderAutoResolvedField(label, value, hint = "Données récupérées automatiquement sur Géorisques.", options = {}) {
   const mutedClass = options?.muted ? " is-muted" : "";
 
@@ -1522,47 +1514,6 @@ async function loadGeorisquesForCurrentProject({ force = false } = {}) {
   }
 }
 
-function renderProjectTabsFeatureCard(projectTabs) {
-  const items = [
-    {
-      id: "tabVisibilityAtelier",
-      key: PROJECT_TAB_IDS.STUDIO,
-      label: "Atelier",
-      description: "Affiche l’onglet Atelier et ses vues métier de travail projet."
-    },
-    {
-      id: "tabVisibilitySituations",
-      key: PROJECT_TAB_IDS.SITUATIONS,
-      label: "Situations",
-      description: "Affiche l’onglet Situations actuellement branché sur les jalons projet."
-    },
-  ];
-
-  return `
-    <div class="settings-features-card">
-      <div class="settings-features-card__title">Fonctionnalités</div>
-      <div class="settings-features-list">
-        ${items.map((item) => `
-          <label class="settings-feature-row" for="${escapeHtml(item.id)}">
-            <div class="settings-feature-row__control">
-              <input
-                id="${escapeHtml(item.id)}"
-                type="checkbox"
-                data-project-tab-toggle="${escapeHtml(item.key)}"
-                ${projectTabs?.[item.key] !== false ? "checked" : ""}
-              >
-            </div>
-            <div class="settings-feature-row__body">
-              <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
-              <div class="settings-feature-row__desc">${escapeHtml(item.description)}</div>
-            </div>
-          </label>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
 function getAgentItemDescription(item) {
   const descriptions = {
     solidite: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
@@ -1663,7 +1614,7 @@ function renderAutomationsFeatureCard() {
   });
 }
 
-function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = false, isHero = false, hideHead = false }) {
+export function renderSettingsBlock({ id, title, lead = "", cards = [], isActive = false, isHero = false, hideHead = false }) {
   const hasHeadContent = Boolean(String(title || "").trim() || String(lead || "").trim());
   const shouldRenderHead = !hideHead && hasHeadContent;
   return `
@@ -1959,27 +1910,6 @@ function getPageHtml(form) {
             contentClassName: "settings-content settings-content--parametres",
             navHtml: renderParametresNav(),
             contentHtml: `
-              ${renderSettingsBlock({
-                id: "parametres-general",
-                title: "",
-                lead: "",
-                isActive: true,
-                isHero: false,
-                cards: [
-                  renderSectionCard({
-                    title: "Nom du projet",
-                    description: "Description",
-                    body: `<div class="settings-form-grid settings-form-grid--thirds">
-                      ${renderInputField({ id: "projectName", label: "Nom de projet", value: form.projectName || "", placeholder: "Projet demo" })}
-                    </div>`
-                  }),
-                  renderSectionCard({
-                    title: "Fonctionnalités du projet",
-                    description: "Active ou masque certaines fonctionnalités optionnelles dans l’en-tête projet.",
-                    body: renderProjectTabsFeatureCard(form.projectTabs || {})
-                  })
-                ]
-              })}
 
               ${renderSettingsBlock({
                 id: "parametres-localisation",
@@ -2093,7 +2023,6 @@ function getPageHtml(form) {
   `;
 }
 
-
 function bindValue(id, handler, eventName = "input") {
   const el = document.getElementById(id);
   if (!el) return;
@@ -2109,7 +2038,7 @@ function dispatchProjectLocationChanged() {
   }));
 }
 
-function refreshProjectTabsVisibility() {
+export function refreshProjectTabsVisibility() {
   const tabsRoot = document.querySelector(".project-tabs");
   if (!tabsRoot) return;
 
@@ -2125,7 +2054,7 @@ function refreshProjectTabsVisibility() {
   });
 }
 
-function bindProjectTabToggles() {
+export function bindProjectTabToggles() {
   document.querySelectorAll("[data-project-tab-toggle]").forEach((input) => {
     input.addEventListener("change", (event) => {
       const key = event.target.getAttribute("data-project-tab-toggle");
@@ -2174,7 +2103,6 @@ function bindProjectAutomationToggles() {
     });
   });
 }
-
 
 function bindProjectPhaseToggles() {
   document.querySelectorAll("[data-project-phase-toggle]").forEach((input) => {
@@ -2696,7 +2624,6 @@ function bindInteractiveSvgLineCharts() {
   });
 }
 
-
 export function setProjectParametresRerender(handler) {
   projectParametresRerender = typeof handler === "function" ? handler : null;
 }
@@ -2742,31 +2669,6 @@ export function getParametresUiState() {
 
 export function setActiveParametresSectionId(sectionId = "") {
   parametresUiState.activeSectionId = String(sectionId || "").trim() || "parametres-general";
-}
-
-export function renderGeneralParametresContent() {
-  const form = store.projectForm;
-  return `${renderSettingsBlock({
-    id: "parametres-general",
-    title: "",
-    lead: "",
-    isActive: true,
-    isHero: false,
-    cards: [
-      renderSectionCard({
-        title: "Nom du projet",
-        description: "Description",
-        body: `<div class="settings-form-grid settings-form-grid--thirds">
-          ${renderInputField({ id: "projectName", label: "Nom de projet", value: form.projectName || "", placeholder: "Projet demo" })}
-        </div>`
-      }),
-      renderSectionCard({
-        title: "Fonctionnalités du projet",
-        description: "Active ou masque certaines fonctionnalités optionnelles dans l’en-tête projet.",
-        body: renderProjectTabsFeatureCard(form.projectTabs || {})
-      })
-    ]
-  })}`;
 }
 
 export function renderLocalisationParametresContent() {
@@ -2887,26 +2789,9 @@ export function renderAutomatisationsParametresContent() {
   })}`;
 }
 
-function bindBaseParametresUi() {
+export function bindBaseParametresUi() {
   bindGhActionButtons();
   bindInteractiveSvgLineCharts();
-}
-
-export function bindGeneralParametresSection(root) {
-  currentParametresRoot = root || currentParametresRoot;
-  bindBaseParametresUi();
-  bindGhEditableFields(document, {
-    onValidate: async (id, value) => {
-      if (id !== "projectName") return;
-      const previousProjectName = String(store.projectForm.projectName || store.currentProject?.name || "Projet demo");
-      persistCurrentProjectNameToSupabase(value).catch((error) => {
-        console.warn("persistCurrentProjectNameToSupabase failed", error);
-        persistCurrentProjectNameToSupabase(previousProjectName).catch(() => undefined);
-      });
-    }
-  });
-  bindProjectTabToggles();
-  refreshProjectTabsVisibility();
 }
 
 export function bindLocalisationParametresSection(root) {
