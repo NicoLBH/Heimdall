@@ -3170,6 +3170,22 @@ color:var(--text);
   background:var(--panel2);
 }
 
+.side-nav-layout__item.is-disabled{
+  color:var(--muted);
+  cursor:default;
+  pointer-events:none;
+}
+
+.side-nav-layout__item--muted .side-nav-layout__label,
+.side-nav-layout__item.is-disabled .side-nav-layout__label{
+  color:var(--muted);
+}
+
+.side-nav-layout__item--muted .side-nav-layout__icon,
+.side-nav-layout__item.is-disabled .side-nav-layout__icon{
+  color:var(--muted);
+}
+
 .side-nav-layout__item.is-active{
   background:rgba(110,118,129,.14);
   font-weight:500;
@@ -9310,6 +9326,50 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   min-width:0;
 }
 
+
+.personal-settings-account-card{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:0 0 16px;
+  margin-bottom:8px;
+}
+
+.personal-settings-account-card__avatar-wrap{
+  width:56px;
+  height:56px;
+  border-radius:50%;
+  overflow:hidden;
+  border:1px solid var(--border);
+  background:var(--panel);
+  flex:0 0 56px;
+}
+
+.personal-settings-account-card__avatar{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.personal-settings-account-card__body{
+  min-width:0;
+}
+
+.personal-settings-account-card__name{
+  font-size:20px;
+  line-height:1.2;
+  font-weight:600;
+  color:var(--text);
+  word-break:break-word;
+}
+
+.personal-settings-account-card__meta{
+  margin-top:4px;
+  font-size:13px;
+  line-height:18px;
+  color:var(--muted);
+}
 .personal-settings-page__header{
   padding-bottom:16px;
   margin-bottom:24px;
