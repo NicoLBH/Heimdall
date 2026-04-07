@@ -181,9 +181,11 @@ function renderPublicProfilePanel() {
   const model = getUserProfileModel();
 
   return `
-    <section class="personal-settings-panel is-active" data-side-nav-panel="personal-settings-public-profile">
+    <section class="personal-settings-panel" data-side-nav-panel="personal-settings-public-profile">
       <div class="settings-block__head personal-settings-page__header">
-        <h3>Profil public</h3>
+        <div class="settings-card__head-title">
+          <h3>Profil public</h3>
+        </div>
       </div>
 
       <div class="personal-settings-panel__content">
