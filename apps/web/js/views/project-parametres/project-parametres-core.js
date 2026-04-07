@@ -3051,4 +3051,3 @@ export function bindAutomatisationsParametresSection(root) {
   bindBaseParametresUi();
   bindProjectAutomationToggles();
 }
-}
