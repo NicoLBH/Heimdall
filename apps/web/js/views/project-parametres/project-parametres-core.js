@@ -9,12 +9,8 @@ import { renderGhEditableField, bindGhEditableFields } from "../ui/gh-input.js";
 import { renderGhSelectMenu, bindGhSelectMenus, bindGhActionButtons } from "../ui/gh-split-button.js";
 import {
   ensureProjectAutomationDefaults,
-  getAgentCatalogList,
   getAutomationCatalogList,
-  isAgentEnabled,
   isAutomationEnabled,
-  setAgentEnabled,
-  setAutomationEnabled,
   shouldAutoRunProjectBaseDataEnrichment,
   startRunLogEntry,
   finishRunLogEntry
@@ -521,18 +517,6 @@ function renderPlaceholderList(items) {
 }
 
 
-function getAgentItemDescription(item) {
-  const descriptions = {
-    solidite: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
-    incendie: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
-    pmr: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
-    parasismique: "Agent actuellement opérationnel dans le PoC. Utilisé pour les analyses spécialisées disponibles.",
-    thermique: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel.",
-    acoustique: "Visible pour exposer la trajectoire produit. Non implémenté dans le PoC actuel."
-  };
-
-  return descriptions[item.key] || "Configuration d’agent spécialisée du projet.";
-}
 
 function getAutomationItemDescription(item) {
   const descriptions = {
@@ -549,8 +533,7 @@ function getAutomationItemDescription(item) {
 
 function renderToggleSettingsCard({
   title,
-  items = [],
-  kind = "automation"
+  items = []
 }) {
   return `
     <div class="settings-features-card">
@@ -558,15 +541,8 @@ function renderToggleSettingsCard({
       <div class="settings-features-list">
         ${items.map((item) => {
           const isImplemented = !!item.implemented;
-          const inputId = `${kind}Toggle_${item.key}`;
-          const dataAttr =
-            kind === "agent"
-              ? `data-project-agent-toggle="${escapeHtml(item.key)}"`
-              : `data-project-automation-toggle="${escapeHtml(item.key)}"`;
-          const checked =
-            kind === "agent"
-              ? isAgentEnabled(item.key)
-              : isAutomationEnabled(item.key);
+          const inputId = `automationToggle_${item.key}`;
+          const checked = isAutomationEnabled(item.key);
 
           return `
             <label
@@ -577,7 +553,7 @@ function renderToggleSettingsCard({
                 <input
                   id="${escapeHtml(inputId)}"
                   type="checkbox"
-                  ${dataAttr}
+                  data-project-automation-toggle="${escapeHtml(item.key)}"
                   ${checked ? "checked" : ""}
                   ${isImplemented ? "" : "disabled"}
                 >
@@ -589,13 +565,7 @@ function renderToggleSettingsCard({
                     ? `<span class="settings-feature-row__meta">PoC actif</span>`
                     : `<span class="settings-feature-row__meta settings-feature-row__meta--muted">Non implémenté</span>`}
                 </div>
-                <div class="settings-feature-row__desc">
-                  ${escapeHtml(
-                    kind === "agent"
-                      ? getAgentItemDescription(item)
-                      : getAutomationItemDescription(item)
-                  )}
-                </div>
+                <div class="settings-feature-row__desc">${escapeHtml(getAutomationItemDescription(item))}</div>
               </div>
             </label>
           `;
@@ -605,18 +575,10 @@ function renderToggleSettingsCard({
   `;
 }
 
-function renderAgentsFeatureCard() {
-  return renderToggleSettingsCard({
-    title: "Agents spécialisés activables",
-    kind: "agent",
-    items: getAgentCatalogList()
-  });
-}
 
 function renderAutomationsFeatureCard() {
   return renderToggleSettingsCard({
     title: "Principales automatisations",
-    kind: "automation",
     items: getAutomationCatalogList()
   });
 }
@@ -790,21 +752,6 @@ export function setActiveParametresSectionId(sectionId = "") {
 
 
 
-export function renderAgentsParametresContent() {
-  return `${renderSettingsBlock({
-    id: "parametres-agents-actives",
-    title: "",
-    lead: "",
-    cards: [
-      renderSectionCard({
-        title: "Agents activés",
-        description: "Active les agents spécialisés disponibles pour ce projet. Le PoC expose déjà la structure cible, avec un seul agent actuellement implémenté.",
-        badge: "PoC",
-        body: renderAgentsFeatureCard()
-      })
-    ]
-  })}`;
-}
 
 export function renderAutomatisationsParametresContent() {
   return `${renderSettingsBlock({
@@ -830,11 +777,6 @@ export function bindBaseParametresUi() {
 
 
 
-export function bindAgentsParametresSection(root) {
-  currentParametresRoot = root || currentParametresRoot;
-  bindBaseParametresUi();
-  bindProjectAutomationToggles();
-}
 
 export function bindAutomatisationsParametresSection(root) {
   currentParametresRoot = root || currentParametresRoot;
