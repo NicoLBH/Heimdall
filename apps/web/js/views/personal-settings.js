@@ -1,5 +1,4 @@
 import {
-  bindSideNavPanels,
   renderSideNavLayout,
   renderSideNavGroup,
   renderSideNavItem,
@@ -114,20 +113,49 @@ export function renderPersonalSettings(root) {
         navClassName: "settings-nav settings-nav--parametres personal-settings-layout__nav",
         contentClassName: "settings-content settings-content--parametres personal-settings-layout__content",
         navHtml: renderPersonalSettingsNav(defaultTab.id),
-        contentHtml: activePersonalSettingsTabs.map((tab) => tab.renderContent()).join("")
+        contentHtml: '<div id="personalSettingsContent"></div>'
       })}
     </section>
   `;
 
-  activePersonalSettingsTabs.forEach((tab) => {
-    const panelRoot = root.querySelector(`[data-side-nav-panel="${tab.id}"]`);
-    tab.bind?.(panelRoot);
+  root.addEventListener("click", (event) => {
+    const navItem = event.target.closest?.("[data-side-nav-target]");
+    if (!navItem || !root.contains(navItem)) return;
+
+    const targetId = navItem.dataset.sideNavTarget || defaultTab.id;
+    mountPersonalSettingsTab(root, targetId);
   });
 
-  const scrollContainer = root.querySelector(".side-nav-layout__content") || null;
+  mountPersonalSettingsTab(root, defaultTab.id);
+}
 
-  bindSideNavPanels(root, {
-    defaultTarget: defaultTab.id,
-    scrollContainer
+
+function getPersonalSettingsTabById(tabId) {
+  return activePersonalSettingsTabs.find((tab) => tab.id === tabId) || activePersonalSettingsTabs[0];
+}
+
+function renderPersonalSettingsContent(tabId) {
+  const activeTab = getPersonalSettingsTabById(tabId);
+  return activeTab?.renderContent?.() || "";
+}
+
+function mountPersonalSettingsTab(root, tabId) {
+  if (!root) return;
+
+  const activeTab = getPersonalSettingsTabById(tabId);
+  const navItems = Array.from(root.querySelectorAll("[data-side-nav-target]"));
+  navItems.forEach((item) => {
+    item.classList.toggle("is-active", item.dataset.sideNavTarget === activeTab.id);
   });
+
+  const contentRoot = root.querySelector("#personalSettingsContent");
+  if (!contentRoot) return;
+
+  contentRoot.innerHTML = renderPersonalSettingsContent(activeTab.id);
+  activeTab.bind?.(contentRoot.querySelector("[data-side-nav-panel]"));
+
+  const scrollContainer = root.querySelector(".side-nav-layout__content");
+  if (scrollContainer?.scrollTo) {
+    scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+  }
 }
