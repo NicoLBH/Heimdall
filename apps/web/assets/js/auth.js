@@ -114,8 +114,41 @@ export async function getAccessToken() {
   return session?.access_token || ''
 }
 
-export async function buildSupabaseAuthHeaders(extra = {}) {
-  const accessToken = await getAccessToken()
+function isSessionExpiringSoon(session, thresholdMs = 60_000) {
+  const expiresAtSeconds = Number(session?.expires_at || 0)
+  if (!expiresAtSeconds) {
+    return false
+  }
+
+  return (expiresAtSeconds * 1000) - Date.now() <= thresholdMs
+}
+
+export async function refreshUserSession() {
+  const session = await getSessionSafe()
+  if (!session?.refresh_token) {
+    return session
+  }
+
+  const { data, error } = await supabase.auth.refreshSession()
+  if (error) {
+    if (isAuthSessionMissingError(error)) {
+      return null
+    }
+    throw error
+  }
+
+  return data?.session || null
+}
+
+export async function buildSupabaseAuthHeaders(extra = {}, options = {}) {
+  const forceRefresh = Boolean(options?.forceRefresh)
+
+  let session = await getSessionSafe()
+  if ((forceRefresh || isSessionExpiringSoon(session)) && session?.refresh_token) {
+    session = await refreshUserSession()
+  }
+
+  const accessToken = session?.access_token || ''
   if (!accessToken) {
     throw new Error("Session utilisateur introuvable. Reconnectez-vous puis réessayez.")
   }
