@@ -1,14 +1,16 @@
 import { store } from "../../store.js";
 import { svgIcon } from "../../ui/icons.js";
 import { escapeHtml } from "../../utils/escape-html.js";
+import { deleteCurrentUserAccount, DELETE_ACCOUNT_CONFIRMATION_TEXT } from "../../services/account-supabase-sync.js";
 
 const deleteAccountUiState = {
   modalOpen: false,
   identityValue: "",
-  confirmValue: ""
+  confirmValue: "",
+  submitting: false,
+  errorMessage: "",
+  successMessage: ""
 };
-
-const DELETE_CONFIRMATION_TEXT = "supprimer mon compte";
 
 export function getAccountPersonalSettingsTab() {
   return {
@@ -32,7 +34,7 @@ function renderDeleteAccountModal() {
 
   const isSubmitEnabled =
     deleteAccountUiState.identityValue.trim().length > 0 &&
-    deleteAccountUiState.confirmValue.trim().toLowerCase() === DELETE_CONFIRMATION_TEXT;
+    deleteAccountUiState.confirmValue.trim().toLowerCase() === DELETE_ACCOUNT_CONFIRMATION_TEXT;
 
   return `
     <div class="personal-settings-delete-modal" id="personalSettingsDeleteModal">
@@ -74,7 +76,7 @@ function renderDeleteAccountModal() {
           </label>
 
           <label class="personal-settings-delete-modal__field">
-            <span class="personal-settings-delete-modal__label">Pour vérifier, tapez <em>${escapeHtml(DELETE_CONFIRMATION_TEXT)}</em> exactement comme affiché&nbsp;:</span>
+            <span class="personal-settings-delete-modal__label">Pour vérifier, tapez <em>${escapeHtml(DELETE_ACCOUNT_CONFIRMATION_TEXT)}</em> exactement comme affiché&nbsp;:</span>
             <input
               type="text"
               class="gh-input personal-settings-delete-modal__input"
@@ -89,13 +91,16 @@ function renderDeleteAccountModal() {
             Vous devrez confirmer votre identité avant la suppression du compte.
           </div>
 
+          ${deleteAccountUiState.errorMessage ? `<div class="gh-alert gh-alert--error personal-settings-delete-modal__feedback">${escapeHtml(deleteAccountUiState.errorMessage)}</div>` : ""}
+          ${deleteAccountUiState.successMessage ? `<div class="personal-settings-delete-modal__note personal-settings-delete-modal__note--success">${escapeHtml(deleteAccountUiState.successMessage)}</div>` : ""}
+
           <button
             type="button"
             class="gh-btn gh-btn--danger-alt personal-settings-delete-modal__submit"
             id="personalSettingsDeleteSubmit"
-            ${isSubmitEnabled ? "" : "disabled"}
+            ${isSubmitEnabled && !deleteAccountUiState.submitting ? "" : "disabled"}
           >
-            Annuler le forfait et supprimer ce compte
+            ${deleteAccountUiState.submitting ? "Suppression en cours…" : "Annuler le forfait et supprimer ce compte"}
           </button>
         </div>
       </div>
@@ -135,14 +140,20 @@ function rerenderAccountPanel(panelRoot) {
 function closeDeleteModal(panelRoot) {
   if (!deleteAccountUiState.modalOpen) return;
   deleteAccountUiState.modalOpen = false;
+  deleteAccountUiState.submitting = false;
+  deleteAccountUiState.errorMessage = "";
+  deleteAccountUiState.successMessage = "";
   document.body.classList.remove("modal-open");
   rerenderAccountPanel(panelRoot);
 }
 
-function openDeleteModal(panelRoot) {
+async function openDeleteModal(panelRoot) {
   deleteAccountUiState.modalOpen = true;
   deleteAccountUiState.identityValue = getAccountIdentityLabel();
   deleteAccountUiState.confirmValue = "";
+  deleteAccountUiState.submitting = false;
+  deleteAccountUiState.errorMessage = "";
+  deleteAccountUiState.successMessage = "";
   document.body.classList.add("modal-open");
   rerenderAccountPanel(panelRoot);
 
@@ -156,7 +167,9 @@ export function bindAccountPanel(panelRoot) {
   if (!panelRoot) return;
 
   const openButton = panelRoot.querySelector("#personalSettingsDeleteAccountButton");
-  openButton?.addEventListener("click", () => openDeleteModal(panelRoot));
+  openButton?.addEventListener("click", () => {
+    void openDeleteModal(panelRoot);
+  });
 
   const modal = panelRoot.querySelector("#personalSettingsDeleteModal");
   if (!modal) return;
@@ -177,13 +190,55 @@ export function bindAccountPanel(panelRoot) {
     deleteAccountUiState.confirmValue = confirmationInput?.value || "";
     const isEnabled =
       deleteAccountUiState.identityValue.trim().length > 0 &&
-      deleteAccountUiState.confirmValue.trim().toLowerCase() === DELETE_CONFIRMATION_TEXT;
+      deleteAccountUiState.confirmValue.trim().toLowerCase() === DELETE_ACCOUNT_CONFIRMATION_TEXT &&
+      !deleteAccountUiState.submitting;
     if (submitButton) submitButton.disabled = !isEnabled;
   };
 
-  identityInput?.addEventListener("input", syncSubmitState);
-  confirmationInput?.addEventListener("input", syncSubmitState);
+  identityInput?.addEventListener("input", () => {
+    deleteAccountUiState.identityValue = identityInput?.value || "";
+    if (deleteAccountUiState.errorMessage || deleteAccountUiState.successMessage) {
+      deleteAccountUiState.errorMessage = "";
+      deleteAccountUiState.successMessage = "";
+      rerenderAccountPanel(panelRoot);
+      return;
+    }
+    syncSubmitState();
+  });
+  confirmationInput?.addEventListener("input", () => {
+    deleteAccountUiState.confirmValue = confirmationInput?.value || "";
+    if (deleteAccountUiState.errorMessage || deleteAccountUiState.successMessage) {
+      deleteAccountUiState.errorMessage = "";
+      deleteAccountUiState.successMessage = "";
+      rerenderAccountPanel(panelRoot);
+      return;
+    }
+    syncSubmitState();
+  });
   syncSubmitState();
+
+  submitButton?.addEventListener("click", async () => {
+    if (deleteAccountUiState.submitting) return;
+
+    deleteAccountUiState.submitting = true;
+    deleteAccountUiState.errorMessage = "";
+    deleteAccountUiState.successMessage = "";
+    rerenderAccountPanel(panelRoot);
+
+    try {
+      await deleteCurrentUserAccount({
+        identityInput: deleteAccountUiState.identityValue,
+        confirmationText: deleteAccountUiState.confirmValue
+      });
+
+      deleteAccountUiState.successMessage = "Compte supprimé. Redirection en cours…";
+      window.location.replace(new URL("login.html", window.location.href).toString());
+    } catch (error) {
+      deleteAccountUiState.submitting = false;
+      deleteAccountUiState.errorMessage = error instanceof Error ? error.message : String(error);
+      rerenderAccountPanel(panelRoot);
+    }
+  });
 
   modal.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
