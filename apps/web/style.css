@@ -3729,6 +3729,7 @@ color:var(--text);
   font-size:13px;
   font-family:var(--font);
   line-height:1;
+  font-weight:500;
 }
 
 .gh-btn:hover{border-color:#6e7681;}
