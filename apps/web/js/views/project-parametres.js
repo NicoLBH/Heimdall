@@ -49,8 +49,11 @@ import { buildGoogleMapsPlaceEmbedUrl, hasGoogleMapsEmbedApiKey } from "../servi
 import {
   persistCurrentProjectNameToSupabase,
   syncProjectLotsFromSupabase,
-  persistProjectLotActivationToSupabase
+  persistProjectLotActivationToSupabase,
+  addCustomProjectLotToSupabase,
+  deleteCustomProjectLotFromSupabase
 } from "../services/project-supabase-sync.js";
+import { renderSettingsModal } from "./ui/settings-modal.js";
 
 const DEFAULT_PROJECT_COLLABORATORS = [
   { id: "collab-1", email: "nicolas.lebihan@socotec.com", status: "Actif", role: "Admin" },
@@ -72,7 +75,12 @@ const parametresUiState = {
     postalCode: { items: [], loading: false, open: false, activeIndex: -1 }
   },
   locationAutocompleteDocumentBound: false,
-  locationEditBaseSignature: ""
+  locationEditBaseSignature: "",
+  addLotModalOpen: false,
+  addLotGroupCode: "groupe-maitrise-ouvrage",
+  addLotTitle: "",
+  addLotSubmitting: false,
+  addLotErrorMessage: ""
 };
 
 let currentParametresRoot = null;
@@ -346,9 +354,9 @@ const PARAMETRES_NAV_GROUPS = [
     items: [
       { targetId: "parametres-localisation", label: "Localisation", icon: "pin" },
       { targetId: "parametres-phase", label: "Phases", icon: "checklist" },
+      { targetId: "parametres-lots", label: "Lots", icon: "book" },
       { targetId: "parametres-collaborateurs", label: "Collaborateurs", icon: "people" },
-      { targetId: "parametres-agents-actives", label: "Agents activés", icon: "shield" },
-      { targetId: "parametres-lots", label: "Lots activés", icon: "book" }
+      { targetId: "parametres-agents-actives", label: "Agents activés", icon: "shield" }
     ]
   },
   {
@@ -431,80 +439,145 @@ function getProjectLotsViewState() {
   return state;
 }
 
+function getProjectLotGroupDefinitions() {
+  return [
+    { code: "groupe-maitrise-ouvrage", title: "Maîtrise d'ouvrage" },
+    { code: "groupe-maitrise-oeuvre", title: "Maîtrise d'oeuvre" },
+    { code: "groupe-entreprise", title: "Entreprises" },
+    { code: "groupe-divers", title: "Divers" }
+  ];
+}
+
+function getProjectLotGroupTitle(groupCode = "") {
+  return getProjectLotGroupDefinitions().find((item) => item.code === groupCode)?.title || "Divers";
+}
+
+function renderAddProjectLotModal() {
+  if (!parametresUiState.addLotModalOpen) return "";
+
+  const radioOptions = getProjectLotGroupDefinitions();
+  const submitDisabled = parametresUiState.addLotSubmitting || !String(parametresUiState.addLotTitle || "").trim();
+
+  return renderSettingsModal({
+    modalId: "projectAddLotModal",
+    title: "Ajouter un lot",
+    closeDataAttribute: "data-close-project-lot-modal",
+    bodyHtml: `
+      <div class="project-lot-modal__groups" role="radiogroup" aria-label="Groupe du lot">
+        ${radioOptions.map((option) => `
+          <label class="project-lot-modal__radio">
+            <input
+              type="radio"
+              name="projectLotGroupCode"
+              value="${escapeHtml(option.code)}"
+              ${parametresUiState.addLotGroupCode === option.code ? "checked" : ""}
+            >
+            <span>${escapeHtml(option.title)}</span>
+          </label>
+        `).join("")}
+      </div>
+
+      <label class="personal-settings-delete-modal__field">
+        <span class="personal-settings-delete-modal__label">Saisssisez le titre du lot à ajouter :</span>
+        <input
+          type="text"
+          class="gh-input personal-settings-delete-modal__input"
+          id="projectAddLotTitle"
+          value="${escapeHtml(parametresUiState.addLotTitle)}"
+          autocomplete="off"
+          spellcheck="false"
+        >
+      </label>
+
+      ${parametresUiState.addLotErrorMessage ? `<div class="gh-alert gh-alert--error personal-settings-delete-modal__feedback">${escapeHtml(parametresUiState.addLotErrorMessage)}</div>` : ""}
+
+      <button
+        type="button"
+        class="gh-btn gh-btn--success personal-settings-delete-modal__submit"
+        id="projectAddLotSubmit"
+        ${submitDisabled ? "disabled" : ""}
+      >
+        ${parametresUiState.addLotSubmitting ? "Enregistrement…" : "Enregistrer"}
+      </button>
+    `
+  });
+}
+
 function renderProjectLotsCard() {
   const lotsState = getProjectLotsViewState();
+  const groups = getProjectLotGroupDefinitions().map((definition) => ({
+    ...definition,
+    items: []
+  }));
+  const groupsMap = new Map(groups.map((group) => [group.code, group]));
+
   const lots = Array.isArray(lotsState.items) ? [...lotsState.items] : [];
-  const sortedLots = lots.sort((a, b) => {
-    const groupCompare = String(a.groupLabel || "").localeCompare(String(b.groupLabel || ""), "fr");
-    if (groupCompare !== 0) return groupCompare;
+  lots.sort((a, b) => {
+    const groupA = getProjectLotGroupDefinitions().findIndex((item) => item.code === a.groupCode);
+    const groupB = getProjectLotGroupDefinitions().findIndex((item) => item.code === b.groupCode);
+    if (groupA !== groupB) return groupA - groupB;
     const sortCompare = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
     if (sortCompare !== 0) return sortCompare;
     return String(a.label || "").localeCompare(String(b.label || ""), "fr");
-  });
-
-  const groups = [];
-  const groupsMap = new Map();
-  sortedLots.forEach((item) => {
-    const key = String(item.groupCode || item.groupLabel || "divers");
-    if (!groupsMap.has(key)) {
-      const bucket = {
-        key,
-        label: String(item.groupLabel || "Lots"),
-        items: []
-      };
-      groupsMap.set(key, bucket);
-      groups.push(bucket);
+  }).forEach((item) => {
+    const bucket = groupsMap.get(String(item.groupCode || ""));
+    if (bucket) {
+      bucket.items.push(item);
     }
-    groupsMap.get(key).items.push(item);
   });
 
   let content = "";
 
-  if (lotsState.loading && !sortedLots.length) {
+  if (lotsState.loading && !lots.length) {
     content = '<div class="settings-empty-note">Chargement des lots…</div>';
   } else if (lotsState.error) {
     content = `<div class="settings-inline-error">${escapeHtml(lotsState.error)}</div>`;
-  } else if (!sortedLots.length) {
+  } else if (!lots.length) {
     content = '<div class="settings-empty-note">Aucun lot disponible pour ce projet.</div>';
   } else {
-    content = groups.map((group) => `
-      <section class="settings-lots-group">
-        <div class="settings-lots-group__title">${escapeHtml(group.label)}</div>
-        <div class="settings-features-list settings-features-list--lots">
-          ${group.items.map((item) => {
-            const inputId = `projectLotToggle_${item.id}`;
-            return `
-              <label class="settings-feature-row" for="${escapeHtml(inputId)}">
-                <div class="settings-feature-row__control">
-                  <input
-                    id="${escapeHtml(inputId)}"
-                    type="checkbox"
-                    data-project-lot-toggle="${escapeHtml(item.id)}"
-                    ${item.activated ? "checked" : ""}
-                  >
-                </div>
-                <div class="settings-feature-row__body">
-                  <div class="settings-feature-row__top">
-                    <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
-                    ${item.activated ? '<span class="settings-feature-row__meta">Activé</span>' : ''}
-                    ${item.defaultActivated ? '<span class="settings-feature-row__meta settings-feature-row__meta--muted">Par défaut</span>' : ''}
-                  </div>
-                </div>
-              </label>
-            `;
-          }).join("")}
-        </div>
-      </section>
-    `).join("");
+    content = `
+      <div class="settings-lots-grid">
+        ${groups.map((group) => `
+          <section class="settings-features-card settings-lots-card">
+            <div class="settings-features-card__title">${escapeHtml(group.title)}</div>
+            <div class="settings-features-list">
+              ${group.items.map((item) => {
+                const inputId = `projectLotToggle_${item.id}`;
+                return `
+                  <label class="settings-feature-row settings-feature-row--lot" for="${escapeHtml(inputId)}">
+                    <div class="settings-feature-row__control">
+                      <input
+                        id="${escapeHtml(inputId)}"
+                        type="checkbox"
+                        data-project-lot-toggle="${escapeHtml(item.id)}"
+                        ${item.activated ? "checked" : ""}
+                      >
+                    </div>
+                    <div class="settings-feature-row__body settings-feature-row__body--lot">
+                      <div class="settings-feature-row__top settings-feature-row__top--lot">
+                        <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
+                        ${item.isCustom ? `<button type="button" class="settings-lot-delete-button" data-project-lot-delete="${escapeHtml(item.id)}">supprimer</button>` : ""}
+                      </div>
+                    </div>
+                  </label>
+                `;
+              }).join("") || '<div class="settings-empty-note settings-empty-note--card">Aucun lot.</div>'}
+            </div>
+          </section>
+        `).join("")}
+      </div>
+    `;
   }
 
   return `
-    <div class="settings-features-toolbar">
-      <button type="button" class="gh-btn" data-project-lot-add disabled>Ajouter un lot</button>
+    <div class="settings-features-toolbar settings-features-toolbar--lots">
+      <button type="button" class="gh-btn gh-btn--success settings-lots-add-button" data-project-lot-add>
+        ${svgIcon("book")}
+        <span>Ajouter un lot</span>
+      </button>
     </div>
-    <div class="settings-features-card settings-features-card--lots">
-      ${content}
-    </div>
+    ${content}
+    ${renderAddProjectLotModal()}
   `;
 }
 
@@ -1816,6 +1889,51 @@ function closeCollaboratorModal() {
   rerenderProjectParametres();
 }
 
+function openAddProjectLotModal() {
+  parametresUiState.addLotModalOpen = true;
+  parametresUiState.addLotGroupCode = "groupe-maitrise-ouvrage";
+  parametresUiState.addLotTitle = "";
+  parametresUiState.addLotSubmitting = false;
+  parametresUiState.addLotErrorMessage = "";
+  document.body.classList.add("modal-open");
+  rerenderProjectParametres();
+
+  queueMicrotask(() => {
+    document.getElementById("projectAddLotTitle")?.focus();
+  });
+}
+
+function closeAddProjectLotModal() {
+  parametresUiState.addLotModalOpen = false;
+  parametresUiState.addLotSubmitting = false;
+  parametresUiState.addLotErrorMessage = "";
+  document.body.classList.remove("modal-open");
+  rerenderProjectParametres();
+}
+
+async function submitAddProjectLotModal() {
+  if (parametresUiState.addLotSubmitting) return;
+
+  const label = String(parametresUiState.addLotTitle || "").trim();
+  if (!label) return;
+
+  parametresUiState.addLotSubmitting = true;
+  parametresUiState.addLotErrorMessage = "";
+  rerenderProjectParametres();
+
+  try {
+    await addCustomProjectLotToSupabase({
+      groupCode: parametresUiState.addLotGroupCode,
+      label
+    });
+    closeAddProjectLotModal();
+  } catch (error) {
+    parametresUiState.addLotSubmitting = false;
+    parametresUiState.addLotErrorMessage = error instanceof Error ? error.message : String(error || "Erreur d'ajout du lot");
+    rerenderProjectParametres();
+  }
+}
+
 function submitCollaboratorDraft() {
   const email = String(parametresUiState.collaboratorDraftEmail || "").trim();
   if (!email) return;
@@ -1952,7 +2070,7 @@ function getPageHtml(form) {
                 cards: [
                   renderSectionCard({
                     title: "Lots",
-                    description: "Chaque projet est associé à une liste de lots provenant de Supabase. Le bouton d'ajout est présent dans l'UI, son comportement sera branché ensuite.",
+                    description: "Chaque projet est associé à une liste de lots provenant de Supabase. Les lots personnalisés peuvent être ajoutés puis supprimés depuis cette vue.",
                     body: renderProjectLotsCard()
                   })
                 ]
@@ -2175,6 +2293,86 @@ function bindProjectLotToggles() {
       handleProjectLotToggle(target, !!target.checked);
     });
   });
+
+  document.querySelectorAll("[data-project-lot-add]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openAddProjectLotModal();
+    });
+  });
+
+  document.querySelectorAll("[data-project-lot-delete]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = event.currentTarget;
+      const lotId = target?.getAttribute("data-project-lot-delete");
+      if (!lotId) return;
+      target.disabled = true;
+      try {
+        await deleteCustomProjectLotFromSupabase(lotId);
+        rerenderProjectParametres();
+      } catch (error) {
+        console.warn("deleteCustomProjectLotFromSupabase failed", error);
+        target.disabled = false;
+      }
+    });
+  });
+
+  const modal = document.getElementById("projectAddLotModal");
+  if (!modal) return;
+
+  modal.addEventListener("click", (event) => {
+    const closeTarget = event.target.closest?.("[data-close-project-lot-modal]");
+    if (closeTarget) {
+      closeAddProjectLotModal();
+    }
+  });
+
+  modal.querySelectorAll('input[name="projectLotGroupCode"]').forEach((input) => {
+    input.addEventListener("change", (event) => {
+      parametresUiState.addLotGroupCode = event.target.value || "groupe-maitrise-ouvrage";
+    });
+  });
+
+  const titleInput = modal.querySelector("#projectAddLotTitle");
+  const submitButton = modal.querySelector("#projectAddLotSubmit");
+
+  const syncSubmitState = () => {
+    parametresUiState.addLotTitle = titleInput?.value || "";
+    if (submitButton) {
+      submitButton.disabled = parametresUiState.addLotSubmitting || !String(parametresUiState.addLotTitle || "").trim();
+    }
+  };
+
+  titleInput?.addEventListener("input", () => {
+    parametresUiState.addLotTitle = titleInput?.value || "";
+    if (parametresUiState.addLotErrorMessage) {
+      parametresUiState.addLotErrorMessage = "";
+      rerenderProjectParametres();
+      return;
+    }
+    syncSubmitState();
+  });
+
+  titleInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void submitAddProjectLotModal();
+    }
+  });
+
+  submitButton?.addEventListener("click", () => {
+    void submitAddProjectLotModal();
+  });
+
+  modal.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAddProjectLotModal();
+    }
+  });
+
+  syncSubmitState();
 }
 
 function getLocationAutocompleteState(fieldKey) {
