@@ -7,6 +7,7 @@ export function renderSideNavItem({
   targetId = "",
   isActive = false,
   isPrimary = false,
+  isDisabled = false,
   tag = "",
   className = "",
   as = "button"
@@ -20,14 +21,20 @@ export function renderSideNavItem({
     attrs.push(`type="button"`);
   }
 
-  if (targetId) {
+  if (targetId && !isDisabled) {
     attrs.push(`data-side-nav-target="${escapeHtml(targetId)}"`);
+  }
+
+  if (isDisabled) {
+    attrs.push(`aria-disabled="true"`);
+    attrs.push(`tabindex="-1"`);
   }
 
   const classes = [
     "side-nav-layout__item",
     isActive ? "is-active" : "",
     isPrimary ? "side-nav-layout__item--primary" : "",
+    isDisabled ? "is-disabled" : "",
     className
   ].filter(Boolean).join(" ");
 
