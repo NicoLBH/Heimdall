@@ -25,6 +25,9 @@ export function renderSideNavItem({
     attrs.push(`data-side-nav-target="${escapeHtml(targetId)}"`);
   }
 
+  attrs.push(`data-side-nav-active="${isActive ? "true" : "false"}"`);
+  attrs.push(`aria-current="${isActive ? "page" : "false"}"`);
+
   if (isDisabled) {
     attrs.push(`aria-disabled="true"`);
     attrs.push(`tabindex="-1"`);
@@ -99,7 +102,10 @@ export function bindSideNavPanels(root = document, {
 
   const showPanel = (targetId) => {
     links.forEach((link) => {
-      link.classList.toggle("is-active", link.dataset.sideNavTarget === targetId);
+      const isActive = link.dataset.sideNavTarget === targetId;
+      link.classList.toggle("is-active", isActive);
+      link.setAttribute("data-side-nav-active", isActive ? "true" : "false");
+      link.setAttribute("aria-current", isActive ? "page" : "false");
     });
 
     panels.forEach((panel) => {
