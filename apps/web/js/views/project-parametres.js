@@ -74,7 +74,10 @@ function mountProjectParametresTab(root, tabId) {
   setActiveParametresSectionId(activeTab.id);
 
   root.querySelectorAll("[data-side-nav-target]").forEach((item) => {
-    item.classList.toggle("is-active", item.dataset.sideNavTarget === activeTab.id);
+    const isActive = item.dataset.sideNavTarget === activeTab.id;
+    item.classList.toggle("is-active", isActive);
+    item.setAttribute("data-side-nav-active", isActive ? "true" : "false");
+    item.setAttribute("aria-current", isActive ? "page" : "false");
   });
 
   const contentRoot = root.querySelector("#projectParametresContent");
