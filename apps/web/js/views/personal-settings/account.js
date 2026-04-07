@@ -20,11 +20,9 @@ function renderAccountPanel() {
           Une fois que vous aurez supprimé votre compte, aucun retour en arrière ne sera possible. S'il vous plaît, soyez certain avant de supprimer votre compte.
         </p>
 
-        <div class="personal-settings-danger-actions">
-          <button type="button" class="gh-btn gh-btn--danger personal-settings-danger-button">
-            Supprimer votre compte
-          </button>
-        </div>
+        <button type="button" class="gh-btn gh-btn--danger-alt personal-settings-danger-button">
+          Supprimer votre compte
+        </button>
       </div>
     </section>
   `;
