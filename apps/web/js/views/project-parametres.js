@@ -9,7 +9,6 @@ import { svgIcon } from "../ui/icons.js";
 import {
   ensureProjectParametresSetup,
   setProjectParametresRerender,
-  bindParametresSection,
   getParametresUiState,
   setActiveParametresSectionId
 } from "./project-parametres/project-parametres-core.js";
@@ -82,7 +81,6 @@ function mountProjectParametresTab(root, tabId) {
   if (!contentRoot) return;
 
   contentRoot.innerHTML = activeTab.renderContent();
-  bindParametresSection(root, activeTab.id);
   activeTab.bind?.(contentRoot.querySelector("[data-side-nav-panel]") || contentRoot);
 
   const scrollContainer = root.querySelector("#projectParametresScroll");
