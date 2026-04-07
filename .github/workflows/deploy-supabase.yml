@@ -47,4 +47,4 @@ jobs:
           supabase functions deploy extract-pdf-text --no-verify-jwt --debug
           supabase functions deploy generate-observations --no-verify-jwt --debug
           supabase functions deploy resolve-observations --no-verify-jwt --debug
-          supabase functions deploy delete-account --debug
+          supabase functions deploy delete-account --no-verify-jwt --debug
