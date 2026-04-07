@@ -116,9 +116,13 @@ export async function getAccessToken() {
 
 export async function buildSupabaseAuthHeaders(extra = {}) {
   const accessToken = await getAccessToken()
+  if (!accessToken) {
+    throw new Error("Session utilisateur introuvable. Reconnectez-vous puis réessayez.")
+  }
+
   return {
     apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+    Authorization: `Bearer ${accessToken}`,
     ...extra
   }
 }
