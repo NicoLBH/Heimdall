@@ -1,11 +1,15 @@
-import { renderParametresSectionContent } from "./project-parametres-core.js";
+import {
+  renderPhasesParametresContent,
+  bindPhasesParametresSection
+} from "./project-parametres-core.js";
 
 export function getPhasesProjectParametresTab() {
   return {
     id: "parametres-phase",
     label: "Phases",
     iconName: "checklist",
-    false
-    renderContent: () => renderParametresSectionContent("parametres-phase")
+    isPrimary: false,
+    renderContent: () => renderPhasesParametresContent(),
+    bind: (root) => bindPhasesParametresSection(root)
   };
 }
