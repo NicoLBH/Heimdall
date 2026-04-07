@@ -46,6 +46,12 @@
   --btn-bg:rgb(33,40,48);
   --btn-bg-success:rgb(35,134,54);
   --bg-input:rgb(21, 27, 35);
+  --control-bgColor-rest: #212830;
+  --button-danger-borderColor-rest: rgb(61, 68, 77);
+  --button-default-shadow-resting: 0 0 0 0 #0000;
+  --button-danger-fgColor-rest: #fa5e55;
+  --button-danger-iconColor-rest: #fa5e55;
+  --button-danger-bgColor-rest: var(--control-bgColor-rest);
 
   --z-base: 1;
   --z-header: 100;
@@ -3754,6 +3760,23 @@ color:var(--text);
   background:rgba(248,81,73,.12);
   border-color:rgba(248,81,73,.35);
   color:#ffb3ad;
+}
+
+.gh-btn--danger-alt{
+  background-color: var(--button-danger-bgColor-rest);
+  border-color: var(--button-danger-borderColor-rest);
+  box-shadow: var(--button-default-shadow-resting);
+  color: var(--button-danger-fgColor-rest);
+  fill: var(--button-danger-iconColor-rest);
+}
+
+.gh-btn--danger-alt:hover{
+  border-color: var(--button-danger-borderColor-rest);
+  filter: brightness(1.05);
+}
+
+.gh-btn--danger-alt .ui-icon{
+  fill: currentColor;
 }
 
 .gh-btn--ghost{
@@ -9490,6 +9513,11 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .personal-settings-avatar-menu__item:hover{
   background:var(--panel2);
+}
+
+.personal-settings-danger-button{
+  align-self:flex-start;
+  margin-top:16px;
 }
 
 .personal-settings-page__footer{
