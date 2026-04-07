@@ -3760,6 +3760,12 @@ color:var(--text);
   background:rgba(248,81,73,.12);
   border-color:rgba(248,81,73,.35);
   color:#ffb3ad;
+  font-weight:500;
+  font-size:13px;
+}
+.gh-btn--danger:hover{
+  background-color: rgb(182, 35, 36);
+  color: rgb(255, 255, 255);
 }
 
 .gh-btn--danger-alt{
