@@ -8,6 +8,7 @@ import {
   deleteCustomProjectLotFromSupabase
 } from "../../services/project-supabase-sync.js";
 import { renderSettingsModal } from "../ui/settings-modal.js";
+import { renderLightTabs, bindLightTabs } from "../ui/light-tabs.js";
 import {
   renderSettingsBlock,
   renderSectionCard,
@@ -33,6 +34,9 @@ function ensureLotsUiState() {
   }
   if (typeof parametresUiState.addLotErrorMessage !== "string") {
     parametresUiState.addLotErrorMessage = "";
+  }
+  if (typeof parametresUiState.activeLotGroupCode !== "string" || !parametresUiState.activeLotGroupCode.trim()) {
+    parametresUiState.activeLotGroupCode = "groupe-maitrise-ouvrage";
   }
 
   return parametresUiState;
@@ -134,6 +138,7 @@ function renderAddProjectLotModal() {
 
 function renderProjectLotsCard() {
   const lotsState = getProjectLotsViewState();
+  const parametresUiState = ensureLotsUiState();
   const groups = getProjectLotGroupDefinitions().map((definition) => ({
     ...definition,
     items: []
@@ -155,6 +160,11 @@ function renderProjectLotsCard() {
     }
   });
 
+  const activeGroupCode = groups.some((group) => group.code === parametresUiState.activeLotGroupCode)
+    ? parametresUiState.activeLotGroupCode
+    : groups[0]?.code || "groupe-maitrise-ouvrage";
+  const activeGroup = groups.find((group) => group.code === activeGroupCode) || groups[0] || null;
+
   let content = "";
 
   if (lotsState.loading && !lots.length) {
@@ -163,48 +173,45 @@ function renderProjectLotsCard() {
     content = `<div class="settings-inline-error">${escapeHtml(lotsState.error)}</div>`;
   } else if (!lots.length) {
     content = '<div class="settings-empty-note">Aucun lot disponible pour ce projet.</div>';
-  } else {
+  } else if (activeGroup) {
     content = `
-      <div class="settings-lots-grid">
-        ${groups.map((group) => `
-          <section class="settings-features-card settings-lots-card">
-            <div class="settings-features-card__title">${escapeHtml(group.title)}</div>
-            <div class="settings-features-list">
-              ${group.items.map((item) => {
-                const inputId = `projectLotToggle_${item.id}`;
-                return `
-                  <label class="settings-feature-row settings-feature-row--lot" for="${escapeHtml(inputId)}">
-                    <div class="settings-feature-row__control">
-                      <input
-                        id="${escapeHtml(inputId)}"
-                        type="checkbox"
-                        data-project-lot-toggle="${escapeHtml(item.id)}"
-                        ${item.activated ? "checked" : ""}
-                      >
-                    </div>
-                    <div class="settings-feature-row__body settings-feature-row__body--lot">
-                      <div class="settings-feature-row__top settings-feature-row__top--lot">
-                        <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
-                        ${item.isCustom ? `<button type="button" class="settings-lot-delete-button" data-project-lot-delete="${escapeHtml(item.id)}">supprimer</button>` : ""}
-                      </div>
-                    </div>
-                  </label>
-                `;
-              }).join("") || '<div class="settings-empty-note settings-empty-note--card">Aucun lot.</div>'}
-            </div>
-          </section>
-        `).join("")}
-      </div>
+      ${renderLightTabs({
+        tabs: groups.map((group) => ({ id: group.code, label: group.title })),
+        activeTabId: activeGroupCode,
+        ariaLabel: "Groupes de lots",
+        className: "settings-lots-tabs"
+      })}
+
+      <section class="settings-features-card settings-lots-card settings-lots-card--active-group">
+        <div class="settings-features-card__title">${escapeHtml(activeGroup.title)}</div>
+        <div class="settings-features-list">
+          ${activeGroup.items.map((item) => {
+            const inputId = `projectLotToggle_${item.id}`;
+            return `
+              <label class="settings-feature-row settings-feature-row--lot" for="${escapeHtml(inputId)}">
+                <div class="settings-feature-row__control">
+                  <input
+                    id="${escapeHtml(inputId)}"
+                    type="checkbox"
+                    data-project-lot-toggle="${escapeHtml(item.id)}"
+                    ${item.activated ? "checked" : ""}
+                  >
+                </div>
+                <div class="settings-feature-row__body settings-feature-row__body--lot">
+                  <div class="settings-feature-row__top settings-feature-row__top--lot">
+                    <div class="settings-feature-row__label">${escapeHtml(item.label)}</div>
+                    ${item.isCustom ? `<button type="button" class="settings-lot-delete-button" data-project-lot-delete="${escapeHtml(item.id)}">supprimer</button>` : ""}
+                  </div>
+                </div>
+              </label>
+            `;
+          }).join("") || '<div class="settings-empty-note settings-empty-note--card">Aucun lot.</div>'}
+        </div>
+      </section>
     `;
   }
 
   return `
-    <div class="settings-features-toolbar settings-features-toolbar--lots">
-      <button type="button" class="gh-btn settings-lots-add-button" data-project-lot-add>
-        ${svgIcon("book")}
-        <span>Ajouter un lot</span>
-      </button>
-    </div>
     ${content}
     ${renderAddProjectLotModal()}
   `;
@@ -286,6 +293,16 @@ function bindProjectLotToggles() {
     button.addEventListener("click", () => {
       openAddProjectLotModal();
     });
+  });
+
+  bindLightTabs(document, {
+    selector: ".settings-lots-tabs [data-light-tab-target]",
+    onChange: (nextTabId) => {
+      const parametresUiState = ensureLotsUiState();
+      if (parametresUiState.activeLotGroupCode === nextTabId) return;
+      parametresUiState.activeLotGroupCode = nextTabId;
+      rerenderProjectParametres();
+    }
   });
 
   document.querySelectorAll("[data-project-lot-delete]").forEach((button) => {
@@ -399,6 +416,12 @@ export function renderLotsParametresContent() {
       renderSectionCard({
         title: "Lots",
         description: "Activez les lots présents sur le projet pour organiser les Documents et les Collaborateurs. Les lots personnalisés peuvent être ajoutés puis supprimés.",
+        action: `
+          <button type="button" class="gh-btn settings-lots-add-button" data-project-lot-add>
+            ${svgIcon("book")}
+            <span>Ajouter un lot</span>
+          </button>
+        `,
         body: renderProjectLotsCard()
       })
     ]
