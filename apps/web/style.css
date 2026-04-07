@@ -16,6 +16,7 @@
   --fgColor-open:rgb(63, 185, 80);
   --fgColor-closed:rgb(171, 125, 248);
   --fgColor-done:rgb(171, 125, 248);
+  --fgColor-danger:#f85149;
   --project-tabs-label-color:rgb(240, 246, 252);
   --project-tabs-icon-color:rgb(145, 152, 161);
   --borderColor-accent-emphasis:rgb(31,111,235);
@@ -9372,15 +9373,18 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 .personal-settings-page__header{
   padding-bottom:16px;
-  margin-bottom:24px;
-  border-bottom:1px solid var(--border);
 }
 
 .personal-settings-page__title{
-  margin:0;
-  font-size:40px;
-  line-height:1.2;
-  font-weight:500;
+  font-size: 22px;
+  line-height: 1.4;
+  font-weight: 600;
+  padding-bottom: 8px;
+  color: var(--text);
+}
+
+.settings-card__head-title--danger{
+  color:var(--fgColor-danger);
 }
 
 .personal-settings-panel__content{
