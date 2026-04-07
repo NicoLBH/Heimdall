@@ -1,4 +1,11 @@
 import { store } from "../store.js";
+import { renderGlobalShell } from "./global-shell.js";
+import {
+  DEFAULT_PUBLIC_AVATAR,
+  saveCurrentUserPublicProfile,
+  uploadCurrentUserAvatar,
+  removeCurrentUserAvatar
+} from "../services/profile-supabase-sync.js";
 import { svgIcon } from "../ui/icons.js";
 import { escapeHtml } from "../utils/escape-html.js";
 import {
@@ -7,7 +14,7 @@ import {
   renderSideNavItem
 } from "./ui/side-nav-layout.js";
 
-const DEFAULT_AVATAR = "assets/images/260093543.png";
+const DEFAULT_AVATAR = DEFAULT_PUBLIC_AVATAR;
 const CROP_VIEWPORT_SIZE = 412;
 const DEFAULT_SELECTION_DIAMETER = 290;
 const MIN_SELECTION_DIAMETER = 120;
@@ -16,6 +23,8 @@ const OUTPUT_AVATAR_SIZE = 512;
 const personalSettingsUiState = {
   photoMenuOpen: false,
   cropModalOpen: false,
+  isSavingProfile: false,
+  isSavingAvatar: false,
   cropImageSrc: "",
   cropImageNaturalWidth: 0,
   cropImageNaturalHeight: 0,
@@ -42,7 +51,7 @@ let currentPersonalSettingsRoot = null;
 let personalSettingsCropperBound = false;
 
 function getUserProfileModel() {
-  const email = String(store.user?.email || "").trim();
+  const email = String(store.user?.publicProfile?.publicEmail || store.user?.email || "").trim();
   const firstName = String(store.user?.firstName || "").trim();
   const lastName = String(store.user?.lastName || "").trim();
   const fullName = String(store.user?.name || "").trim();
@@ -66,8 +75,8 @@ function getUserProfileModel() {
     lastName: resolvedLastName,
     fullName,
     publicName,
-    bio: "",
-    company: "",
+    bio: String(store.user?.publicProfile?.bio || "").trim(),
+    company: String(store.user?.publicProfile?.company || "").trim(),
     hasCustomAvatar: avatar && avatar !== DEFAULT_AVATAR
   };
 }
@@ -186,27 +195,27 @@ function renderPublicProfilePanel(model) {
         <div class="personal-settings-form-grid">
           <label class="personal-settings-field">
             <span class="personal-settings-field__label">Nom</span>
-            <input class="gh-input" type="text" value="${escapeHtml(model.lastName)}">
+            <input class="gh-input" id="personalSettingsLastName" type="text" value="${escapeHtml(model.lastName)}">
           </label>
 
           <label class="personal-settings-field">
             <span class="personal-settings-field__label">Prénom</span>
-            <input class="gh-input" type="text" value="${escapeHtml(model.firstName)}">
+            <input class="gh-input" id="personalSettingsFirstName" type="text" value="${escapeHtml(model.firstName)}">
           </label>
 
           <label class="personal-settings-field personal-settings-field--full">
             <span class="personal-settings-field__label">Email public</span>
-            <input class="gh-input" type="email" value="${escapeHtml(model.email)}">
+            <input class="gh-input" id="personalSettingsPublicEmail" type="email" value="${escapeHtml(model.email)}">
           </label>
 
           <label class="personal-settings-field personal-settings-field--full">
             <span class="personal-settings-field__label">Bio</span>
-            <textarea class="gh-input personal-settings-field__textarea" rows="4" placeholder="Parlez un peu de vous"></textarea>
+            <textarea class="gh-input personal-settings-field__textarea" id="personalSettingsBio" rows="4" placeholder="Parlez un peu de vous">${escapeHtml(model.bio)}</textarea>
           </label>
 
           <label class="personal-settings-field personal-settings-field--full">
             <span class="personal-settings-field__label">Entreprise</span>
-            <input class="gh-input" type="text" value="${escapeHtml(model.company)}">
+            <input class="gh-input" id="personalSettingsCompany" type="text" value="${escapeHtml(model.company)}">
           </label>
         </div>
 
@@ -222,7 +231,7 @@ function renderPublicProfilePanel(model) {
       </div>
 
       <div class="personal-settings-page__footer">
-        <button class="gh-btn gh-btn--primary personal-settings-submit" type="button">Mettre à jour le profile</button>
+        <button class="gh-btn gh-btn--primary personal-settings-submit" id="personalSettingsSubmit" type="button"${personalSettingsUiState.isSavingProfile ? " disabled" : ""}>${personalSettingsUiState.isSavingProfile ? "Enregistrement…" : "Mettre à jour le profil"}</button>
       </div>
 
       <input id="personalSettingsAvatarFileInput" type="file" accept="image/*" hidden>
@@ -346,14 +355,14 @@ function readSelectedImage(file) {
   reader.readAsDataURL(file);
 }
 
-function buildCroppedAvatarDataUrl() {
+function buildCroppedAvatarBlob() {
   const canvas = document.createElement("canvas");
   canvas.width = OUTPUT_AVATAR_SIZE;
   canvas.height = OUTPUT_AVATAR_SIZE;
 
   const context = canvas.getContext("2d");
   const image = document.getElementById("personalSettingsCropImage");
-  if (!context || !(image instanceof HTMLImageElement)) return "";
+  if (!context || !(image instanceof HTMLImageElement)) return Promise.resolve(null);
 
   const diameter = personalSettingsUiState.selectionDiameter;
   const radius = diameter / 2;
@@ -376,29 +385,76 @@ function buildCroppedAvatarDataUrl() {
   context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
   context.restore();
 
-  return canvas.toDataURL("image/png");
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
 }
 
-function applyNewAvatar() {
-  const avatarDataUrl = buildCroppedAvatarDataUrl();
-  if (!avatarDataUrl) return;
+async function applyNewAvatar() {
+  if (personalSettingsUiState.isSavingAvatar) return;
 
-  store.user = {
-    ...(store.user || {}),
-    avatar: avatarDataUrl
-  };
+  const avatarBlob = await buildCroppedAvatarBlob();
+  if (!(avatarBlob instanceof Blob)) return;
 
-  syncVisibleAvatarImages(avatarDataUrl);
-  closeCropModal();
+  personalSettingsUiState.isSavingAvatar = true;
+
+  try {
+    const nextUser = await uploadCurrentUserAvatar(avatarBlob);
+    syncVisibleAvatarImages(nextUser?.avatar || DEFAULT_AVATAR);
+    closeCropModal();
+    renderGlobalShell();
+  } catch (error) {
+    console.error("upload avatar failed", error);
+    window.alert("Impossible d'enregistrer la photo de profil dans Supabase.");
+  } finally {
+    personalSettingsUiState.isSavingAvatar = false;
+  }
 }
 
-function removeAvatar() {
-  store.user = {
-    ...(store.user || {}),
-    avatar: DEFAULT_AVATAR
-  };
-  syncVisibleAvatarImages(DEFAULT_AVATAR);
-  closeAvatarMenu();
+async function removeAvatar() {
+  if (personalSettingsUiState.isSavingAvatar) return;
+  personalSettingsUiState.isSavingAvatar = true;
+
+  try {
+    const nextUser = await removeCurrentUserAvatar();
+    syncVisibleAvatarImages(nextUser?.avatar || DEFAULT_AVATAR);
+    closeAvatarMenu();
+    renderGlobalShell();
+    rerenderPersonalSettings();
+  } catch (error) {
+    console.error("remove avatar failed", error);
+    window.alert("Impossible de supprimer la photo de profil dans Supabase.");
+  } finally {
+    personalSettingsUiState.isSavingAvatar = false;
+  }
+}
+
+async function saveProfileForm(root) {
+  if (!root || personalSettingsUiState.isSavingProfile) return;
+
+  const firstName = root.querySelector("#personalSettingsFirstName")?.value || "";
+  const lastName = root.querySelector("#personalSettingsLastName")?.value || "";
+  const publicEmail = root.querySelector("#personalSettingsPublicEmail")?.value || "";
+  const bio = root.querySelector("#personalSettingsBio")?.value || "";
+  const company = root.querySelector("#personalSettingsCompany")?.value || "";
+
+  personalSettingsUiState.isSavingProfile = true;
+  rerenderPersonalSettings();
+
+  try {
+    await saveCurrentUserPublicProfile({ firstName, lastName, publicEmail, bio, company });
+    renderGlobalShell();
+    rerenderPersonalSettings();
+  } catch (error) {
+    console.error("save profile failed", error);
+    personalSettingsUiState.isSavingProfile = false;
+    rerenderPersonalSettings();
+    window.alert("Impossible d'enregistrer le profil public dans Supabase.");
+    return;
+  }
+
+  personalSettingsUiState.isSavingProfile = false;
+  rerenderPersonalSettings();
 }
 
 function startMoveSelection(clientX, clientY, cropper) {
@@ -521,11 +577,12 @@ function bindPersonalSettings(root) {
   if (!root || root.dataset.personalSettingsBound === "true") return;
   root.dataset.personalSettingsBound = "true";
 
-  root.addEventListener("click", (event) => {
+  root.addEventListener("click", async (event) => {
     const avatarMenuBtn = event.target.closest?.("#personalSettingsAvatarMenuBtn");
     const avatarAction = event.target.closest?.("[data-avatar-action]");
     const closeCropBtn = event.target.closest?.("[data-close-crop-modal]");
     const cropSubmitBtn = event.target.closest?.("#personalSettingsCropSubmit");
+    const profileSubmitBtn = event.target.closest?.("#personalSettingsSubmit");
 
     if (avatarMenuBtn) {
       event.preventDefault();
@@ -553,7 +610,13 @@ function bindPersonalSettings(root) {
     }
 
     if (cropSubmitBtn) {
-      applyNewAvatar();
+      await applyNewAvatar();
+      return;
+    }
+
+    if (profileSubmitBtn) {
+      event.preventDefault();
+      await saveProfileForm(root);
     }
   });
 
