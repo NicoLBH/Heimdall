@@ -2070,7 +2070,7 @@ function getPageHtml(form) {
                 cards: [
                   renderSectionCard({
                     title: "Lots",
-                    description: "Chaque projet est associé à une liste de lots provenant de Supabase. Les lots personnalisés peuvent être ajoutés puis supprimés depuis cette vue.",
+                    description: "Activez les lots présents sur le projet pour organiser les Documents et les Collaborateurs. Les lots personnalisés peuvent être ajoutés puis supprimés.",
                     body: renderProjectLotsCard()
                   })
                 ]
