@@ -9411,10 +9411,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 
 .personal-settings-panel__content{
-  display:grid;
-  grid-template-columns:minmax(0, 1fr) 240px;
-  gap:32px;
-  align-items:start;
+
 }
 
 .personal-settings-form-grid{
@@ -9518,6 +9515,8 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .personal-settings-danger-button{
   align-self:flex-start;
   margin-top:16px;
+  font-weight: 500;
+  font-size: 13px;
 }
 
 .personal-settings-page__footer{
