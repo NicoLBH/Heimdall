@@ -37,6 +37,7 @@ jobs:
         run: |
           supabase secrets set \
             SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }} \
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
 
@@ -46,3 +47,4 @@ jobs:
           supabase functions deploy extract-pdf-text --no-verify-jwt --debug
           supabase functions deploy generate-observations --no-verify-jwt --debug
           supabase functions deploy resolve-observations --no-verify-jwt --debug
+          supabase functions deploy delete-account --debug
