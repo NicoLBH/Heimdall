@@ -10209,7 +10209,6 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   flex-direction:column;
   max-height:250px;
   overflow:auto;
-  border:1px solid var(--borderColor-default, #30363d);
   border-radius:12px;
   background:rgb(13, 17, 23);
   box-shadow:0 16px 32px rgba(1, 4, 9, 0.45), 0 0 0 1px rgba(48, 54, 61, 0.5);
@@ -10269,8 +10268,6 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   flex-direction:column;
   gap:10px;
   flex:0 0 auto;
-  min-height:320px;
-  height:320px;
   max-height:320px;
   overflow:auto;
   padding-right:4px;
@@ -10416,6 +10413,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .project-simple-page--parametres-standalone .project-collaborator-create__footer{
   margin-bottom:0;
+  border-top: solid 1px var(--border);
 }
 
 @media (max-width: 960px){
