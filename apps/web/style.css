@@ -10184,7 +10184,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   justify-content:center;
   color:var(--fgColor-muted, #8b949e);
   flex:0 0 auto;
-  min-height:48px;
+  min-height:32px;
 }
 
 .project-collaborators-modal__search-field{
@@ -10195,7 +10195,8 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .project-collaborators-modal__search-input{
   width:100%;
-  min-height:48px;
+  min-height:32px;
+  font-size:13px;
 }
 
 .project-collaborators-modal__suggestions{
