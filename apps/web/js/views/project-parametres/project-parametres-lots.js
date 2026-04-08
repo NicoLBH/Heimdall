@@ -418,7 +418,6 @@ export function renderLotsParametresContent() {
         description: "Activez les lots présents sur le projet pour organiser les Documents et les Collaborateurs. Les lots personnalisés peuvent être ajoutés puis supprimés.",
         action: `
           <button type="button" class="gh-btn settings-lots-add-button" data-project-lot-add>
-            ${svgIcon("book")}
             <span>Ajouter un lot</span>
           </button>
         `,
