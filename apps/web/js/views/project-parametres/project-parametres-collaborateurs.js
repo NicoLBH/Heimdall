@@ -170,20 +170,20 @@ function renderCollaboratorsCard() {
   `;
 }
 
+function shouldShowCollaboratorSuggestionsDropdown(uiState) {
+  const suggestions = Array.isArray(uiState?.collaboratorSuggestions) ? uiState.collaboratorSuggestions : [];
+  return !!(uiState?.collaboratorSearchLoading || suggestions.length);
+}
+
 function renderCollaboratorSuggestionList(uiState) {
   const suggestions = Array.isArray(uiState.collaboratorSuggestions) ? uiState.collaboratorSuggestions : [];
-  const hasSearch = Boolean(String(uiState.collaboratorSearchTerm || "").trim());
 
   if (uiState.collaboratorSearchLoading) {
     return '<div class="project-collaborators-modal__suggestions-empty">Recherche en cours…</div>';
   }
 
-  if (!hasSearch) {
-    return '<div class="project-collaborators-modal__suggestions-empty">Commencez à saisir un nom ou une adresse mail.</div>';
-  }
-
   if (!suggestions.length) {
-    return '<div class="project-collaborators-modal__suggestions-empty">Aucun utilisateur trouvé.</div>';
+    return '';
   }
 
   return suggestions.map((candidate) => {
@@ -271,18 +271,22 @@ function renderCollaboratorCreatePage() {
             <label class="settings-modal__label" for="${escapeHtml(fieldIds.searchInputId)}">Recherchez un collaborateur par son adresse mail ou son nom</label>
             <div class="project-collaborators-modal__search-wrap">
               <span class="project-collaborators-modal__search-icon">${svgIcon("search", { width: 18, height: 18 })}</span>
-              <input
-                id="${escapeHtml(fieldIds.searchInputId)}"
-                class="subject-create-input project-collaborators-modal__search-input"
-                type="text"
-                autocomplete="off"
-                spellcheck="false"
-                value="${escapeHtml(uiState.collaboratorSearchTerm)}"
-                placeholder="nom@entreprise.com ou Nom Prénom"
-              >
-            </div>
-            <div class="project-collaborators-modal__suggestions">
-              ${renderCollaboratorSuggestionList(uiState)}
+              <div class="project-collaborators-modal__search-field">
+                <input
+                  id="${escapeHtml(fieldIds.searchInputId)}"
+                  class="subject-create-input project-collaborators-modal__search-input"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  value="${escapeHtml(uiState.collaboratorSearchTerm)}"
+                  placeholder="nom@entreprise.com ou Nom Prénom"
+                  aria-autocomplete="list"
+                  aria-expanded="${shouldShowCollaboratorSuggestionsDropdown(uiState) ? "true" : "false"}"
+                >
+                <div class="project-collaborators-modal__suggestions ${shouldShowCollaboratorSuggestionsDropdown(uiState) ? 'is-open' : ''}">
+                  ${renderCollaboratorSuggestionList(uiState)}
+                </div>
+              </div>
             </div>
           </div>
 
