@@ -1042,6 +1042,8 @@ function mapProjectCollaboratorRow(row = {}) {
     roleGroupCode: safeString(lotCatalog.group_code || row.role_group_code || ""),
     roleGroupLabel: safeString(lotCatalog.group_label || row.role_group_label || ""),
     status: safeString(row.status || "Actif") || "Actif",
+    addedAt: row.created_at || null,
+    removedAt: row.removed_at || null,
     company: safeString(profile.company || row.company || ""),
     sourceType: safeString(row.source_type || (linkedUserId ? "mdall_user" : "directory_person")) || "directory_person"
   };
@@ -1175,25 +1177,38 @@ export async function addProjectCollaboratorToSupabase({ personId = "", userId =
 
   const currentUser = await getCurrentUser().catch(() => null);
   const existing = Array.isArray(store.projectForm.collaborators) ? store.projectForm.collaborators : [];
-  if (existing.some((item) => safeString(item.personId) === resolvedPersonId && safeString(item.projectLotId) === lotId)) {
+  const existingAssignment = existing.find((item) => safeString(item.personId) === resolvedPersonId && safeString(item.projectLotId) === lotId) || null;
+  if (existingAssignment && safeString(existingAssignment.status) === "Actif") {
     throw new Error("Cette personne est déjà affectée à ce rôle sur le projet.");
   }
 
-  const inserted = await restInsert("project_collaborators", {
-    project_id: backendProjectId,
-    person_id: resolvedPersonId,
-    collaborator_user_id: safeString(collaboratorPerson.linkedUserId || userId) || null,
-    collaborator_email: safeString(email) || null,
-    project_lot_id: lotId,
-    status: safeString(status) || "Actif",
-    invited_by_user_id: safeString(currentUser?.id || "") || null
-  }, {
-    select: "id,project_id,person_id,collaborator_user_id,project_lot_id,status,created_at,collaborator_email"
-  });
+  let inserted = null;
+  if (existingAssignment && safeString(existingAssignment.status) === "Retiré") {
+    inserted = await restUpdate("project_collaborators", { id: safeString(existingAssignment.id) }, {
+      status: safeString(status) || "Actif",
+      removed_at: null,
+      collaborator_user_id: safeString(collaboratorPerson.linkedUserId || userId) || null,
+      collaborator_email: safeString(email) || null
+    }, {
+      select: "id,project_id,person_id,collaborator_user_id,project_lot_id,status,created_at,collaborator_email,removed_at"
+    });
+  } else {
+    inserted = await restInsert("project_collaborators", {
+      project_id: backendProjectId,
+      person_id: resolvedPersonId,
+      collaborator_user_id: safeString(collaboratorPerson.linkedUserId || userId) || null,
+      collaborator_email: safeString(email) || null,
+      project_lot_id: lotId,
+      status: safeString(status) || "Actif",
+      invited_by_user_id: safeString(currentUser?.id || "") || null
+    }, {
+      select: "id,project_id,person_id,collaborator_user_id,project_lot_id,status,created_at,collaborator_email,removed_at"
+    });
+  }
 
   const items = await syncProjectCollaboratorsFromSupabase({ force: true });
   const nextItem = items.find((item) => safeString(item.id) === safeString(inserted?.id || ""))
-    || items.find((item) => safeString(item.personId) === resolvedPersonId && safeString(item.projectLotId) === lotId)
+    || items.find((item) => safeString(item.personId) === resolvedPersonId && safeString(item.projectLotId) === lotId && safeString(item.status) === (safeString(status) || "Actif"))
     || null;
 
   dispatchProjectSupabaseSync({ section: "collaborators", collaboratorId: safeString(nextItem?.id || inserted?.id || ""), collaboratorsCount: items.length });
@@ -1206,15 +1221,18 @@ export async function deleteProjectCollaboratorFromSupabase(projectCollaboratorI
     throw new Error("Identifiant du collaborateur manquant.");
   }
 
-  await restDelete("project_collaborators", { id: collaboratorId });
+  await restUpdate("project_collaborators", { id: collaboratorId }, {
+    status: "Retiré",
+    removed_at: new Date().toISOString()
+  }, {
+    select: "id"
+  });
 
-  const currentItems = Array.isArray(store.projectForm.collaborators) ? store.projectForm.collaborators : [];
-  store.projectForm.collaborators = currentItems.filter((item) => safeString(item.id) !== collaboratorId);
-
+  const items = await syncProjectCollaboratorsFromSupabase({ force: true });
   const projectBucket = getProjectSyncBucket(getFrontendProjectKey());
   projectBucket.collaboratorsLoaded = true;
   projectBucket.lastCollaboratorsAt = Date.now();
-  dispatchProjectSupabaseSync({ section: "collaborators", collaboratorId, collaboratorsCount: store.projectForm.collaborators.length });
+  dispatchProjectSupabaseSync({ section: "collaborators", collaboratorId, collaboratorsCount: items.length });
   return true;
 }
 
