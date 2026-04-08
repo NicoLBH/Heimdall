@@ -6694,12 +6694,6 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   padding:0 12px;
 }
 
-.project-collaborators__cell--checkbox{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
 .project-collaborators__cell--mail-icon{
   display:flex;
   align-items:center;
@@ -6728,6 +6722,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 
 .project-collaborators__cell--role,
+.project-collaborators__cell--date,
 .project-collaborators__cell--status{
   font-size:12px;
   color:var(--fgColor-muted, #8b949e);
@@ -6739,17 +6734,73 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   justify-content:flex-start;
 }
 
-.project-collaborators__remove{
-  border:none;
-  background:transparent;
-  color:#8b949e;
-  cursor:pointer;
-  padding:0;
-  font-size:13px;
+.project-collaborators__status-filter{
+  position:relative;
+  display:flex;
+  justify-content:flex-start;
 }
 
-.project-collaborators__remove:hover{
-  color:#f85149;
+.project-collaborators__status-filter-trigger{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:28px;
+  padding:0 8px;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  cursor:pointer;
+}
+
+.project-collaborators__status-filter-trigger:hover,
+.project-collaborators__status-filter-trigger[aria-expanded="true"]{
+  background:rgba(110,118,129,.18);
+}
+
+.project-collaborators__status-filter-chevron{
+  display:inline-flex;
+  align-items:center;
+  color:var(--fgColor-muted, #8b949e);
+}
+
+.project-collaborators__status-filter-menu{
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  min-width:140px;
+  display:none;
+  z-index:20;
+  padding:6px;
+  border:1px solid var(--borderColor-default, #30363d);
+  border-radius:10px;
+  background:rgb(13, 17, 23);
+  box-shadow:0 16px 32px rgba(1, 4, 9, 0.45);
+}
+
+.project-collaborators__status-filter-menu.is-open{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.project-collaborators__status-filter-item{
+  width:100%;
+  min-height:32px;
+  padding:0 10px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:var(--fgColor-default, #e6edf3);
+  text-align:left;
+  font-size:13px;
+  cursor:pointer;
+}
+
+.project-collaborators__status-filter-item:hover,
+.project-collaborators__status-filter-item.is-active{
+  background:rgba(31,111,235,.12);
 }
 
 .project-collaborators__empty{
