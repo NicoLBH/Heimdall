@@ -10151,13 +10151,17 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   display:flex;
   flex-direction:column;
   gap:18px;
+  flex:1 1 auto;
+  min-height:0;
   height:100%;
+  overflow:hidden;
 }
 
 .project-collaborators-modal__section{
   display:flex;
   flex-direction:column;
   gap:10px;
+  flex:0 0 auto;
   min-height:0;
 }
 
@@ -10183,7 +10187,9 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .project-collaborators-modal__suggestions{
   display:flex;
   flex-direction:column;
-  max-height:240px;
+  flex:0 0 auto;
+  min-height:52px;
+  max-height:min(200px, 24dvh);
   overflow:auto;
   border:1px solid var(--borderColor-default, #30363d);
   border-radius:12px;
@@ -10279,6 +10285,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   min-height:0;
   height:100%;
   padding:8px 0 24px;
+  box-sizing:border-box;
 }
 
 .project-collaborator-create-shell__inner{
@@ -10287,6 +10294,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   margin:0 auto;
   min-height:0;
   height:100%;
+  box-sizing:border-box;
 }
 
 .project-collaborator-create{
@@ -10296,6 +10304,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   height:100%;
   flex-direction:column;
   gap:20px;
+  overflow:hidden;
 }
 
 .project-collaborator-create__header{
@@ -10350,20 +10359,42 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   flex-direction:column;
 }
 
+.project-collaborator-create__body > .project-collaborators-modal__section:first-of-type{
+  flex:0 0 auto;
+}
+
 .project-collaborator-create__footer{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:16px;
-  padding-top:4px;
+  padding-top:8px;
   margin-top:auto;
   flex:0 0 auto;
+  position:sticky;
+  bottom:0;
+  z-index:2;
+  background:var(--bgColor-default, #0d1117);
 }
 
 .project-collaborator-create__footer-right{
   display:flex;
   align-items:center;
   gap:10px;
+}
+
+.project-simple-page--parametres-standalone .project-collaborator-create-shell,
+.project-simple-page--parametres-standalone .project-collaborator-create-shell__inner,
+.project-simple-page--parametres-standalone .project-collaborator-create{
+  overflow:hidden;
+}
+
+.project-simple-page--parametres-standalone .project-collaborator-create__body{
+  padding-bottom:4px;
+}
+
+.project-simple-page--parametres-standalone .project-collaborator-create__footer{
+  padding-bottom:max(8px, env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 960px){
