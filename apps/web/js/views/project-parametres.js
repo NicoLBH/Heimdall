@@ -67,6 +67,10 @@ function getProjectParametresTabById(tabId) {
   return activeProjectParametresTabs.find((tab) => tab.id === tabId) || activeProjectParametresTabs[0];
 }
 
+function isProjectParametresTabStandalone(tab) {
+  return Boolean(tab?.isStandalone?.());
+}
+
 function mountProjectParametresTab(root, tabId) {
   if (!root) return;
 
@@ -108,14 +112,16 @@ export function renderProjectParametres(root) {
     toolbarHtml: ""
   });
 
+  const isStandalone = isProjectParametresTabStandalone(defaultTab);
+
   root.innerHTML = `
-    <section class="project-simple-page project-simple-page--settings project-simple-page--parametres">
+    <section class="project-simple-page project-simple-page--settings project-simple-page--parametres ${isStandalone ? "project-simple-page--parametres-standalone" : ""}">
       <div class="project-simple-scroll project-simple-scroll--parametres" id="projectParametresScroll">
-        <div class="settings-shell settings-shell--parametres">
+        <div class="settings-shell settings-shell--parametres ${isStandalone ? "settings-shell--parametres-standalone" : ""}">
           ${renderSideNavLayout({
-            className: "settings-layout settings-layout--parametres",
+            className: `settings-layout settings-layout--parametres ${isStandalone ? "settings-layout--parametres-standalone" : ""}`,
             navClassName: "settings-nav settings-nav--parametres",
-            contentClassName: "settings-content settings-content--parametres",
+            contentClassName: `settings-content settings-content--parametres ${isStandalone ? "settings-content--parametres-standalone" : ""}`,
             navHtml: renderParametresNav(defaultTab.id),
             contentHtml: '<div id="projectParametresContent"></div>'
           })}
