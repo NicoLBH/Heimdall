@@ -10011,13 +10011,23 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 
 .light-tabs{
+  position:relative;
   display:flex;
   align-items:flex-end;
   gap:0;
-  border-bottom:1px solid var(--border);
   margin:0 0 16px;
   overflow-x:auto;
   scrollbar-width:none;
+}
+
+.light-tabs::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  border-bottom:1px solid var(--border);
+  pointer-events:none;
 }
 
 .light-tabs::-webkit-scrollbar{
@@ -10026,6 +10036,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .light-tabs__item{
   position:relative;
+  z-index:1;
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -10048,6 +10059,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 
 .light-tabs__item.is-active{
+  z-index:2;
   border:1px solid var(--border);
   border-bottom-color:var(--bg-canvas);
   background:var(--bg-canvas);
