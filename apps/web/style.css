@@ -32,8 +32,8 @@
   --discussion-avatar-gap:12px;
   --discussion-content-inset:calc(var(--discussion-avatar-size) + var(--discussion-avatar-gap));
   
-  --header-h:52px;
-  --header-h-compact:44px;
+  --header-h:64px;
+  --header-h-compact:64px;
   --header-h-sticky-chrome:60px;
   --app-top:var(--header-h);
   --project-tabs-h:44px;
@@ -2762,6 +2762,11 @@ body.route--project #app{
 body.route--projects-list #app{
   padding:0;
 }
+body.route--projects-list .gh-header{
+  height:var(--header-h-compact);
+  padding:16px 0px;
+  border-bottom: solid 1px var(--border);
+}
 
 body.route--project{
   --app-top:var(--header-h);
@@ -2899,7 +2904,8 @@ body.route--project.project-shell-compact{
 
 .gh-header--compact{
   height:var(--header-h-compact);
-  padding:8px 0 2px 0;
+  padding:16px 0;
+  border-bottom: solid 1px var(--border) !important;
 }
 .gh-header--compact .gh-brand__logo{
   width:26px;
