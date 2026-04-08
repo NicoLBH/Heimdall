@@ -3558,9 +3558,9 @@ color:var(--text);
 }
 
 .settings-layout--parametres-standalone{
-  display:grid;
-  grid-template-columns:minmax(0, 1fr);
-  gap:0;
+  display:grid !important;
+  grid-template-columns:minmax(0, 1fr) !important;
+  gap:0 !important;
 }
 
 .settings-layout--parametres-standalone .side-nav-layout__nav{
@@ -3571,7 +3571,7 @@ color:var(--text);
 .settings-content--parametres-standalone{
   width:100%;
   max-width:none;
-  min-width:0;
+  min-width:960px;
 }
 
 .project-simple-page--parametres-standalone .project-simple-scroll--parametres,
