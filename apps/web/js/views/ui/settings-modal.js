@@ -8,6 +8,7 @@ function normalizeClassName(value) {
 export function renderSettingsModal({
   modalId = "settingsModal",
   title = "",
+  subtitle = "",
   bodyHtml = "",
   closeDataAttribute = "data-close-settings-modal",
   variant = "default",
@@ -19,6 +20,7 @@ export function renderSettingsModal({
   const safeTitleId = escapeHtml(`${modalId}Title`);
   const safeCloseDataAttribute = escapeHtml(closeDataAttribute);
   const safeTitle = escapeHtml(title);
+  const safeSubtitle = escapeHtml(subtitle);
 
   const rootClasses = [
     "settings-modal",
@@ -35,7 +37,10 @@ export function renderSettingsModal({
 
       <div class="${dialogClasses}" role="dialog" aria-modal="true" aria-labelledby="${safeTitleId}">
         <div class="settings-modal__head">
-          <div id="${safeTitleId}" class="settings-modal__title">${safeTitle}</div>
+          <div class="settings-modal__title-wrap">
+            <div id="${safeTitleId}" class="settings-modal__title">${safeTitle}</div>
+            ${safeSubtitle ? `<div class="settings-modal__subtitle">${safeSubtitle}</div>` : ""}
+          </div>
           <button type="button" class="settings-modal__close" ${safeCloseDataAttribute}="true" aria-label="Fermer">
             ${svgIcon("x")}
           </button>
