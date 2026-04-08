@@ -15,7 +15,6 @@ import {
   renderSectionCard,
   renderSettingsBlock,
   rerenderProjectParametres,
-  setCurrentProjectParametresRoot,
   getParametresUiState
 } from "./project-parametres-core.js";
 
@@ -519,7 +518,6 @@ export function renderCollaborateursParametresContent() {
 }
 
 export function bindCollaborateursParametresSection(root) {
-  setCurrentProjectParametresRoot(root);
   bindBaseParametresUi();
   ensureCollaboratorsLoaded(root);
 
