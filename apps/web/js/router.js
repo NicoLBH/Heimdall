@@ -19,6 +19,8 @@ function route() {
   if (!root) return;
 
   root.innerHTML = "";
+  root.style.padding = "";
+  document.body.classList.remove("route--projects-list");
 
   if (parts[0] === "dashboard") {
     store.currentProjectId = null;
