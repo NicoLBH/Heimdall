@@ -203,7 +203,7 @@ function renderCollaboratorLotsPicker(uiState) {
   const groups = getActiveProjectLotsByGroup().filter((group) => group.items.length);
 
   if (!groups.length) {
-    return '<div class="settings-empty-note">Aucun lot actif n'est disponible. Activez d'abord des lots dans Paramètres → Lots.</div>';
+    return '<div class="settings-empty-note">Aucun lot actif n est disponible. Activez d abord des lots dans Paramètres → Lots.</div>';
   }
 
   const activeGroupCode = groups.some((group) => group.code === uiState.collaboratorActiveGroupCode)
