@@ -40,6 +40,8 @@ function ensureCollaborateursUiState() {
   if (typeof uiState.collaboratorCreateFirstName !== "string") uiState.collaboratorCreateFirstName = "";
   if (typeof uiState.collaboratorCreateLastName !== "string") uiState.collaboratorCreateLastName = "";
   if (typeof uiState.collaboratorCreateCompany !== "string") uiState.collaboratorCreateCompany = "";
+  if (typeof uiState.collaboratorStatusFilter !== "string" || !uiState.collaboratorStatusFilter.trim()) uiState.collaboratorStatusFilter = "Actif";
+  if (typeof uiState.collaboratorStatusFilterOpen !== "boolean") uiState.collaboratorStatusFilterOpen = false;
 
   return uiState;
 }
@@ -93,6 +95,26 @@ function getCollaboratorSourceLabel(candidate) {
   if (!candidate) return "Annuaire";
   return candidate.hasMdallAccount ? "Compte Mdall" : "Annuaire";
 }
+
+function formatCollaboratorDisplayDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(date);
+}
+
+function getFilteredCollaborators(uiState = ensureCollaborateursUiState()) {
+  const collaborators = Array.isArray(store.projectForm.collaborators)
+    ? store.projectForm.collaborators
+    : [];
+  const filter = String(uiState?.collaboratorStatusFilter || "Actif").trim() || "Actif";
+  return collaborators.filter((item) => String(item?.status || "Actif").trim() === filter);
+}
+
 
 function createInlineDirectoryCandidate(uiState = ensureCollaborateursUiState()) {
   const email = String(uiState.collaboratorSearchTerm || "").trim();
@@ -178,7 +200,7 @@ function renderCollaboratorsRows(collaborators = []) {
   if (!collaborators.length) {
     return `
       <div class="project-collaborators__empty">
-        Aucun collaborateur pour le moment.
+        Aucun collaborateur pour ce filtre.
       </div>
     `;
   }
@@ -186,12 +208,12 @@ function renderCollaboratorsRows(collaborators = []) {
   return collaborators.map((item) => {
     const displayName = String(item.name || "").trim() || String(item.email || "").trim() || "Utilisateur";
     const subtitleParts = [String(item.email || "").trim(), String(item.company || "").trim(), item.hasMdallAccount ? "Compte Mdall" : "Annuaire"].filter(Boolean);
+    const status = String(item.status || "Actif").trim() || "Actif";
+    const displayDate = status === "Retiré"
+      ? formatCollaboratorDisplayDate(item.removedAt || item.updatedAt)
+      : formatCollaboratorDisplayDate(item.addedAt || item.createdAt);
     return `
       <div class="project-collaborators__row">
-        <div class="project-collaborators__cell project-collaborators__cell--checkbox">
-          <input type="checkbox" disabled>
-        </div>
-
         <div class="project-collaborators__cell project-collaborators__cell--mail-icon">
           <span class="project-collaborators__mail-icon">
             ${svgIcon("mail", { width: 20, height: 20 })}
@@ -207,18 +229,24 @@ function renderCollaboratorsRows(collaborators = []) {
           ${escapeHtml(item.role || "—")}
         </div>
 
+        <div class="project-collaborators__cell project-collaborators__cell--date mono">
+          ${escapeHtml(displayDate)}
+        </div>
+
         <div class="project-collaborators__cell project-collaborators__cell--status mono">
-          ${escapeHtml(item.status || "Actif")}
+          ${escapeHtml(status)}
         </div>
 
         <div class="project-collaborators__cell project-collaborators__cell--action">
-          <button
-            type="button"
-            class="project-collaborators__remove"
-            data-remove-collaborator-id="${escapeHtml(item.id)}"
-          >
-            Supprimer
-          </button>
+          ${status === "Actif" ? `
+            <button
+              type="button"
+              class="settings-lot-delete-button"
+              data-remove-collaborator-id="${escapeHtml(item.id)}"
+            >
+              Retirer
+            </button>
+          ` : ""}
         </div>
       </div>
     `;
@@ -226,9 +254,9 @@ function renderCollaboratorsRows(collaborators = []) {
 }
 
 function renderCollaboratorsCard() {
-  const collaborators = Array.isArray(store.projectForm.collaborators)
-    ? store.projectForm.collaborators
-    : [];
+  const uiState = ensureCollaborateursUiState();
+  const collaborators = getFilteredCollaborators(uiState);
+  const currentFilter = String(uiState.collaboratorStatusFilter || "Actif").trim() || "Actif";
 
   return `
     <div class="project-collaborators">
@@ -236,13 +264,27 @@ function renderCollaboratorsCard() {
 
       <div class="project-collaborators__table">
         <div class="project-collaborators__head">
-          <div class="project-collaborators__cell project-collaborators__cell--checkbox">
-            <input type="checkbox" disabled>
-          </div>
           <div class="project-collaborators__cell project-collaborators__cell--mail-icon"></div>
           <div class="project-collaborators__cell project-collaborators__cell--email">Collaborateur</div>
           <div class="project-collaborators__cell project-collaborators__cell--role">Rôle</div>
-          <div class="project-collaborators__cell project-collaborators__cell--status">Statut</div>
+          <div class="project-collaborators__cell project-collaborators__cell--date">Date</div>
+          <div class="project-collaborators__cell project-collaborators__cell--status">
+            <div class="project-collaborators__status-filter">
+              <button
+                type="button"
+                class="project-collaborators__status-filter-trigger"
+                data-collaborator-status-filter-trigger="true"
+                aria-expanded="${uiState.collaboratorStatusFilterOpen ? "true" : "false"}"
+              >
+                <span>Statut</span>
+                <span class="project-collaborators__status-filter-chevron">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+              </button>
+              <div class="project-collaborators__status-filter-menu ${uiState.collaboratorStatusFilterOpen ? "is-open" : ""}">
+                <button type="button" class="project-collaborators__status-filter-item ${currentFilter === "Actif" ? "is-active" : ""}" data-collaborator-status-filter-value="Actif">Actif</button>
+                <button type="button" class="project-collaborators__status-filter-item ${currentFilter === "Retiré" ? "is-active" : ""}" data-collaborator-status-filter-value="Retiré">Retiré</button>
+              </div>
+            </div>
+          </div>
           <div class="project-collaborators__cell project-collaborators__cell--action"></div>
         </div>
 
@@ -509,6 +551,7 @@ function openCollaboratorModal() {
   uiState.collaboratorCreateFirstName = "";
   uiState.collaboratorCreateLastName = "";
   uiState.collaboratorCreateCompany = "";
+  uiState.collaboratorStatusFilterOpen = false;
   rerenderProjectParametres();
 }
 
@@ -526,6 +569,7 @@ function closeCollaboratorModal() {
   uiState.collaboratorCreateFirstName = "";
   uiState.collaboratorCreateLastName = "";
   uiState.collaboratorCreateCompany = "";
+  uiState.collaboratorStatusFilterOpen = false;
   rerenderProjectParametres();
 }
 
@@ -715,6 +759,34 @@ export function bindCollaborateursParametresSection(root) {
       removeCollaborator(btn.getAttribute("data-remove-collaborator-id"));
     });
   });
+  root.querySelectorAll("[data-collaborator-status-filter-trigger]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const uiState = ensureCollaborateursUiState();
+      uiState.collaboratorStatusFilterOpen = !uiState.collaboratorStatusFilterOpen;
+      rerenderProjectParametres();
+    });
+  });
+  root.querySelectorAll("[data-collaborator-status-filter-value]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const uiState = ensureCollaborateursUiState();
+      uiState.collaboratorStatusFilter = btn.getAttribute("data-collaborator-status-filter-value") || "Actif";
+      uiState.collaboratorStatusFilterOpen = false;
+      rerenderProjectParametres();
+    });
+  });
+  if (!root.__collaboratorStatusFilterOutsideBound) {
+    root.__collaboratorStatusFilterOutsideBound = true;
+    document.addEventListener("click", (event) => {
+      const uiState = ensureCollaborateursUiState();
+      if (!uiState.collaboratorStatusFilterOpen) return;
+      const filterHost = root.querySelector(".project-collaborators__status-filter");
+      if (filterHost && filterHost.contains(event.target)) return;
+      uiState.collaboratorStatusFilterOpen = false;
+      rerenderProjectParametres();
+    });
+  }
 
   bindCollaboratorCreatePage(document.getElementById("projectCollaboratorsCreatePage"));
 }
