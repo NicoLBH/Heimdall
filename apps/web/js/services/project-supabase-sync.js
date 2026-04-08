@@ -1215,6 +1215,37 @@ export async function addProjectCollaboratorToSupabase({ personId = "", userId =
   return nextItem;
 }
 
+export async function updateProjectCollaboratorRoleInSupabase(projectCollaboratorId = "", projectLotId = "") {
+  const collaboratorId = safeString(projectCollaboratorId);
+  const lotId = safeString(projectLotId);
+  if (!collaboratorId) throw new Error("Identifiant du collaborateur manquant.");
+  if (!lotId) throw new Error("Aucun rôle sélectionné.");
+
+  const currentItems = Array.isArray(store.projectForm.collaborators) ? store.projectForm.collaborators : [];
+  const currentItem = currentItems.find((item) => safeString(item.id) === collaboratorId) || null;
+  if (!currentItem) throw new Error("Collaborateur introuvable.");
+  if (safeString(currentItem.projectLotId) === lotId) return currentItem;
+
+  const duplicateActive = currentItems.find((item) => safeString(item.id) !== collaboratorId
+    && safeString(item.personId) === safeString(currentItem.personId)
+    && safeString(item.projectLotId) === lotId
+    && safeString(item.status) === "Actif");
+  if (duplicateActive) {
+    throw new Error("Cette personne est déjà affectée à ce rôle sur le projet.");
+  }
+
+  await restUpdate("project_collaborators", { id: collaboratorId }, {
+    project_lot_id: lotId
+  }, {
+    select: "id"
+  });
+
+  const items = await syncProjectCollaboratorsFromSupabase({ force: true });
+  const nextItem = items.find((item) => safeString(item.id) === collaboratorId) || null;
+  dispatchProjectSupabaseSync({ section: "collaborators", collaboratorId, collaboratorsCount: items.length });
+  return nextItem;
+}
+
 export async function deleteProjectCollaboratorFromSupabase(projectCollaboratorId = "") {
   const collaboratorId = safeString(projectCollaboratorId);
   if (!collaboratorId) {
