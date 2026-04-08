@@ -10280,12 +10280,9 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .project-collaborators-modal__lot{
   display:flex;
   align-items:center;
-  gap:10px;
-  min-height:42px;
+  gap:5px;
+  min-height:32px;
   padding:0 12px;
-  border:1px solid var(--borderColor-default, #30363d);
-  border-radius:10px;
-  background:rgba(255,255,255,0.02);
   color:var(--fgColor-default, #e6edf3);
   cursor:pointer;
 }
