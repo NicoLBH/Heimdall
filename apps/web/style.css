@@ -6745,13 +6745,16 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .project-collaborators-modal__dialog{
   position:relative;
   z-index:1;
-  width:min(640px, calc(100vw - 32px));
-  margin:120px auto 0;
+  width:min(820px, calc(100vw - 32px));
+  height:min(calc(100vh - 80px), 760px);
+  margin:40px auto 0;
   border:1px solid var(--borderColor-default, #30363d);
   border-radius:16px;
   background:#0d1117;
   box-shadow:0 24px 80px rgba(0,0,0,.45);
   overflow:hidden;
+  display:flex;
+  flex-direction:column;
 }
 
 .project-collaborators-modal__head{
@@ -6783,6 +6786,9 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .project-collaborators-modal__body{
   padding:18px;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:hidden;
 }
 
 .project-collaborators-modal__label{
@@ -9735,6 +9741,12 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
     margin:96px auto 24px;
   }
 
+  .project-collaborators-modal__dialog{
+    width:min(calc(100vw - 24px), 820px);
+    height:min(calc(100vh - 24px), 760px);
+    margin:12px auto;
+  }
+
   .settings-modal__title,
   .personal-settings-delete-modal__title{
     font-size:18px;
@@ -10116,12 +10128,14 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   display:flex;
   flex-direction:column;
   gap:18px;
+  height:100%;
 }
 
 .project-collaborators-modal__section{
   display:flex;
   flex-direction:column;
   gap:10px;
+  min-height:0;
 }
 
 .project-collaborators-modal__search-wrap{
@@ -10220,6 +10234,11 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   display:flex;
   flex-direction:column;
   gap:10px;
+  flex:1 1 auto;
+  min-height:0;
+  max-height:100%;
+  overflow:auto;
+  padding-right:4px;
 }
 
 .project-collaborators-modal__lot{
