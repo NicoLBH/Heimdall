@@ -263,13 +263,12 @@ function renderCollaboratorCreatePage() {
           <img src="${escapeHtml(currentUserAvatar)}" alt="Photo de profil" class="project-collaborator-create__avatar">
           <div class="project-collaborator-create__title-wrap">
             <div class="project-collaborator-create__title">Ajouter un collaborateur au projet</div>
-            <div class="project-collaborator-create__subtitle">Recherchez un collaborateur par son adresse mail ou son nom et affectez-lui un rôle.</div>
           </div>
         </div>
 
         <div class="project-collaborator-create__body">
           <div class="project-collaborators-modal__section">
-            <label class="settings-modal__label" for="${escapeHtml(fieldIds.searchInputId)}">Rechercher un collaborateur</label>
+            <label class="settings-modal__label" for="${escapeHtml(fieldIds.searchInputId)}">Recherchez un collaborateur par son adresse mail ou son nom</label>
             <div class="project-collaborators-modal__search-wrap">
               <span class="project-collaborators-modal__search-icon">${svgIcon("search", { width: 18, height: 18 })}</span>
               <input
