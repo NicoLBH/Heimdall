@@ -1,3 +1,4 @@
+import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.js";
 import { setCurrentDemoProject } from "../demo-context.js";
 import { store } from "../store.js";
 import { createProjectWithDefaultPhases, syncProjectsCatalogFromSupabase } from "../services/project-supabase-sync.js";
@@ -9,6 +10,28 @@ import {
   renderDataTableHead,
   renderDataTableEmptyState
 } from "./ui/data-table-shell.js";
+import {
+  renderSideNavLayout,
+  renderSideNavGroup,
+  renderSideNavItem
+} from "./ui/side-nav-layout.js";
+
+const SUPABASE_URL = getSupabaseUrl();
+
+const PROJECT_LIST_FILTERS = {
+  contributions: {
+    id: "contributions",
+    label: "Mes contributions",
+    href: "#projects",
+    iconName: "people"
+  },
+  mine: {
+    id: "mine",
+    label: "Mes projets",
+    href: "#projects/mine",
+    iconName: "person"
+  }
+};
 
 const projectCreateUiState = {
   ownerMenuOpen: false,
@@ -29,6 +52,13 @@ const projectCreateUiState = {
   submitError: ""
 };
 
+const projectListUiState = {
+  loadingAccess: false,
+  accessLoaded: false,
+  accessError: "",
+  contributorProjectIds: new Set()
+};
+
 function parseHash() {
   const hash = String(location.hash || "").replace(/^#/, "").trim();
   if (!hash) return ["projects"];
@@ -38,6 +68,26 @@ function parseHash() {
 function isProjectsCreateRoute() {
   const parts = parseHash();
   return parts[0] === "projects" && parts[1] === "new";
+}
+
+function getActiveProjectsFilterId() {
+  const parts = parseHash();
+  if (parts[0] !== "projects") return PROJECT_LIST_FILTERS.contributions.id;
+  if (parts[1] === "mine") return PROJECT_LIST_FILTERS.mine.id;
+  if (parts[1] === "contributions" || !parts[1]) return PROJECT_LIST_FILTERS.contributions.id;
+  return PROJECT_LIST_FILTERS.contributions.id;
+}
+
+function getCurrentUserId() {
+  return String(store.user?.id || "").trim();
+}
+
+function getProjectsSignature(projects = []) {
+  return (Array.isArray(projects) ? projects : []).map((project) => ([
+    String(project?.id || "").trim(),
+    String(project?.ownerId || "").trim(),
+    String(project?.updatedAt || "").trim()
+  ].join(":"))).join("|");
 }
 
 function renderProjectRow(project) {
@@ -55,11 +105,135 @@ function renderProjectRow(project) {
 
 function renderProjectsToolbar() {
   return `
-    <div class="projects-page__toolbar">
-      <a href="#projects/new" class="gh-btn gh-btn--primary projects-page__new-btn" id="projectsNewBtn">
-        ${svgIcon("repo", { className: "octicon octicon-repo" })}
-        <span>Nouveau projet</span>
-      </a>
+    <a href="#projects/new" class="gh-btn gh-btn--primary projects-page__new-btn" id="projectsNewBtn">
+      <span>Nouveau projet</span>
+    </a>
+  `;
+}
+
+function renderProjectsNav(activeFilterId) {
+  return renderSideNavGroup({
+    className: "projects-layout__nav-group",
+    items: [PROJECT_LIST_FILTERS.contributions, PROJECT_LIST_FILTERS.mine].map((item) => renderSideNavItem({
+      as: "a",
+      href: item.href,
+      label: item.label,
+      iconHtml: svgIcon(item.iconName, { className: `octicon octicon-${item.iconName}` }),
+      isActive: item.id === activeFilterId,
+      className: "projects-layout__nav-item"
+    }))
+  });
+}
+
+async function fetchContributorProjectIds() {
+  const currentUserId = getCurrentUserId();
+  if (!currentUserId) {
+    projectListUiState.contributorProjectIds = new Set();
+    projectListUiState.accessLoaded = true;
+    return projectListUiState.contributorProjectIds;
+  }
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/project_collaborators_view`);
+  url.searchParams.set("select", "project_id,linked_user_id,collaborator_user_id,status");
+  url.searchParams.set("status", "eq.Actif");
+  url.searchParams.set("or", `(linked_user_id.eq.${currentUserId},collaborator_user_id.eq.${currentUserId})`);
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: await buildSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`project_collaborators_view fetch failed (${response.status}): ${text}`);
+  }
+
+  const rows = await response.json().catch(() => []);
+  const nextIds = new Set(
+    (Array.isArray(rows) ? rows : [])
+      .map((row) => String(row?.project_id || "").trim())
+      .filter(Boolean)
+  );
+
+  projectListUiState.contributorProjectIds = nextIds;
+  projectListUiState.accessLoaded = true;
+  projectListUiState.accessError = "";
+  return nextIds;
+}
+
+function ensureProjectAccessLoaded(root) {
+  if (projectListUiState.loadingAccess || projectListUiState.accessLoaded) return;
+
+  projectListUiState.loadingAccess = true;
+  fetchContributorProjectIds()
+    .catch((error) => {
+      projectListUiState.accessError = error instanceof Error ? error.message : String(error || "Erreur de chargement des contributions");
+      projectListUiState.accessLoaded = true;
+      projectListUiState.contributorProjectIds = new Set();
+    })
+    .finally(() => {
+      projectListUiState.loadingAccess = false;
+      if (root?.isConnected) {
+        renderProjectsList(root);
+      }
+    });
+}
+
+function getFilteredProjects(activeFilterId) {
+  const projects = Array.isArray(store.projects) ? store.projects : [];
+  const currentUserId = getCurrentUserId();
+  const contributorProjectIds = projectListUiState.contributorProjectIds;
+
+  if (activeFilterId === PROJECT_LIST_FILTERS.mine.id) {
+    return projects.filter((project) => String(project.ownerId || "").trim() === currentUserId);
+  }
+
+  return projects.filter((project) => {
+    const projectId = String(project.id || "").trim();
+    const ownerId = String(project.ownerId || "").trim();
+    return Boolean(projectId) && ownerId !== currentUserId && contributorProjectIds.has(projectId);
+  });
+}
+
+function renderProjectsListContent(activeFilterId) {
+  const title = PROJECT_LIST_FILTERS[activeFilterId]?.label || PROJECT_LIST_FILTERS.contributions.label;
+  const projects = getFilteredProjects(activeFilterId);
+  const rows = projects.map(renderProjectRow).join("");
+  const isLoading = activeFilterId === PROJECT_LIST_FILTERS.contributions.id && !projectListUiState.accessLoaded;
+
+  return `
+    <div class="projects-layout__content-inner">
+      <div class="projects-page__head projects-page__head--listing">
+        <h1>${escapeHtml(title)}</h1>
+        <div class="projects-page__head-actions">
+          ${renderProjectsToolbar()}
+        </div>
+      </div>
+
+      ${renderDataTableShell({
+        className: "projects-repo",
+        gridTemplate: "minmax(260px, 2fr) minmax(220px, 1.5fr) minmax(120px, 1fr) minmax(120px, .8fr)",
+        headHtml: renderDataTableHead({
+          columns: [
+            "Nom du projet",
+            "Nom du client",
+            "Ville",
+            "Phase en cours"
+          ]
+        }),
+        bodyHtml: rows,
+        state: isLoading ? "loading" : (projects.length ? "ready" : "empty"),
+        emptyHtml: renderDataTableEmptyState({
+          title: activeFilterId === PROJECT_LIST_FILTERS.mine.id ? "Aucun projet créé" : "Aucune contribution",
+          description: activeFilterId === PROJECT_LIST_FILTERS.mine.id
+            ? "Créez un projet pour le retrouver ici."
+            : "Les projets créés par d'autres utilisateurs dans lesquels vous êtes collaborateur apparaîtront ici."
+        })
+      })}
+      ${projectListUiState.accessError && activeFilterId === PROJECT_LIST_FILTERS.contributions.id
+        ? `<div class="projects-page__access-error">${escapeHtml(projectListUiState.accessError)}</div>`
+        : ""}
     </div>
   `;
 }
@@ -399,42 +573,32 @@ function bindProjectCreatePage(root) {
 }
 
 export function renderProjectsList(root) {
-  syncProjectsCatalogFromSupabase().catch(() => undefined);
+  const projectsSignatureBeforeSync = getProjectsSignature(store.projects);
+  syncProjectsCatalogFromSupabase()
+    .then(() => {
+      const projectsSignatureAfterSync = getProjectsSignature(store.projects);
+      if (projectsSignatureAfterSync !== projectsSignatureBeforeSync && root?.isConnected && !isProjectsCreateRoute()) {
+        renderProjectsList(root);
+      }
+    })
+    .catch(() => undefined);
 
   if (isProjectsCreateRoute()) {
     renderProjectCreatePage(root);
     return;
   }
 
-  const projects = Array.isArray(store.projects) ? store.projects : [];
-  const rows = projects.map(renderProjectRow).join("");
+  const activeFilterId = getActiveProjectsFilterId();
+  ensureProjectAccessLoaded(root);
 
   root.innerHTML = `
-    <section class="page projects-page">
-      <div class="projects-page__head">
-        <h1>Projets</h1>
-        <p class="projects-page__lead">Sélection du contexte projet pour la démonstration.</p>
-      </div>
-
-      ${renderProjectsToolbar()}
-
-      ${renderDataTableShell({
-        className: "projects-repo",
-        gridTemplate: "minmax(260px, 2fr) minmax(220px, 1.5fr) minmax(120px, 1fr) minmax(120px, .8fr)",
-        headHtml: renderDataTableHead({
-          columns: [
-            "Nom du projet",
-            "Nom du client",
-            "Ville",
-            "Phase en cours"
-          ]
-        }),
-        bodyHtml: rows,
-        state: projects.length ? "ready" : "empty",
-        emptyHtml: renderDataTableEmptyState({
-          title: "Aucun projet",
-          description: "Ajoutez un projet pour démarrer."
-        })
+    <section class="page projects-page projects-page--listing">
+      ${renderSideNavLayout({
+        className: "settings-layout settings-layout--parametres projects-layout",
+        navClassName: "settings-nav settings-nav--parametres projects-layout__nav",
+        contentClassName: "settings-content settings-content--parametres projects-layout__content",
+        navHtml: renderProjectsNav(activeFilterId),
+        contentHtml: renderProjectsListContent(activeFilterId)
       })}
     </section>
   `;
@@ -446,7 +610,6 @@ export function renderProjectsList(root) {
       location.hash = `#project/${project.id}/documents`;
     });
   });
-
 }
 
 let projectCreateDocumentClickBound = false;
