@@ -58,6 +58,15 @@ function getCollaboratorModalFieldIds(uiState = ensureCollaborateursUiState()) {
   return uiState.collaboratorModalFieldIds;
 }
 
+
+function formatCollaboratorCandidateInputValue(candidate) {
+  if (!candidate || typeof candidate !== "object") return "";
+  const name = String(candidate.name || "").trim();
+  const email = String(candidate.email || "").trim();
+  const company = String(candidate.company || "").trim();
+  return [name, email, company].filter(Boolean).join(" · ");
+}
+
 function getProjectLotGroupDefinitions() {
   return [
     { code: "groupe-maitrise-ouvrage", title: "Maîtrise d'ouvrage" },
@@ -295,12 +304,6 @@ function renderCollaboratorCreatePage() {
             ${renderCollaboratorLotsPicker(uiState)}
           </div>
 
-          ${selectedCandidate?.userId ? `
-            <div class="project-collaborators-modal__selection">
-              Collaborateur sélectionné : <strong>${escapeHtml(selectedCandidate.name || selectedCandidate.email || "Utilisateur")}</strong>
-            </div>
-          ` : ""}
-
           ${uiState.collaboratorModalError ? `<div class="gh-alert gh-alert--error settings-modal__feedback">${escapeHtml(uiState.collaboratorModalError)}</div>` : ""}
         </div>
 
@@ -456,6 +459,9 @@ function selectCollaboratorCandidate(candidateId) {
   const nextCandidate = (uiState.collaboratorSuggestions || []).find((item) => String(item.userId) === String(candidateId));
   if (!nextCandidate) return;
   uiState.selectedCollaboratorCandidate = nextCandidate;
+  uiState.collaboratorSearchTerm = formatCollaboratorCandidateInputValue(nextCandidate);
+  uiState.collaboratorSuggestions = [];
+  uiState.collaboratorSearchLoading = false;
   uiState.collaboratorModalError = "";
   rerenderCollaboratorCreatePageInPlace();
 }
@@ -603,7 +609,7 @@ function bindCollaboratorCreatePage(page) {
     }
   });
 
-  registerProjectPrimaryScrollSource(page.querySelector(".project-collaborators-modal__lots") || document.getElementById("projectParametresScroll"));
+  registerProjectPrimaryScrollSource(document.getElementById("projectParametresScroll"));
 
   const fieldIds = getCollaboratorModalFieldIds();
   const searchInput = page.querySelector(`#${CSS.escape(fieldIds.searchInputId)}`);
