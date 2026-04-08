@@ -951,8 +951,6 @@ function bindCollaboratorCreatePage(page) {
     scheduleCollaboratorSearch(uiState.collaboratorSearchTerm);
   });
 
-  });
-
   if (!editingMode) searchInput?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
