@@ -1132,9 +1132,11 @@ body.modal-open {
 
 .projects-page__head h1{
   margin:0;
-  font-size:40px;
-  line-height:1.15;
-  font-weight:700;
+  font-size: 22px;
+  line-height: 1.4;
+  font-weight: 600;
+  padding-bottom: 8px;
+  color: var(--text);
 }
 
 .projects-page__lead{
@@ -1212,7 +1214,16 @@ body.modal-open {
 
 
 .projects-page--listing{
-  padding:24px 32px 40px;
+  padding:0px;
+}
+.projects-page--listing .settings-layout--parametres {
+  height:100%;
+  grid-template-columns: 296px auto;
+  justify-content: left;
+}
+.projects-page--listing .settings-layout--parametres .settings-nav--parametres{
+  height: 100%;
+  border-right: solid 1px var(--border);
 }
 
 .projects-layout{
