@@ -3574,6 +3574,10 @@ color:var(--text);
   min-width:960px;
 }
 
+.project-simple-page--parametres-standalone{
+  min-height:calc(100dvh - var(--header-h) - var(--project-tabs-h));
+}
+
 .project-simple-page--parametres-standalone .project-simple-scroll--parametres,
 .project-simple-page--parametres-standalone .settings-shell--parametres-standalone,
 .project-simple-page--parametres-standalone .settings-layout--parametres-standalone,
@@ -3581,10 +3585,11 @@ color:var(--text);
 .project-simple-page--parametres-standalone .settings-content--parametres-standalone,
 .project-simple-page--parametres-standalone #projectParametresContent,
 .project-simple-page--parametres-standalone [data-collaborator-create-page],
+.project-simple-page--parametres-standalone .project-collaborator-create-shell,
 .project-simple-page--parametres-standalone .project-collaborator-create-shell__inner,
 .project-simple-page--parametres-standalone .project-collaborator-create{
-  min-height:calc(100dvh - 220px);
-  max-height:calc(100dvh - 220px);
+  min-height:calc(100dvh - var(--header-h) - var(--project-tabs-h));
+  max-height:calc(100dvh - var(--header-h) - var(--project-tabs-h));
 }
 
 .project-simple-page--parametres-standalone .project-simple-scroll--parametres{
@@ -10167,8 +10172,10 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .project-collaborators-modal__search-wrap{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   gap:10px;
+  position:relative;
+  z-index:5;
 }
 
 .project-collaborators-modal__search-icon{
@@ -10177,6 +10184,13 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   justify-content:center;
   color:var(--fgColor-muted, #8b949e);
   flex:0 0 auto;
+  min-height:48px;
+}
+
+.project-collaborators-modal__search-field{
+  position:relative;
+  flex:1 1 auto;
+  min-width:0;
 }
 
 .project-collaborators-modal__search-input{
@@ -10185,15 +10199,23 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 
 .project-collaborators-modal__suggestions{
-  display:flex;
+  position:absolute;
+  top:calc(100% + 8px);
+  left:0;
+  width:min(450px, calc(100vw - 96px));
+  max-width:100%;
+  display:none;
   flex-direction:column;
-  flex:0 0 auto;
-  min-height:52px;
-  max-height:min(200px, 24dvh);
+  max-height:250px;
   overflow:auto;
   border:1px solid var(--borderColor-default, #30363d);
   border-radius:12px;
-  background:rgba(255,255,255,0.02);
+  background:rgb(13, 17, 23);
+  box-shadow:0 16px 32px rgba(1, 4, 9, 0.45), 0 0 0 1px rgba(48, 54, 61, 0.5);
+}
+
+.project-collaborators-modal__suggestions.is-open{
+  display:flex;
 }
 
 .project-collaborators-modal__suggestion,
@@ -10245,9 +10267,10 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   display:flex;
   flex-direction:column;
   gap:10px;
-  flex:1 1 auto;
-  min-height:0;
-  max-height:100%;
+  flex:0 0 auto;
+  min-height:320px;
+  height:320px;
+  max-height:320px;
   overflow:auto;
   padding-right:4px;
   overscroll-behavior:contain;
@@ -10284,7 +10307,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   display:flex;
   min-height:0;
   height:100%;
-  padding:8px 0 24px;
+  padding:8px 0 0;
   box-sizing:border-box;
 }
 
@@ -10368,13 +10391,13 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   align-items:center;
   justify-content:space-between;
   gap:16px;
-  padding-top:8px;
+  padding:12px 0 max(12px, env(safe-area-inset-bottom, 0px));
   margin-top:auto;
   flex:0 0 auto;
   position:sticky;
   bottom:0;
-  z-index:2;
-  background:var(--bgColor-default, #0d1117);
+  z-index:3;
+  background:linear-gradient(180deg, rgba(13,17,23,0) 0%, rgba(13,17,23,0.92) 24%, rgba(13,17,23,1) 100%);
 }
 
 .project-collaborator-create__footer-right{
@@ -10390,11 +10413,11 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 
 .project-simple-page--parametres-standalone .project-collaborator-create__body{
-  padding-bottom:4px;
+  padding-bottom:8px;
 }
 
 .project-simple-page--parametres-standalone .project-collaborator-create__footer{
-  padding-bottom:max(8px, env(safe-area-inset-bottom, 0px));
+  margin-bottom:0;
 }
 
 @media (max-width: 960px){
