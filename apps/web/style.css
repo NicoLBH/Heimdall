@@ -10675,3 +10675,73 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
     flex-wrap:wrap;
   }
 }
+
+.settings-features-card--phases .settings-features-list{
+  gap:0;
+}
+
+.settings-feature-row--phase{
+  grid-template-columns:20px minmax(0,1fr) auto;
+  align-items:center;
+  cursor:default;
+}
+
+.settings-feature-row__body--phase{
+  min-width:0;
+  cursor:pointer;
+}
+
+.settings-feature-row__aside--phase{
+  justify-self:end;
+  min-width:180px;
+}
+
+.settings-phase-date-text{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-end;
+  min-height:32px;
+  font-size:13px;
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+.settings-phase-date-picker .shared-date-picker{
+  min-width:180px;
+}
+
+.settings-phase-date-picker .shared-date-picker__trigger{
+  justify-content:flex-start;
+}
+
+.settings-phases-card__actions{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-left:auto;
+}
+
+@media (max-width: 860px){
+  .settings-feature-row--phase{
+    grid-template-columns:20px minmax(0,1fr);
+  }
+
+  .settings-feature-row__aside--phase{
+    grid-column:2;
+    justify-self:start;
+    min-width:0;
+    width:100%;
+    margin-top:8px;
+  }
+
+  .settings-phase-date-picker .shared-date-picker,
+  .settings-phase-date-picker .shared-date-picker__trigger{
+    width:100%;
+  }
+
+  .settings-phases-card__actions{
+    width:100%;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+  }
+}
