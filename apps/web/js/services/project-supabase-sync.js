@@ -848,18 +848,13 @@ function getProjectPhaseFallbackDefinition(code = "") {
 const PROJECT_PHASES_SELECT = "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at";
 
 async function fetchProjectPhasesRows(backendProjectId) {
-  const { data, error } = await supabase
-    .from("project_phases")
-    .select(PROJECT_PHASES_SELECT)
-    .eq("project_id", backendProjectId)
-    .order("phase_order", { ascending: true })
-    .order("created_at", { ascending: true });
+  const params = new URLSearchParams();
+  params.set("select", PROJECT_PHASES_SELECT);
+  params.set("project_id", `eq.${backendProjectId}`);
+  params.set("order", "phase_order.asc,created_at.asc");
 
-  if (error) {
-    throw new Error(`project_phases fetch failed: ${error.message || error.code || "unknown error"}`);
-  }
-
-  return Array.isArray(data) ? data : [];
+  const rows = await restFetch("project_phases", params);
+  return Array.isArray(rows) ? rows : [];
 }
 
 async function fetchProjectPhasesRowsByCode(backendProjectId) {
@@ -900,32 +895,16 @@ export async function syncProjectPhasesFromSupabase(options = {}) {
 }
 
 async function updateProjectPhaseDateById(phaseId, phaseDate) {
-  const { data, error } = await supabase
-    .from("project_phases")
-    .update({ phase_date: phaseDate })
-    .eq("id", phaseId)
-    .select(PROJECT_PHASES_SELECT)
-    .single();
-
-  if (error) {
-    throw new Error(`project_phases update failed: ${error.message || error.code || "unknown error"}`);
-  }
-
-  return data || null;
+  return restUpdate(
+    "project_phases",
+    { id: phaseId },
+    { phase_date: phaseDate },
+    { select: PROJECT_PHASES_SELECT }
+  );
 }
 
 async function insertProjectPhaseRow(payload) {
-  const { data, error } = await supabase
-    .from("project_phases")
-    .insert(payload)
-    .select(PROJECT_PHASES_SELECT)
-    .single();
-
-  if (error) {
-    throw new Error(`project_phases insert failed: ${error.message || error.code || "unknown error"}`);
-  }
-
-  return data || null;
+  return restInsert("project_phases", payload, { select: PROJECT_PHASES_SELECT });
 }
 
 export async function persistProjectPhaseDatesToSupabase(phaseDatesByCode = {}) {
