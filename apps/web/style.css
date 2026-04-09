@@ -10692,6 +10692,10 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   z-index:2;
 }
 
+.settings-feature-row--phase-no-toggle{
+  grid-template-columns:minmax(0,1fr) auto;
+}
+
 .settings-feature-row__body--phase{
   min-width:0;
   cursor:pointer;
@@ -10762,6 +10766,10 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 @media (max-width: 860px){
   .settings-feature-row--phase{
     grid-template-columns:20px minmax(0,1fr);
+  }
+
+  .settings-feature-row--phase-no-toggle{
+    grid-template-columns:minmax(0,1fr);
   }
 
   .settings-feature-row__aside--phase{
