@@ -800,6 +800,91 @@ function mapProjectLotRowToViewModel(row = {}) {
     raw: row
   };
 }
+function mapProjectPhaseRowToViewModel(row = {}) {
+  return {
+    id: safeString(row.id),
+    projectId: safeString(row.project_id),
+    code: safeString(row.phase_code),
+    label: safeString(row.phase_label),
+    order: Number(row.phase_order || 0),
+    phaseDate: safeString(row.phase_date),
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+    raw: row
+  };
+}
+
+export async function syncProjectPhasesFromSupabase(options = {}) {
+  const backendProjectId = await resolveCurrentBackendProjectId(options);
+  if (!backendProjectId) {
+    return Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+  }
+
+  const params = new URLSearchParams();
+  params.set("select", "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at");
+  params.set("project_id", `eq.${backendProjectId}`);
+  params.set("order", "phase_order.asc,created_at.asc");
+
+  const rows = await restFetch("project_phases", params);
+  const phaseRows = (Array.isArray(rows) ? rows : []).map(mapProjectPhaseRowToViewModel);
+  if (!Array.isArray(store.projectForm?.phasesCatalog)) {
+    store.projectForm.phasesCatalog = [];
+  }
+
+  if (phaseRows.length) {
+    const currentCatalog = Array.isArray(store.projectForm.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+    const currentByCode = new Map(currentCatalog.map((item) => [safeString(item?.code), item]));
+    store.projectForm.phasesCatalog = phaseRows.map((row) => {
+      const current = currentByCode.get(row.code) || {};
+      return {
+        code: row.code,
+        label: row.label || safeString(current?.label),
+        enabled: current?.enabled !== false,
+        phaseDate: row.phaseDate
+      };
+    });
+  }
+
+  return Array.isArray(store.projectForm.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+}
+
+export async function persistProjectPhaseDatesToSupabase(phaseDatesByCode = {}) {
+  const backendProjectId = await resolveCurrentBackendProjectId();
+  if (!backendProjectId) {
+    throw new Error("Projet Supabase introuvable pour la mise à jour des dates de phases.");
+  }
+
+  const entries = Object.entries(phaseDatesByCode || {}).filter(([code]) => safeString(code));
+  if (!entries.length) {
+    return Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+  }
+
+  const updatedRows = await Promise.all(entries.map(async ([code, phaseDate]) => restUpdate(
+    "project_phases",
+    { project_id: backendProjectId, phase_code: safeString(code) },
+    { phase_date: safeString(phaseDate) || null },
+    { select: "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at" }
+  )));
+
+  const rowsByCode = new Map(updatedRows.map((row) => {
+    const item = mapProjectPhaseRowToViewModel(row || {});
+    return [item.code, item];
+  }));
+
+  const currentCatalog = Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+  store.projectForm.phasesCatalog = currentCatalog.map((item) => {
+    const updated = rowsByCode.get(safeString(item?.code));
+    if (!updated) return item;
+    return {
+      ...item,
+      label: updated.label || safeString(item?.label),
+      phaseDate: updated.phaseDate
+    };
+  });
+
+  return store.projectForm.phasesCatalog;
+}
+
 
 function mapIssueActionToSubjectUpdate(action) {
   const normalizedAction = safeString(action);
