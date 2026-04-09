@@ -1,4 +1,4 @@
-import { store } from "./store.js";
+import { store, DEFAULT_PROJECT_PHASES } from "./store.js";
 import { syncCurrentProjectIdentityFromSupabase, syncProjectsCatalogFromSupabase } from "./services/project-supabase-sync.js";
 
 const STORAGE_KEYS = {
@@ -142,6 +142,10 @@ export function setCurrentDemoUser(userId) {
   return store.user;
 }
 
+function cloneDefaultProjectPhases() {
+  return DEFAULT_PROJECT_PHASES.map((item) => ({ ...item }));
+}
+
 export function setCurrentDemoProject(projectId) {
   const project = getDemoProjectById(projectId);
 
@@ -157,6 +161,7 @@ export function setCurrentDemoProject(projectId) {
   store.projectForm.city = project.city;
   store.projectForm.currentPhase = project.currentPhase;
   store.projectForm.phase = project.currentPhase;
+  store.projectForm.phasesCatalog = cloneDefaultProjectPhases();
 
   persistDemoProjectId(project.id);
   return store.currentProject;
