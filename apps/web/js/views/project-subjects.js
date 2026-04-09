@@ -67,6 +67,12 @@ import {
 } from "./ui/shared-date-picker.js";
 import { getSelectionDocumentRefs } from "../services/project-document-selectors.js";
 import { persistSubjectIssueActionToSupabase } from "../services/project-supabase-sync.js";
+import {
+  getSituationsTableGridTemplate,
+  renderFlatSujetRow,
+  renderProjectSubjectsTable,
+  renderSituationsTableHeadHtml
+} from "./project-subjects/project-subjects-table.js";
 
 let subjectsCurrentRoot = null;
 let subjectsTabResetBound = false;
@@ -2665,43 +2671,6 @@ function renderAvisRow(avis) {
   `;
 }
 
-function renderFlatSujetRow(sujet, situationId, options = {}) {
-  const effStatus = getEffectiveSujetStatus(sujet.id);
-  const meta = getEntityReviewMeta("sujet", sujet.id);
-  const titleSeenClass = getReviewTitleStateClass("sujet", sujet.id);
-  const displayRef = getEntityDisplayRef("sujet", sujet.id);
-  const author = firstNonEmpty(getEntityDescriptionState("sujet", sujet.id)?.author, sujet?.agent, sujet?.raw?.agent, "system");
-  const openedLabel = formatRelativeTimeLabel(getEntityListTimestamp("sujet", sujet), "opened");
-  const subjectMeta = getSubjectSidebarMeta(sujet.id);
-  const subjectLabelsHtml = subjectMeta.labels
-    .map((label) => getSubjectLabelDefinition(label))
-    .filter(Boolean)
-    .map((labelDef) => renderSubjectLabelBadge(labelDef))
-    .join("");
-  const objective = getObjectiveById(subjectMeta.objectiveIds[0] || "");
-  const objectiveLabel = objective
-    ? ` - <span class="issue-row-subject-objective"><span class="issue-row-subject-objective__icon" aria-hidden="true">${svgIcon("milestone", { className: "octicon octicon-milestone" })}</span><span class="issue-row-subject-objective__text">${escapeHtml(firstNonEmpty(objective.title, objective.id, "Objectif"))}</span></span>`
-    : "";
-
-  return `
-    <div class="issue-row issue-row--pb click js-row-sujet${options.isSelectable === false ? "" : rowSelectedClass("sujet", sujet.id)}" data-sujet-id="${escapeHtml(sujet.id)}">
-      <div class="cell cell-theme lvl0">
-        <span class="issue-row-title-grid">
-          <span class="issue-row-title-grid__status">
-            ${issueIcon(effStatus, { reviewState: meta.review_state, entityType: "sujet", isSeen: meta.is_seen })}
-          </span>
-            <span class="issue-row-title-grid__title issue-row-subject-title-line">
-            <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--pb ${titleSeenClass}" data-row-entity-type="sujet" data-row-entity-id="${escapeHtml(sujet.id)}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</button>
-            ${subjectLabelsHtml ? `<span class="issue-row-subject-labels">${subjectLabelsHtml}</span>` : ""}
-          </span>
-          <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${escapeHtml(displayRef)} - ${escapeHtml(author)} • ${escapeHtml(openedLabel)}${objectiveLabel}</span>
-        </span>
-      </div>
-      <div class="cell cell-priority-value">${priorityBadge(sujet.priority)}</div>
-    </div>
-  `;
-}
-
 function renderFlatAvisRow(avis, sujetId, situationId) {
   const effVerdict = getEffectiveAvisVerdict(avis.id);
   const lineage = [situationId, sujetId].filter(Boolean).join(" · ");
@@ -2721,70 +2690,36 @@ function renderFlatAvisRow(avis, sujetId, situationId) {
     </div>
   `;
 }
-function getSituationsTableGridTemplate() {
-  return "minmax(0, 1fr) max-content";
-}
-
-function renderSituationsTableHeadHtml(options = {}) {
-  const columns = Array.isArray(options.columns) && options.columns.length
-    ? options.columns
-    : [
-        { className: "cell cell-theme", html: renderSubjectsStatusHeadHtml() },
-        { className: "cell cell-priority-filter", html: renderSubjectsPriorityHeadHtml() }
-      ];
-
-  return renderDataTableHead({ columns });
-}
-
-function renderWelcomeHtml() {
-  return renderIssuesTable({
-    gridTemplate: getSituationsTableGridTemplate(),
-    headHtml: renderSituationsTableHeadHtml(),
-    emptyTitle: "Aucune analyse disponible",
-    emptyDescription: "Lancer une analyse pour générer des avis-sujets-situations."
-  });
-}
-
-function renderTableHtml(filteredSituations) {
-  const activeStatusFilter = getCurrentSubjectsStatusFilter();
-  const standaloneSubjects = getFilteredStandaloneSubjects().filter((sujet) => sujetMatchesStatusFilter(sujet, activeStatusFilter));
-
-  if (!(store.situationsView.data || []).length && !standaloneSubjects.length) return renderWelcomeHtml();
-
-  const rows = [];
-
-  for (const situation of filteredSituations) {
-    const visibleSujets = getSituationSubjects(situation).filter((sujet) => sujetMatchesStatusFilter(sujet, activeStatusFilter));
-
-    if (!visibleSujets.length) continue;
-
-    for (const sujet of visibleSujets) {
-      if (!sujetMatchesPriorityFilter(sujet, getCurrentSubjectsPriorityFilter())) continue;
-      rows.push(renderFlatSujetRow(sujet, situation.id, { isSelectable: false }));
-    }
-  }
-
-  for (const sujet of standaloneSubjects) {
-    if (!sujetMatchesPriorityFilter(sujet, getCurrentSubjectsPriorityFilter())) continue;
-    rows.push(renderFlatSujetRow(sujet, "", { isSelectable: false }));
-  }
-
-  if (!rows.length) {
-    return renderIssuesTable({
-      gridTemplate: getSituationsTableGridTemplate(),
-      headHtml: renderSituationsTableHeadHtml(),
-      emptyTitle: "Aucun résultat",
-      emptyDescription: "Aucun résultat pour les filtres actuels."
-    });
-  }
-
-  return renderIssuesTable({
-    gridTemplate: getSituationsTableGridTemplate(),
-    headHtml: renderSituationsTableHeadHtml(),
-    rowsHtml: rows.join(""),
-    emptyTitle: "Aucun résultat",
-    emptyDescription: "Aucun résultat pour les filtres actuels."
-  });
+function getSubjectsTableDeps() {
+  return {
+    store,
+    escapeHtml,
+    svgIcon,
+    renderIssuesTable,
+    renderDataTableHead,
+    renderSubjectsStatusHeadHtml,
+    renderSubjectsPriorityHeadHtml,
+    getCurrentSubjectsStatusFilter,
+    getCurrentSubjectsPriorityFilter,
+    getFilteredStandaloneSubjects,
+    getSituationSubjects,
+    sujetMatchesStatusFilter,
+    sujetMatchesPriorityFilter,
+    getEffectiveSujetStatus,
+    getEntityReviewMeta,
+    getReviewTitleStateClass,
+    getEntityDisplayRef,
+    getEntityDescriptionState,
+    formatRelativeTimeLabel,
+    getEntityListTimestamp,
+    getSubjectSidebarMeta,
+    getSubjectLabelDefinition,
+    renderSubjectLabelBadge,
+    getObjectiveById,
+    issueIcon,
+    priorityBadge,
+    firstNonEmpty
+  };
 }
 
 /* =========================================================
@@ -3995,7 +3930,10 @@ function rerenderPanels() {
       panelHost.innerHTML = `<div id="objectivesTableHost" class="project-table-host">${renderObjectivesTableHtml()}</div>`;
       syncSituationsPrimaryScrollSource();
     } else if (store.situationsView.showTableOnly) {
-      panelHost.innerHTML = `<div id="situationsTableHost" class="project-table-host">${renderTableHtml(filteredSituations)}</div>`;
+      panelHost.innerHTML = `<div id="situationsTableHost" class="project-table-host">${renderProjectSubjectsTable({
+        filteredSituations,
+        deps: getSubjectsTableDeps()
+      })}</div>`;
       syncSituationsPrimaryScrollSource();
     } else {
       const details = renderDetailsHtml(null, {
@@ -6359,7 +6297,7 @@ function renderObjectiveSubjectsTableHtml(objective) {
   const bodyHtml = visibleSubjects.length
     ? visibleSubjects.map((sujet) => {
         const parentSituation = getSituationBySujetId(sujet.id);
-        return renderFlatSujetRow(sujet, parentSituation?.id || "", { isSelectable: false });
+        return renderFlatSujetRow(sujet, parentSituation?.id || "", { isSelectable: false, deps: getSubjectsTableDeps() });
       }).join("")
     : renderDataTableEmptyState({
         title: activeStatusFilter === "closed" ? "Aucun sujet fermé" : "Aucun sujet ouvert",
@@ -6370,6 +6308,7 @@ function renderObjectiveSubjectsTableHtml(objective) {
     className: "issues-table objectives-subjects-table",
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml({
+      deps: getSubjectsTableDeps(),
       columns: [
         { className: "cell cell-theme", html: renderTableHeadFilterToggle({
           activeValue: activeStatusFilter,
