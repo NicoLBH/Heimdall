@@ -528,6 +528,64 @@ function renderVerdictHeadFilter() {
   `;
 }
 
+function renderSubjectsStatusHeadHtml() {
+  const current = getCurrentSubjectsStatusFilter();
+  const query = String(store.situationsView.search || "").trim().toLowerCase();
+  const counts = getSubjectsStatusCounts(query);
+  return renderTableHeadFilterToggle({
+    activeValue: current,
+    items: [
+      { label: "Ouverts", value: "open", count: counts.open, dataAttr: "subjects-status-filter" },
+      { label: "Fermés", value: "closed", count: counts.closed, dataAttr: "subjects-status-filter" }
+    ]
+  });
+}
+
+function renderSubjectsPriorityHeadHtml() {
+  const current = getCurrentSubjectsPriorityFilter();
+  const priorities = getAvailableSubjectPriorities();
+  const labels = {
+    critical: "Critique",
+    high: "Haute",
+    medium: "Moyenne",
+    low: "Basse"
+  };
+  const currentLabel = current ? (labels[current] || current) : "Priorité";
+  const options = ["", ...priorities];
+
+  return `
+    <div class="issues-head-menu">
+      <button
+        class="issues-head-menu__btn"
+        id="subjectsPriorityHeadBtn"
+        type="button"
+        aria-haspopup="true"
+        aria-expanded="false"
+      >
+        <span>${escapeHtml(currentLabel)}</span>
+        ${svgIcon("chevron-down", { className: "gh-chevron" })}
+      </button>
+
+      <div class="gh-menu issues-head-menu__dropdown" id="subjectsPriorityHeadDropdown">
+        ${options.map((value) => {
+          const normalized = normalizeBackendPriority(value || "");
+          const isActive = normalized === current;
+          const label = normalized ? (labels[normalized] || normalized) : "Toutes";
+          return `
+            <button
+              class="gh-menu__item ${isActive ? "is-active" : ""}"
+              type="button"
+              data-subjects-priority-filter="${escapeHtml(normalized)}"
+            >
+              ${escapeHtml(label)}
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function inferAgent(obj) {
   return obj?.produced_by || obj?.agent || obj?.by || obj?.source || "system";
 }
