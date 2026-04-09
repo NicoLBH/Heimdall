@@ -814,6 +814,50 @@ function mapProjectPhaseRowToViewModel(row = {}) {
   };
 }
 
+function normalizeProjectPhaseCode(code = "") {
+  const normalized = safeString(code).toUpperCase();
+  if (normalized === "RECEPTION") return "EXPLOIT";
+  return normalized;
+}
+
+function getProjectPhaseFallbackDefinition(code = "") {
+  const normalizedCode = normalizeProjectPhaseCode(code);
+  const currentCatalog = Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+  const normalizedCatalog = currentCatalog.map((item, index) => ({
+    code: normalizeProjectPhaseCode(item?.code),
+    label: safeString(item?.label),
+    order: Number(item?.order || item?.phaseOrder || index + 1) || index + 1
+  }));
+
+  const existing = normalizedCatalog.find((item) => item.code === normalizedCode);
+  if (existing) {
+    return {
+      code: existing.code,
+      label: existing.label || normalizedCode,
+      order: existing.order || 1
+    };
+  }
+
+  return {
+    code: normalizedCode,
+    label: normalizedCode,
+    order: normalizedCatalog.length + 1
+  };
+}
+
+async function fetchProjectPhasesRowsByCode(backendProjectId) {
+  const params = new URLSearchParams();
+  params.set("select", "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at");
+  params.set("project_id", `eq.${backendProjectId}`);
+  params.set("order", "phase_order.asc,created_at.asc");
+
+  const rows = await restFetch("project_phases", params);
+  return new Map((Array.isArray(rows) ? rows : []).map((row) => {
+    const item = mapProjectPhaseRowToViewModel(row || {});
+    return [normalizeProjectPhaseCode(item.code), item];
+  }));
+}
+
 export async function syncProjectPhasesFromSupabase(options = {}) {
   const backendProjectId = await resolveCurrentBackendProjectId(options);
   if (!backendProjectId) {
@@ -854,29 +898,60 @@ export async function persistProjectPhaseDatesToSupabase(phaseDatesByCode = {}) 
     throw new Error("Projet Supabase introuvable pour la mise à jour des dates de phases.");
   }
 
-  const entries = Object.entries(phaseDatesByCode || {}).filter(([code]) => safeString(code));
+  const entries = Object.entries(phaseDatesByCode || {})
+    .map(([code, phaseDate]) => [normalizeProjectPhaseCode(code), safeString(phaseDate) || null])
+    .filter(([code]) => safeString(code));
+
   if (!entries.length) {
     return Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
   }
 
-  const updatedRows = await Promise.all(entries.map(async ([code, phaseDate]) => restUpdate(
-    "project_phases",
-    { project_id: backendProjectId, phase_code: safeString(code) },
-    { phase_date: safeString(phaseDate) || null },
-    { select: "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at" }
-  )));
+  const existingRowsByCode = await fetchProjectPhasesRowsByCode(backendProjectId);
+
+  const updatedRows = await Promise.all(entries.map(async ([code, phaseDate]) => {
+    const existingRow = existingRowsByCode.get(code);
+
+    if (existingRow?.id) {
+      const updatedRow = await restUpdate(
+        "project_phases",
+        { id: existingRow.id },
+        { phase_date: phaseDate },
+        { select: "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at" }
+      );
+
+      if (!updatedRow) {
+        throw new Error(`Aucune ligne project_phases mise à jour pour la phase ${code}.`);
+      }
+
+      return updatedRow;
+    }
+
+    const fallback = getProjectPhaseFallbackDefinition(code);
+    return restInsert(
+      "project_phases",
+      {
+        project_id: backendProjectId,
+        phase_code: fallback.code,
+        phase_label: fallback.label,
+        phase_order: fallback.order,
+        phase_date: phaseDate
+      },
+      { select: "id,project_id,phase_code,phase_label,phase_order,phase_date,created_at,updated_at" }
+    );
+  }));
 
   const rowsByCode = new Map(updatedRows.map((row) => {
     const item = mapProjectPhaseRowToViewModel(row || {});
-    return [item.code, item];
+    return [normalizeProjectPhaseCode(item.code), item];
   }));
 
   const currentCatalog = Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
   store.projectForm.phasesCatalog = currentCatalog.map((item) => {
-    const updated = rowsByCode.get(safeString(item?.code));
+    const updated = rowsByCode.get(normalizeProjectPhaseCode(item?.code));
     if (!updated) return item;
     return {
       ...item,
+      code: updated.code || safeString(item?.code),
       label: updated.label || safeString(item?.label),
       phaseDate: updated.phaseDate
     };
