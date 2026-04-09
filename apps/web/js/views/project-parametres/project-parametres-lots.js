@@ -183,7 +183,6 @@ function renderProjectLotsCard() {
       })}
 
       <section class="settings-features-card settings-lots-card settings-lots-card--active-group">
-        <div class="settings-features-card__title">${escapeHtml(activeGroup.title)}</div>
         <div class="settings-features-list">
           ${activeGroup.items.map((item) => {
             const inputId = `projectLotToggle_${item.id}`;
