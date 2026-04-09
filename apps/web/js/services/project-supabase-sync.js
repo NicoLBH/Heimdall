@@ -935,9 +935,7 @@ function mapProjectPhaseRowToViewModel(row = {}) {
 }
 
 function normalizeProjectPhaseCode(code = "") {
-  const normalized = safeString(code).toUpperCase();
-  if (normalized === "RECEPTION") return "EXPLOIT";
-  return normalized;
+  return safeString(code).toUpperCase();
 }
 
 function getProjectPhaseFallbackDefinition(code = "") {
@@ -992,25 +990,36 @@ export async function syncProjectPhasesFromSupabase(options = {}) {
   }
 
   const rows = await fetchProjectPhasesRows(backendProjectId);
-  const phaseRows = rows.map(mapProjectPhaseRowToViewModel);
-  const phaseRowsByCode = new Map(phaseRows.map((row) => [normalizeProjectPhaseCode(row.code), row]));
+  const phaseRows = rows
+    .map(mapProjectPhaseRowToViewModel)
+    .filter((row) => safeString(row.code));
   const currentCatalog = Array.isArray(store.projectForm?.phasesCatalog) ? store.projectForm.phasesCatalog : [];
+  const currentEnabledByCode = new Map(
+    currentCatalog.map((item) => [normalizeProjectPhaseCode(item?.code), item?.enabled !== false])
+  );
+
+  if (phaseRows.length) {
+    store.projectForm.phasesCatalog = phaseRows.map((row) => ({
+      code: row.code,
+      label: row.label || row.code,
+      enabled: currentEnabledByCode.get(normalizeProjectPhaseCode(row.code)) !== false,
+      phaseDate: safeString(row.phaseDate)
+    }));
+    return store.projectForm.phasesCatalog;
+  }
+
   const fallbackCatalog = currentCatalog.length
     ? currentCatalog
-    : Array.isArray(store.projectForm?.phasesCatalog)
-      ? store.projectForm.phasesCatalog
-      : [];
+    : [];
 
-  store.projectForm.phasesCatalog = (currentCatalog.length ? currentCatalog : fallbackCatalog).map((item, index) => {
+  store.projectForm.phasesCatalog = fallbackCatalog.map((item) => {
     const fallback = getProjectPhaseFallbackDefinition(item?.code || "") || {};
     const code = normalizeProjectPhaseCode(item?.code || fallback.code || "");
-    const synced = phaseRowsByCode.get(code);
-
     return {
-      code: synced?.code || code,
-      label: synced?.label || safeString(item?.label) || safeString(fallback.label) || code,
+      code,
+      label: safeString(item?.label) || safeString(fallback.label) || code,
       enabled: item?.enabled !== false,
-      phaseDate: safeString(synced?.phaseDate)
+      phaseDate: safeString(item?.phaseDate || item?.phase_date)
     };
   });
 
