@@ -136,8 +136,9 @@ function ensureProjectFormDefaults() {
     const existing = rawCatalog.find((item) => String(item?.code || "").trim() === defaultItem.code);
     return {
       code: defaultItem.code,
-      label: defaultItem.label,
-      enabled: existing?.enabled !== false
+      label: String(existing?.label || defaultItem.label || "").trim() || defaultItem.label,
+      enabled: existing?.enabled !== false,
+      phaseDate: String(existing?.phaseDate || existing?.phase_date || defaultItem.phaseDate || "").trim()
     };
   });
 
