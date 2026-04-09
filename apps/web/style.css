@@ -3304,7 +3304,7 @@ color:var(--text);
   left:-8px;
   width:4px;
   position:absolute;
-  top:6px;
+  top:4px;
 }
 
 .side-nav-layout__item--primary{
@@ -6749,7 +6749,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 
 .project-collaborators__table{
   border:1px solid var(--borderColor-default, #30363d);
-  border-radius:12px;
+  border-radius:var(--radius);
   overflow:hidden;
   background:var(--bgColor-default, #0d1117);
 }
