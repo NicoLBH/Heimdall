@@ -239,7 +239,6 @@ function renderProjectPhasesCard() {
 
   return `
     <div class="settings-features-card settings-features-card--phases">
-      <div class="settings-features-card__title">Phases disponibles</div>
       <div class="settings-features-list">
         ${items.map((item) => {
           const inputId = `projectPhaseToggle_${item.code}`;
@@ -452,7 +451,7 @@ export function renderPhasesParametresContent() {
     cards: [
       renderSectionCard({
         title: "Phases",
-        description: "Les cases sont toutes cochées par défaut. Cette structure est stockée dans le store pour préparer le branchement backend.",
+        description: "Vous pouvez choisir les phases que vous voulez activer sur votre projet et définir leurs échéances.",
         body: `
           ${renderProjectPhasesCard()}
           ${parametresUiState.projectPhasesError ? `<div class="settings-inline-error">${escapeHtml(parametresUiState.projectPhasesError)}</div>` : ""}
