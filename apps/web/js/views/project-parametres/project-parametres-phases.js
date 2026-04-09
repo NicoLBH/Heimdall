@@ -11,6 +11,7 @@ import {
   shiftSharedCalendarMonth,
   toSharedDateInputValue
 } from "../ui/shared-date-picker.js";
+import { svgIcon } from "../../ui/icons.js";
 import {
   renderSettingsBlock,
   renderSectionCard,
@@ -31,20 +32,20 @@ function ensurePhasesUiState() {
   if (typeof parametresUiState.projectPhasesLoaded !== "boolean") {
     parametresUiState.projectPhasesLoaded = false;
   }
-  if (typeof parametresUiState.projectPhasesEditing !== "boolean") {
-    parametresUiState.projectPhasesEditing = false;
-  }
   if (typeof parametresUiState.projectPhasesSubmitting !== "boolean") {
     parametresUiState.projectPhasesSubmitting = false;
   }
   if (typeof parametresUiState.projectPhasesError !== "string") {
     parametresUiState.projectPhasesError = "";
   }
+  if (typeof parametresUiState.projectPhaseEditingCode !== "string") {
+    parametresUiState.projectPhaseEditingCode = "";
+  }
+  if (typeof parametresUiState.projectPhaseSubmittingCode !== "string") {
+    parametresUiState.projectPhaseSubmittingCode = "";
+  }
   if (!parametresUiState.projectPhaseDateDrafts || typeof parametresUiState.projectPhaseDateDrafts !== "object") {
     parametresUiState.projectPhaseDateDrafts = {};
-  }
-  if (!parametresUiState.projectPhaseDateOriginals || typeof parametresUiState.projectPhaseDateOriginals !== "object") {
-    parametresUiState.projectPhaseDateOriginals = {};
   }
   if (typeof parametresUiState.projectPhaseDateOpenPickerCode !== "string") {
     parametresUiState.projectPhaseDateOpenPickerCode = "";
@@ -52,8 +53,28 @@ function ensurePhasesUiState() {
   if (!parametresUiState.projectPhaseDateCalendarViews || typeof parametresUiState.projectPhaseDateCalendarViews !== "object") {
     parametresUiState.projectPhaseDateCalendarViews = {};
   }
+  if (typeof parametresUiState.projectPhaseDateDocumentBound !== "boolean") {
+    parametresUiState.projectPhaseDateDocumentBound = false;
+  }
 
   return parametresUiState;
+}
+
+function getCurrentProjectOwnerId() {
+  const currentProjectId = String(store.currentProjectId || store.currentProject?.id || "").trim();
+  const currentProject = store.currentProject && typeof store.currentProject === "object"
+    ? store.currentProject
+    : (Array.isArray(store.projects)
+      ? store.projects.find((project) => String(project?.id || "").trim() === currentProjectId)
+      : null);
+
+  return String(currentProject?.ownerId || currentProject?.owner_id || "").trim();
+}
+
+function canCurrentUserEditProjectPhaseDates() {
+  const currentUserId = String(store.user?.id || "").trim();
+  const ownerId = getCurrentProjectOwnerId();
+  return Boolean(currentUserId && ownerId && currentUserId === ownerId);
 }
 
 function getProjectPhasesCatalog() {
@@ -106,60 +127,81 @@ function syncPhaseDateCalendarView(code = "", rawValue = "") {
   return nextView;
 }
 
-function startProjectPhaseDateEdition() {
+function stopProjectPhaseInlineEdition({ clearDraft = true } = {}) {
   const parametresUiState = ensurePhasesUiState();
-  const catalog = getProjectPhasesCatalog();
-
-  parametresUiState.projectPhasesEditing = true;
-  parametresUiState.projectPhasesSubmitting = false;
-  parametresUiState.projectPhasesError = "";
+  const code = String(parametresUiState.projectPhaseEditingCode || "").trim();
+  parametresUiState.projectPhaseEditingCode = "";
   parametresUiState.projectPhaseDateOpenPickerCode = "";
-  parametresUiState.projectPhaseDateOriginals = Object.fromEntries(
-    catalog.map((item) => [item.code, item.phaseDate || ""])
-  );
-  parametresUiState.projectPhaseDateDrafts = Object.fromEntries(
-    catalog.map((item) => [item.code, item.phaseDate || ""])
-  );
-  parametresUiState.projectPhaseDateCalendarViews = {};
+  if (clearDraft && code) {
+    delete parametresUiState.projectPhaseDateDrafts[code];
+  }
 }
 
-function cancelProjectPhaseDateEdition() {
+function startProjectPhaseInlineEdition(code = "", fallbackValue = "") {
+  if (!canCurrentUserEditProjectPhaseDates()) return;
+  const normalizedCode = String(code || "").trim();
+  if (!normalizedCode) return;
+
   const parametresUiState = ensurePhasesUiState();
-  parametresUiState.projectPhasesEditing = false;
-  parametresUiState.projectPhasesSubmitting = false;
   parametresUiState.projectPhasesError = "";
-  parametresUiState.projectPhaseDateOpenPickerCode = "";
-  parametresUiState.projectPhaseDateDrafts = {};
-  parametresUiState.projectPhaseDateOriginals = {};
-  parametresUiState.projectPhaseDateCalendarViews = {};
+  parametresUiState.projectPhaseEditingCode = normalizedCode;
+  parametresUiState.projectPhaseDateOpenPickerCode = normalizedCode;
+  parametresUiState.projectPhaseDateDrafts[normalizedCode] = String(fallbackValue || "").trim();
+  syncPhaseDateCalendarView(normalizedCode, fallbackValue);
 }
 
-async function submitProjectPhaseDates() {
+async function saveSingleProjectPhaseDate(code = "", nextValue = "") {
+  const normalizedCode = String(code || "").trim();
+  if (!normalizedCode || !canCurrentUserEditProjectPhaseDates()) return;
+
   const parametresUiState = ensurePhasesUiState();
-  if (parametresUiState.projectPhasesSubmitting) return;
+  if (parametresUiState.projectPhaseSubmittingCode === normalizedCode) return;
 
   parametresUiState.projectPhasesSubmitting = true;
+  parametresUiState.projectPhaseSubmittingCode = normalizedCode;
   parametresUiState.projectPhasesError = "";
+  parametresUiState.projectPhaseDateDrafts[normalizedCode] = String(nextValue || "").trim();
   rerenderProjectParametres();
 
   try {
-    await persistProjectPhaseDatesToSupabase(parametresUiState.projectPhaseDateDrafts);
-    cancelProjectPhaseDateEdition();
+    await persistProjectPhaseDatesToSupabase({
+      [normalizedCode]: String(nextValue || "").trim()
+    });
+    stopProjectPhaseInlineEdition();
   } catch (error) {
-    parametresUiState.projectPhasesSubmitting = false;
     parametresUiState.projectPhasesError = error instanceof Error ? error.message : String(error || "Erreur de mise à jour des dates de phases");
+  } finally {
+    parametresUiState.projectPhasesSubmitting = false;
+    parametresUiState.projectPhaseSubmittingCode = "";
+    rerenderProjectParametres();
   }
-
-  rerenderProjectParametres();
 }
 
 function renderProjectPhaseDateControl(item) {
   const parametresUiState = ensurePhasesUiState();
   const code = String(item?.code || "").trim();
   const phaseDate = getPhaseDateDraftValue(code, item?.phaseDate || "");
+  const isEditable = canCurrentUserEditProjectPhaseDates();
+  const isEditing = parametresUiState.projectPhaseEditingCode === code;
+  const isSubmitting = parametresUiState.projectPhaseSubmittingCode === code;
 
-  if (!parametresUiState.projectPhasesEditing) {
-    return `<span class="settings-phase-date-text">${escapeHtml(formatPhaseDateDisplay(item?.phaseDate || ""))}</span>`;
+  if (!isEditing) {
+    return `
+      <div class="settings-phase-date-display">
+        <span class="settings-phase-date-text">${escapeHtml(formatPhaseDateDisplay(item?.phaseDate || ""))}</span>
+        ${isEditable ? `
+          <button
+            type="button"
+            class="settings-phase-edit-btn"
+            data-project-phase-edit="${escapeHtml(code)}"
+            aria-label="Modifier la date de la phase ${escapeHtml(code)}"
+            title="Modifier la date"
+          >
+            ${svgIcon("pencil", { className: "octicon" })}
+          </button>
+        ` : ""}
+      </div>
+    `;
   }
 
   const pickerId = `projectPhaseDate-${code}`;
@@ -167,7 +209,7 @@ function renderProjectPhaseDateControl(item) {
   const calendarView = syncPhaseDateCalendarView(code, phaseDate);
 
   return `
-    <div class="settings-phase-date-picker" data-project-phase-date-picker-wrap>
+    <div class="settings-phase-date-picker" data-project-phase-date-picker-wrap data-phase-code="${escapeHtml(code)}">
       ${renderSharedDatePicker({
         idBase: pickerId,
         value: phaseDate,
@@ -176,7 +218,7 @@ function renderProjectPhaseDateControl(item) {
         viewMonth: calendarView.month,
         isOpen: parametresUiState.projectPhaseDateOpenPickerCode === code,
         placeholder: "Sélectionner une date",
-        inputLabel: formatSharedDateInputValue(selectedDate) || "Sélectionner une date",
+        inputLabel: isSubmitting ? "Mise à jour…" : (formatSharedDateInputValue(selectedDate) || "Sélectionner une date"),
         calendarLabel: `Sélectionner une date pour la phase ${code}`
       })}
     </div>
@@ -201,8 +243,9 @@ function renderProjectPhasesCard() {
       <div class="settings-features-list">
         ${items.map((item) => {
           const inputId = `projectPhaseToggle_${item.code}`;
+          const isInlineEditing = ensurePhasesUiState().projectPhaseEditingCode === item.code;
           return `
-            <div class="settings-feature-row settings-feature-row--phase">
+            <div class="settings-feature-row settings-feature-row--phase${isInlineEditing ? " is-inline-editing" : ""}" data-project-phase-row="${escapeHtml(item.code)}">
               <div class="settings-feature-row__control">
                 <input
                   id="${escapeHtml(inputId)}"
@@ -259,40 +302,54 @@ function bindProjectPhaseToggles() {
   });
 }
 
+function bindProjectPhaseOutsideClose() {
+  const parametresUiState = ensurePhasesUiState();
+  if (parametresUiState.projectPhaseDateDocumentBound) return;
+
+  document.addEventListener("mousedown", (event) => {
+    const uiState = ensurePhasesUiState();
+    const editingCode = String(uiState.projectPhaseEditingCode || "").trim();
+    if (!editingCode || uiState.projectPhaseSubmittingCode === editingCode) return;
+
+    const pickerWrap = Array.from(document.querySelectorAll('[data-project-phase-date-picker-wrap]'))
+      .find((node) => String(node?.getAttribute('data-phase-code') || '').trim() === editingCode);
+    if (!pickerWrap) return;
+    if (pickerWrap.contains(event.target)) return;
+
+    stopProjectPhaseInlineEdition();
+    rerenderProjectParametres();
+  });
+
+  parametresUiState.projectPhaseDateDocumentBound = true;
+}
+
 function bindProjectPhaseDateEditor() {
   const parametresUiState = ensurePhasesUiState();
 
-  document.querySelectorAll("[data-project-phases-edit]").forEach((button) => {
-    button.addEventListener("click", () => {
-      startProjectPhaseDateEdition();
+  document.querySelectorAll("[data-project-phase-edit]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const code = String(button.getAttribute("data-project-phase-edit") || "").trim();
+      const item = getProjectPhasesCatalog().find((phase) => phase.code === code);
+      startProjectPhaseInlineEdition(code, item?.phaseDate || "");
       rerenderProjectParametres();
     });
   });
 
-  document.querySelectorAll("[data-project-phases-cancel]").forEach((button) => {
-    button.addEventListener("click", () => {
-      cancelProjectPhaseDateEdition();
-      rerenderProjectParametres();
-    });
-  });
-
-  document.querySelectorAll("[data-project-phases-submit]").forEach((button) => {
-    button.addEventListener("click", () => {
-      void submitProjectPhaseDates();
-    });
-  });
-
-  if (!parametresUiState.projectPhasesEditing) return;
+  if (!parametresUiState.projectPhaseEditingCode) return;
 
   getProjectPhasesCatalog().forEach((item) => {
     const code = String(item.code || "").trim();
+    if (parametresUiState.projectPhaseEditingCode !== code) return;
+
     const pickerId = `projectPhaseDate-${code}`;
 
     document.querySelectorAll(`[data-shared-date-input-trigger='${pickerId}']`).forEach((button) => {
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        parametresUiState.projectPhaseDateOpenPickerCode = parametresUiState.projectPhaseDateOpenPickerCode === code ? "" : code;
+        parametresUiState.projectPhaseDateOpenPickerCode = code;
         rerenderProjectParametres();
       });
     });
@@ -324,8 +381,6 @@ function bindProjectPhaseDateEditor() {
         event.preventDefault();
         event.stopPropagation();
         const nextValue = String(button.getAttribute("data-shared-date-day") || "");
-        parametresUiState.projectPhaseDateDrafts[code] = nextValue;
-        parametresUiState.projectPhaseDateOpenPickerCode = "";
         const selectedDate = parseSharedDateInputValue(nextValue);
         if (selectedDate) {
           parametresUiState.projectPhaseDateCalendarViews[code] = {
@@ -333,7 +388,7 @@ function bindProjectPhaseDateEditor() {
             month: selectedDate.getMonth()
           };
         }
-        rerenderProjectParametres();
+        void saveSingleProjectPhaseDate(code, nextValue);
       });
     });
 
@@ -341,9 +396,7 @@ function bindProjectPhaseDateEditor() {
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        parametresUiState.projectPhaseDateDrafts[code] = "";
-        parametresUiState.projectPhaseDateOpenPickerCode = "";
-        rerenderProjectParametres();
+        void saveSingleProjectPhaseDate(code, "");
       });
     });
 
@@ -352,13 +405,11 @@ function bindProjectPhaseDateEditor() {
         event.preventDefault();
         event.stopPropagation();
         const today = new Date();
-        parametresUiState.projectPhaseDateDrafts[code] = toSharedDateInputValue(today);
         parametresUiState.projectPhaseDateCalendarViews[code] = {
           year: today.getFullYear(),
           month: today.getMonth()
         };
-        parametresUiState.projectPhaseDateOpenPickerCode = "";
-        rerenderProjectParametres();
+        void saveSingleProjectPhaseDate(code, toSharedDateInputValue(today));
       });
     });
   });
@@ -372,7 +423,8 @@ function ensureProjectPhasesLoaded(root) {
     parametresUiState.projectPhasesLoadedProjectKey = currentProjectKey;
     parametresUiState.projectPhasesLoaded = false;
     parametresUiState.projectPhasesLoading = false;
-    cancelProjectPhaseDateEdition();
+    stopProjectPhaseInlineEdition();
+    parametresUiState.projectPhaseDateCalendarViews = {};
   }
 
   if (!parametresUiState.projectPhasesLoading && !parametresUiState.projectPhasesLoaded) {
@@ -391,29 +443,6 @@ function ensureProjectPhasesLoaded(root) {
   }
 }
 
-function renderPhasesCardAction() {
-  const parametresUiState = ensurePhasesUiState();
-
-  if (!parametresUiState.projectPhasesEditing) {
-    return `
-      <button type="button" class="gh-btn" data-project-phases-edit>
-        <span>Modifier</span>
-      </button>
-    `;
-  }
-
-  return `
-    <div class="settings-phases-card__actions">
-      <button type="button" class="gh-btn" data-project-phases-cancel ${parametresUiState.projectPhasesSubmitting ? "disabled" : ""}>
-        <span>Annuler</span>
-      </button>
-      <button type="button" class="gh-btn gh-btn--primary" data-project-phases-submit ${parametresUiState.projectPhasesSubmitting ? "disabled" : ""}>
-        <span>${parametresUiState.projectPhasesSubmitting ? "Mise à jour…" : "Mettre à jour"}</span>
-      </button>
-    </div>
-  `;
-}
-
 export function renderPhasesParametresContent() {
   const parametresUiState = ensurePhasesUiState();
   return `${renderSettingsBlock({
@@ -424,7 +453,6 @@ export function renderPhasesParametresContent() {
       renderSectionCard({
         title: "Phases",
         description: "Les cases sont toutes cochées par défaut. Cette structure est stockée dans le store pour préparer le branchement backend.",
-        action: renderPhasesCardAction(),
         body: `
           ${renderProjectPhasesCard()}
           ${parametresUiState.projectPhasesError ? `<div class="settings-inline-error">${escapeHtml(parametresUiState.projectPhasesError)}</div>` : ""}
@@ -437,6 +465,7 @@ export function renderPhasesParametresContent() {
 export function bindPhasesParametresSection(root) {
   bindBaseParametresUi();
   bindProjectPhaseToggles();
+  bindProjectPhaseOutsideClose();
   bindProjectPhaseDateEditor();
   ensureProjectPhasesLoaded(root);
 }
