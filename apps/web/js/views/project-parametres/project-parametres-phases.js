@@ -226,9 +226,11 @@ function renderProjectPhaseDateControl(item) {
 }
 
 function renderProjectPhasesCard() {
-  const items = getProjectPhasesCatalog();
-  const parametresUiState = ensurePhasesUiState();
   const canEditPhases = canCurrentUserEditProjectPhaseDates();
+  const items = canEditPhases
+    ? getProjectPhasesCatalog()
+    : getEnabledProjectPhases();
+  const parametresUiState = ensurePhasesUiState();
 
   if (parametresUiState.projectPhasesLoading && !items.length) {
     return '<div class="settings-empty-note settings-empty-note--card">Chargement des phases…</div>';
