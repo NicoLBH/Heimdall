@@ -1654,6 +1654,15 @@ function getDecision(entityType, entityId) {
   return bucket?.decisions?.[entityType]?.[entityId] || null;
 }
 
+export function getEffectiveSujetStatus(sujetId) {
+  const sujet = getNestedSujet(sujetId);
+  const decision = getDecision("sujet", sujetId);
+  const d = String(decision?.decision || "").toUpperCase();
+  if (d === "CLOSED") return "closed";
+  if (d === "REOPENED") return "open";
+  return normalizeIssueLifecycleStatus(firstNonEmpty(sujet?.status, "open"));
+}
+
 export function getEffectiveAvisVerdict(avisId) {
   const avis = getNestedAvis(avisId);
   const decision = getDecision("avis", avisId);
