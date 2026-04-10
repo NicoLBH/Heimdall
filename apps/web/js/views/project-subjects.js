@@ -170,6 +170,7 @@ const {
   getFilteredSituations,
   getStandaloneCustomSubjects,
   getFilteredStandaloneSubjects,
+  getFilteredFlatSubjects,
   getCurrentSubjectsStatusFilter,
   getCurrentSubjectsPriorityFilter,
   sujetMatchesPriorityFilter,
