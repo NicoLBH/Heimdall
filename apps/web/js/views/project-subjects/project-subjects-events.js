@@ -519,17 +519,6 @@ export function createProjectSubjectsEvents(config) {
       };
     });
 
-    root.querySelectorAll(".verdict-switch [data-main-action]").forEach((btn) => {
-      btn.onclick = (ev) => {
-        ev.preventDefault();
-        const action = String(btn.dataset.mainAction || "");
-        if (!action.startsWith("set-verdict:")) return;
-        const v = action.slice("set-verdict:".length).toUpperCase();
-        if (!v) return;
-        store.situationsView.tempAvisVerdict = v;
-        rerenderPanels();
-      };
-    });
   }
 
   function bindModalEvents() {
@@ -702,37 +691,7 @@ export function createProjectSubjectsEvents(config) {
         return;
       }
 
-      const verdictBtn = event.target.closest("#verdictHeadBtn");
-      if (verdictBtn) {
-        event.preventDefault();
-        event.stopPropagation();
 
-        const currentBtn = root.querySelector("#verdictHeadBtn");
-        const currentDropdown = root.querySelector("#verdictHeadDropdown");
-        if (!currentBtn || !currentDropdown) return;
-
-        const isOpen = currentDropdown.classList.contains("gh-menu--open");
-        currentDropdown.classList.toggle("gh-menu--open", !isOpen);
-        currentBtn.setAttribute("aria-expanded", String(!isOpen));
-        return;
-      }
-
-      const verdictItem = event.target.closest("#verdictHeadDropdown [data-verdict]");
-      if (verdictItem) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const verdict = String(verdictItem.dataset.verdict || "ALL").toUpperCase();
-        store.situationsView.verdictFilter = verdict;
-
-        const currentBtn = root.querySelector("#verdictHeadBtn");
-        const currentDropdown = root.querySelector("#verdictHeadDropdown");
-        if (currentDropdown) currentDropdown.classList.remove("gh-menu--open");
-        if (currentBtn) currentBtn.setAttribute("aria-expanded", "false");
-
-        rerenderPanels();
-        return;
-      }
 
       const subjectsPriorityDropdown = root.querySelector("#subjectsPriorityHeadDropdown");
       const subjectsPriorityCurrentBtn = root.querySelector("#subjectsPriorityHeadBtn");
@@ -747,18 +706,6 @@ export function createProjectSubjectsEvents(config) {
         subjectsPriorityCurrentBtn.setAttribute("aria-expanded", "false");
       }
 
-      const verdictDropdown = root.querySelector("#verdictHeadDropdown");
-      const currentBtn = root.querySelector("#verdictHeadBtn");
-
-      if (
-        verdictDropdown
-        && currentBtn
-        && !event.target.closest("#verdictHeadBtn")
-        && !event.target.closest("#verdictHeadDropdown")
-      ) {
-        verdictDropdown.classList.remove("gh-menu--open");
-        currentBtn.setAttribute("aria-expanded", "false");
-      }
 
       const expandBtn = event.target.closest("#detailsExpand");
       if (expandBtn) {
@@ -806,9 +753,6 @@ export function createProjectSubjectsEvents(config) {
         }
         if (entityType === "situation") {
           selectSituation(entityId);
-          return;
-        }
-        if (entityType === "avis") {
           return;
         }
       }
