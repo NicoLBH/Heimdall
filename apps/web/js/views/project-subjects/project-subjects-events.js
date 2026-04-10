@@ -30,8 +30,9 @@ export function createProjectSubjectsEvents(config) {
     getApplyIssueStatusAction,
     showError,
     updateDrilldownPanel,
+    openDrilldownFromSubjectPanel,
     openDrilldownFromSujetPanel,
-    openDrilldownFromAvisPanel = () => null,
+    selectSubject,
     selectSujet,
     rerenderPanels,
     resetSubjectsViewTransientState,
@@ -45,7 +46,6 @@ export function createProjectSubjectsEvents(config) {
     createSubjectFromDraft,
     normalizeBackendPriority,
     selectSituation,
-    selectAvis = () => null,
     bindOverlayChromeDismiss,
     bindOverlayChromeCompact,
     getProjectSubjectMilestones
@@ -488,14 +488,7 @@ export function createProjectSubjectsEvents(config) {
     root.querySelectorAll(".js-modal-drilldown-sujet, .js-drilldown-select-sujet").forEach((btn) => {
       btn.onclick = () => {
         const sujetId = String(btn.dataset.sujetId || "");
-        if (sujetId) openDrilldownFromSujetPanel(sujetId);
-      };
-    });
-
-    root.querySelectorAll(".js-modal-drilldown-avis, .js-drilldown-select-avis").forEach((btn) => {
-      btn.onclick = () => {
-        const avisId = String(btn.dataset.avisId || "");
-        if (avisId) openDrilldownFromAvisPanel(avisId);
+        if (sujetId) (openDrilldownFromSubjectPanel || openDrilldownFromSujetPanel)(sujetId);
       };
     });
 
@@ -808,7 +801,7 @@ export function createProjectSubjectsEvents(config) {
         const entityType = String(titleTrigger.dataset.rowEntityType || "");
         const entityId = String(titleTrigger.dataset.rowEntityId || "");
         if (entityType === "sujet") {
-          selectSujet(entityId);
+          (selectSubject || selectSujet)(entityId);
           return;
         }
         if (entityType === "situation") {
@@ -816,7 +809,7 @@ export function createProjectSubjectsEvents(config) {
           return;
         }
         if (entityType === "avis") {
-          selectAvis(entityId);
+          return;
         }
       }
     });
