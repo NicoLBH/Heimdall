@@ -4,6 +4,15 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
 function flattenSubjects(subjects = [], acc = []) {
   for (const subject of safeArray(subjects)) {
     acc.push(subject);
@@ -12,12 +21,111 @@ function flattenSubjects(subjects = [], acc = []) {
   return acc;
 }
 
-function getAllSubjects() {
-  const subjects = [];
-  for (const situation of safeArray(store.situationsView?.data)) {
-    flattenSubjects(situation?.sujets, subjects);
+function getRawSubjectsResult() {
+  const projectRaw = store.projectSubjectsView?.rawSubjectsResult || store.projectSubjectsView?.rawResult;
+  if (projectRaw && typeof projectRaw === "object") return projectRaw;
+  const legacyRaw = store.situationsView?.rawResult;
+  if (legacyRaw && typeof legacyRaw === "object") return legacyRaw;
+  return {};
+}
+
+function getSubjectsByIdMap() {
+  const raw = getRawSubjectsResult();
+  if (raw.subjectsById && typeof raw.subjectsById === "object") return raw.subjectsById;
+
+  const fromProjectView = safeArray(store.projectSubjectsView?.subjectsData);
+  if (fromProjectView.length) {
+    return Object.fromEntries(fromProjectView
+      .map((subject) => [String(subject?.id || ""), subject])
+      .filter(([id]) => !!id));
   }
-  return subjects;
+
+  const fallback = {};
+  for (const situation of safeArray(store.situationsView?.data)) {
+    for (const subject of flattenSubjects(situation?.sujets)) {
+      const id = String(subject?.id || "");
+      if (!id) continue;
+      fallback[id] = subject;
+    }
+  }
+  return fallback;
+}
+
+function getChildrenBySubjectIdMap() {
+  const raw = getRawSubjectsResult();
+  if (raw.childrenBySubjectId && typeof raw.childrenBySubjectId === "object") return raw.childrenBySubjectId;
+
+  const fallback = {};
+  for (const subject of Object.values(getSubjectsByIdMap())) {
+    const subjectId = String(subject?.id || "");
+    if (!subjectId) continue;
+    fallback[subjectId] = safeArray(subject?.children).map((child) => String(child?.id || "")).filter(Boolean);
+  }
+  return fallback;
+}
+
+function getLinksBySubjectIdMap() {
+  const raw = getRawSubjectsResult();
+  if (raw.linksBySubjectId && typeof raw.linksBySubjectId === "object") return raw.linksBySubjectId;
+  return {};
+}
+
+function getSituationsByIdMap() {
+  const raw = getRawSubjectsResult();
+  if (raw.situationsById && typeof raw.situationsById === "object") return raw.situationsById;
+  if (raw.relationOptionsById && typeof raw.relationOptionsById === "object") return raw.relationOptionsById;
+
+  const fallback = {};
+  for (const situation of safeArray(store.situationsView?.data)) {
+    const id = String(situation?.id || "");
+    if (!id) continue;
+    fallback[id] = situation;
+  }
+  return fallback;
+}
+
+function getSubjectIdsBySituationIdMap() {
+  const raw = getRawSubjectsResult();
+  if (raw.subjectIdsBySituationId && typeof raw.subjectIdsBySituationId === "object") return raw.subjectIdsBySituationId;
+
+  const relationIdsBySubjectId = raw.relationIdsBySubjectId && typeof raw.relationIdsBySubjectId === "object"
+    ? raw.relationIdsBySubjectId
+    : {};
+
+  const fallback = {};
+  for (const [subjectId, relationIds] of Object.entries(relationIdsBySubjectId)) {
+    for (const relationId of safeArray(relationIds)) {
+      const normalizedId = String(relationId || "");
+      if (!normalizedId) continue;
+      if (!Array.isArray(fallback[normalizedId])) fallback[normalizedId] = [];
+      fallback[normalizedId].push(String(subjectId || ""));
+    }
+  }
+
+  return fallback;
+}
+
+function isClosedStatus(status) {
+  return String(status || "open").toLowerCase() === "closed";
+}
+
+function isBlockedSubject(subjectId) {
+  return (getLinksBySubjectIdMap()[String(subjectId || "")] || []).some((link) => {
+    return String(link?.source_subject_id || "") === String(subjectId || "")
+      && String(link?.link_type || "").toLowerCase() === "blocked_by";
+  });
+}
+
+function isBlockingSubject(subjectId) {
+  return (getLinksBySubjectIdMap()[String(subjectId || "")] || []).some((link) => {
+    return String(link?.target_subject_id || "") === String(subjectId || "")
+      && String(link?.link_type || "").toLowerCase() === "blocked_by";
+  });
+}
+
+function getAllSubjects() {
+  const subjectsById = getSubjectsByIdMap();
+  return Object.values(subjectsById);
 }
 
 function getRunLogDates() {
@@ -45,17 +153,27 @@ export function getProjectInsightsMetrics() {
   const subjects = getAllSubjects();
   const runDates = getRunLogDates();
   const labels = runDates.map(formatLabel);
+  const childrenBySubjectId = getChildrenBySubjectIdMap();
+  const situationsById = getSituationsByIdMap();
+  const subjectIdsBySituationId = getSubjectIdsBySituationIdMap();
 
   const totalSubjects = subjects.length;
-  const openSubjects = subjects.filter((subject) => String(subject?.status || "open").toLowerCase() !== "closed").length;
+  const openSubjects = subjects.filter((subject) => !isClosedStatus(subject?.status)).length;
   const closedSubjects = Math.max(0, totalSubjects - openSubjects);
   const criticalSubjects = subjects.filter((subject) => String(subject?.priority || "").toLowerCase() === "critical").length;
-  const highOrCriticalSubjects = subjects.filter((subject) => {
-    const priority = String(subject?.priority || "").toLowerCase();
-    return priority === "high" || priority === "critical";
+  const blockedSubjects = subjects.filter((subject) => isBlockedSubject(subject?.id)).length;
+  const blockingSubjects = subjects.filter((subject) => isBlockingSubject(subject?.id)).length;
+  const rootSubjects = subjects.filter((subject) => {
+    const subjectId = String(subject?.id || "");
+    return !Object.values(childrenBySubjectId).flat().includes(subjectId);
   }).length;
-  const rootSubjects = subjects.filter((subject) => !subject?.parentSubjectId && !subject?.parent_subject_id).length;
   const childSubjects = Math.max(0, totalSubjects - rootSubjects);
+  const activeSituations = Object.keys(situationsById).filter((situationId) => {
+    const situation = situationsById[situationId] || null;
+    if (!situation) return false;
+    if (!isClosedStatus(situation?.status)) return true;
+    return safeArray(subjectIdsBySituationId[situationId]).some((subjectId) => !isClosedStatus(getSubjectsByIdMap()[String(subjectId || "")]?.status));
+  }).length;
 
   const runCountSeries = zeroes(labels.length);
   const createdSubjectSeries = zeroes(labels.length);
@@ -63,7 +181,7 @@ export function getProjectInsightsMetrics() {
   const openBacklogSeries = zeroes(labels.length);
   const criticalSeries = zeroes(labels.length);
   const hierarchySeries = zeroes(labels.length);
-  const highPrioritySeries = zeroes(labels.length);
+  const blockedSeries = zeroes(labels.length);
 
   safeArray(store.projectAutomation?.runLog).forEach((entry, index) => {
     const targetIndex = Math.min(index, labels.length - 1);
@@ -76,7 +194,7 @@ export function getProjectInsightsMetrics() {
     openBacklogSeries[index] = openSubjects;
     criticalSeries[index] = criticalSubjects;
     hierarchySeries[index] = childSubjects;
-    highPrioritySeries[index] = highOrCriticalSubjects;
+    blockedSeries[index] = blockedSubjects;
   });
 
   const closureRate = totalSubjects > 0 ? Math.round((closedSubjects / totalSubjects) * 100) : 0;
@@ -84,10 +202,12 @@ export function getProjectInsightsMetrics() {
 
   return {
     summary: {
-      activeSituations: safeArray(store.situationsView?.data).filter((situation) => String(situation?.status || "open").toLowerCase() !== "closed").length,
+      activeSituations,
       childSubjects,
       backlog: openSubjects,
-      blocking: highOrCriticalSubjects,
+      blocking: blockedSubjects,
+      blockedSubjects,
+      blockingSubjects,
       criticalRate,
       closureRate
     },
@@ -114,14 +234,14 @@ export function getProjectInsightsMetrics() {
         ]
       },
       backlogBlocking: {
-        title: "Backlog et priorités hautes",
-        subtitle: "Volume ouvert et sous-ensemble haute priorité ou critique.",
+        title: "Backlog et blocages",
+        subtitle: "Volume ouvert et sous-ensemble actuellement bloqué.",
         yLabel: "sujets",
         labels,
-        yMax: Math.max(...openBacklogSeries, ...highPrioritySeries, 1),
+        yMax: Math.max(...openBacklogSeries, ...blockedSeries, 1),
         series: [
           { label: "Backlog ouvert", values: openBacklogSeries, fill: true },
-          { label: "Priorité haute/critique", values: highPrioritySeries }
+          { label: "Sujets bloqués", values: blockedSeries }
         ]
       },
       criticalRate: {
@@ -157,14 +277,14 @@ export function getProjectInsightsMetrics() {
       },
       activity: {
         title: "Activité projet",
-        subtitle: "Runs exécutés, sujets totaux et sous-sujets.",
+        subtitle: "Runs exécutés, sujets totaux et sujets bloqués.",
         yLabel: "volume",
         labels,
-        yMax: Math.max(...runCountSeries, ...createdSubjectSeries, ...hierarchySeries, 1),
+        yMax: Math.max(...runCountSeries, ...createdSubjectSeries, ...blockedSeries, 1),
         series: [
           { label: "Runs", values: runCountSeries },
           { label: "Sujets", values: createdSubjectSeries },
-          { label: "Sous-sujets", values: hierarchySeries }
+          { label: "Sujets bloqués", values: blockedSeries }
         ]
       }
     }
