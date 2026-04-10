@@ -4,6 +4,15 @@ import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.j
 const SUPABASE_URL = getSupabaseUrl();
 const FRONT_PROJECT_MAP_STORAGE_KEY = "mdall.supabaseProjectMap.v1";
 
+
+function logSubjectsSupabaseDebug(step, payload) {
+  try {
+    console.log(`[subjects:supabase] ${step}`, payload);
+  } catch {
+    // noop
+  }
+}
+
 function firstNonEmpty(...values) {
   for (const value of values) {
     if (value === undefined || value === null) continue;
@@ -38,7 +47,10 @@ async function getSupabaseAuthHeaders(extra = {}) {
 }
 
 async function fetchProjectFlatSubjects(projectId) {
-  if (!projectId) return [];
+  if (!projectId) {
+    logSubjectsSupabaseDebug("fetchProjectFlatSubjects:skip-no-project", { projectId });
+    return [];
+  }
 
   const url = new URL(`${SUPABASE_URL}/rest/v1/subjects`);
   url.searchParams.set(
@@ -48,22 +60,51 @@ async function fetchProjectFlatSubjects(projectId) {
   url.searchParams.set("project_id", `eq.${projectId}`);
   url.searchParams.set("order", "created_at.asc");
 
+  const headers = await getSupabaseAuthHeaders({ Accept: "application/json" });
+  logSubjectsSupabaseDebug("fetchProjectSubjectLinks:request", {
+    projectId,
+    url: url.toString(),
+    hasAuthorizationHeader: !!headers?.Authorization,
+    headerKeys: Object.keys(headers || {})
+  });
+
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    headers,
     cache: "no-store"
+  });
+
+  logSubjectsSupabaseDebug("fetchProjectSubjectLinks:response", {
+    projectId,
+    status: res.status,
+    ok: res.ok
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
+    logSubjectsSupabaseDebug("fetchProjectFlatSubjects:error", {
+      projectId,
+      status: res.status,
+      body: txt
+    });
     throw new Error(`subjects fetch failed (${res.status}): ${txt}`);
   }
 
-  return res.json();
+  const json = await res.json();
+  logSubjectsSupabaseDebug("fetchProjectFlatSubjects:json", {
+    projectId,
+    count: Array.isArray(json) ? json.length : null,
+    sample: Array.isArray(json) && json.length ? json[0] : null,
+    keys: Array.isArray(json) && json.length && json[0] && typeof json[0] === "object" ? Object.keys(json[0]) : []
+  });
+  return json;
 }
 
 async function fetchProjectSubjectLinks(projectId) {
-  if (!projectId) return [];
+  if (!projectId) {
+    logSubjectsSupabaseDebug("fetchProjectSubjectLinks:skip-no-project", { projectId });
+    return [];
+  }
 
   const url = new URL(`${SUPABASE_URL}/rest/v1/subject_links`);
   url.searchParams.set(
@@ -73,18 +114,43 @@ async function fetchProjectSubjectLinks(projectId) {
   url.searchParams.set("project_id", `eq.${projectId}`);
   url.searchParams.set("order", "created_at.asc");
 
+  const headers = await getSupabaseAuthHeaders({ Accept: "application/json" });
+  logSubjectsSupabaseDebug("fetchProjectSubjectLinks:request", {
+    projectId,
+    url: url.toString(),
+    hasAuthorizationHeader: !!headers?.Authorization,
+    headerKeys: Object.keys(headers || {})
+  });
+
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    headers,
     cache: "no-store"
+  });
+
+  logSubjectsSupabaseDebug("fetchProjectSubjectLinks:response", {
+    projectId,
+    status: res.status,
+    ok: res.ok
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
+    logSubjectsSupabaseDebug("fetchProjectSubjectLinks:error", {
+      projectId,
+      status: res.status,
+      body: txt
+    });
     throw new Error(`subject_links fetch failed (${res.status}): ${txt}`);
   }
 
-  return res.json();
+  const json = await res.json();
+  logSubjectsSupabaseDebug("fetchProjectSubjectLinks:json", {
+    projectId,
+    count: Array.isArray(json) ? json.length : null,
+    sample: Array.isArray(json) && json.length ? json[0] : null
+  });
+  return json;
 }
 
 function buildProjectFlatSubjectsResult(subjectRows = [], subjectLinks = [], options = {}) {
@@ -168,6 +234,14 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   }
 
   const backendProjectId = getMappedBackendProjectId();
+  logSubjectsSupabaseDebug("loadFlatSubjectsForCurrentProject:start", {
+    force,
+    currentProjectScopeId,
+    frontendProjectKey: getFrontendProjectKey(),
+    backendProjectId,
+    hasExistingSubjects: existing.length > 0
+  });
+
   if (!backendProjectId) {
     store.projectSubjectsView.subjectsData = [];
     store.projectSubjectsView.projectScopeId = currentProjectScopeId;
@@ -183,6 +257,11 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
       relationIdsBySubjectId: {},
       relationOptionsById: {}
     };
+    store.projectSubjectsView.rawResult = store.projectSubjectsView.rawSubjectsResult;
+    logSubjectsSupabaseDebug("loadFlatSubjectsForCurrentProject:no-backend-project-id", {
+      currentProjectScopeId,
+      frontendProjectKey: getFrontendProjectKey()
+    });
     return [];
   }
 
@@ -192,6 +271,7 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
 
   store.projectSubjectsView.subjectsData = result.subjects;
   store.projectSubjectsView.rawSubjectsResult = result;
+  store.projectSubjectsView.rawResult = result;
   store.projectSubjectsView.projectScopeId = currentProjectScopeId;
   store.projectSubjectsView.page = 1;
   store.projectSubjectsView.expandedSubjectIds = new Set();
@@ -200,12 +280,22 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   store.projectSubjectsView.selectedSujetId = result.subjects[0]?.id || null;
   store.projectSubjectsView.subjectsSelectedNodeId = result.subjects[0]?.id || "";
 
+  logSubjectsSupabaseDebug("loadFlatSubjectsForCurrentProject:normalized-result", {
+    currentProjectScopeId,
+    backendProjectId,
+    subjectCount: Array.isArray(result.subjects) ? result.subjects.length : 0,
+    rootSubjectIdsCount: Array.isArray(result.rootSubjectIds) ? result.rootSubjectIds.length : 0,
+    relationIdsBySubjectIdKeys: Object.keys(result.relationIdsBySubjectId || {}).length,
+    sampleSubject: Array.isArray(result.subjects) && result.subjects.length ? result.subjects[0] : null
+  });
+
   return result.subjects;
 }
 
 export function resetFlatSubjectsForCurrentProject() {
   store.projectSubjectsView.subjectsData = [];
   store.projectSubjectsView.rawSubjectsResult = null;
+  store.projectSubjectsView.rawResult = null;
   store.projectSubjectsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
   store.projectSubjectsView.expandedSubjectIds = new Set();
   store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
