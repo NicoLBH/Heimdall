@@ -24,7 +24,6 @@ export function createProjectSubjectsView(deps) {
     renderDataTableEmptyState,
     renderTableHeadFilterToggle,
     renderStatusBadge,
-    renderVerdictPill,
     renderStateDot,
     normalizeVerdict,
     normalizeReviewState,
@@ -41,10 +40,8 @@ export function createProjectSubjectsView(deps) {
     getReviewTitleStateClass,
     getNestedSituation,
     getNestedSujet,
-    getNestedAvis,
-    getSituationByAvisId,
-    getSujetByAvisId,
     getSituationSubjects,
+    getChildSubjects,
     getFilteredStandaloneSubjects,
     getFilteredFlatSubjects,
     getCurrentSubjectsStatusFilter,
@@ -115,27 +112,6 @@ function priorityBadge(priority = "medium") {
 }
 
 
-function renderVerboseAvisVerdictPill(verdict) {
-  const labels = {
-    F: "Favorable",
-    S: "Suspendu",
-    D: "Défavorable",
-    HM: "Hors Mission",
-    PM: "Pour Mémoire",
-    SO: "Sans Objet"
-  };
-  const normalized = normalizeVerdict(verdict);
-  const classMap = {
-    F: "verdict-F",
-    S: "verdict-S",
-    D: "verdict-D",
-    HM: "verdict-HM",
-    PM: "verdict-PM",
-    SO: "verdict-SO"
-  };
-  const badgeClass = classMap[normalized] ? `verdict-badge ${classMap[normalized]}` : "verdict-badge";
-  return `<span class="${badgeClass}">${escapeHtml(labels[normalized] || String(verdict || "—"))}</span>`;
-}
 function normalizeIssueLifecycleStatus(status = "open") {
   const normalized = String(status || "open").toLowerCase();
   return normalized.startsWith("closed") ? "closed" : "open";
@@ -222,49 +198,6 @@ function renderDocumentRefsCard(selection) {
             <span class="details-document-ref__name">${escapeHtml(doc.name)}</span>
             <span class="details-document-ref__phase">${escapeHtml(doc.phaseCode)}${doc.phaseLabel ? ` · ${escapeHtml(doc.phaseLabel)}` : ""}</span>
           </span>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function renderVerdictHeadFilter() {
-  const current = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
-
-  const options = [
-    "ALL",
-    "F",
-    "D",
-    "S",
-    "HM",
-    "PM",
-    "SO",
-  ];
-
-  const currentLabel = current === "ALL" ? "Verdict" : current;
-
-  return `
-    <div class="issues-head-menu">
-      <button
-        class="issues-head-menu__btn"
-        id="verdictHeadBtn"
-        type="button"
-        aria-haspopup="true"
-        aria-expanded="false"
-      >
-        <span>${escapeHtml(currentLabel)}</span>
-        ${svgIcon("chevron-down", { className: "gh-chevron" })}
-      </button>
-
-      <div class="gh-menu issues-head-menu__dropdown" id="verdictHeadDropdown">
-        ${options.map((v) => `
-          <button
-            class="gh-menu__item ${v === current ? "is-active" : ""}"
-            type="button"
-            data-verdict="${escapeHtml(v)}"
-          >
-            ${escapeHtml(v)}
-          </button>
         `).join("")}
       </div>
     </div>
@@ -673,11 +606,16 @@ function getEffectiveSujetStatus(sujetId) {
 }
 
 function getEffectiveAvisVerdict(avisId) {
-  const avis = getNestedAvis(avisId);
   const decision = getDecision("avis", avisId);
   const d = String(decision?.decision || "").toUpperCase();
   if (d.startsWith("VALIDATED_")) return d.replace("VALIDATED_", "");
-  return normalizeVerdict(avis?.verdict) || "-";
+
+  const legacyCompatSubject = getNestedSujet(avisId);
+  return normalizeVerdict(
+    legacyCompatSubject?.verdict
+    || legacyCompatSubject?.raw?.verdict
+    || legacyCompatSubject?.source_verdict
+  ) || "-";
 }
 
 function getEffectiveSituationStatus(situationId) {
@@ -697,69 +635,11 @@ function getEffectiveSituationStatus(situationId) {
    Effective counts / title helpers
 ========================================================= */
 
-function verdictCountsObject() {
-  return { F: 0, S: 0, D: 0, HM: 0, PM: 0, SO: 0 };
-}
-
-function problemVerdictStats(problem) {
-  const counts = verdictCountsObject();
-  for (const item of problem?.avis || []) {
-    const v = String(getEffectiveAvisVerdict(item.id) || "").toUpperCase();
-    if (counts[v] !== undefined) counts[v] += 1;
-  }
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, total };
-}
-
-function situationVerdictStats(situation) {
-  const counts = verdictCountsObject();
-  for (const sujet of situation?.sujets || []) {
-    for (const avis of sujet.avis || []) {
-      const v = String(getEffectiveAvisVerdict(avis.id) || "").toUpperCase();
-      if (counts[v] !== undefined) counts[v] += 1;
-    }
-  }
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, total };
-}
-
-function buildVerdictBarHtml(counts, options = {}) {
-  const legend = options.legend !== false;
-  const total = Object.values(counts || {}).reduce((a, b) => a + b, 0) || 1;
-  const order = ["F", "S", "D", "HM", "PM", "SO"];
-
-  const segs = order.map((v) => {
-    const c = Number(counts?.[v] || 0);
-    if (!c) return "";
-    const pct = (c / total) * 100;
-    return `<span class="verdict-bar__seg verdict-bar__seg--${v.toLowerCase()}" style="--verdict-seg-width:${pct.toFixed(2)}%"></span>`;
-  }).join("");
-
-  const bar = `<div class="verdict-bar">${segs || `<span class="verdict-bar__seg verdict-bar__seg--empty" style="--verdict-seg-width:100%"></span>`}</div>`;
-
-  if (!legend) {
-    return `<div class="subissues-counts subissues-counts--verdicts">${bar}</div>`;
-  }
-
-  const legendHtml = order.map((v) => {
-    const c = Number(counts?.[v] || 0);
-    if (!c) return "";
-    const pct = total ? (c / total) * 100 : 0;
-    return `
-      <span class="verdict-legend__item">
-        ${renderStateDot(v)}
-        <span class="verdict-legend__count">${c} <b>${escapeHtml(v)}</b></span>
-        <span class="verdict-legend__pct">(${pct.toFixed(0)}%)</span>
-      </span>
-    `;
-  }).join("");
-
-  return `
-    <div class="subissues-counts subissues-counts--verdicts">
-      ${bar}
-      <div class="verdict-legend">${legendHtml}</div>
-    </div>
-  `;
+function getChildSubjectList(subject) {
+  const subjectId = String(subject?.id || "");
+  if (!subjectId) return [];
+  const children = Array.isArray(getChildSubjects(subjectId)) ? getChildSubjects(subjectId) : [];
+  return children.filter(Boolean);
 }
 
 function problemsCountsIconHtml(closedCount, totalCount) {
@@ -767,7 +647,7 @@ function problemsCountsIconHtml(closedCount, totalCount) {
   const closed = Math.max(0, Math.min(total, Number(closedCount) || 0));
 
   if (total > 0 && closed === total) {
-    return `<span class="subissues-problems-icon" aria-label="Tous les sujets sont closed">${SVG_ISSUE_CLOSED}</span>`;
+    return `<span class="subissues-problems-icon" aria-label="Tous les sujets sont fermés">${SVG_ISSUE_CLOSED}</span>`;
   }
 
   const ratio = total ? (closed / total) : 0;
@@ -785,7 +665,7 @@ function problemsCountsIconHtml(closedCount, totalCount) {
   }
 
   return `
-    <span class="subissues-problems-icon" aria-label="Sujets closed: ${closed}/${total}">
+    <span class="subissues-problems-icon" aria-label="Sujets fermés : ${closed}/${total}">
       <svg viewBox="0 0 20 20" width="16" height="16" class="subissues-problems-icon__svg">
         <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(139,148,158,.55)" stroke-width="2"></circle>
         ${wedge}
@@ -795,10 +675,10 @@ function problemsCountsIconHtml(closedCount, totalCount) {
 }
 
 function problemsCountsHtml(situation) {
-  const problems = situation?.sujets || [];
-  const totalPb = problems.length;
-  const closedPb = problems.filter((x) => String(getEffectiveSujetStatus(x.id) || "closed").toLowerCase() !== "open").length;
-  return `<div class="subissues-counts subissues-counts--problems">${problemsCountsIconHtml(closedPb, totalPb)}<span>${closedPb} sur ${totalPb}</span></div>`;
+  const linkedSubjects = getSituationSubjects(situation);
+  const totalSubjects = linkedSubjects.length;
+  const closedSubjects = linkedSubjects.filter((subject) => String(getEffectiveSujetStatus(subject?.id) || "open").toLowerCase() !== "open").length;
+  return `<div class="subissues-counts subissues-counts--problems">${problemsCountsIconHtml(closedSubjects, totalSubjects)}<span>${closedSubjects} sur ${totalSubjects}</span></div>`;
 }
 
 /* =========================================================
@@ -882,7 +762,7 @@ function renderSituationRow(situation) {
 
 function renderSujetRow(sujet) {
   const expanded = store.situationsView.expandedSujets.has(sujet.id);
-  const hasAvis = (sujet.avis || []).length > 0;
+  const childSubjects = getChildSubjectList(sujet);
   const effStatus = getEffectiveSujetStatus(sujet.id);
   const meta = getEntityReviewMeta("sujet", sujet.id);
   const titleSeenClass = getReviewTitleStateClass("sujet", sujet.id);
@@ -896,43 +776,6 @@ function renderSujetRow(sujet) {
       <div class="cell cell-prio">${priorityBadge(sujet.priority)}</div>
       <div class="cell cell-agent"></div>
       <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("sujet", sujet.id))}</div>
-    </div>
-  `;
-}
-
-function renderAvisRow(avis) {
-  const effVerdict = getEffectiveAvisVerdict(avis.id);
-  const titleSeenClass = getReviewTitleStateClass("avis", avis.id);
-
-  return `
-    <div class="issue-row issue-row--avis click js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
-      <div class="cell cell-theme lvl2">
-        <span class="theme-text theme-text--avis ${titleSeenClass}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
-      </div>
-      <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
-      <div class="cell cell-prio"></div>
-      <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
-      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("avis", avis.id))}</div>
-    </div>
-  `;
-}
-
-function renderFlatAvisRow(avis, sujetId, situationId) {
-  const effVerdict = getEffectiveAvisVerdict(avis.id);
-  const lineage = [situationId, sujetId].filter(Boolean).join(" · ");
-  const titleSeenClass = getReviewTitleStateClass("avis", avis.id);
-
-  return `
-    <div class="issue-row issue-row--avis click js-row-avis${rowSelectedClass("avis", avis.id)}" data-avis-id="${escapeHtml(avis.id)}">
-      <div class="cell cell-theme lvl0">
-        ${issueIcon("open")}
-        <span class="theme-text theme-text--avis ${titleSeenClass}">${escapeHtml(firstNonEmpty(avis.title, avis.id, ""))}</span>
-        ${lineage ? `<span class="mono subissues-inline-count">${escapeHtml(lineage)}</span>` : ""}
-      </div>
-      <div class="cell cell-verdict">${renderVerdictPill(effVerdict)}</div>
-      <div class="cell cell-prio"></div>
-      <div class="cell cell-agent mono-small">${escapeHtml(firstNonEmpty(avis.agent, "system"))}</div>
-      <div class="cell cell-id mono">${escapeHtml(getEntityDisplayRef("avis", avis.id))}</div>
     </div>
   `;
 }
@@ -1007,7 +850,7 @@ function renderDetailedMetaForSelection(selection) {
     const entries = [
       ...common,
       renderMetaItem(situations.length > 1 ? "Situations parentes" : "Situation parent", `<span class="mono">${escapeHtml(situationLabel)}</span>`),
-      renderMetaItem("Sous-sujets", `<span class="mono">${escapeHtml(String((item.avis || []).length))}</span>`)
+      renderMetaItem("Sous-sujets", `<span class="mono">${escapeHtml(String(getChildSubjectList(item).length))}</span>`)
     ];
     return entries.join("");
   }
@@ -1375,7 +1218,8 @@ function renderSubjectMetaControls(subject) {
 function renderSubIssuesForSujet(sujet, options = {}) {
   ensureViewUiState();
   const sujetRowClass = options.sujetRowClass || "js-row-sujet";
-  const rows = (sujet.avis || []).map((childSujet) => `
+  const childSubjects = getChildSubjectList(sujet);
+  const rows = childSubjects.map((childSujet) => `
       <div class="issue-row issue-row--pb click ${sujetRowClass}" data-sujet-id="${escapeHtml(childSujet.id)}">
         <div class="cell cell-theme cell-theme--full lvl0">
           <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(childSujet.title, childSujet.id, ""))}</span>
@@ -1390,7 +1234,7 @@ function renderSubIssuesForSujet(sujet, options = {}) {
 
   return renderSubIssuesPanel({
     title: "Sous-sujets",
-    leftMetaHtml: `<div class="subissues-counts subissues-counts--total"><span class="mono">${(sujet.avis || []).length}</span></div>`,
+    leftMetaHtml: `<div class="subissues-counts subissues-counts--total"><span class="mono">${childSubjects.length}</span></div>`,
     rightMetaHtml: "",
     bodyHtml: body,
     isOpen: !!store.situationsView.rightSubissuesOpen
@@ -1406,7 +1250,8 @@ function renderSubIssuesForSituation(situation, options = {}) {
   const rows = [];
   for (const sujet of getSituationSubjects(situation)) {
     const open = expandedSet.has(sujet.id);
-    const hasChildSubjects = (sujet.avis || []).length > 0;
+    const childSubjects = getChildSubjectList(sujet);
+    const hasChildSubjects = childSubjects.length > 0;
     const effStatus = getEffectiveSujetStatus(sujet.id);
 
     rows.push(`
@@ -1415,13 +1260,13 @@ function renderSubIssuesForSituation(situation, options = {}) {
           <span class="${sujetToggleClass}" data-sujet-id="${escapeHtml(sujet.id)}">${chevron(open, hasChildSubjects)}</span>
           ${issueIcon(effStatus)}
           <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</span>
-          <span class="subissues-inline-count mono">${(sujet.avis || []).length} sous-sujets</span>
+          <span class="subissues-inline-count mono">${childSubjects.length} sous-sujets</span>
         </div>
       </div>
     `);
 
     if (open) {
-      for (const childSujet of sujet.avis || []) {
+      for (const childSujet of childSubjects) {
         rows.push(`
           <div class="issue-row issue-row--pb click ${sujetRowClass}" data-sujet-id="${escapeHtml(childSujet.id)}">
             <div class="cell cell-theme cell-theme--full lvl1">
@@ -2019,7 +1864,6 @@ function getObjectiveById(objectiveId) {
   return {
     normalizeBackendPriority,
     priorityBadge,
-    renderVerboseAvisVerdictPill,
     statePill,
     entityDisplayLinkHtml,
     renderDocumentRefsCard,
