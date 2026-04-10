@@ -1116,13 +1116,15 @@ function renderDocumentStatsCell(doc) {
   });
   const stats = statsMap.get(doc.id) || {
     openSituations: 0,
-    openSujets: 0
+    openSujets: 0,
+    blockedSubjects: 0
   };
 
   return `
     <div class="documents-repo__stats" aria-label="Indicateurs liés au document">
       ${renderDocumentsCountBadge({ iconHtml: svgIcon("table"), label: "Situations ouvertes", count: stats.openSituations })}
       ${renderDocumentsCountBadge({ iconHtml: svgIcon("issue-opened"), label: "Sujets ouverts", count: stats.openSujets })}
+      ${renderDocumentsCountBadge({ iconHtml: svgIcon("blocked"), label: "Sujets bloqués", count: stats.blockedSubjects })}
     </div>
   `;
 }
