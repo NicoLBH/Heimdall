@@ -644,6 +644,7 @@ function getSubjectSidebarMeta(subjectId) {
           .map((objective) => String(objective.id || ""))
           .filter(Boolean)
       );
+  const subject = getNestedSujet(subjectId);
   const derivedSituationIds = [String(subject?.raw?.situation_id || subject?.situation_id || "")].filter(Boolean);
   const situationIds = Array.isArray(subjectMeta.situationIds)
     ? normalizeSubjectSituationIds(subjectMeta.situationIds)
