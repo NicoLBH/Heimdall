@@ -620,11 +620,6 @@ const projectSubjectsView = createProjectSubjectsView({
   getProjectSubjectLabels: () => projectSubjectLabels,
   getProjectSubjectDetail: () => projectSubjectDetail,
   getProjectSubjectDrilldown: () => projectSubjectDrilldown,
-  getProjectSubjectsLegacyRapso: () => ({
-    isHelpTrigger: () => false,
-    askHelpEphemeral: async () => undefined,
-    askRapsoAndAppendReply: async () => undefined
-  }),
   loadExistingSubjectsForCurrentProject: loadFlatSubjectsForCurrentProject,
   getSubjectsCurrentRoot: () => subjectsCurrentRoot,
   registerProjectPrimaryScrollSource,
