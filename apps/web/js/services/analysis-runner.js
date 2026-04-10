@@ -368,19 +368,71 @@ async function fetchSubjectsByProject(projectId) {
   return res.json();
 }
 
-function createSubjectViewNode(subject, documentIds = []) {
+
+async function fetchSituationsByProject(projectId) {
+  if (!projectId) return [];
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/situations`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,title,description,objective_text,status,progress_percent,created_at,updated_at,closed_at"
+  );
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`situations fetch failed (${res.status}): ${txt}`);
+  }
+
+  return res.json();
+}
+
+async function fetchSubjectLinksByProject(projectId) {
+  if (!projectId) return [];
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subject_links`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,source_subject_id,target_subject_id,link_type,score,explanation,created_at"
+  );
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_links fetch failed (${res.status}): ${txt}`);
+  }
+
+  return res.json();
+}
+
+function createSubjectViewNode(subject, documentIds = [], childNodes = []) {
   const description = firstNonEmpty(subject?.description, "");
+  const children = Array.isArray(childNodes) ? childNodes : [];
   return withDocumentRefs({
     id: String(subject?.id || ""),
     title: firstNonEmpty(subject?.title, subject?.id, "Sujet sans titre"),
     description,
     message: description,
-    verdict: firstNonEmpty(subject?.verdict, "-"),
     priority: firstNonEmpty(subject?.priority, "medium"),
     status: firstNonEmpty(subject?.status, "open"),
     agent: firstNonEmpty(subject?.subject_type, "system"),
     parentSubjectId: firstNonEmpty(subject?.parent_subject_id, ""),
-    avis: [],
+    children,
+    avis: children,
     raw: {
       ...subject,
       message: firstNonEmpty(subject?.message, description),
@@ -399,363 +451,201 @@ function sortSubjectNodes(nodes = []) {
   });
 
   for (const node of nodes) {
-    if (Array.isArray(node?.avis) && node.avis.length) {
-      sortSubjectNodes(node.avis);
+    if (Array.isArray(node?.children) && node.children.length) {
+      sortSubjectNodes(node.children);
+      node.avis = node.children;
+    } else {
+      node.children = [];
+      node.avis = [];
     }
   }
 
   return nodes;
 }
 
-function buildSubjectTree(subjectRows = [], options = {}) {
+function buildNormalizedSubjectsResult(subjectRows = [], subjectLinks = [], situations = [], options = {}) {
   const documentIds = getPreferredAnalysisDocumentIds(options.documentIds || []);
-  const nodeById = new Map();
-  const topLevelNodes = [];
+  const subjectsById = {};
+  const parentBySubjectId = {};
+  const childrenBySubjectId = {};
+  const linksBySubjectId = {};
+  const situationsById = {};
+  const subjectIdsBySituationId = {};
+  const rootSubjectIds = [];
 
   for (const subject of subjectRows || []) {
-    const node = createSubjectViewNode(subject, documentIds);
-    if (!node.id) continue;
-    nodeById.set(node.id, node);
+    const subjectId = String(subject?.id || "");
+    if (!subjectId) continue;
+    subjectsById[subjectId] = withDocumentRefs({ ...subject, id: subjectId }, documentIds);
+    childrenBySubjectId[subjectId] = [];
+    linksBySubjectId[subjectId] = [];
   }
-
-  for (const node of nodeById.values()) {
-    const parentId = String(node?.parentSubjectId || "");
-    if (parentId && nodeById.has(parentId) && parentId !== node.id) {
-      nodeById.get(parentId).avis.push(node);
-      continue;
-    }
-    topLevelNodes.push(node);
-  }
-
-  sortSubjectNodes(topLevelNodes);
-
-  return [withDocumentRefs({
-    id: "__subjects_root__",
-    title: "Sujets",
-    description: "Vue synthétique des sujets du projet.",
-    priority: "medium",
-    status: "open",
-    sujets: topLevelNodes,
-    raw: {
-      situation_id: "__subjects_root__",
-      title: "Sujets"
-    },
-    ...defaultReviewMeta({})
-  }, documentIds)];
-}
-
-function buildLegacySubjectResult(subjectRows = [], options = {}) {
-  const documentIds = getPreferredAnalysisDocumentIds(options.documentIds || []);
-  const topLevelProblemIds = [];
-  const problems = [];
-  const avis = [];
 
   for (const subject of subjectRows || []) {
-    const problemId = String(subject?.id || "");
-    if (!problemId) continue;
-
+    const subjectId = String(subject?.id || "");
+    if (!subjectId) continue;
     const parentId = String(subject?.parent_subject_id || "");
-    const childIds = (subjectRows || [])
-      .filter((row) => String(row?.parent_subject_id || "") === problemId)
-      .map((row) => String(row?.id || ""))
-      .filter(Boolean);
-
-    if (!parentId) {
-      topLevelProblemIds.push(problemId);
-    }
-
-    problems.push(withDocumentRefs({
-      problem_id: problemId,
-      id: problemId,
-      title: subject?.title || "Sujet sans titre",
-      description: subject?.description || "",
-      priority: subject?.priority || "medium",
-      status: subject?.status || "open",
-      agent: subject?.subject_type || "system",
-      parent_subject_id: parentId || null,
-      avis_ids: childIds,
-      raw: subject,
-      ...defaultReviewMeta(subject)
-    }, documentIds));
-
-    if (parentId) {
-      avis.push(withDocumentRefs({
-        avis_id: problemId,
-        id: problemId,
-        title: subject?.title || "Sous-sujet",
-        message: subject?.description || "",
-        verdict: "-",
-        priority: subject?.priority || "medium",
-        status: subject?.status || "open",
-        agent: subject?.subject_type || "system",
-        raw: subject,
-        ...defaultReviewMeta(subject)
-      }, documentIds));
-    }
+    parentBySubjectId[subjectId] = parentId || null;
+    if (parentId && subjectsById[parentId] && parentId !== subjectId) childrenBySubjectId[parentId].push(subjectId);
+    else rootSubjectIds.push(subjectId);
   }
+
+  for (const link of subjectLinks || []) {
+    const sourceId = String(link?.source_subject_id || "");
+    const targetId = String(link?.target_subject_id || "");
+    if (!sourceId || !targetId) continue;
+    const normalized = { ...link, source_subject_id: sourceId, target_subject_id: targetId };
+    if (!Array.isArray(linksBySubjectId[sourceId])) linksBySubjectId[sourceId] = [];
+    if (!Array.isArray(linksBySubjectId[targetId])) linksBySubjectId[targetId] = [];
+    linksBySubjectId[sourceId].push(normalized);
+    linksBySubjectId[targetId].push(normalized);
+  }
+
+  for (const situation of situations || []) {
+    const situationId = String(situation?.id || "");
+    if (!situationId) continue;
+    situationsById[situationId] = withDocumentRefs({ ...situation, id: situationId }, documentIds);
+    subjectIdsBySituationId[situationId] = [];
+  }
+
+  for (const subject of subjectRows || []) {
+    const subjectId = String(subject?.id || "");
+    const situationId = String(subject?.situation_id || "");
+    if (!subjectId || !situationId) continue;
+    if (!situationsById[situationId]) {
+      situationsById[situationId] = withDocumentRefs({
+        id: situationId,
+        title: `Situation ${situationId}`,
+        description: "",
+        status: "open",
+        raw: { id: situationId }
+      }, documentIds);
+      subjectIdsBySituationId[situationId] = [];
+    }
+    subjectIdsBySituationId[situationId].push(subjectId);
+  }
+
+  const buildNode = (subjectId) => {
+    const subject = subjectsById[subjectId];
+    if (!subject) return null;
+    const childNodes = (childrenBySubjectId[subjectId] || []).map((childId) => buildNode(childId)).filter(Boolean);
+    return createSubjectViewNode(subject, subject.document_ref_ids || documentIds, childNodes);
+  };
+
+  const subjectTree = rootSubjectIds.map((subjectId) => buildNode(subjectId)).filter(Boolean);
+  sortSubjectNodes(subjectTree);
 
   return {
     run_id: options.runId || "",
     status: "SUCCEEDED",
     subjects: subjectRows,
-    situations: [{
-      situation_id: "__subjects_root__",
-      title: "Sujets",
-      description: "Vue synthétique des sujets du projet.",
-      status: "open",
-      problem_ids: topLevelProblemIds,
-      document_ref_ids: documentIds
-    }],
-    problems,
-    avis
+    subjectTree,
+    subjectLinks,
+    situations,
+    subjectsById,
+    rootSubjectIds,
+    childrenBySubjectId,
+    parentBySubjectId,
+    linksBySubjectId,
+    situationsById,
+    subjectIdsBySituationId
   };
 }
 
 async function buildFinalResultFromDatabase(runId) {
   const projectId = await fetchAnalysisRunProjectId(runId).catch(() => null);
-  const subjects = projectId
-    ? await fetchSubjectsByProject(projectId)
-    : await fetchSubjectsForRun(runId);
-  return buildLegacySubjectResult(subjects, { runId });
-}
-
-function normalizeStatusResponse(data) {
-  let value = data;
-
-  if (Array.isArray(value)) {
-    value = value[0] || {};
-  }
-
-  if (value && typeof value.payload === "string") {
-    const s = value.payload.trim();
-    if (
-      (s.startsWith("{") && s.endsWith("}")) ||
-      (s.startsWith("[") && s.endsWith("]"))
-    ) {
-      try {
-        value.payload = JSON.parse(s);
-      } catch {
-        // no-op
-      }
-    }
-  }
-
-  return value || {};
-}
-
-async function fetchRunRowFromSupabase(runId) {
-  const url = new URL(`${SUPABASE_URL}/rest/v1/analysis_runs`);
-  url.searchParams.set(
-    "select",
-    "id,status,started_at,finished_at,error_message,structured_output_json,updated_at"
-  );
-  url.searchParams.set("id", `eq.${runId}`);
-  url.searchParams.set("limit", "1");
-
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: await getSupabaseAuthHeaders({
-      Accept: "application/json"
-    }),
-    cache: "no-store"
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Supabase status fetch failed (${res.status}): ${txt}`);
-  }
-
-  const rows = await res.json();
-  const row = rows?.[0] || null;
-
-  if (!row) {
-    return {
-      id: runId,
-      status: "UNKNOWN",
-      payload: null,
-      updated_at: null
-    };
-  }
-
-  return {
-    id: row.id,
-    status: row.status,
-    payload: row.structured_output_json ?? null,
-    error_message: row.error_message ?? null,
-    updated_at: row.updated_at ?? null,
-    started_at: row.started_at ?? null,
-    finished_at: row.finished_at ?? null
-  };
-}
-
-function computePollDelayMs(tries, progress) {
-  if (document.hidden) return 30_000;
-
-  const p = Number.isFinite(Number(progress)) ? Number(progress) : null;
-
-  if (p !== null) {
-    if (p < 20) return 20_000;
-    if (p < 40) return 15_000;
-    if (p < 60) return 10_000;
-    if (p < 80) return 6_000;
-    return 2_000;
-  }
-
-  if (tries <= POLL_FAST_TRIES) return POLL_BASE_MS;
-
-  const pow = Math.min(tries - POLL_FAST_TRIES, 10);
-  const delay = POLL_BASE_MS * Math.pow(1.6, pow);
-  return Math.min(POLL_MAX_INTERVAL_MS, Math.round(delay));
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function firstNonEmpty(...values) {
-  for (const value of values) {
-    if (value !== undefined && value !== null && String(value).trim() !== "") {
-      return value;
-    }
-  }
-  return "";
-}
-
-function defaultReviewMeta(source = {}) {
-  return {
-    is_seen: !!source?.is_seen,
-    review_state: String(source?.review_state || "pending").toLowerCase(),
-    is_published: !!source?.is_published,
-    last_published_at: source?.last_published_at || null,
-    has_changes_since_publish: !!source?.has_changes_since_publish
-  };
-}
-
-function withDocumentRefs(entity = {}, documentIds = []) {
-  return {
-    ...entity,
-    document_ref_ids: normalizeDocumentRefIds(
-      entity?.document_ref_ids && Array.isArray(entity.document_ref_ids)
-        ? entity.document_ref_ids
-        : documentIds
-    )
-  };
+  const [subjects, subjectLinks, situations] = projectId
+    ? await Promise.all([
+      fetchSubjectsByProject(projectId),
+      fetchSubjectLinksByProject(projectId).catch(() => []),
+      fetchSituationsByProject(projectId).catch(() => [])
+    ])
+    : [await fetchSubjectsForRun(runId), [], []];
+  return buildNormalizedSubjectsResult(subjects, subjectLinks, situations, { runId });
 }
 
 function normalizeFinalResult(final, options = {}) {
+  if (final && typeof final === "object" && final.subjectsById && final.childrenBySubjectId) {
+    const defaultDocumentIds = normalizeDocumentRefIds(options.documentIds || []);
+    const subjectIdsBySituationId = final.subjectIdsBySituationId && typeof final.subjectIdsBySituationId === "object"
+      ? final.subjectIdsBySituationId
+      : {};
+    const situationsById = final.situationsById && typeof final.situationsById === "object"
+      ? final.situationsById
+      : {};
+
+    const buildNode = (subjectId) => {
+      const subject = final.subjectsById?.[subjectId];
+      if (!subject) return null;
+      const children = (final.childrenBySubjectId?.[subjectId] || []).map((childId) => buildNode(childId)).filter(Boolean);
+      return createSubjectViewNode(subject, subject.document_ref_ids || defaultDocumentIds, children);
+    };
+
+    const normalizeSituation = (situationId, situation) => {
+      const allIds = Array.isArray(subjectIdsBySituationId[situationId]) ? subjectIdsBySituationId[situationId] : [];
+      const rootSubjectIds = allIds.filter((subjectId) => {
+        const parentId = final.parentBySubjectId?.[subjectId] || null;
+        return !parentId || !allIds.includes(parentId);
+      });
+      const sujets = rootSubjectIds.map((subjectId) => buildNode(subjectId)).filter(Boolean);
+      sortSubjectNodes(sujets);
+      return withDocumentRefs({
+        id: String(situationId || ""),
+        title: firstNonEmpty(situation?.title, situation?.label, situation?.name, situation?.situation, situation?.topic, situationId),
+        description: firstNonEmpty(situation?.description, situation?.objective_text, ""),
+        priority: firstNonEmpty(situation?.priority, situation?.prio, "medium"),
+        status: firstNonEmpty(situation?.status, "open"),
+        raw: situation,
+        sujets,
+        ...defaultReviewMeta(situation)
+      }, situation?.document_ref_ids || defaultDocumentIds);
+    };
+
+    const situations = Object.entries(situationsById).map(([situationId, situation]) => normalizeSituation(situationId, situation));
+    if (situations.length) return situations;
+    return [{
+      id: "subjects",
+      title: "Sujets",
+      description: "Vue synthétique des sujets du projet.",
+      priority: "medium",
+      status: "open",
+      sujets: (final.rootSubjectIds || []).map((subjectId) => buildNode(subjectId)).filter(Boolean),
+      raw: { id: "subjects", title: "Sujets" },
+      ...defaultReviewMeta({})
+    }];
+  }
+
   if (Array.isArray(final?.subjects)) {
-    return buildSubjectTree(final.subjects, options);
+    return normalizeFinalResult(buildNormalizedSubjectsResult(final.subjects, final.subjectLinks || [], final.situations || [], options), options);
   }
 
-  const situations = Array.isArray(final?.situations) ? final.situations : [];
-  const problems = Array.isArray(final?.problems) ? final.problems : [];
-  const avisList = Array.isArray(final?.avis) ? final.avis : [];
-  const defaultDocumentIds = normalizeDocumentRefIds(options.documentIds || []);
-
-  const problemsById = new Map();
-  const avisById = new Map();
-
-  for (const problem of problems) {
-    const id = firstNonEmpty(problem.problem_id, problem.id);
-    if (id) problemsById.set(id, problem);
-  }
-
-  for (const avis of avisList) {
-    const id = firstNonEmpty(avis.avis_id, avis.id);
-    if (id) avisById.set(id, avis);
-  }
-
-  return situations.map((situation) => {
-    const situationId = firstNonEmpty(situation.situation_id, situation.id);
-    const problemIds = Array.isArray(situation.problem_ids) ? situation.problem_ids : [];
-    const situationReview = defaultReviewMeta(situation);
-
-    return withDocumentRefs({
-      id: situationId,
-      title: firstNonEmpty(
-        situation.title,
-        situation.label,
-        situation.name,
-        situation.situation,
-        situation.topic,
-        situationId
-      ),
-      priority: firstNonEmpty(situation.priority, situation.prio, "medium"),
-      status: firstNonEmpty(situation.status, "open"),
-      ...situationReview,
-      raw: situation,
-      sujets: problemIds.map((problemId) => {
-        const problem = problemsById.get(problemId) || {};
-        const avisIds = Array.isArray(problem.avis_ids) ? problem.avis_ids : [];
-        const sujetReview = defaultReviewMeta(problem);
-
-        return withDocumentRefs({
-          id: firstNonEmpty(problem.problem_id, problem.id, problemId),
-          title: firstNonEmpty(
-            problem.title,
-            problem.label,
-            problem.name,
-            problem.problem,
-            problem.topic,
-            problemId
-          ),
-          description: firstNonEmpty(problem.description, problem.message, ""),
-          priority: firstNonEmpty(problem.priority, problem.prio, situation.priority, "medium"),
-          status: firstNonEmpty(problem.status, "open"),
-          agent: firstNonEmpty(problem.agent, problem.owner, "system"),
-          ...sujetReview,
-          raw: problem,
-          avis: avisIds.map((avisId) => {
-            const avis = avisById.get(avisId) || {};
-            const avisReview = defaultReviewMeta(avis);
-
-            return withDocumentRefs({
-              id: firstNonEmpty(avis.avis_id, avis.id, avisId),
-              title: firstNonEmpty(
-                avis.title,
-                avis.topic,
-                avis.label,
-                avis.name,
-                avis.message,
-                avisId
-              ),
-              description: firstNonEmpty(avis.message, avis.description, ""),
-              verdict: firstNonEmpty(avis.verdict, "-"),
-              priority: firstNonEmpty(avis.priority, avis.prio, problem.priority, situation.priority, "medium"),
-              status: firstNonEmpty(avis.status, "open"),
-              agent: firstNonEmpty(avis.agent, problem.agent, "system"),
-              ...avisReview,
-              raw: avis
-            }, avis.document_ref_ids || problem.document_ref_ids || situation.document_ref_ids || defaultDocumentIds);
-          })
-        }, problem.document_ref_ids || situation.document_ref_ids || defaultDocumentIds);
-      })
-    }, situation.document_ref_ids || defaultDocumentIds);
-  });
+  return [];
 }
 
 function buildAnalysisInsightDetails(nested = []) {
-  let topLevelSubjects = 0;
-  let nestedSubjects = 0;
+  let rootSubjects = 0;
+  let childSubjects = 0;
 
   const visit = (subject) => {
-    for (const child of subject?.avis || []) {
-      nestedSubjects += 1;
+    const children = Array.isArray(subject?.children) ? subject.children : Array.isArray(subject?.avis) ? subject.avis : [];
+    for (const child of children) {
+      childSubjects += 1;
       visit(child);
     }
   };
 
   for (const situation of nested || []) {
     for (const sujet of situation?.sujets || []) {
-      topLevelSubjects += 1;
+      rootSubjects += 1;
       visit(sujet);
     }
   }
 
   return {
-    totalSubjects: topLevelSubjects,
-    totalNestedSubjects: nestedSubjects,
-    totalVisibleSubjects: topLevelSubjects + nestedSubjects
+    totalSubjects: rootSubjects + childSubjects,
+    rootSubjects,
+    childSubjects,
+    totalVisibleSubjects: rootSubjects + childSubjects
   };
 }
 
@@ -776,7 +666,7 @@ function applyRunResult(final, runId, statusLabel, runLogId = "", options = {}) 
   const firstSubjectId = nested?.[0]?.sujets?.[0]?.id || null;
   store.situationsView.selectedSituationId = firstSituationId;
   store.situationsView.selectedSujetId = firstSubjectId;
-  store.situationsView.selectedAvisId = null;
+  store.situationsView.selectedSubjectId = firstSubjectId;
   store.situationsView.subjectsSelectedNodeId = firstSubjectId || "";
 
   if (firstSituationId) {
@@ -863,13 +753,12 @@ async function pollRunStatus({ runId, token, runLogId, documentIds = [] }) {
 
     if (status === "READY_FOR_REVIEW" || status === "DONE" || status === "READY" || status === "SUCCEEDED") {
       let final = payload ? extractFinalPayload(payload) : null;
-      const hasLegacyShape = final
+      const hasNormalizedShape = final
         && typeof final === "object"
-        && Array.isArray(final.situations)
-        && Array.isArray(final.problems)
-        && Array.isArray(final.avis);
+        && final.subjectsById
+        && final.childrenBySubjectId;
 
-      if (!hasLegacyShape) {
+      if (!hasNormalizedShape) {
         final = await buildFinalResultFromDatabase(runId);
       }
 
@@ -1047,7 +936,9 @@ export async function loadExistingSubjectsForCurrentProject(options = {}) {
   }
 
   const subjects = await fetchSubjectsByProject(backendProjectId);
-  const final = buildLegacySubjectResult(subjects, { runId: store.ui.runId || "" });
+  const subjectLinks = await fetchSubjectLinksByProject(backendProjectId).catch(() => []);
+  const situations = await fetchSituationsByProject(backendProjectId).catch(() => []);
+  const final = buildNormalizedSubjectsResult(subjects, subjectLinks, situations, { runId: store.ui.runId || "" });
   const nested = normalizeFinalResult(final, { documentIds: getPreferredAnalysisDocumentIds([]) });
 
   store.situationsView.data = nested;
@@ -1058,7 +949,7 @@ export async function loadExistingSubjectsForCurrentProject(options = {}) {
   store.situationsView.expandedSujets = new Set();
   store.situationsView.selectedSituationId = nested[0]?.id || null;
   store.situationsView.selectedSujetId = nested[0]?.sujets?.[0]?.id || null;
-  store.situationsView.selectedAvisId = null;
+  store.situationsView.selectedSubjectId = nested[0]?.sujets?.[0]?.id || null;
   store.situationsView.subjectsSelectedNodeId = nested[0]?.sujets?.[0]?.id || "";
 
   return nested;
@@ -1075,9 +966,7 @@ export function resetAnalysisUi() {
   store.situationsView.expandedSujets = new Set();
   store.situationsView.selectedSituationId = null;
   store.situationsView.selectedSujetId = null;
-  store.situationsView.selectedAvisId = null;
   store.situationsView.subjectsSelectedNodeId = "";
-  store.situationsView.verdictFilter = "ALL";
   store.situationsView.search = "";
   store.situationsView.page = 1;
 
