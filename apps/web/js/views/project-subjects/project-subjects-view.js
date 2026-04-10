@@ -54,7 +54,6 @@ export function createProjectSubjectsView(deps) {
     getProjectSubjectLabels,
     getProjectSubjectDetail,
     getProjectSubjectDrilldown,
-    getProjectSubjectsLegacyRapso,
     loadExistingSubjectsForCurrentProject,
     getSubjectsCurrentRoot,
     registerProjectPrimaryScrollSource,
@@ -1430,17 +1429,10 @@ async function applyCommentAction(root) {
   const message = String(ta.value || "").trim();
   if (!message) return;
 
-  const helpActive = !!store.situationsView.helpMode || getProjectSubjectsLegacyRapso().isHelpTrigger(message);
+  const helpActive = !!store.situationsView.helpMode;
   if (helpActive) {
     ta.value = "";
     store.situationsView.commentPreviewMode = false;
-    await getProjectSubjectsLegacyRapso().askHelpEphemeral({
-      rootEl: root,
-      type: target.type,
-      id: target.id,
-      humanMessage: message,
-      scope: root.closest("#detailsModal") ? "modal" : (root.closest("#drilldownPanel") ? "overlay" : "details")
-    });
     return;
   }
 
@@ -1449,9 +1441,6 @@ async function applyCommentAction(root) {
   store.situationsView.commentPreviewMode = false;
   rerenderScope(root);
 
-  if (/@rapso\b/i.test(message)) {
-    await getProjectSubjectsLegacyRapso().askRapsoAndAppendReply({ type: target.type, id: target.id, humanMessage: message });
-  }
 }
 
 function syncCommentPreview(root) {
