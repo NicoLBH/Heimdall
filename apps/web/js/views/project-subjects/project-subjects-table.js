@@ -1,11 +1,3 @@
-function logSubjectsTableDebug(step, payload) {
-  try {
-    console.log(`[subjects:table] ${step}`, payload);
-  } catch {
-    // noop
-  }
-}
-
 export function getSituationsTableGridTemplate() {
   return "minmax(0, 1fr) max-content";
 }
@@ -120,16 +112,6 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
   const flatSubjects = selectorFlatSubjects.length ? selectorFlatSubjects : fallbackFlatSubjects;
   const hasAnySubjects = !!Object.keys(rawSubjectsById).length || !!flatSubjects.length;
 
-  logSubjectsTableDebug("renderProjectSubjectsTable", {
-    selectorFlatSubjectsCount: selectorFlatSubjects.length,
-    rawSubjectsByIdCount: Object.keys(rawSubjectsById).length,
-    fallbackFlatSubjectsCount: fallbackFlatSubjects.length,
-    renderedFlatSubjectsCount: flatSubjects.length,
-    activeStatusFilter,
-    activePriorityFilter,
-    sampleSubject: flatSubjects[0] || fallbackFlatSubjects[0] || null
-  });
-
   if (!hasAnySubjects) return renderWelcomeHtml(deps);
 
   const rowDebugPreview = flatSubjects.slice(0, 3).map((subject) => ({
@@ -139,7 +121,6 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
     status: subject?.status || "",
     parent_subject_id: subject?.parent_subject_id || null
   }));
-  logSubjectsTableDebug("renderProjectSubjectsTable:row-preview", rowDebugPreview);
 
   const rows = flatSubjects.map((sujet) => renderFlatSujetRow(sujet, "", { isSelectable: false, deps }));
 
