@@ -952,6 +952,7 @@ function getSubjectsTableDeps() {
     getCurrentSubjectsStatusFilter,
     getCurrentSubjectsPriorityFilter,
     getFilteredStandaloneSubjects,
+    getFilteredFlatSubjects,
     getSituationSubjects,
     sujetMatchesStatusFilter,
     sujetMatchesPriorityFilter,
