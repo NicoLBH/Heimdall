@@ -125,6 +125,7 @@ const projectSubjectsReviewState = createProjectSubjectsReviewState({
 });
 
 const {
+  getEntityByType,
   getEntityReviewMeta,
   setEntityReviewMeta,
   stashReviewRestoreSnapshot,
