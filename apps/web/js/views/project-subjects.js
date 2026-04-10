@@ -79,6 +79,7 @@ import { createProjectSubjectLabelsController } from "./project-subjects/project
 import { createProjectSubjectsSelectors } from "./project-subjects/project-subjects-selectors.js";
 import { createProjectSubjectsState } from "./project-subjects/project-subjects-state.js";
 import { createProjectSubjectsPersistence } from "./project-subjects/project-subjects-persistence.js";
+import { createProjectSubjectsSelection } from "./project-subjects/project-subjects-selection.js";
 import {
   HUMAN_STORE_KEY,
   createProjectSubjectsLegacyRapso
@@ -140,9 +141,38 @@ const {
   getNestedAvis,
   getSituationBySujetId,
   getSituationByAvisId,
-  getSujetByAvisId,
-  getActiveSelection
+  getSujetByAvisId
 } = subjectsSelectors;
+
+
+const projectSubjectsSelection = createProjectSubjectsSelection({
+  store,
+  ensureViewUiState,
+  getNestedSituation,
+  getNestedSujet,
+  getNestedAvis,
+  getSituationBySujetId,
+  getSituationByAvisId,
+  getSujetByAvisId,
+  getDraftSubjectSelection,
+  getEffectiveAvisVerdict,
+  openDetailsModal,
+  rerenderPanels,
+  markEntitySeen
+});
+
+const {
+  getActiveSelection,
+  getDrilldownSelection,
+  getScopedSelection,
+  currentDecisionTarget,
+  selectSituation,
+  selectSujet,
+  selectAvis,
+  openDrilldownFromSituation,
+  openDrilldownFromSujet,
+  openDrilldownFromAvis
+} = projectSubjectsSelection;
 
 const projectSubjectDetail = createProjectSubjectDetailController({
   store,
@@ -183,17 +213,14 @@ const projectSubjectDrilldown = createProjectSubjectDrilldownController({
   renderOverlayChrome,
   renderOverlayChromeHead,
   bindOverlayChromeDismiss,
-  getNestedAvis,
-  getNestedSujet,
-  getNestedSituation,
-  getSituationBySujetId,
-  getSujetByAvisId,
-  getSituationByAvisId,
+  getDrilldownSelection,
+  openDrilldownFromSituationSelection: openDrilldownFromSituation,
+  openDrilldownFromSujetSelection: openDrilldownFromSujet,
+  openDrilldownFromAvisSelection: openDrilldownFromAvis,
   renderDetailsHtml,
   renderDetailsTitleWrapHtml,
   wireDetailsInteractive,
   bindDetailsScroll,
-  markEntitySeen,
   ensureViewUiState
 });
 
@@ -2925,74 +2952,13 @@ function rerenderPanels() {
   refreshProjectShellChrome("situations");
 }
 
-function selectSituation(situationId) {
-  const situation = getNestedSituation(situationId);
-  if (!situation) return;
 
-  store.situationsView.selectedSituationId = situationId;
-  store.situationsView.selectedSujetId = null;
-  store.situationsView.selectedAvisId = null;
 
-  store.situationsView.showTableOnly = true;
-  openDetailsModal();
-}
-
-function selectSujet(sujetId) {
-  const sujet = getNestedSujet(sujetId);
-  if (!sujet) return;
-
-  const situation = getSituationBySujetId(sujetId);
-
-  store.situationsView.selectedSituationId = situation?.id || null;
-  store.situationsView.selectedSujetId = sujetId;
-  store.situationsView.selectedAvisId = null;
-
-  if (situation?.id) store.situationsView.expandedSituations.add(situation.id);
-
-  store.situationsView.showTableOnly = true;
-  openDetailsModal();
-}
-
-function selectAvis(avisId) {
-  const avis = getNestedAvis(avisId);
-  if (!avis) return;
-  const sujet = getSujetByAvisId(avisId);
-  const situation = getSituationByAvisId(avisId);
-
-  store.situationsView.selectedSituationId = situation?.id || null;
-  store.situationsView.selectedSujetId = sujet?.id || null;
-  store.situationsView.selectedAvisId = avisId;
-
-  if (situation?.id) store.situationsView.expandedSituations.add(situation.id);
-  if (sujet?.id) store.situationsView.expandedSujets.add(sujet.id);
-
-  store.situationsView.tempAvisVerdictFor = avisId;
-  store.situationsView.tempAvisVerdict = getEffectiveAvisVerdict(avisId) || "F";
-
-  store.situationsView.showTableOnly = false;
-  markEntitySeen("avis", avisId, { source: "details" });
-  rerenderPanels();
-}
 /* =========================================================
    Details actions (archive-like)
 ========================================================= */
 
-function getScopedSelection(root) {
-  if (root?.closest?.("[data-create-subject-form]")) {
-    return getDraftSubjectSelection();
-  }
-  if (root?.closest?.("#drilldownPanel")) {
-    const sel = getDrilldownSelection();
-    if (sel) return sel;
-  }
-  return getActiveSelection();
-}
 
-function currentDecisionTarget(root) {
-  const sel = getScopedSelection(root);
-  if (!sel) return null;
-  return { type: sel.type, id: sel.item.id, item: sel.item };
-}
 
 function clearDescriptionEditState() {
   ensureViewUiState();
@@ -4061,14 +4027,14 @@ function wireDetailsInteractive(root) {
   root.querySelectorAll(".js-modal-drilldown-sujet, .js-drilldown-select-sujet").forEach((btn) => {
     btn.onclick = () => {
       const sujetId = String(btn.dataset.sujetId || "");
-      if (sujetId) openDrilldownFromSujet(sujetId);
+      if (sujetId) openDrilldownFromSujetPanel(sujetId);
     };
   });
 
   root.querySelectorAll(".js-modal-drilldown-avis, .js-drilldown-select-avis").forEach((btn) => {
     btn.onclick = () => {
       const avisId = String(btn.dataset.avisId || "");
-      if (avisId) openDrilldownFromAvis(avisId);
+      if (avisId) openDrilldownFromAvisPanel(avisId);
     };
   });
 
@@ -4214,10 +4180,6 @@ function ensureDrilldownDom() {
   return projectSubjectDrilldown.ensureDrilldownDom();
 }
 
-function getDrilldownSelection() {
-  return projectSubjectDrilldown.getDrilldownSelection();
-}
-
 function updateDrilldownPanel() {
   return projectSubjectDrilldown.updateDrilldownPanel();
 }
@@ -4230,15 +4192,15 @@ function closeDrilldown() {
   return projectSubjectDrilldown.closeDrilldown();
 }
 
-function openDrilldownFromSituation(situationId) {
+function openDrilldownFromSituationPanel(situationId) {
   return projectSubjectDrilldown.openDrilldownFromSituation(situationId);
 }
 
-function openDrilldownFromSujet(sujetId) {
+function openDrilldownFromSujetPanel(sujetId) {
   return projectSubjectDrilldown.openDrilldownFromSujet(sujetId);
 }
 
-function openDrilldownFromAvis(avisId) {
+function openDrilldownFromAvisPanel(avisId) {
   return projectSubjectDrilldown.openDrilldownFromAvis(avisId);
 }
 
