@@ -338,16 +338,16 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   applyCommentAction,
   getApplyIssueStatusAction: () => applyIssueStatusAction,
   showError,
-  updateDrilldownPanel,
-  openDrilldownFromSujetPanel,
-  openDrilldownFromAvisPanel,
+  updateDrilldownPanel: () => projectSubjectDrilldown.updateDrilldownPanel(),
+  openDrilldownFromSujetPanel: (sujetId) => projectSubjectDrilldown.openDrilldownFromSujet(sujetId),
+  openDrilldownFromAvisPanel: (avisId) => projectSubjectDrilldown.openDrilldownFromAvis(avisId),
   selectSujet,
   rerenderPanels,
   resetSubjectsViewTransientState,
   resetObjectiveEditState,
   resetCreateSubjectForm,
-  closeDetailsModal,
-  closeDrilldown,
+  closeDetailsModal: () => projectSubjectDetail.closeDetailsModal(),
+  closeDrilldown: () => projectSubjectDrilldown.closeDrilldown(),
   syncSituationsPrimaryScrollSource,
   reloadSubjectsFromSupabase,
   openCreateSubjectForm,
@@ -359,7 +359,7 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   bindOverlayChromeCompact,
   getProjectSubjectMilestones: () => projectSubjectMilestones,
   getSubjectsCurrentRoot: () => subjectsCurrentRoot,
-  openDetailsModal
+  openDetailsModal: () => projectSubjectDetail.openDetailsModal()
 });
 
 const {
@@ -2052,38 +2052,6 @@ function renderSubIssuesForSituation(situation, options = {}) {
 }
 
 
-function renderDetailsTitleWrapHtml(selection) {
-  return projectSubjectDetail.renderDetailsTitleWrapHtml(selection);
-}
-
-function renderDetailsHtml(selectionOverride = null, options = {}) {
-  return projectSubjectDetail.renderDetailsHtml(selectionOverride, options);
-}
-
-function updateDetailsModal() {
-  projectSubjectDetail.updateDetailsModal();
-}
-
-function ensureDrilldownDom() {
-  projectSubjectDrilldown.ensureDrilldownDom();
-}
-
-function updateDrilldownPanel() {
-  projectSubjectDrilldown.updateDrilldownPanel();
-}
-
-function openDrilldownFromSujetPanel(sujetId) {
-  projectSubjectDrilldown.openDrilldownFromSujet(sujetId);
-}
-
-function openDrilldownFromAvisPanel(avisId) {
-  projectSubjectDrilldown.openDrilldownFromAvis(avisId);
-}
-
-function closeDrilldown() {
-  projectSubjectDrilldown.closeDrilldown();
-}
-
 async function reloadSubjectsFromSupabase(root = subjectsCurrentRoot, options = {}) {
   const targetRoot = root || subjectsCurrentRoot;
   const shouldRerender = options?.rerender !== false;
@@ -2096,23 +2064,16 @@ async function reloadSubjectsFromSupabase(root = subjectsCurrentRoot, options = 
   }
 
   if (shouldUpdateModal) {
-    updateDetailsModal();
+    projectSubjectDetail.updateDetailsModal();
   }
 
   if (store.situationsView.drilldown?.isOpen) {
-    updateDrilldownPanel();
+    projectSubjectDrilldown.updateDrilldownPanel();
   }
 
   return data;
 }
 
-function openDetailsModal() {
-  projectSubjectDetail.openDetailsModal();
-}
-
-function closeDetailsModal() {
-  projectSubjectDetail.closeDetailsModal();
-}
 
 function syncSituationsPrimaryScrollSource() {
   const panelHost = document.getElementById("situationsPanelHost");
@@ -2172,7 +2133,7 @@ function rerenderPanels() {
       })}</div>`;
       syncSituationsPrimaryScrollSource();
     } else {
-      const details = renderDetailsHtml(null, {
+      const details = projectSubjectDetail.renderDetailsHtml(null, {
         subissuesOptions: {
           sujetRowClass: "js-modal-drilldown-sujet",
           sujetToggleClass: "js-modal-toggle-sujet",
@@ -2194,8 +2155,8 @@ function rerenderPanels() {
     }
   }
 
-  updateDetailsModal();
-  if (store.situationsView.drilldown?.isOpen) updateDrilldownPanel();
+  projectSubjectDetail.updateDetailsModal();
+  if (store.situationsView.drilldown?.isOpen) projectSubjectDrilldown.updateDrilldownPanel();
   refreshProjectShellChrome("situations");
 }
 
@@ -2210,10 +2171,10 @@ function rerenderPanels() {
 function rerenderScope(root) {
   rerenderPanels();
   if (root?.closest?.("#detailsModal") && store.situationsView.detailsModalOpen) {
-    updateDetailsModal();
+    projectSubjectDetail.updateDetailsModal();
   }
   if (root?.closest?.("#drilldownPanel") && store.situationsView.drilldown?.isOpen) {
-    updateDrilldownPanel();
+    projectSubjectDrilldown.updateDrilldownPanel();
   }
 }
 
@@ -2340,8 +2301,8 @@ function renderSubjectMetaDropdownHost(root) {
 
 function rerenderSubjectMetaScopes() {
   rerenderPanels();
-  if (store.situationsView.detailsModalOpen) updateDetailsModal();
-  if (store.situationsView.drilldown?.isOpen) updateDrilldownPanel();
+  if (store.situationsView.detailsModalOpen) projectSubjectDetail.updateDetailsModal();
+  if (store.situationsView.drilldown?.isOpen) projectSubjectDrilldown.updateDrilldownPanel();
 }
 
 function focusSubjectMetaSearch(root, field) {
@@ -2664,7 +2625,7 @@ function getObjectiveById(objectiveId) {
 
 export function renderProjectSubjects(root) {
   ensureViewUiState();
-  ensureDrilldownDom();
+  projectSubjectDrilldown.ensureDrilldownDom();
   subjectsCurrentRoot = root;
   bindSubjectsTabReset();
   store.situationsView.showTableOnly = true;
@@ -2720,7 +2681,7 @@ export function renderProjectSubjects(root) {
   bindSituationsEvents(root, headerRoot);
   bindProjectSituationsRunbar(toolbarHost || root || document);
   bindModalEvents();
-  updateDetailsModal();
+  projectSubjectDetail.updateDetailsModal();
 
   syncProjectSituationsRunbar({
     run_id: store.ui?.runId || "",
