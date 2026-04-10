@@ -49,7 +49,6 @@ import {
   normalizeVerdict,
   normalizeReviewState,
   renderStatusBadge,
-  renderVerdictPill,
   renderStateDot,
   renderReviewStateIcon,
   renderCountBadge
@@ -183,9 +182,7 @@ const {
   getSituationSubjects,
   getNestedSujet,
   getSituationBySujetId,
-  getNestedAvis,
-  getSituationByAvisId,
-  getSujetByAvisId
+  getChildSubjects
 } = subjectsSelectors;
 
 
@@ -626,7 +623,6 @@ const projectSubjectsView = createProjectSubjectsView({
   renderDataTableEmptyState,
   renderTableHeadFilterToggle,
   renderStatusBadge,
-  renderVerdictPill,
   renderStateDot,
   normalizeVerdict,
   normalizeReviewState,
@@ -644,9 +640,7 @@ const projectSubjectsView = createProjectSubjectsView({
   getNestedSituation: (...args) => getNestedSituation(...args),
   getNestedSujet: (...args) => getNestedSujet(...args),
   getSituationSubjects: (...args) => getSituationSubjects(...args),
-  getNestedAvis: (...args) => getNestedAvis(...args),
-  getSituationByAvisId: (...args) => getSituationByAvisId(...args),
-  getSujetByAvisId: (...args) => getSujetByAvisId(...args),
+  getChildSubjects: (...args) => getChildSubjects(...args),
   getFilteredStandaloneSubjects: (...args) => getFilteredStandaloneSubjects(...args),
   getFilteredFlatSubjects: (...args) => getFilteredFlatSubjects(...args),
   getCurrentSubjectsStatusFilter: (...args) => getCurrentSubjectsStatusFilter(...args),
