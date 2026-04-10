@@ -9,47 +9,42 @@ export function createProjectSubjectsSelectors({
   matchSearch,
   firstNonEmpty
 }) {
+  function logSubjectsSelectorDebug(step, payload) {
+    try {
+      console.log(`[subjects:selectors] ${step}`, payload);
+    } catch {
+      // noop
+    }
+  }
+
+  function getRawSubjectsPayload(view) {
+    if (!view || typeof view !== "object") return null;
+    if (view.rawSubjectsResult && typeof view.rawSubjectsResult === "object") return view.rawSubjectsResult;
+    if (view.rawResult && typeof view.rawResult === "object") return view.rawResult;
+    return null;
+  }
+
   function getViewState() {
     ensureViewUiState();
-
-    const projectView = store.projectSubjectsView && typeof store.projectSubjectsView === "object"
+    return store.projectSubjectsView && typeof store.projectSubjectsView === "object"
       ? store.projectSubjectsView
-      : null;
-    const situationsView = store.situationsView && typeof store.situationsView === "object"
-      ? store.situationsView
-      : null;
-
-    const projectHasSubjects = !!(projectView?.rawResult && typeof projectView.rawResult === "object" && Object.keys(projectView.rawResult.subjectsById || {}).length);
-    const situationsHasSubjects = !!(situationsView?.rawResult && typeof situationsView.rawResult === "object" && Object.keys(situationsView.rawResult.subjectsById || {}).length);
-
-    if (situationsHasSubjects && (!projectView || !projectHasSubjects)) {
-      if (store.projectSubjectsView !== situationsView) {
-        store.projectSubjectsView = situationsView;
-      }
-      return situationsView;
-    }
-
-    if (projectView) {
-      if (store.situationsView !== projectView) {
-        store.situationsView = projectView;
-      }
-      return projectView;
-    }
-
-    return situationsView || {};
+      : (store.situationsView && typeof store.situationsView === "object" ? store.situationsView : {});
   }
 
   function getRawResult() {
     const viewState = getViewState();
-    const rawResult = viewState?.rawResult;
-    if (rawResult && typeof rawResult === "object") return rawResult;
+    const projectRawResult = getRawSubjectsPayload(viewState);
+    if (projectRawResult) return projectRawResult;
 
-    const situationsRawResult = store.situationsView?.rawResult;
-    if (situationsRawResult && typeof situationsRawResult === "object") return situationsRawResult;
+    const fallbackSituationsRawResult = getRawSubjectsPayload(store.situationsView);
+    if (fallbackSituationsRawResult) return fallbackSituationsRawResult;
 
-    const projectRawResult = store.projectSubjectsView?.rawResult;
-    if (projectRawResult && typeof projectRawResult === "object") return projectRawResult;
-
+    logSubjectsSelectorDebug("getRawResult:empty", {
+      hasProjectSubjectsView: !!store.projectSubjectsView,
+      projectSubjectsKeys: Object.keys(store.projectSubjectsView || {}),
+      hasSituationsView: !!store.situationsView,
+      situationsKeys: Object.keys(store.situationsView || {})
+    });
     return {};
   }
 
@@ -356,12 +351,24 @@ export function createProjectSubjectsSelectors({
     const query = String(getViewState().search || "").trim().toLowerCase();
     const activeStatusFilter = getCurrentSubjectsStatusFilter();
     const activePriorityFilter = getCurrentSubjectsPriorityFilter();
-    return getFlatSubjects().filter((subject) => {
+    const flatSubjects = getFlatSubjects();
+    const filtered = flatSubjects.filter((subject) => {
       if (!subjectMatchesFilters(subject, query)) return false;
       if (!sujetMatchesStatusFilter(subject, activeStatusFilter)) return false;
       if (!sujetMatchesPriorityFilter(subject, activePriorityFilter)) return false;
       return true;
     });
+
+    logSubjectsSelectorDebug("getFilteredFlatSubjects", {
+      totalFlatSubjects: flatSubjects.length,
+      filteredCount: filtered.length,
+      query,
+      activeStatusFilter,
+      activePriorityFilter,
+      sample: filtered[0] || flatSubjects[0] || null
+    });
+
+    return filtered;
   }
 
   function getAvailableSubjectPriorities() {
