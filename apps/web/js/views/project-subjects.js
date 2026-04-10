@@ -182,7 +182,10 @@ const {
   getCanonicalSujetById,
   getSituationSubjects,
   getNestedSujet,
-  getSituationBySujetId
+  getSituationBySujetId,
+  getNestedAvis,
+  getSituationByAvisId,
+  getSujetByAvisId
 } = subjectsSelectors;
 
 
@@ -641,6 +644,9 @@ const projectSubjectsView = createProjectSubjectsView({
   getNestedSituation: (...args) => getNestedSituation(...args),
   getNestedSujet: (...args) => getNestedSujet(...args),
   getSituationSubjects: (...args) => getSituationSubjects(...args),
+  getNestedAvis: (...args) => getNestedAvis(...args),
+  getSituationByAvisId: (...args) => getSituationByAvisId(...args),
+  getSujetByAvisId: (...args) => getSujetByAvisId(...args),
   getFilteredStandaloneSubjects: (...args) => getFilteredStandaloneSubjects(...args),
   getFilteredFlatSubjects: (...args) => getFilteredFlatSubjects(...args),
   getCurrentSubjectsStatusFilter: (...args) => getCurrentSubjectsStatusFilter(...args),
@@ -653,6 +659,11 @@ const projectSubjectsView = createProjectSubjectsView({
   getProjectSubjectLabels: () => projectSubjectLabels,
   getProjectSubjectDetail: () => projectSubjectDetail,
   getProjectSubjectDrilldown: () => projectSubjectDrilldown,
+  getProjectSubjectsLegacyRapso: () => ({
+    isHelpTrigger: () => false,
+    askHelpEphemeral: async () => undefined,
+    askRapsoAndAppendReply: async () => undefined
+  }),
   loadExistingSubjectsForCurrentProject,
   getSubjectsCurrentRoot: () => subjectsCurrentRoot,
   registerProjectPrimaryScrollSource,
