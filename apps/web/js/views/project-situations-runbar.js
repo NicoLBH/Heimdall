@@ -48,6 +48,9 @@ export function renderProjectSituationsRunbar() {
           items: config.items
         })}
       </div>
+      <div class="project-runbar__right">
+        <span class="settings-badge mono">SUBJECT / SITUATION</span>
+      </div>
     </div>
   `;
 }
