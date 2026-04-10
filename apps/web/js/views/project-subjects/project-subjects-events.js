@@ -31,7 +31,7 @@ export function createProjectSubjectsEvents(config) {
     showError,
     updateDrilldownPanel,
     openDrilldownFromSujetPanel,
-    openDrilldownFromAvisPanel,
+    openDrilldownFromAvisPanel = () => null,
     selectSujet,
     rerenderPanels,
     resetSubjectsViewTransientState,
@@ -45,7 +45,7 @@ export function createProjectSubjectsEvents(config) {
     createSubjectFromDraft,
     normalizeBackendPriority,
     selectSituation,
-    selectAvis,
+    selectAvis = () => null,
     bindOverlayChromeDismiss,
     bindOverlayChromeCompact,
     getProjectSubjectMilestones
