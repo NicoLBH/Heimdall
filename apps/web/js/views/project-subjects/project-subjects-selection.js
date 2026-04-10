@@ -84,6 +84,12 @@ export function createProjectSubjectsSelection({
     return selectSubject(sujetId);
   }
 
+  function openSubjectDetails(subjectId) {
+    if (subjectId) return selectSubject(subjectId);
+    openDetailsModal();
+    return getActiveSelection();
+  }
+
   function getSelectionEntityType(type) {
     return type === "sujet" ? "sujet" : type;
   }
@@ -125,12 +131,8 @@ export function createProjectSubjectsSelection({
     return openDrilldownFromSubject(sujetId);
   }
 
-  function selectAvis() {
-    return null;
-  }
-
-  function openDrilldownFromAvis() {
-    return null;
+  function openSubjectDrilldown(subjectId) {
+    return openDrilldownFromSubject(subjectId);
   }
 
   return {
@@ -146,10 +148,10 @@ export function createProjectSubjectsSelection({
     selectSituation,
     selectSubject,
     selectSujet,
-    selectAvis,
+    openSubjectDetails,
     openDrilldownFromSituation,
     openDrilldownFromSubject,
     openDrilldownFromSujet,
-    openDrilldownFromAvis
+    openSubjectDrilldown
   };
 }
