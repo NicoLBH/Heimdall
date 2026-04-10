@@ -2080,6 +2080,28 @@ function closeDrilldown() {
   projectSubjectDrilldown.closeDrilldown();
 }
 
+async function reloadSubjectsFromSupabase(root = subjectsCurrentRoot, options = {}) {
+  const targetRoot = root || subjectsCurrentRoot;
+  const shouldRerender = options?.rerender !== false;
+  const shouldUpdateModal = !!options?.updateModal;
+
+  const data = await loadExistingSubjectsForCurrentProject({ force: true });
+
+  if (shouldRerender && targetRoot?.isConnected) {
+    rerenderPanels();
+  }
+
+  if (shouldUpdateModal) {
+    updateDetailsModal();
+  }
+
+  if (store.situationsView.drilldown?.isOpen) {
+    updateDrilldownPanel();
+  }
+
+  return data;
+}
+
 function openDetailsModal() {
   projectSubjectDetail.openDetailsModal();
 }
