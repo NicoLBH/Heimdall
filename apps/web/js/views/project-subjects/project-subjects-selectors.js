@@ -9,14 +9,6 @@ export function createProjectSubjectsSelectors({
   matchSearch,
   firstNonEmpty
 }) {
-  function logSubjectsSelectorDebug(step, payload) {
-    try {
-      console.log(`[subjects:selectors] ${step}`, payload);
-    } catch {
-      // noop
-    }
-  }
-
   function getRawSubjectsPayload(view) {
     if (!view || typeof view !== "object") return null;
     if (view.rawSubjectsResult && typeof view.rawSubjectsResult === "object") return view.rawSubjectsResult;
@@ -26,9 +18,31 @@ export function createProjectSubjectsSelectors({
 
   function getViewState() {
     ensureViewUiState();
-    return store.projectSubjectsView && typeof store.projectSubjectsView === "object"
+    const projectView = store.projectSubjectsView && typeof store.projectSubjectsView === "object"
       ? store.projectSubjectsView
-      : (store.situationsView && typeof store.situationsView === "object" ? store.situationsView : {});
+      : {};
+    const legacyView = store.situationsView && typeof store.situationsView === "object"
+      ? store.situationsView
+      : null;
+
+    if (legacyView && legacyView !== projectView) {
+      if (typeof legacyView.search === "string") projectView.search = legacyView.search;
+      if (typeof legacyView.subjectsStatusFilter === "string") projectView.subjectsStatusFilter = legacyView.subjectsStatusFilter;
+      if (typeof legacyView.subjectsPriorityFilter === "string") projectView.subjectsPriorityFilter = legacyView.subjectsPriorityFilter;
+      if (legacyView.filters && typeof legacyView.filters === "object") {
+        projectView.filters = {
+          ...(projectView.filters && typeof projectView.filters === "object" ? projectView.filters : {}),
+          ...legacyView.filters,
+          status: String(legacyView.subjectsStatusFilter || legacyView.filters.status || projectView.filters?.status || "open"),
+          priority: String(legacyView.subjectsPriorityFilter || legacyView.filters.priority || projectView.filters?.priority || "")
+        };
+      }
+      if (typeof legacyView.subjectsSubview === "string") projectView.subjectsSubview = legacyView.subjectsSubview;
+      if (typeof legacyView.selectedObjectiveId === "string") projectView.selectedObjectiveId = legacyView.selectedObjectiveId;
+      if (typeof legacyView.showTableOnly === "boolean") projectView.showTableOnly = legacyView.showTableOnly;
+    }
+
+    return projectView;
   }
 
   function getRawResult() {
@@ -39,12 +53,6 @@ export function createProjectSubjectsSelectors({
     const fallbackSituationsRawResult = getRawSubjectsPayload(store.situationsView);
     if (fallbackSituationsRawResult) return fallbackSituationsRawResult;
 
-    logSubjectsSelectorDebug("getRawResult:empty", {
-      hasProjectSubjectsView: !!store.projectSubjectsView,
-      projectSubjectsKeys: Object.keys(store.projectSubjectsView || {}),
-      hasSituationsView: !!store.situationsView,
-      situationsKeys: Object.keys(store.situationsView || {})
-    });
     return {};
   }
 
@@ -357,15 +365,6 @@ export function createProjectSubjectsSelectors({
       if (!sujetMatchesStatusFilter(subject, activeStatusFilter)) return false;
       if (!sujetMatchesPriorityFilter(subject, activePriorityFilter)) return false;
       return true;
-    });
-
-    logSubjectsSelectorDebug("getFilteredFlatSubjects", {
-      totalFlatSubjects: flatSubjects.length,
-      filteredCount: filtered.length,
-      query,
-      activeStatusFilter,
-      activePriorityFilter,
-      sample: filtered[0] || flatSubjects[0] || null
     });
 
     return filtered;
