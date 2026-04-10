@@ -1,5 +1,4 @@
 import { store, DEFAULT_PROJECT_PHASES } from "../store.js";
-import { ASK_LLM_URL_PROD } from "../constants.js";
 import { PROJECT_TAB_RESELECTED_EVENT } from "./project-header.js";
 import { loadExistingSubjectsForCurrentProject } from "../services/analysis-runner.js";
 import {
@@ -85,10 +84,6 @@ import { createProjectSubjectsReviewState } from "./project-subjects/project-sub
 import { createProjectSubjectsDescription } from "./project-subjects/project-subjects-description.js";
 import { createProjectSubjectsThread } from "./project-subjects/project-subjects-thread.js";
 import { createProjectSubjectsActions } from "./project-subjects/project-subjects-actions.js";
-import {
-  HUMAN_STORE_KEY,
-  createProjectSubjectsLegacyRapso
-} from "./project-subjects/project-subjects-legacy-rapso.js";
 import { createProjectSubjectsEvents } from "./project-subjects/project-subjects-events.js";
 import { createProjectSubjectsView } from "./project-subjects/project-subjects-view.js";
 
@@ -125,7 +120,7 @@ const {
 const projectSubjectsPersistence = createProjectSubjectsPersistence({
   store,
   firstNonEmpty,
-  humanStoreKey: HUMAN_STORE_KEY
+  humanStoreKey: "project-subjects-human-store-v1"
 });
 
 const {
@@ -143,8 +138,7 @@ const projectSubjectsReviewState = createProjectSubjectsReviewState({
   getRunBucket,
   persistRunBucket,
   getNestedSituation: (entityId) => getNestedSituation(entityId),
-  getNestedSujet: (entityId) => getNestedSujet(entityId),
-  getNestedAvis: (entityId) => getNestedAvis(entityId)
+  getNestedSujet: (entityId) => getNestedSujet(entityId)
 });
 
 const {
@@ -167,7 +161,6 @@ const subjectsSelectors = createProjectSubjectsSelectors({
   getCustomSubjects: (...args) => projectSubjectsView.getCustomSubjects(...args),
   normalizeSubjectSituationIds: (...args) => projectSubjectsView.normalizeSubjectSituationIds(...args),
   normalizeBackendPriority: (...args) => projectSubjectsView.normalizeBackendPriority(...args),
-  getEffectiveAvisVerdict,
   getEffectiveSujetStatus,
   matchSearch: (...args) => projectSubjectsView.matchSearch(...args),
   firstNonEmpty
@@ -188,10 +181,7 @@ const {
   getCanonicalSujetById,
   getSituationSubjects,
   getNestedSujet,
-  getNestedAvis,
-  getSituationBySujetId,
-  getSituationByAvisId,
-  getSujetByAvisId
+  getSituationBySujetId
 } = subjectsSelectors;
 
 
@@ -200,12 +190,8 @@ const projectSubjectsSelection = createProjectSubjectsSelection({
   ensureViewUiState,
   getNestedSituation,
   getNestedSujet,
-  getNestedAvis,
   getSituationBySujetId,
-  getSituationByAvisId,
-  getSujetByAvisId,
   getDraftSubjectSelection: (...args) => projectSubjectsView.getDraftSubjectSelection(...args),
-  getEffectiveAvisVerdict,
   openDetailsModal: () => projectSubjectDetail.openDetailsModal(),
   rerenderPanels: (...args) => projectSubjectsView.rerenderPanels(...args),
   markEntitySeen
@@ -219,10 +205,8 @@ const {
   currentDecisionTarget,
   selectSituation,
   selectSujet,
-  selectAvis,
   openDrilldownFromSituation,
-  openDrilldownFromSujet,
-  openDrilldownFromAvis
+  openDrilldownFromSujet
 } = projectSubjectsSelection;
 
 const projectSubjectsThread = createProjectSubjectsThread({
@@ -252,18 +236,13 @@ const projectSubjectsThread = createProjectSubjectsThread({
   getActiveSelection,
   getSelectionEntityType,
   getSituationBySujetId,
-  getSituationByAvisId,
-  getSujetByAvisId,
   getNestedSujet,
-  getNestedAvis,
-  getEffectiveAvisVerdict,
   getEffectiveSujetStatus,
   getEffectiveSituationStatus,
   entityDisplayLinkHtml: (...args) => projectSubjectsView.entityDisplayLinkHtml(...args),
   inferAgent: (...args) => projectSubjectsView.inferAgent(...args),
   normActorName: (...args) => projectSubjectsView.normActorName(...args),
-  miniAuthorIconHtml: (...args) => projectSubjectsView.miniAuthorIconHtml(...args),
-  verdictIconHtml: (...args) => projectSubjectsView.verdictIconHtml(...args)
+  miniAuthorIconHtml: (...args) => projectSubjectsView.miniAuthorIconHtml(...args)
 });
 
 const {
@@ -341,7 +320,6 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   showError,
   updateDrilldownPanel: () => projectSubjectDrilldown.updateDrilldownPanel(),
   openDrilldownFromSujetPanel: (sujetId) => projectSubjectDrilldown.openDrilldownFromSujet(sujetId),
-  openDrilldownFromAvisPanel: (avisId) => projectSubjectDrilldown.openDrilldownFromAvis(avisId),
   selectSujet,
   rerenderPanels: (...args) => projectSubjectsView.rerenderPanels(...args),
   resetSubjectsViewTransientState,
@@ -355,7 +333,6 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   createSubjectFromDraft: (...args) => projectSubjectsView.createSubjectFromDraft(...args),
   normalizeBackendPriority: (...args) => projectSubjectsView.normalizeBackendPriority(...args),
   selectSituation,
-  selectAvis,
   bindOverlayChromeDismiss,
   bindOverlayChromeCompact,
   getProjectSubjectMilestones: () => projectSubjectMilestones,
@@ -375,7 +352,6 @@ const {
 const projectSubjectsDetailsRenderer = createProjectSubjectsDetailsRenderer({
   getActiveSelection,
   getSelectionEntityType,
-  getEffectiveAvisVerdict,
   getEffectiveSujetStatus,
   getEffectiveSituationStatus,
   getEntityReviewMeta,
@@ -384,10 +360,8 @@ const projectSubjectsDetailsRenderer = createProjectSubjectsDetailsRenderer({
   problemsCountsHtml: (...args) => projectSubjectsView.problemsCountsHtml(...args),
   firstNonEmpty,
   escapeHtml,
-  renderVerboseAvisVerdictPill: (...args) => projectSubjectsView.renderVerboseAvisVerdictPill(...args),
   statePill: (...args) => projectSubjectsView.statePill(...args),
   renderDescriptionCard,
-  getSujetByAvisId,
   renderSubIssuesForSujet: (...args) => projectSubjectsView.renderSubIssuesForSujet(...args),
   renderSubIssuesForSituation: (...args) => projectSubjectsView.renderSubIssuesForSituation(...args),
   renderThreadBlock,
@@ -426,7 +400,6 @@ const projectSubjectDrilldown = createProjectSubjectDrilldownController({
   getDrilldownSelection,
   openDrilldownFromSituationSelection: openDrilldownFromSituation,
   openDrilldownFromSujetSelection: openDrilldownFromSujet,
-  openDrilldownFromAvisSelection: openDrilldownFromAvis,
   renderDetailsHtml: renderSharedDetailsHtml,
   renderDetailsTitleWrapHtml: renderSharedDetailsTitleWrapHtml,
   wireDetailsInteractive,
@@ -658,9 +631,6 @@ const projectSubjectsView = createProjectSubjectsView({
   getReviewTitleStateClass: (...args) => getReviewTitleStateClass(...args),
   getNestedSituation: (...args) => getNestedSituation(...args),
   getNestedSujet: (...args) => getNestedSujet(...args),
-  getNestedAvis: (...args) => getNestedAvis(...args),
-  getSituationByAvisId: (...args) => getSituationByAvisId(...args),
-  getSujetByAvisId: (...args) => getSujetByAvisId(...args),
   getSituationSubjects: (...args) => getSituationSubjects(...args),
   getFilteredStandaloneSubjects: (...args) => getFilteredStandaloneSubjects(...args),
   getCurrentSubjectsStatusFilter: (...args) => getCurrentSubjectsStatusFilter(...args),
@@ -673,7 +643,6 @@ const projectSubjectsView = createProjectSubjectsView({
   getProjectSubjectLabels: () => projectSubjectLabels,
   getProjectSubjectDetail: () => projectSubjectDetail,
   getProjectSubjectDrilldown: () => projectSubjectDrilldown,
-  getProjectSubjectsLegacyRapso: () => projectSubjectsLegacyRapso,
   loadExistingSubjectsForCurrentProject,
   getSubjectsCurrentRoot: () => subjectsCurrentRoot,
   registerProjectPrimaryScrollSource,
@@ -702,14 +671,12 @@ const {
 } = projectSubjectsView;
 
 const normalizeBackendPriority = (...args) => projectSubjectsView.normalizeBackendPriority(...args);
-const renderVerboseAvisVerdictPill = (...args) => projectSubjectsView.renderVerboseAvisVerdictPill(...args);
 const statePill = (...args) => projectSubjectsView.statePill(...args);
 const entityDisplayLinkHtml = (...args) => projectSubjectsView.entityDisplayLinkHtml(...args);
 const renderDocumentRefsCard = (...args) => projectSubjectsView.renderDocumentRefsCard(...args);
 const inferAgent = (...args) => projectSubjectsView.inferAgent(...args);
 const normActorName = (...args) => projectSubjectsView.normActorName(...args);
 const miniAuthorIconHtml = (...args) => projectSubjectsView.miniAuthorIconHtml(...args);
-const verdictIconHtml = (...args) => projectSubjectsView.verdictIconHtml(...args);
 const getDraftSubjectSelection = (...args) => projectSubjectsView.getDraftSubjectSelection(...args);
 const buildDefaultDraftSubjectMeta = (...args) => projectSubjectsView.buildDefaultDraftSubjectMeta(...args);
 const resetCreateSubjectForm = (...args) => projectSubjectsView.resetCreateSubjectForm(...args);
@@ -749,8 +716,8 @@ export function getEffectiveSujetStatus(...args) {
   return projectSubjectsView.getEffectiveSujetStatus(...args);
 }
 
-export function getEffectiveAvisVerdict(...args) {
-  return projectSubjectsView.getEffectiveAvisVerdict(...args);
+export function getEffectiveAvisVerdict() {
+  return null;
 }
 
 export function getEffectiveSituationStatus(...args) {
@@ -758,31 +725,6 @@ export function getEffectiveSituationStatus(...args) {
 }
 
 
-const projectSubjectsLegacyRapso = createProjectSubjectsLegacyRapso({
-  store,
-  ASK_LLM_URL_PROD,
-  escapeHtml,
-  renderMessageThreadComment,
-  nowIso,
-  fmtTs,
-  mdToHtml,
-  SVG_AVATAR_HUMAN,
-  firstNonEmpty,
-  getRunBucket,
-  getNestedSituation,
-  getSituationBySujetId,
-  getSituationByAvisId,
-  getNestedSujet,
-  getSujetByAvisId,
-  getNestedAvis,
-  getEffectiveSituationStatus,
-  getEffectiveSujetStatus,
-  getEffectiveAvisVerdict,
-  addComment,
-  persistRunBucket,
-  rerenderPanels,
-  showError
-});
 
 
 
