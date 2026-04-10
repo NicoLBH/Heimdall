@@ -8,6 +8,7 @@ export function createProjectSubjectDrilldownController(config) {
     bindOverlayChromeDismiss,
     getDrilldownSelection,
     openDrilldownFromSituationSelection,
+    openDrilldownFromSubjectSelection,
     openDrilldownFromSujetSelection,
     renderDetailsHtml,
     renderDetailsTitleWrapHtml,
@@ -103,15 +104,16 @@ export function createProjectSubjectDrilldownController(config) {
     openDrilldown();
   }
 
-  function openDrilldownFromSujet(sujetId) {
+  function openDrilldownFromSubject(subjectId) {
     ensureViewUiState();
-    const selection = openDrilldownFromSujetSelection(sujetId);
+    const openSelection = openDrilldownFromSubjectSelection || openDrilldownFromSujetSelection;
+    const selection = openSelection?.(subjectId);
     if (!selection) return;
     openDrilldown();
   }
 
-  function openDrilldownFromAvis() {
-    return null;
+  function openDrilldownFromSujet(sujetId) {
+    return openDrilldownFromSubject(sujetId);
   }
 
   return {
@@ -121,7 +123,7 @@ export function createProjectSubjectDrilldownController(config) {
     openDrilldown,
     closeDrilldown,
     openDrilldownFromSituation,
-    openDrilldownFromSujet,
-    openDrilldownFromAvis
+    openDrilldownFromSubject,
+    openDrilldownFromSujet
   };
 }
