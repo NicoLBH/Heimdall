@@ -642,6 +642,7 @@ const projectSubjectsView = createProjectSubjectsView({
   getNestedSujet: (...args) => getNestedSujet(...args),
   getSituationSubjects: (...args) => getSituationSubjects(...args),
   getFilteredStandaloneSubjects: (...args) => getFilteredStandaloneSubjects(...args),
+  getFilteredFlatSubjects: (...args) => getFilteredFlatSubjects(...args),
   getCurrentSubjectsStatusFilter: (...args) => getCurrentSubjectsStatusFilter(...args),
   getCurrentSubjectsPriorityFilter: (...args) => getCurrentSubjectsPriorityFilter(...args),
   sujetMatchesStatusFilter: (...args) => sujetMatchesStatusFilter(...args),
