@@ -1,5 +1,4 @@
 export function createProjectSubjectsReviewState({
-  store,
   firstNonEmpty,
   nowIso,
   normalizeReviewState,
@@ -7,8 +6,7 @@ export function createProjectSubjectsReviewState({
   getRunBucket,
   persistRunBucket,
   getNestedSituation,
-  getNestedSujet,
-  getNestedAvis
+  getNestedSujet
 }) {
   const DEFAULT_REVIEW_META = Object.freeze({
     is_seen: false,
@@ -19,7 +17,6 @@ export function createProjectSubjectsReviewState({
   });
 
   function getEntityByType(entityType, entityId) {
-    if (entityType === "avis") return getNestedAvis(entityId);
     if (entityType === "sujet") return getNestedSujet(entityId);
     if (entityType === "situation") return getNestedSituation(entityId);
     return null;
@@ -36,15 +33,12 @@ export function createProjectSubjectsReviewState({
       validated_at: meta.validated_at ? String(meta.validated_at) : null,
       rejected_at: meta.rejected_at ? String(meta.rejected_at) : null,
       dismissed_at: meta.dismissed_at ? String(meta.dismissed_at) : null,
-      source_verdict: meta.source_verdict ? String(meta.source_verdict) : null,
-      effective_verdict: meta.effective_verdict ? String(meta.effective_verdict) : null,
       has_human_edit: !!meta.has_human_edit
     };
   }
 
   function getBaseReviewMeta(entity) {
     if (!entity) return { ...DEFAULT_REVIEW_META };
-
     return normalizeReviewMeta({
       is_seen: entity.is_seen,
       review_state: entity.review_state,
@@ -63,7 +57,6 @@ export function createProjectSubjectsReviewState({
     const entity = getEntityByType(entityType, entityId);
     const base = getBaseReviewMeta(entity);
     const stored = getReviewEntry(entityType, entityId);
-
     if (!stored) return base;
     return normalizeReviewMeta({ ...base, ...stored });
   }
@@ -71,14 +64,12 @@ export function createProjectSubjectsReviewState({
   function syncEntityReviewMeta(entityType, entityId) {
     const entity = getEntityByType(entityType, entityId);
     if (!entity) return;
-
     const meta = getEntityReviewMeta(entityType, entityId);
     entity.is_seen = meta.is_seen;
     entity.review_state = meta.review_state;
     entity.is_published = meta.is_published;
     entity.last_published_at = meta.last_published_at;
     entity.has_changes_since_publish = meta.has_changes_since_publish;
-
     if (entity.raw && typeof entity.raw === "object") {
       entity.raw.is_seen = meta.is_seen;
       entity.raw.review_state = meta.review_state;
@@ -90,16 +81,13 @@ export function createProjectSubjectsReviewState({
 
   function setEntityReviewMeta(entityType, entityId, patch = {}, options = {}) {
     const ts = options.ts || nowIso();
-
     persistRunBucket((bucket) => {
-      bucket.review = bucket.review || { avis: {}, sujet: {}, situation: {} };
+      bucket.review = bucket.review || { sujet: {}, situation: {} };
       bucket.review[entityType] = bucket.review[entityType] || {};
-
       const prev = normalizeReviewMeta({
         ...getEntityReviewMeta(entityType, entityId),
         ...(bucket.review[entityType][entityId] || {})
       });
-
       bucket.review[entityType][entityId] = {
         ...prev,
         ...(bucket.review[entityType][entityId] || {}),
@@ -107,7 +95,6 @@ export function createProjectSubjectsReviewState({
         updated_at: ts
       };
     });
-
     syncEntityReviewMeta(entityType, entityId);
   }
 
@@ -120,69 +107,42 @@ export function createProjectSubjectsReviewState({
   function stashReviewRestoreSnapshot(entityType, entityId, options = {}) {
     if (getReviewRestoreSnapshot(entityType, entityId)) return;
     const snapshot = getEntityReviewMeta(entityType, entityId);
-    setEntityReviewMeta(entityType, entityId, {
-      restore_snapshot: { ...snapshot }
-    }, options);
+    setEntityReviewMeta(entityType, entityId, { restore_snapshot: { ...snapshot } }, options);
   }
 
   function restoreEntityReviewMeta(entityType, entityId, options = {}) {
     const snapshot = getReviewRestoreSnapshot(entityType, entityId);
     if (!snapshot) return false;
-
     const ts = options.ts || nowIso();
     persistRunBucket((bucket) => {
-      bucket.review = bucket.review || { avis: {}, sujet: {}, situation: {} };
+      bucket.review = bucket.review || { sujet: {}, situation: {} };
       bucket.review[entityType] = bucket.review[entityType] || {};
       const prev = bucket.review[entityType][entityId] || {};
-      bucket.review[entityType][entityId] = {
-        ...prev,
-        ...snapshot,
-        updated_at: ts
-      };
+      bucket.review[entityType][entityId] = { ...prev, ...snapshot, updated_at: ts };
       delete bucket.review[entityType][entityId].restore_snapshot;
     });
-
     syncEntityReviewMeta(entityType, entityId);
     return true;
   }
 
   function markEntitySeen(entityType, entityId, options = {}) {
     if (!entityType || !entityId) return;
-
     const meta = getEntityReviewMeta(entityType, entityId);
     if (meta.is_seen && meta.first_seen_at) return;
-
-    const entity = getEntityByType(entityType, entityId);
-    const sourceVerdict = entityType === "avis"
-      ? firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
-      : null;
-
     setEntityReviewMeta(entityType, entityId, {
       is_seen: true,
-      first_seen_at: meta.first_seen_at || nowIso(),
-      source_verdict: sourceVerdict
+      first_seen_at: meta.first_seen_at || nowIso()
     }, options);
   }
 
   function markEntityValidated(entityType, entityId, options = {}) {
     if (!entityType || !entityId) return;
-
     const meta = getEntityReviewMeta(entityType, entityId);
-    const entity = getEntityByType(entityType, entityId);
-    const sourceVerdict = entityType === "avis"
-      ? firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
-      : null;
-    const effectiveVerdict = entityType === "avis"
-      ? firstNonEmpty(store.situationsView.tempAvisVerdict, entity?.verdict, meta.effective_verdict, sourceVerdict, null)
-      : null;
-
     setEntityReviewMeta(entityType, entityId, {
       is_seen: true,
       review_state: "validated",
       first_seen_at: meta.first_seen_at || nowIso(),
       validated_at: nowIso(),
-      source_verdict: sourceVerdict,
-      effective_verdict: effectiveVerdict,
       has_changes_since_publish: meta.is_published ? true : meta.has_changes_since_publish
     }, options);
   }
@@ -190,7 +150,7 @@ export function createProjectSubjectsReviewState({
   function canRejectEntity(entityType, entityId) {
     const meta = getEntityReviewMeta(entityType, entityId);
     if (meta.is_published && !meta.has_changes_since_publish) {
-      window.alert("Cet élément a déjà été diffusé et ne peut plus être supprimé / rejeté dans son état diffusé.");
+      window.alert("Cet élément a déjà été diffusé et ne peut plus être supprimé ou rejeté dans son état diffusé.");
       return false;
     }
     return true;
@@ -201,27 +161,17 @@ export function createProjectSubjectsReviewState({
     if ((reviewState === "rejected" || reviewState === "dismissed") && !canRejectEntity(entityType, entityId)) {
       return false;
     }
-
     const meta = getEntityReviewMeta(entityType, entityId);
-
-    const entity = getEntityByType(entityType, entityId);
-    const sourceVerdict = entityType === "avis"
-      ? firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
-      : null;
-
     setEntityReviewMeta(entityType, entityId, {
       is_seen: true,
       review_state: reviewState,
       first_seen_at: meta.first_seen_at || nowIso(),
       rejected_at: reviewState === "rejected" ? nowIso() : meta.rejected_at,
       dismissed_at: reviewState === "dismissed" ? nowIso() : meta.dismissed_at,
-      source_verdict: sourceVerdict,
-      has_changes_since_publish:
-        meta.is_published && reviewState !== "published"
-          ? true
-          : meta.has_changes_since_publish
+      has_changes_since_publish: meta.is_published && reviewState !== "published"
+        ? true
+        : meta.has_changes_since_publish
     }, options);
-
     return true;
   }
 
@@ -234,35 +184,21 @@ export function createProjectSubjectsReviewState({
     const meta = getEntityReviewMeta(entityType, entityId);
     const normalizedType = String(entityType || "").toLowerCase();
     const normalizedState = normalizeReviewState(meta.review_state);
-
     if ((normalizedType === "sujet" || normalizedType === "situation")
       && (normalizedState === "rejected" || normalizedState === "dismissed")) {
       return "";
     }
-
-    return renderReviewStateIcon(meta.review_state, {
-      entityType,
-      isPublished: meta.is_published,
-      hasChangesSincePublish: meta.has_changes_since_publish,
-      isSeen: meta.is_seen
-    });
+    return renderReviewStateIcon?.(normalizedState) || "";
   }
 
   return {
-    DEFAULT_REVIEW_META,
     getEntityByType,
-    normalizeReviewMeta,
-    getBaseReviewMeta,
-    getReviewEntry,
     getEntityReviewMeta,
-    syncEntityReviewMeta,
     setEntityReviewMeta,
-    getReviewRestoreSnapshot,
     stashReviewRestoreSnapshot,
     restoreEntityReviewMeta,
     markEntitySeen,
     markEntityValidated,
-    canRejectEntity,
     setEntityReviewState,
     getReviewTitleStateClass,
     renderEntityReviewLeadIcon
