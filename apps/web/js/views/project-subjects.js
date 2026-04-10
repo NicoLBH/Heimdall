@@ -1996,6 +1996,15 @@ function renderCommentBox(selection) {
   });
 }
 
+function renderMetaItem(label, valueHtml) {
+  return `
+    <div class="meta-item">
+      <div class="meta-k">${escapeHtml(label)}</div>
+      <div class="meta-v">${valueHtml}</div>
+    </div>
+  `;
+}
+
 function renderDetailedMetaForSelection(selection) {
   if (!selection) return "";
 
