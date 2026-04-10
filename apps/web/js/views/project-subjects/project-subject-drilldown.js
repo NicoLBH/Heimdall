@@ -1,4 +1,3 @@
-
 export function createProjectSubjectDrilldownController(config) {
   const {
     store,
@@ -10,12 +9,10 @@ export function createProjectSubjectDrilldownController(config) {
     getDrilldownSelection,
     openDrilldownFromSituationSelection,
     openDrilldownFromSujetSelection,
-    openDrilldownFromAvisSelection,
     renderDetailsHtml,
     renderDetailsTitleWrapHtml,
     wireDetailsInteractive,
     bindDetailsScroll,
-    markEntitySeen,
     ensureViewUiState
   } = config;
 
@@ -57,13 +54,18 @@ export function createProjectSubjectDrilldownController(config) {
     const body = document.getElementById("drilldownBody");
     if (!panel || !title || !body) return;
 
+    const expandedSubjectIds = store.projectSubjectsView?.drilldown?.expandedSubjectIds
+      || store.situationsView?.drilldown?.expandedSubjectIds
+      || store.situationsView?.drilldown?.expandedSujets
+      || new Set();
+
     const selection = getDrilldownSelection();
     const details = renderDetailsHtml(selection, {
       subissuesOptions: {
         sujetRowClass: "js-drilldown-select-sujet",
         sujetToggleClass: "js-drilldown-toggle-sujet",
-        avisRowClass: "js-drilldown-select-avis",
-        expandedSujets: store.situationsView.drilldown.expandedSujets
+        expandedSujets: expandedSubjectIds,
+        expandedSubjectIds
       }
     });
 
@@ -108,11 +110,8 @@ export function createProjectSubjectDrilldownController(config) {
     openDrilldown();
   }
 
-  function openDrilldownFromAvis(avisId) {
-    ensureViewUiState();
-    const selection = openDrilldownFromAvisSelection(avisId);
-    if (!selection) return;
-    openDrilldown();
+  function openDrilldownFromAvis() {
+    return null;
   }
 
   return {
