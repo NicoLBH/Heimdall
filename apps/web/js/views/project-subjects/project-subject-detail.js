@@ -25,12 +25,17 @@ export function createProjectSubjectDetailController(config) {
     setOverlayChromeOpenState(modal, isOpen);
     document.body.classList.toggle("modal-open", isOpen);
 
+    const expandedSubjectIds = store.projectSubjectsView?.rightExpandedSujets
+      || store.projectSubjectsView?.expandedSubjectIds
+      || store.situationsView?.rightExpandedSujets
+      || new Set();
+
     const details = renderDetailsHtml(null, {
       subissuesOptions: {
         sujetRowClass: "js-modal-drilldown-sujet",
         sujetToggleClass: "js-modal-toggle-sujet",
-        avisRowClass: "js-modal-drilldown-avis",
-        expandedSujets: store.situationsView.rightExpandedSujets
+        expandedSujets: expandedSubjectIds,
+        expandedSubjectIds
       }
     });
 
