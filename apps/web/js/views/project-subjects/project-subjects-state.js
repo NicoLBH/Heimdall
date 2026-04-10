@@ -1,14 +1,17 @@
 export function createProjectSubjectsState({ store }) {
   function getRawSubjectsViewState() {
     if (!store.projectSubjectsView || typeof store.projectSubjectsView !== "object") {
-      store.projectSubjectsView = store.situationsView && typeof store.situationsView === "object"
-        ? store.situationsView
-        : {};
+      store.projectSubjectsView = {};
     }
-    if (store.situationsView !== store.projectSubjectsView) {
-      store.situationsView = store.projectSubjectsView;
+    const view = store.projectSubjectsView;
+    if (!Array.isArray(view.subjectsData)) view.subjectsData = [];
+    if (!(view.rawSubjectsResult && typeof view.rawSubjectsResult === "object") && view.rawSubjectsResult !== null) {
+      view.rawSubjectsResult = null;
     }
-    return store.projectSubjectsView;
+    if (typeof view.projectScopeId !== "string" && view.projectScopeId !== null) {
+      view.projectScopeId = null;
+    }
+    return view;
   }
 
   function ensureViewUiState() {
