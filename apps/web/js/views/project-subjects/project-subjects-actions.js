@@ -176,7 +176,7 @@ export function createProjectSubjectsActions(config) {
   }
 
   function buildCascadeCounts() {
-    return { situation: 0, sujet: 0, avis: 0 };
+    return { situation: 0, sujet: 0 };
   }
 
   function getCascadeTargets(entityType, entityId, mode = "self") {
@@ -186,17 +186,9 @@ export function createProjectSubjectsActions(config) {
       targets.push({ type, id });
     };
 
-    if (entityType === "avis") {
-      pushTarget("avis", entityId);
-      return targets;
-    }
-
     if (entityType === "sujet") {
       const sujet = getNestedSujet(entityId);
       if (!sujet) return targets;
-      if (mode === "descendants") {
-        for (const avis of sujet.avis || []) pushTarget("avis", avis.id);
-      }
       pushTarget("sujet", entityId);
       return targets;
     }
@@ -206,7 +198,6 @@ export function createProjectSubjectsActions(config) {
       if (!situation) return targets;
       if (mode === "descendants") {
         for (const sujet of getSituationSubjects(situation)) {
-          for (const avis of sujet.avis || []) pushTarget("avis", avis.id);
           pushTarget("sujet", sujet.id);
         }
       }
@@ -248,21 +239,6 @@ export function createProjectSubjectsActions(config) {
     return { applied, skipped, counts };
   }
 
-  function applyValidateAvis(root) {
-    const target = currentDecisionTarget(root);
-    if (!target || target.type !== "avis") return;
-
-    const avisId = target.id;
-    const verdict = String(store.situationsView.tempAvisVerdict || "F").toUpperCase();
-    setDecision("avis", avisId, `VALIDATED_${verdict}`, "", { actor: "Human", agent: "human" });
-    markEntityValidated("avis", avisId, { actor: "Human", agent: "human" });
-    claimDescriptionAsHuman("avis", avisId, { actor: "Human", agent: "human" });
-    addActivity("avis", avisId, "review_validated", "", {
-      mode: "self",
-      counts: { situation: 0, sujet: 0, avis: 1 }
-    }, { actor: "Human", agent: "human" });
-    rerenderScope(root);
-  }
 
   function applyReviewStateRecursively(entityType, entityId, nextState, mode = "descendants") {
     const targets = getCascadeTargets(entityType, entityId, mode);
@@ -295,18 +271,18 @@ export function createProjectSubjectsActions(config) {
     const entityType = getSelectionEntityType(target.type);
     const entityId = target.id;
     const normalized = normalizeReviewState(nextState);
-    const mode = entityType === "avis" ? "self" : "descendants";
+    const mode = "descendants";
 
     if ((normalized === "rejected" || normalized === "dismissed") && entityType === "sujet") {
       const ok = window.confirm(
-        "Rejeter ce sujet entraînera le rejet automatique de tous ses avis. Voulez-vous continuer ? Vous pourrez récupérer ensuite l'état précédent."
+        "Rejeter ce sujet appliquera aussi l’état de review à son regroupement courant. Voulez-vous continuer ? Vous pourrez récupérer ensuite l'état précédent."
       );
       if (!ok) return;
     }
 
     if ((normalized === "rejected" || normalized === "dismissed") && entityType === "situation") {
       const ok = window.confirm(
-        "Rejeter cette situation entraînera le rejet automatique de tous ses sujets et de tous ses avis. Voulez-vous continuer ? Vous pourrez récupérer ensuite l'état précédent."
+        "Rejeter cette situation entraînera le rejet automatique de tous ses sujets. Voulez-vous continuer ? Vous pourrez récupérer ensuite l'état précédent."
       );
       if (!ok) return;
     }
@@ -334,7 +310,7 @@ export function createProjectSubjectsActions(config) {
 
     const entityType = getSelectionEntityType(target.type);
     const entityId = target.id;
-    const mode = entityType === "avis" ? "self" : "descendants";
+    const mode = "descendants";
     const result = applyRestoreCascade(entityType, entityId, mode);
 
     addActivity(entityType, entityId, "review_restored", "", {
@@ -350,11 +326,6 @@ export function createProjectSubjectsActions(config) {
   function applyValidateEntity(root, mode = "self") {
     const target = currentDecisionTarget(root);
     if (!target) return;
-
-    if (target.type === "avis") {
-      applyValidateAvis(root);
-      return;
-    }
 
     const entityType = getSelectionEntityType(target.type);
     const entityId = target.id;
@@ -372,7 +343,7 @@ export function createProjectSubjectsActions(config) {
 
   function applyIssueCloseOrReopen(nextStatus, root) {
     const target = currentDecisionTarget(root);
-    if (!target || target.type === "avis") return;
+    if (!target) return;
 
     if (target.type === "sujet") {
       setDecision("sujet", target.id, nextStatus === "closed" ? "CLOSED" : "REOPENED", "", { actor: "Human", agent: "human" });
