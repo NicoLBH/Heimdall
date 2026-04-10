@@ -1,3 +1,11 @@
+function logSubjectsTableDebug(step, payload) {
+  try {
+    console.log(`[subjects:table] ${step}`, payload);
+  } catch {
+    // noop
+  }
+}
+
 export function getSituationsTableGridTemplate() {
   return "minmax(0, 1fr) max-content";
 }
@@ -20,7 +28,7 @@ function renderWelcomeHtml(deps) {
     gridTemplate: getSituationsTableGridTemplate(),
     headHtml: renderSituationsTableHeadHtml({ deps }),
     emptyTitle: "Aucune analyse disponible",
-    emptyDescription: "Lancer une analyse pour générer des avis-sujets-situations."
+    emptyDescription: "Lancer une analyse pour générer des sujets."
   });
 }
 
@@ -93,8 +101,13 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
   } = deps;
 
   const selectorFlatSubjects = Array.isArray(getFilteredFlatSubjects?.()) ? getFilteredFlatSubjects() : [];
-  const rawSubjectsById = store.situationsView?.rawResult?.subjectsById && typeof store.situationsView.rawResult.subjectsById === "object"
-    ? store.situationsView.rawResult.subjectsById
+  const rawPayload = store.projectSubjectsView?.rawSubjectsResult && typeof store.projectSubjectsView.rawSubjectsResult === "object"
+    ? store.projectSubjectsView.rawSubjectsResult
+    : (store.projectSubjectsView?.rawResult && typeof store.projectSubjectsView.rawResult === "object"
+      ? store.projectSubjectsView.rawResult
+      : {});
+  const rawSubjectsById = rawPayload?.subjectsById && typeof rawPayload.subjectsById === "object"
+    ? rawPayload.subjectsById
     : {};
   const rawFlatSubjects = Object.values(rawSubjectsById);
   const activeStatusFilter = typeof getCurrentSubjectsStatusFilter === "function" ? getCurrentSubjectsStatusFilter() : "open";
@@ -107,7 +120,26 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
   const flatSubjects = selectorFlatSubjects.length ? selectorFlatSubjects : fallbackFlatSubjects;
   const hasAnySubjects = !!Object.keys(rawSubjectsById).length || !!flatSubjects.length;
 
+  logSubjectsTableDebug("renderProjectSubjectsTable", {
+    selectorFlatSubjectsCount: selectorFlatSubjects.length,
+    rawSubjectsByIdCount: Object.keys(rawSubjectsById).length,
+    fallbackFlatSubjectsCount: fallbackFlatSubjects.length,
+    renderedFlatSubjectsCount: flatSubjects.length,
+    activeStatusFilter,
+    activePriorityFilter,
+    sampleSubject: flatSubjects[0] || fallbackFlatSubjects[0] || null
+  });
+
   if (!hasAnySubjects) return renderWelcomeHtml(deps);
+
+  const rowDebugPreview = flatSubjects.slice(0, 3).map((subject) => ({
+    id: subject?.id || "",
+    title: subject?.title || "",
+    priority: subject?.priority || "",
+    status: subject?.status || "",
+    parent_subject_id: subject?.parent_subject_id || null
+  }));
+  logSubjectsTableDebug("renderProjectSubjectsTable:row-preview", rowDebugPreview);
 
   const rows = flatSubjects.map((sujet) => renderFlatSujetRow(sujet, "", { isSelectable: false, deps }));
 
