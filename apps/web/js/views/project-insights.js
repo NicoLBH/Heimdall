@@ -84,7 +84,7 @@ function renderExecutionInsightsCardsSection() {
           ${renderMetricCard({
             label: "Actions terminées",
             value: formatInteger(metrics.completedRuns),
-            hint: "Actions ayant produit un verdict d’exécution."
+            hint: "Actions terminées avec un état final exploitable."
           })}
 
           ${renderMetricCard({
@@ -111,17 +111,17 @@ function renderPilotageMetricStrip(summary) {
         <div class="settings-card__head">
           <div>
             <h4>Indicateurs de pilotage</h4>
-            <p>Vue projet côté CT / maîtrise d’ouvrage, calculée localement à partir des analyses et des revues humaines.</p>
+            <p>Vue projet calculée localement à partir des situations, sujets et runs disponibles.</p>
           </div>
           <span class="settings-badge mono">PROJECT METRICS</span>
         </div>
 
         <div class="pilotage-metrics-grid pilotage-metrics-grid--6">
-          ${renderMetricCard({ label: "Confiance IA", value: formatPercent(summary.confidenceRate), hint: "Part des avis validés sans modification dans la dernière période visible." })}
-          ${renderMetricCard({ label: "Temps moyen de validation", value: formatMinutes(summary.avgValidationMinutes), hint: "Temps moyen entre première ouverture et validation / rejet." })}
-          ${renderMetricCard({ label: "Avis à traiter", value: formatInteger(summary.backlog), hint: "Backlog courant encore non traité." })}
-          ${renderMetricCard({ label: "Points bloquants", value: formatInteger(summary.blocking), hint: "Avis défavorables encore non traités dans le snapshot courant." })}
-          ${renderMetricCard({ label: "Taux critique", value: formatPercent(summary.criticalRate), hint: "Part des avis S + D dans le dernier snapshot d’analyse." })}
+          ${renderMetricCard({ label: "Situations actives", value: formatInteger(summary.activeSituations), hint: "Nombre de situations actuellement ouvertes dans le projet." })}
+          ${renderMetricCard({ label: "Sous-sujets", value: formatInteger(summary.childSubjects), hint: "Volume de sujets enfants dans la hiérarchie courante." })}
+          ${renderMetricCard({ label: "Sujets ouverts", value: formatInteger(summary.backlog), hint: "Backlog courant encore ouvert." })}
+          ${renderMetricCard({ label: "Points bloquants", value: formatInteger(summary.blocking), hint: "Sous-ensemble haute priorité ou critique encore ouvert." })}
+          ${renderMetricCard({ label: "Taux critique", value: formatPercent(summary.criticalRate), hint: "Part des sujets critiques dans le snapshot courant." })}
           ${renderMetricCard({ label: "Taux de fermeture", value: formatPercent(summary.closureRate), hint: "Part du backlog courant déjà traité depuis le dernier snapshot." })}
         </div>
       </div>
