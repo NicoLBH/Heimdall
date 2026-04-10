@@ -107,14 +107,37 @@ export function createProjectSubjectsSelectors({
     return getSituationsByIdMap()[String(situationId || "")] || (getViewState().data || []).find((s) => s.id === situationId) || null;
   }
 
+  function collectSituationTreeSubjects(nodes = [], bucket = []) {
+    for (const node of Array.isArray(nodes) ? nodes : []) {
+      if (!node) continue;
+      bucket.push(node);
+      collectSituationTreeSubjects(node.children || node.avis || [], bucket);
+    }
+    return bucket;
+  }
+
+  function getSituationTreeSubjects(situationOrId) {
+    const situation = typeof situationOrId === "object"
+      ? situationOrId
+      : getNestedSituation(situationOrId);
+    return collectSituationTreeSubjects(situation?.sujets || []);
+  }
+
   function getSubjectsForSituation(situationOrId) {
     const situationId = String(typeof situationOrId === "object" ? situationOrId?.id || "" : situationOrId || "");
     const ids = getSubjectIdsBySituationIdMap()[situationId] || [];
     const linked = ids.map((id) => getSubjectById(id)).filter(Boolean);
+    const existingIds = new Set(linked.map((subject) => String(subject?.id || "")).filter(Boolean));
+
+    for (const nestedSubject of getSituationTreeSubjects(situationOrId)) {
+      const nestedId = String(nestedSubject?.id || "");
+      if (!nestedId || existingIds.has(nestedId)) continue;
+      linked.push(getSubjectById(nestedId) || nestedSubject);
+      existingIds.add(nestedId);
+    }
 
     const { bucket } = getRunBucket();
     const metaMap = bucket?.subjectMeta?.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
-    const existingIds = new Set(linked.map((subject) => String(subject?.id || "")).filter(Boolean));
 
     for (const [subjectId, meta] of Object.entries(metaMap)) {
       const linkedIds = normalizeSubjectSituationIds(meta?.situationIds);
@@ -148,6 +171,13 @@ export function createProjectSubjectsSelectors({
       .filter(([, ids]) => Array.isArray(ids) && ids.includes(normalizedId))
       .map(([situationId]) => getNestedSituation(situationId))
       .filter(Boolean);
+
+    for (const situation of Array.isArray(getViewState().data) ? getViewState().data : []) {
+      const hasSubjectInTree = getSituationTreeSubjects(situation).some((node) => String(node?.id || "") === normalizedId);
+      if (hasSubjectInTree && !entries.some((item) => String(item?.id || "") === String(situation?.id || ""))) {
+        entries.push(situation);
+      }
+    }
 
     const { bucket } = getRunBucket();
     const metaMap = bucket?.subjectMeta?.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
