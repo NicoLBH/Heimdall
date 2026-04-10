@@ -165,11 +165,11 @@ const subjectsSelectors = createProjectSubjectsSelectors({
   ensureViewUiState,
   getRunBucket,
   getCustomSubjects: (...args) => projectSubjectsView.getCustomSubjects(...args),
-  normalizeSubjectSituationIds,
+  normalizeSubjectSituationIds: (...args) => projectSubjectsView.normalizeSubjectSituationIds(...args),
   normalizeBackendPriority: (...args) => projectSubjectsView.normalizeBackendPriority(...args),
   getEffectiveAvisVerdict,
   getEffectiveSujetStatus,
-  matchSearch,
+  matchSearch: (...args) => projectSubjectsView.matchSearch(...args),
   firstNonEmpty
 });
 
@@ -207,7 +207,7 @@ const projectSubjectsSelection = createProjectSubjectsSelection({
   getDraftSubjectSelection: (...args) => projectSubjectsView.getDraftSubjectSelection(...args),
   getEffectiveAvisVerdict,
   openDetailsModal: () => projectSubjectDetail.openDetailsModal(),
-  rerenderPanels,
+  rerenderPanels: (...args) => projectSubjectsView.rerenderPanels(...args),
   markEntitySeen
 });
 
@@ -293,7 +293,7 @@ const projectSubjectsDescription = createProjectSubjectsDescription({
   getEntityReviewMeta,
   setEntityReviewMeta,
   currentDecisionTarget,
-  rerenderScope: (root) => rerenderScope(root),
+  rerenderScope: (...args) => projectSubjectsView.rerenderScope(...args),
   addActivity: (entityType, entityId, kind, message, meta, options) => addActivity(entityType, entityId, kind, message, meta, options),
   markEntityValidated: (entityType, entityId, options) => markEntityValidated(entityType, entityId, options)
 });
@@ -318,7 +318,7 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   getScopedSelection,
   getSubjectMetaMenuEntries: (...args) => projectSubjectsView.getSubjectMetaMenuEntries(...args),
   getSubjectSidebarMeta: (...args) => projectSubjectsView.getSubjectSidebarMeta(...args),
-  rerenderScope,
+  rerenderScope: (...args) => projectSubjectsView.rerenderScope(...args),
   focusSubjectMetaSearch: (...args) => projectSubjectsView.focusSubjectMetaSearch(...args),
   focusSubjectKanbanSearch: (...args) => projectSubjectsView.focusSubjectKanbanSearch(...args),
   syncSubjectMetaDropdownPosition: (...args) => projectSubjectsView.syncSubjectMetaDropdownPosition(...args),
@@ -343,14 +343,14 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   openDrilldownFromSujetPanel: (sujetId) => projectSubjectDrilldown.openDrilldownFromSujet(sujetId),
   openDrilldownFromAvisPanel: (avisId) => projectSubjectDrilldown.openDrilldownFromAvis(avisId),
   selectSujet,
-  rerenderPanels,
+  rerenderPanels: (...args) => projectSubjectsView.rerenderPanels(...args),
   resetSubjectsViewTransientState,
   resetObjectiveEditState,
   resetCreateSubjectForm: (...args) => projectSubjectsView.resetCreateSubjectForm(...args),
   closeDetailsModal: () => projectSubjectDetail.closeDetailsModal(),
   closeDrilldown: () => projectSubjectDrilldown.closeDrilldown(),
-  syncSituationsPrimaryScrollSource,
-  reloadSubjectsFromSupabase,
+  syncSituationsPrimaryScrollSource: (...args) => projectSubjectsView.syncSituationsPrimaryScrollSource(...args),
+  reloadSubjectsFromSupabase: (...args) => projectSubjectsView.reloadSubjectsFromSupabase(...args),
   openCreateSubjectForm: (...args) => projectSubjectsView.openCreateSubjectForm(...args),
   createSubjectFromDraft: (...args) => projectSubjectsView.createSubjectFromDraft(...args),
   normalizeBackendPriority: (...args) => projectSubjectsView.normalizeBackendPriority(...args),
@@ -506,9 +506,9 @@ const projectSubjectsActions = createProjectSubjectsActions({
   persistSubjectIssueActionToSupabase,
   showError,
   getSubjectSidebarMeta: (...args) => projectSubjectsView.getSubjectSidebarMeta(...args),
-  normalizeSubjectObjectiveIds,
-  normalizeSubjectSituationIds,
-  normalizeSubjectLabels,
+  normalizeSubjectObjectiveIds: (...args) => projectSubjectsView.normalizeSubjectObjectiveIds(...args),
+  normalizeSubjectSituationIds: (...args) => projectSubjectsView.normalizeSubjectSituationIds(...args),
+  normalizeSubjectLabels: (...args) => projectSubjectsView.normalizeSubjectLabels(...args),
   normalizeSubjectLabelKey: (...args) => projectSubjectsView.normalizeSubjectLabelKey(...args),
   getObjectives: (...args) => projectSubjectsView.getObjectives(...args)
 });
@@ -676,8 +676,8 @@ const projectSubjectsView = createProjectSubjectsView({
   getFilteredSituations: (...args) => getFilteredSituations(...args),
   getVisibleCounts: (...args) => getVisibleCounts(...args),
   renderProjectSubjectsTable,
-  wireDetailsInteractive: (...args) => wireDetailsInteractive(...args),
-  bindDetailsScroll: (...args) => bindDetailsScroll(...args),
+  wireDetailsInteractive: (...args) => projectSubjectsEvents.wireDetailsInteractive(...args),
+  bindDetailsScroll: (...args) => projectSubjectsEvents.bindDetailsScroll(...args),
   refreshProjectShellChrome,
   currentDecisionTarget: (...args) => currentDecisionTarget(...args),
   addComment: (...args) => addComment(...args),
@@ -718,6 +718,7 @@ const normalizeSubjectLabelKey = (...args) => projectSubjectsView.normalizeSubje
 const getSubjectSidebarMeta = (...args) => projectSubjectsView.getSubjectSidebarMeta(...args);
 const getObjectives = (...args) => projectSubjectsView.getObjectives(...args);
 const getObjectiveById = (...args) => projectSubjectsView.getObjectiveById(...args);
+const reloadSubjectsFromSupabase = (...args) => projectSubjectsView.reloadSubjectsFromSupabase(...args);
 const problemsCountsHtml = (...args) => projectSubjectsView.problemsCountsHtml(...args);
 const problemsCountsIconHtml = (...args) => projectSubjectsView.problemsCountsIconHtml(...args);
 const renderDetailedMetaForSelection = (...args) => projectSubjectsView.renderDetailedMetaForSelection(...args);
