@@ -111,7 +111,7 @@ function renderPilotageMetricStrip(summary) {
         <div class="settings-card__head">
           <div>
             <h4>Indicateurs de pilotage</h4>
-            <p>Vue projet calculée localement à partir des situations, sujets et runs disponibles.</p>
+            <p>Vue projet calculée localement à partir des sujets, de leurs relations et des runs disponibles.</p>
           </div>
           <span class="settings-badge mono">PROJECT METRICS</span>
         </div>
@@ -120,7 +120,7 @@ function renderPilotageMetricStrip(summary) {
           ${renderMetricCard({ label: "Situations actives", value: formatInteger(summary.activeSituations), hint: "Nombre de situations actuellement ouvertes dans le projet." })}
           ${renderMetricCard({ label: "Sous-sujets", value: formatInteger(summary.childSubjects), hint: "Volume de sujets enfants dans la hiérarchie courante." })}
           ${renderMetricCard({ label: "Sujets ouverts", value: formatInteger(summary.backlog), hint: "Backlog courant encore ouvert." })}
-          ${renderMetricCard({ label: "Points bloquants", value: formatInteger(summary.blocking), hint: "Sous-ensemble haute priorité ou critique encore ouvert." })}
+          ${renderMetricCard({ label: "Sujets bloqués", value: formatInteger(summary.blocking), hint: "Sujets actuellement bloqués par au moins un autre sujet." })}
           ${renderMetricCard({ label: "Taux critique", value: formatPercent(summary.criticalRate), hint: "Part des sujets critiques dans le snapshot courant." })}
           ${renderMetricCard({ label: "Taux de fermeture", value: formatPercent(summary.closureRate), hint: "Part du backlog courant déjà traité depuis le dernier snapshot." })}
         </div>
