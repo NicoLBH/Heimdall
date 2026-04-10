@@ -604,6 +604,26 @@ function entityDisplayLinkHtml(type, id) {
   return entityLinkHtml(type, id, escapeHtml(getEntityDisplayRef(type, id)));
 }
 
+
+function renderDocumentRefsCard(selection) {
+  const refs = getSelectionDocumentRefs(selection);
+  if (!refs.length) return "";
+
+  return `
+    <div class="details-document-refs" aria-label="Références documentaires">
+      <div class="details-document-refs__label">Références documentaires</div>
+      <div class="details-document-refs__list">
+        ${refs.map((doc) => `
+          <span class="details-document-ref">
+            <span class="details-document-ref__name">${escapeHtml(doc.name)}</span>
+            <span class="details-document-ref__phase">${escapeHtml(doc.phaseCode)}${doc.phaseLabel ? ` · ${escapeHtml(doc.phaseLabel)}` : ""}</span>
+          </span>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderVerdictHeadFilter() {
   const current = String(store.situationsView.verdictFilter || "ALL").toUpperCase();
 
