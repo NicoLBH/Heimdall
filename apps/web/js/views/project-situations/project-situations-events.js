@@ -1,68 +1,100 @@
-function logSituationCreate(step, payload = undefined) {
-  if (payload === undefined) {
-    console.log(`[situations:create] ${step}`);
-    return;
-  }
-  console.log(`[situations:create] ${step}`, payload);
+function syncSubmitButtonState(button, { submitting = false, title = "" } = {}) {
+  if (!button) return;
+  button.disabled = submitting || !String(title || "").trim();
 }
 
-function syncCreateSubmitButtonState(modal, uiState) {
-  if (!modal) return;
-  const submitButton = modal.querySelector("#projectCreateSituationSubmit");
-  if (!submitButton) {
-    logSituationCreate("submit button sync skipped: button not found");
-    return;
-  }
-  const title = String(uiState?.createForm?.title || "").trim();
-  const shouldDisable = !!uiState?.createSubmitting || !title;
-  submitButton.disabled = shouldDisable;
-  logSituationCreate("submit button sync", {
-    disabled: shouldDisable,
-    createSubmitting: !!uiState?.createSubmitting,
-    titleLength: title.length
-  });
+function parseCsvList(value) {
+  return [...new Set(String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean))];
 }
 
 export function createProjectSituationsEvents({
+  store,
   uiState,
   getDefaultCreateForm,
+  getSituationEditForm,
   normalizeSituationMode,
   buildCreateSituationPayload,
   rerender,
   refreshSituationsData,
   createSituationRecord,
+  updateSituationRecord,
   setSelectedSituationId,
+  getSituationById,
   loadSituationSelection
 }) {
+  function buildEditSituationPayload() {
+    const form = uiState.editForm || getDefaultCreateForm();
+    const mode = normalizeSituationMode(form.mode);
+    const status = [
+      form.automaticStatusOpen ? "open" : "",
+      form.automaticStatusClosed ? "closed" : ""
+    ].filter(Boolean);
+    const priorities = [
+      form.automaticPriorityLow ? "low" : "",
+      form.automaticPriorityMedium ? "medium" : "",
+      form.automaticPriorityHigh ? "high" : "",
+      form.automaticPriorityCritical ? "critical" : ""
+    ].filter(Boolean);
+
+    return {
+      title: String(form.title || "").trim(),
+      description: String(form.description || "").trim(),
+      status: String(form.status || "open") === "closed" ? "closed" : "open",
+      filter_definition: mode === "automatic"
+        ? {
+            status,
+            priorities,
+            objectiveIds: parseCsvList(form.automaticObjectiveIds),
+            labelIds: parseCsvList(form.automaticLabelIds),
+            assigneeIds: parseCsvList(form.automaticAssigneeIds),
+            blockedOnly: Boolean(form.automaticBlockedOnly)
+          }
+        : null
+    };
+  }
+
   function openCreateModal(root) {
-    logSituationCreate("open create modal click captured");
     uiState.createModalOpen = true;
     uiState.createSubmitting = false;
     uiState.createError = "";
     uiState.createForm = getDefaultCreateForm();
     rerender(root);
-
-    const modal = document.getElementById("projectCreateSituationModal");
-    syncCreateSubmitButtonState(modal, uiState);
+    syncSubmitButtonState(document.getElementById("projectCreateSituationSubmit"), {
+      submitting: uiState.createSubmitting,
+      title: uiState.createForm.title
+    });
   }
 
   function closeCreateModal(root) {
-    logSituationCreate("close create modal");
     uiState.createModalOpen = false;
     uiState.createSubmitting = false;
     uiState.createError = "";
     rerender(root);
   }
 
+  function openEditPanel(root, situationId) {
+    const selectedSituation = getSituationById(situationId || store.situationsView?.selectedSituationId);
+    if (!selectedSituation) return;
+    uiState.editPanelOpen = true;
+    uiState.editSubmitting = false;
+    uiState.editError = "";
+    uiState.editForm = getSituationEditForm(selectedSituation);
+    rerender(root);
+  }
+
+  function closeEditPanel(root) {
+    uiState.editPanelOpen = false;
+    uiState.editSubmitting = false;
+    uiState.editError = "";
+    rerender(root);
+  }
+
   async function submitCreateSituation(root) {
     const payload = buildCreateSituationPayload();
-    logSituationCreate("submitCreateSituation invoked", {
-      payload,
-      form: uiState.createForm || null
-    });
-
     if (!String(payload.title || "").trim()) {
-      logSituationCreate("submitCreateSituation blocked: missing title");
       uiState.createError = "Le titre est obligatoire.";
       rerender(root);
       return;
@@ -71,48 +103,58 @@ export function createProjectSituationsEvents({
     uiState.createSubmitting = true;
     uiState.createError = "";
     rerender(root);
-    logSituationCreate("submitCreateSituation state switched to submitting");
 
     try {
       const created = await createSituationRecord(payload);
-      logSituationCreate("createSituationRecord success", created);
       setSelectedSituationId(created?.id || null);
       uiState.createModalOpen = false;
       uiState.createSubmitting = false;
       uiState.createForm = getDefaultCreateForm();
       await refreshSituationsData(root, { forceSubjects: false });
-      logSituationCreate("post-create refresh completed", {
-        selectedSituationId: created?.id || null
-      });
     } catch (error) {
       console.error("createSituation failed", error);
-      logSituationCreate("createSituationRecord failed", {
-        message: error instanceof Error ? error.message : String(error || "")
-      });
       uiState.createSubmitting = false;
       uiState.createError = error instanceof Error ? error.message : "La création de la situation a échoué.";
       rerender(root);
     }
   }
 
-  function bindEvents(root) {
-    const openButton = root.querySelector("#openCreateSituationButton");
-    if (openButton) {
-      openButton.onclick = () => openCreateModal(root);
+  async function submitEditSituation(root) {
+    const situationId = String(store.situationsView?.selectedSituationId || "").trim();
+    const payload = buildEditSituationPayload();
+
+    if (!String(payload.title || "").trim()) {
+      uiState.editError = "Le titre est obligatoire.";
+      rerender(root);
+      return;
+    }
+    if (!situationId) {
+      uiState.editError = "Impossible d'identifier la situation à modifier.";
+      rerender(root);
+      return;
     }
 
-    root.querySelectorAll("button[data-open-situation]").forEach((node) => {
-      node.addEventListener("click", async () => {
-        const situationId = String(node.getAttribute("data-open-situation") || "").trim();
-        if (!situationId) return;
-        setSelectedSituationId(situationId);
-        const loadingPromise = loadSituationSelection(situationId);
-        rerender(root);
-        await loadingPromise;
-        rerender(root);
-      });
-    });
+    uiState.editSubmitting = true;
+    uiState.editError = "";
+    rerender(root);
 
+    try {
+      await updateSituationRecord(situationId, payload);
+      await refreshSituationsData(root, { forceSubjects: false });
+      uiState.editPanelOpen = false;
+      uiState.editSubmitting = false;
+      uiState.editError = "";
+      await loadSituationSelection(situationId);
+      rerender(root);
+    } catch (error) {
+      console.error("updateSituation failed", error);
+      uiState.editSubmitting = false;
+      uiState.editError = error instanceof Error ? error.message : "La mise à jour de la situation a échoué.";
+      rerender(root);
+    }
+  }
+
+  function bindCreateModalEvents(root) {
     const modal = document.getElementById("projectCreateSituationModal");
     if (!modal) return;
 
@@ -126,8 +168,10 @@ export function createProjectSituationsEvents({
         if (!key) return;
         uiState.createForm[key] = event.currentTarget.value;
         uiState.createError = "";
-        logSituationCreate("create field input", { key, value: event.currentTarget.value });
-        syncCreateSubmitButtonState(modal, uiState);
+        syncSubmitButtonState(modal.querySelector("#projectCreateSituationSubmit"), {
+          submitting: uiState.createSubmitting,
+          title: uiState.createForm.title
+        });
       });
     });
 
@@ -135,7 +179,6 @@ export function createProjectSituationsEvents({
       field.addEventListener("change", (event) => {
         uiState.createForm.mode = event.currentTarget.value === "automatic" ? "automatic" : "manual";
         uiState.createError = "";
-        logSituationCreate("create mode changed", { mode: uiState.createForm.mode });
         rerender(root);
       });
     });
@@ -146,26 +189,86 @@ export function createProjectSituationsEvents({
         if (!key) return;
         uiState.createForm[key] = !!event.currentTarget.checked;
         uiState.createError = "";
-        logSituationCreate("create checkbox changed", { key, checked: !!event.currentTarget.checked });
-        syncCreateSubmitButtonState(modal, uiState);
       });
     });
 
-    syncCreateSubmitButtonState(modal, uiState);
-
-    const submitButton = modal.querySelector("#projectCreateSituationSubmit");
-    if (submitButton) {
-      submitButton.addEventListener("click", async () => {
-        logSituationCreate("submit button click captured", { disabled: !!submitButton.disabled });
-        await submitCreateSituation(root);
-      });
-    }
+    modal.querySelector("#projectCreateSituationSubmit")?.addEventListener("click", async () => {
+      await submitCreateSituation(root);
+    });
 
     modal.addEventListener("submit", async (event) => {
       event.preventDefault();
-      logSituationCreate("modal submit event captured");
       await submitCreateSituation(root);
     });
+  }
+
+  function bindEditPanelEvents(root) {
+    root.querySelectorAll("[data-open-situation-edit]").forEach((node) => {
+      node.addEventListener("click", () => {
+        const situationId = String(node.getAttribute("data-open-situation-edit") || "").trim();
+        openEditPanel(root, situationId);
+      });
+    });
+
+    root.querySelectorAll("[data-close-situation-edit]").forEach((node) => {
+      node.addEventListener("click", () => closeEditPanel(root));
+    });
+
+    root.querySelectorAll("[data-situation-edit-field]").forEach((field) => {
+      field.addEventListener("input", (event) => {
+        const key = String(event.currentTarget?.getAttribute("data-situation-edit-field") || "").trim();
+        if (!key) return;
+        uiState.editForm[key] = event.currentTarget.value;
+        uiState.editError = "";
+        syncSubmitButtonState(root.querySelector("#projectEditSituationSubmit"), {
+          submitting: uiState.editSubmitting,
+          title: uiState.editForm.title
+        });
+      });
+    });
+
+    root.querySelectorAll('input[name="situationEditStatus"]').forEach((field) => {
+      field.addEventListener("change", (event) => {
+        uiState.editForm.status = event.currentTarget.value === "closed" ? "closed" : "open";
+        uiState.editError = "";
+      });
+    });
+
+    root.querySelectorAll("[data-situation-edit-checkbox]").forEach((field) => {
+      field.addEventListener("change", (event) => {
+        const key = String(event.currentTarget?.getAttribute("data-situation-edit-checkbox") || "").trim();
+        if (!key) return;
+        uiState.editForm[key] = !!event.currentTarget.checked;
+        uiState.editError = "";
+      });
+    });
+
+    root.querySelector("#projectEditSituationSubmit")?.addEventListener("click", async () => {
+      await submitEditSituation(root);
+    });
+  }
+
+  function bindEvents(root) {
+    const openButton = root.querySelector("#openCreateSituationButton");
+    if (openButton) {
+      openButton.onclick = () => openCreateModal(root);
+    }
+
+    root.querySelectorAll("button[data-open-situation]").forEach((node) => {
+      node.addEventListener("click", async () => {
+        const situationId = String(node.getAttribute("data-open-situation") || "").trim();
+        if (!situationId) return;
+        setSelectedSituationId(situationId);
+        uiState.editPanelOpen = false;
+        const loadingPromise = loadSituationSelection(situationId);
+        rerender(root);
+        await loadingPromise;
+        rerender(root);
+      });
+    });
+
+    bindCreateModalEvents(root);
+    bindEditPanelEvents(root);
   }
 
   return {
