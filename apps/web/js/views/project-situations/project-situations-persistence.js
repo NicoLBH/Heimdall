@@ -70,7 +70,7 @@ export function createProjectSituationsPersistence({
   }
 
   async function createSituationRecord(payload) {
-    return createSituation(null, payload);
+    return createSituation(store.currentProjectId, payload);
   }
 
   return {
