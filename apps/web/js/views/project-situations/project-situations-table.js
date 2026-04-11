@@ -47,7 +47,7 @@ export function createProjectSituationsTable({
       <div class="issue-row issue-row--sit${selectedClass}">
         <div class="cell cell-theme lvl0">
           <span class="issue-row-title-grid">
-            <span class="issue-row-title-grid__status" aria-hidden="true">${svgIcon("issue-tracks", { className: "octicon" })}</span>
+            <span class="issue-row-title-grid__status" aria-hidden="true">${svgIcon("table", { className: "octicon" })}</span>
             <span class="issue-row-title-grid__title">
               <button type="button" class="row-title-trigger theme-text theme-text--sit" data-open-situation="${escapeHtml(situation.id)}">${title}</button>
             </span>
