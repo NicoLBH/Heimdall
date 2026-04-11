@@ -284,7 +284,7 @@ export function createProjectSubjectsEvents(config) {
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       });
 
-      input.addEventListener("keydown", (event) => {
+      input.addEventListener("keydown", async (event) => {
         const field = String(input.dataset.subjectMetaSearch || "");
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
@@ -314,8 +314,7 @@ export function createProjectSubjectsEvents(config) {
           }
           if (field === "situations") {
             event.preventDefault();
-            toggleSubjectSituation(subjectSelection.item.id, activeKey);
-            rerenderScope(root);
+            await toggleSubjectSituation(subjectSelection.item.id, activeKey, { root });
             focusSubjectMetaSearch(root, field);
             syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
             return;
@@ -345,13 +344,12 @@ export function createProjectSubjectsEvents(config) {
     });
 
     dropdownHost.querySelectorAll("[data-situation-toggle]").forEach((btn) => {
-      btn.onclick = (event) => {
+      btn.onclick = async (event) => {
         event.preventDefault();
         event.stopPropagation();
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
-        toggleSubjectSituation(subjectSelection.item.id, String(btn.dataset.situationToggle || ""));
-        rerenderScope(root);
+        await toggleSubjectSituation(subjectSelection.item.id, String(btn.dataset.situationToggle || ""), { root });
         focusSubjectMetaSearch(root, "situations");
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       };
