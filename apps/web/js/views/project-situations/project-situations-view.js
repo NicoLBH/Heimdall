@@ -144,18 +144,22 @@ export function createProjectSituationsView({
   }
 
   function renderPage() {
+    const hasSelectedSituation = !!String(store.situationsView?.selectedSituationId || "").trim();
+
     return `
       <section class="project-simple-page project-simple-page--settings">
         <div class="project-simple-scroll" id="projectSituationsScroll">
           <div class="settings-content project-page-shell project-page-shell--content">
-            <div style="display:flex;justify-content:flex-end;align-items:center;margin:0 0 16px;">
-              <button type="button" class="gh-btn gh-btn--primary" id="openCreateSituationButton">Nouvelle situation</button>
-            </div>
-            <section class="gh-panel gh-panel--results" aria-label="Results">
-              ${renderSituationsTable()}
-            </section>
-            <div style="height:16px;"></div>
-            ${renderSelectedSituationDetails()}
+            ${hasSelectedSituation
+              ? `${renderSelectedSituationDetails()}`
+              : `
+                <div style="display:flex;justify-content:flex-end;align-items:center;margin:0 0 16px;">
+                  <button type="button" class="gh-btn gh-btn--primary" id="openCreateSituationButton">Nouvelle situation</button>
+                </div>
+                <section class="gh-panel gh-panel--results" aria-label="Results">
+                  ${renderSituationsTable()}
+                </section>
+              `}
           </div>
         </div>
         ${renderCreateSituationModal()}
