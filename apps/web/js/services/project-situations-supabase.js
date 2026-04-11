@@ -271,7 +271,7 @@ export async function createSituation(projectId, payload = {}) {
     project_id: resolvedProjectId,
     title: firstNonEmpty(payload.title, "Nouvelle situation"),
     description: firstNonEmpty(payload.description, "") || null,
-    objective_text: payload.objective_text ?? firstNonEmpty(payload.description, "") || null,
+    objective_text: payload.objective_text ?? (firstNonEmpty(payload.description, "") || null),
     progress_percent: Number.isFinite(payload.progress_percent) ? payload.progress_percent : 0,
     status: normalizeSituationStatus(payload.status),
     mode: normalizeSituationMode(payload.mode),
