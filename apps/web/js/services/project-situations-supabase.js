@@ -1,5 +1,6 @@
 import { store } from "../store.js";
 import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.js";
+import { resolveCurrentBackendProjectId } from "./project-supabase-sync.js";
 
 const SUPABASE_URL = getSupabaseUrl();
 const FRONT_PROJECT_MAP_STORAGE_KEY = "mdall.supabaseProjectMap.v1";
@@ -90,8 +91,14 @@ async function getSupabaseAuthHeaders(extra = {}) {
   return buildSupabaseAuthHeaders(extra);
 }
 
-function getResolvedProjectId(projectId) {
-  return normalizeUuid(projectId) || getMappedBackendProjectId();
+async function getResolvedProjectId(projectId) {
+  const explicitProjectId = normalizeUuid(projectId);
+  if (explicitProjectId) return explicitProjectId;
+
+  const mappedProjectId = getMappedBackendProjectId();
+  if (mappedProjectId) return mappedProjectId;
+
+  return normalizeUuid(await resolveCurrentBackendProjectId().catch(() => ""));
 }
 
 function getSituationsSelectClause() {
@@ -247,7 +254,7 @@ function sortSubjects(subjects = []) {
 }
 
 export async function loadSituationsForCurrentProject(projectId) {
-  const resolvedProjectId = getResolvedProjectId(projectId);
+  const resolvedProjectId = await getResolvedProjectId(projectId);
   if (!resolvedProjectId) {
     store.situationsView.data = [];
     store.situationsView.rawResult = { situations: [], situationsById: {} };
@@ -261,7 +268,7 @@ export async function loadSituationsForCurrentProject(projectId) {
 }
 
 export async function createSituation(projectId, payload = {}) {
-  const resolvedProjectId = getResolvedProjectId(projectId);
+  const resolvedProjectId = await getResolvedProjectId(projectId);
   if (!resolvedProjectId) throw new Error("projectId is required");
 
   const body = {
