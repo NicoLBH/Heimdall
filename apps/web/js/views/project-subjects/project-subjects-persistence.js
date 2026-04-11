@@ -35,26 +35,59 @@ export function createProjectSubjectsPersistence(deps = {}) {
     }
   }
 
+  function createEmptyEntityMap() {
+    return {
+      sujet: {},
+      situation: {}
+    };
+  }
+
+  function cleanupLegacyRunBucket(bucket) {
+    let mutated = false;
+
+    bucket.descriptions = bucket.descriptions && typeof bucket.descriptions === "object"
+      ? bucket.descriptions
+      : createEmptyEntityMap();
+    bucket.decisions = bucket.decisions && typeof bucket.decisions === "object"
+      ? bucket.decisions
+      : createEmptyEntityMap();
+    bucket.review = bucket.review && typeof bucket.review === "object"
+      ? bucket.review
+      : createEmptyEntityMap();
+
+    [bucket.descriptions, bucket.decisions, bucket.review].forEach((entityMap) => {
+      if (entityMap.avis) {
+        delete entityMap.avis;
+        mutated = true;
+      }
+      if (!entityMap.sujet || typeof entityMap.sujet !== "object") {
+        entityMap.sujet = {};
+        mutated = true;
+      }
+      if (!entityMap.situation || typeof entityMap.situation !== "object") {
+        entityMap.situation = {};
+        mutated = true;
+      }
+    });
+
+    ["selectedAvisId", "tempAvisVerdict", "tempAvisVerdictFor"].forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(bucket, key)) {
+        delete bucket[key];
+        mutated = true;
+      }
+    });
+
+    return mutated;
+  }
+
   function ensureRunBucketShape(all, key) {
     if (!all.runs[key]) {
       all.runs[key] = {
         comments: [],
         activities: [],
-        descriptions: {
-          avis: {},
-          sujet: {},
-          situation: {}
-        },
-        decisions: {
-          avis: {},
-          sujet: {},
-          situation: {}
-        },
-        review: {
-          avis: {},
-          sujet: {},
-          situation: {}
-        },
+        descriptions: createEmptyEntityMap(),
+        decisions: createEmptyEntityMap(),
+        review: createEmptyEntityMap(),
         objectives: [],
         workflow: {
           sujet_kanban_status: {}
@@ -68,21 +101,14 @@ export function createProjectSubjectsPersistence(deps = {}) {
     }
 
     const bucket = all.runs[key];
+    let shouldSave = cleanupLegacyRunBucket(bucket);
     if (!bucket.descriptions) {
-      bucket.descriptions = {
-        avis: {},
-        sujet: {},
-        situation: {}
-      };
-      saveHumanStore(all);
+      bucket.descriptions = createEmptyEntityMap();
+      shouldSave = true;
     }
     if (!bucket.review) {
-      bucket.review = {
-        avis: {},
-        sujet: {},
-        situation: {}
-      };
-      saveHumanStore(all);
+      bucket.review = createEmptyEntityMap();
+      shouldSave = true;
     }
     if (!Array.isArray(bucket.objectives)) {
       bucket.objectives = [];
@@ -106,8 +132,10 @@ export function createProjectSubjectsPersistence(deps = {}) {
     }
     if (!Array.isArray(bucket.customSubjects)) {
       bucket.customSubjects = [];
-      saveHumanStore(all);
+      shouldSave = true;
     }
+
+    if (shouldSave) saveHumanStore(all);
 
     return bucket;
   }
