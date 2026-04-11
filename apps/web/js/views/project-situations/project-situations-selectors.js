@@ -39,6 +39,12 @@ export function createProjectSituationsSelectors({ store, uiState }) {
       });
   }
 
+
+  function getSelectedSituation() {
+    const selectedId = String(store.situationsView?.selectedSituationId || "").trim();
+    return getSituations().find((situation) => situation.id === selectedId) || null;
+  }
+
   function renderSituationCount(situationId) {
     const count = uiState.countsBySituationId[String(situationId || "")];
     if (Number.isFinite(count)) return String(count);
@@ -79,6 +85,7 @@ export function createProjectSituationsSelectors({ store, uiState }) {
     normalizeSituationMode,
     normalizeSituationStatus,
     getSituations,
+    getSelectedSituation,
     renderSituationCount,
     formatSituationUpdatedLabel
   };
