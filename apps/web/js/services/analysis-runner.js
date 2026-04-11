@@ -22,6 +22,25 @@ const POLL_MAX_INTERVAL_MS = 20_000;
 const POLL_MAX_MS = 12 * 60_000;
 const POLL_FAST_TRIES = 5;
 
+function delay(ms = 0) {
+  const safeMs = Number.isFinite(ms) ? Math.max(0, Number(ms)) : 0;
+  return new Promise((resolve) => globalThis.setTimeout(resolve, safeMs));
+}
+
+function computePollDelayMs(tries = 1, progress = null) {
+  const numericTries = Number.isFinite(tries) ? Math.max(1, Number(tries)) : 1;
+  const numericProgress = Number.isFinite(progress) ? Number(progress) : null;
+
+  if (numericProgress !== null && numericProgress >= 95) return 1_000;
+  if (numericProgress !== null && numericProgress >= 80) return 1_500;
+  if (numericProgress !== null && numericProgress >= 60) return 2_000;
+  if (numericProgress !== null && numericProgress >= 30) return 3_000;
+  if (numericTries <= POLL_FAST_TRIES) return POLL_BASE_MS;
+
+  const backoffMs = POLL_BASE_MS + ((numericTries - POLL_FAST_TRIES) * 1_000);
+  return Math.min(POLL_MAX_INTERVAL_MS, backoffMs);
+}
+
 let activeRunPromise = null;
 let activePollToken = 0;
 
