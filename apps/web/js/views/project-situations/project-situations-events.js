@@ -1,3 +1,11 @@
+function logSituationCreate(step, payload = undefined) {
+  if (payload === undefined) {
+    console.log(`[situations:create] ${step}`);
+    return;
+  }
+  console.log(`[situations:create] ${step}`, payload);
+}
+
 export function createProjectSituationsEvents({
   uiState,
   getDefaultCreateForm,
@@ -10,6 +18,7 @@ export function createProjectSituationsEvents({
   loadSituationSelection
 }) {
   function openCreateModal(root) {
+    logSituationCreate("open create modal click captured");
     uiState.createModalOpen = true;
     uiState.createSubmitting = false;
     uiState.createError = "";
@@ -18,6 +27,7 @@ export function createProjectSituationsEvents({
   }
 
   function closeCreateModal(root) {
+    logSituationCreate("close create modal");
     uiState.createModalOpen = false;
     uiState.createSubmitting = false;
     uiState.createError = "";
@@ -26,7 +36,13 @@ export function createProjectSituationsEvents({
 
   async function submitCreateSituation(root) {
     const payload = buildCreateSituationPayload();
+    logSituationCreate("submitCreateSituation invoked", {
+      payload,
+      form: uiState.createForm || null
+    });
+
     if (!String(payload.title || "").trim()) {
+      logSituationCreate("submitCreateSituation blocked: missing title");
       uiState.createError = "Le titre est obligatoire.";
       rerender(root);
       return;
@@ -35,16 +51,24 @@ export function createProjectSituationsEvents({
     uiState.createSubmitting = true;
     uiState.createError = "";
     rerender(root);
+    logSituationCreate("submitCreateSituation state switched to submitting");
 
     try {
       const created = await createSituationRecord(payload);
+      logSituationCreate("createSituationRecord success", created);
       setSelectedSituationId(created?.id || null);
       uiState.createModalOpen = false;
       uiState.createSubmitting = false;
       uiState.createForm = getDefaultCreateForm();
       await refreshSituationsData(root, { forceSubjects: false });
+      logSituationCreate("post-create refresh completed", {
+        selectedSituationId: created?.id || null
+      });
     } catch (error) {
       console.error("createSituation failed", error);
+      logSituationCreate("createSituationRecord failed", {
+        message: error instanceof Error ? error.message : String(error || "")
+      });
       uiState.createSubmitting = false;
       uiState.createError = error instanceof Error ? error.message : "La création de la situation a échoué.";
       rerender(root);
@@ -82,6 +106,7 @@ export function createProjectSituationsEvents({
         if (!key) return;
         uiState.createForm[key] = event.currentTarget.value;
         uiState.createError = "";
+        logSituationCreate("create field input", { key, value: event.currentTarget.value });
       });
     });
 
@@ -89,6 +114,7 @@ export function createProjectSituationsEvents({
       field.addEventListener("change", (event) => {
         uiState.createForm.mode = event.currentTarget.value === "automatic" ? "automatic" : "manual";
         uiState.createError = "";
+        logSituationCreate("create mode changed", { mode: uiState.createForm.mode });
         rerender(root);
       });
     });
@@ -99,15 +125,23 @@ export function createProjectSituationsEvents({
         if (!key) return;
         uiState.createForm[key] = !!event.currentTarget.checked;
         uiState.createError = "";
+        logSituationCreate("create checkbox changed", { key, checked: !!event.currentTarget.checked });
       });
     });
 
     const submitButton = modal.querySelector("#projectCreateSituationSubmit");
     if (submitButton) {
-      submitButton.addEventListener("click", () => {
-        submitCreateSituation(root);
+      submitButton.addEventListener("click", async () => {
+        logSituationCreate("submit button click captured", { disabled: !!submitButton.disabled });
+        await submitCreateSituation(root);
       });
     }
+
+    modal.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      logSituationCreate("modal submit event captured");
+      await submitCreateSituation(root);
+    });
   }
 
   return {
