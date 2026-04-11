@@ -76,6 +76,9 @@ export function createProjectSituationsState({ store }) {
     if (typeof view.selectedSituationId !== "string" && view.selectedSituationId !== null) {
       view.selectedSituationId = null;
     }
+    if (!view.kanbanStatusBySituationId || typeof view.kanbanStatusBySituationId !== "object" || Array.isArray(view.kanbanStatusBySituationId)) {
+      view.kanbanStatusBySituationId = {};
+    }
     return view;
   }
 
