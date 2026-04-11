@@ -1586,12 +1586,24 @@ function syncSubjectMetaDropdownPosition(root) {
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     const dropdownWidth = 320;
     const gutter = 12;
+    const spacing = 8;
     const left = Math.max(gutter, Math.min(rect.right - dropdownWidth, viewportWidth - dropdownWidth - gutter));
-    const maxHeight = Math.max(240, Math.min(420, viewportHeight - rect.bottom - gutter - 8));
-    dropdown.style.left = `${left}px`;
-    dropdown.style.top = `${Math.max(gutter, rect.bottom - 4)}px`;
+    const spaceBelow = Math.max(0, viewportHeight - rect.bottom - gutter);
+    const spaceAbove = Math.max(0, rect.top - gutter);
+    const preferredHeight = Math.min(420, Math.max(240, Math.max(spaceBelow, spaceAbove)));
+    const maxHeight = Math.max(180, preferredHeight);
+
     dropdown.style.width = `${dropdownWidth}px`;
     dropdown.style.maxHeight = `${maxHeight}px`;
+
+    const measuredHeight = Math.min(dropdown.offsetHeight || maxHeight, maxHeight);
+    const shouldOpenAbove = spaceBelow < Math.min(240, measuredHeight) && spaceAbove > spaceBelow;
+    const top = shouldOpenAbove
+      ? Math.max(gutter, rect.top - measuredHeight - spacing)
+      : Math.max(gutter, rect.bottom - 4);
+
+    dropdown.style.left = `${left}px`;
+    dropdown.style.top = `${top}px`;
     host.setAttribute("aria-hidden", "false");
   });
 }
