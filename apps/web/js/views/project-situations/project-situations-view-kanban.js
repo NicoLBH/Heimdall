@@ -123,7 +123,7 @@ export function createProjectSituationsKanbanView({
                         </div>
                         <button
                           type="button"
-                          class="situation-kanban-card__title"
+                          class="situation-kanban-card__title row-title-trigger"
                           data-open-situation-subject="${escapeHtml(subject.id)}"
                         >${escapeHtml(String(subject?.title || subject?.id || "Sujet"))}</button>
                         ${progress ? `
@@ -153,7 +153,7 @@ export function createProjectSituationsKanbanView({
       node.addEventListener("click", () => {
         const subjectId = String(node.getAttribute("data-open-situation-subject") || "").trim();
         if (!subjectId) return;
-        openSubjectDrilldown(subjectId);
+        openSubjectDrilldown(subjectId, { variant: "situation-kanban" });
       });
     });
 
