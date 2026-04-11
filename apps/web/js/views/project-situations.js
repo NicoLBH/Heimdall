@@ -1,7 +1,10 @@
 import { store } from "../store.js";
 import { escapeHtml } from "../utils/escape-html.js";
+import { svgIcon } from "../ui/icons.js";
 import { renderStatusBadge } from "./ui/status-badges.js";
 import { renderSettingsModal } from "./ui/settings-modal.js";
+import { renderDataTableHead } from "./ui/data-table-shell.js";
+import { renderIssuesTable } from "./ui/issues-table.js";
 import { registerProjectPrimaryScrollSource, setProjectViewHeader } from "./project-shell-chrome.js";
 import { renderProjectSituationsRunbar, bindProjectSituationsRunbar } from "./project-situations-runbar.js";
 import { loadFlatSubjectsForCurrentProject } from "../services/project-subjects-supabase.js";
@@ -147,6 +150,68 @@ function renderSituationCount(situationId) {
   return situationsUiState.loading ? "…" : "0";
 }
 
+function formatSituationUpdatedLabel(ts) {
+  const date = ts ? new Date(ts) : null;
+  if (!date || Number.isNaN(date.getTime())) return "mis à jour récemment";
+
+  const diffMs = Date.now() - date.getTime();
+  const absSeconds = Math.max(1, Math.round(Math.abs(diffMs) / 1000));
+  const units = [
+    [31536000, "an", "ans"],
+    [2592000, "mois", "mois"],
+    [86400, "jour", "jours"],
+    [3600, "h", "h"],
+    [60, "min", "min"],
+    [1, "s", "s"]
+  ];
+
+  for (const [seconds, singular, plural] of units) {
+    if (absSeconds >= seconds) {
+      const value = Math.floor(absSeconds / seconds);
+      const label = value > 1 ? plural : singular;
+      return diffMs < 0
+        ? `mise à jour dans ${value} ${label}`
+        : `mise à jour il y a ${value} ${label}`;
+    }
+  }
+
+  return "mis à jour récemment";
+}
+
+function getSituationsTableHeadHtml() {
+  return renderDataTableHead({
+    columns: [
+      { className: "cell cell-theme", label: "Situation" },
+      { className: "cell", label: "Statut" },
+      { className: "cell", label: "Mode" },
+      { className: "cell", label: "Nb sujets" }
+    ]
+  });
+}
+
+function renderSituationTitleCell(situation) {
+  const title = escapeHtml(situation.title);
+  const updatedLabel = escapeHtml(formatSituationUpdatedLabel(situation.updated_at || situation.created_at || ""));
+  const selectedClass = store.situationsView?.selectedSituationId === situation.id ? " selected subissue-row--selected" : "";
+
+  return `
+    <div class="issue-row issue-row--sit${selectedClass}">
+      <div class="cell cell-theme lvl0">
+        <span class="issue-row-title-grid">
+          <span class="issue-row-title-grid__status" aria-hidden="true">${svgIcon("issue-tracks", { className: "octicon" })}</span>
+          <span class="issue-row-title-grid__title">
+            <button type="button" class="row-title-trigger theme-text theme-text--sit" data-open-situation="${escapeHtml(situation.id)}">${title}</button>
+          </span>
+          <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${updatedLabel}</span>
+        </span>
+      </div>
+      <div class="cell">${renderStatePill(situation.status)}</div>
+      <div class="cell">${renderModePill(situation.mode)}</div>
+      <div class="cell mono">${escapeHtml(renderSituationCount(situation.id))}</div>
+    </div>
+  `;
+}
+
 function renderSituationsTable() {
   const situations = getSituations();
 
@@ -155,49 +220,21 @@ function renderSituationsTable() {
   }
 
   if (situationsUiState.loading && !situations.length) {
-    return '<div class="settings-empty-note">Chargement des situations…</div>';
+    return renderIssuesTable({
+      gridTemplate: "minmax(420px, 1.6fr) max-content max-content 90px",
+      headHtml: getSituationsTableHeadHtml(),
+      emptyTitle: "Chargement des situations…",
+      emptyDescription: ""
+    });
   }
 
-  if (!situations.length) {
-    return `
-      <div class="data-table-shell__empty">
-        Aucune situation n’est disponible pour ce projet.
-      </div>
-    `;
-  }
-
-  return `
-    <div class="data-table-shell">
-      <div class="data-table-shell__table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Titre</th>
-              <th>Description</th>
-              <th>Statut</th>
-              <th>Mode</th>
-              <th>Nb sujets</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${situations.map((situation) => `
-              <tr class="${store.situationsView?.selectedSituationId === situation.id ? "is-selected" : ""}" data-open-situation="${escapeHtml(situation.id)}" style="cursor:pointer;">
-                <td>
-                  <button type="button" class="link-like" data-open-situation="${escapeHtml(situation.id)}">
-                    ${escapeHtml(situation.title)}
-                  </button>
-                </td>
-                <td>${situation.description ? escapeHtml(situation.description) : '<span class="color-fg-muted">—</span>'}</td>
-                <td>${renderStatePill(situation.status)}</td>
-                <td>${renderModePill(situation.mode)}</td>
-                <td>${escapeHtml(renderSituationCount(situation.id))}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
+  return renderIssuesTable({
+    gridTemplate: "minmax(420px, 1.6fr) max-content max-content 90px",
+    headHtml: getSituationsTableHeadHtml(),
+    rowsHtml: situations.map((situation) => renderSituationTitleCell(situation)).join(""),
+    emptyTitle: "Aucune situation",
+    emptyDescription: "Aucune situation n’est disponible pour ce projet."
+  });
 }
 
 function renderCreateSituationModal() {
@@ -291,32 +328,12 @@ function renderPage() {
   return `
     <section class="project-simple-page project-simple-page--settings">
       <div class="project-simple-scroll" id="projectSituationsScroll">
-        <div class="settings-content" style="max-width:1216px;margin:0 auto;padding:24px 32px 40px;">
-          <section class="settings-section">
-            <div class="settings-card settings-card-less">
-              <div class="settings-card__head">
-                <div>
-                  <h4>Pilotage par situations</h4>
-                  <p>Chaque situation est désormais chargée depuis Supabase et expose un mode métier unique: manuel ou automatique.</p>
-                </div>
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                  <span class="settings-badge mono">SITUATION VIEW</span>
-                  <button type="button" class="gh-btn gh-btn--primary" id="openCreateSituationButton">Nouvelle situation</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="settings-card settings-card-less">
-              <div class="settings-card__head">
-                <div>
-                  <h4>Liste des situations</h4>
-                  <p>Source de vérité: table <span class="mono">situations</span>, avec résolution dynamique du nombre de sujets par situation.</p>
-                </div>
-              </div>
-              ${renderSituationsTable()}
-            </div>
+        <div class="settings-content project-page-shell project-page-shell--content">
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin:0 0 16px;">
+            <button type="button" class="gh-btn gh-btn--primary" id="openCreateSituationButton">Nouvelle situation</button>
+          </div>
+          <section class="gh-panel gh-panel--results" aria-label="Results">
+            ${renderSituationsTable()}
           </section>
         </div>
       </div>
@@ -404,7 +421,7 @@ function bindEvents(root) {
     openButton.onclick = () => openCreateModal(root);
   }
 
-  root.querySelectorAll("[data-open-situation]").forEach((node) => {
+  root.querySelectorAll("button[data-open-situation]").forEach((node) => {
     node.addEventListener("click", () => {
       const situationId = String(node.getAttribute("data-open-situation") || "").trim();
       if (!situationId) return;
