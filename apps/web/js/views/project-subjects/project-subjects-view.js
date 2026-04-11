@@ -555,7 +555,8 @@ function normalizeSubjectLabels(labels) {
 
 function getSubjectSidebarMeta(subjectId) {
   ensureViewUiState();
-  if (String(subjectId || "") === DRAFT_SUBJECT_ID && store.situationsView.createSubjectForm?.isOpen) {
+  const normalizedSubjectId = String(subjectId || "");
+  if (normalizedSubjectId === DRAFT_SUBJECT_ID && store.situationsView.createSubjectForm?.isOpen) {
     const meta = store.situationsView.createSubjectForm.meta || buildDefaultDraftSubjectMeta();
     return {
       assignees: Array.isArray(meta.assignees) ? meta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
@@ -565,26 +566,45 @@ function getSubjectSidebarMeta(subjectId) {
       relations: Array.isArray(meta.relations) ? meta.relations.map((value) => String(value || "")).filter(Boolean) : []
     };
   }
+
   const { bucket } = getRunBucket();
-  const subjectMeta = bucket?.subjectMeta?.sujet?.[subjectId] || {};
+  const subjectMeta = bucket?.subjectMeta?.sujet?.[normalizedSubjectId] || {};
   const objectiveIds = Array.isArray(subjectMeta.objectiveIds)
     ? normalizeSubjectObjectiveIds(subjectMeta.objectiveIds)
     : normalizeSubjectObjectiveIds(
         getObjectives()
-          .filter((objective) => Array.isArray(objective.subjectIds) && objective.subjectIds.includes(String(subjectId || "")))
+          .filter((objective) => Array.isArray(objective.subjectIds) && objective.subjectIds.includes(normalizedSubjectId))
           .map((objective) => String(objective.id || ""))
           .filter(Boolean)
       );
-  const subject = getNestedSujet(subjectId);
-  const derivedSituationIds = [String(subject?.raw?.situation_id || subject?.situation_id || "")].filter(Boolean);
-  const situationIds = Array.isArray(subjectMeta.situationIds)
-    ? normalizeSubjectSituationIds(subjectMeta.situationIds)
-    : normalizeSubjectSituationIds(derivedSituationIds);
+
+  const subject = getNestedSujet(normalizedSubjectId);
+  const rawResult = (store.projectSubjectsView?.rawSubjectsResult && typeof store.projectSubjectsView.rawSubjectsResult === "object")
+    ? store.projectSubjectsView.rawSubjectsResult
+    : ((store.projectSubjectsView?.rawResult && typeof store.projectSubjectsView.rawResult === "object")
+      ? store.projectSubjectsView.rawResult
+      : {});
+  const subjectIdsBySituationId = rawResult?.subjectIdsBySituationId && typeof rawResult.subjectIdsBySituationId === "object"
+    ? rawResult.subjectIdsBySituationId
+    : {};
+
+  const linkedSituationIdsFromMap = Object.entries(subjectIdsBySituationId)
+    .filter(([, ids]) => Array.isArray(ids) && ids.map((value) => String(value || "")).includes(normalizedSubjectId))
+    .map(([situationId]) => String(situationId || ""))
+    .filter(Boolean);
+
+  const storedSituationIds = normalizeSubjectSituationIds(subjectMeta.situationIds);
+  const derivedSituationIds = normalizeSubjectSituationIds([
+    ...storedSituationIds,
+    ...linkedSituationIdsFromMap,
+    String(subject?.raw?.situation_id || subject?.situation_id || "")
+  ]);
+
   return {
     assignees: Array.isArray(subjectMeta.assignees) ? subjectMeta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
     labels: normalizeSubjectLabels(subjectMeta.labels),
     objectiveIds,
-    situationIds,
+    situationIds: derivedSituationIds,
     relations: Array.isArray(subjectMeta.relations) ? subjectMeta.relations.map((value) => String(value || "")).filter(Boolean) : []
   };
 }
