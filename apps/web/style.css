@@ -712,7 +712,7 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 .subject-meta-dropdown-host{
   position:fixed;
   inset:0;
-  z-index:1400;
+  z-index:calc(var(--z-assist) + 20);
   pointer-events:none;
 }
 
@@ -726,7 +726,7 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   display:flex;
   flex-direction:column;
   padding:0;
-  z-index:1401;
+  z-index:calc(var(--z-assist) + 21);
   overflow:hidden;
   pointer-events:auto;
 }
