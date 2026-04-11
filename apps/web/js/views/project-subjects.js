@@ -711,7 +711,7 @@ export function setSujetKanbanStatusForSituation(...args) {
 }
 
 export function openSubjectDrilldownFromSituation(...args) {
-  return openSubjectDrilldown(...args);
+  return projectSubjectDrilldown.openDrilldownFromSubject(...args);
 }
 
 
