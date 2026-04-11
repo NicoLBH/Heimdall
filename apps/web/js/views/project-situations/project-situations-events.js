@@ -6,6 +6,23 @@ function logSituationCreate(step, payload = undefined) {
   console.log(`[situations:create] ${step}`, payload);
 }
 
+function syncCreateSubmitButtonState(modal, uiState) {
+  if (!modal) return;
+  const submitButton = modal.querySelector("#projectCreateSituationSubmit");
+  if (!submitButton) {
+    logSituationCreate("submit button sync skipped: button not found");
+    return;
+  }
+  const title = String(uiState?.createForm?.title || "").trim();
+  const shouldDisable = !!uiState?.createSubmitting || !title;
+  submitButton.disabled = shouldDisable;
+  logSituationCreate("submit button sync", {
+    disabled: shouldDisable,
+    createSubmitting: !!uiState?.createSubmitting,
+    titleLength: title.length
+  });
+}
+
 export function createProjectSituationsEvents({
   uiState,
   getDefaultCreateForm,
@@ -24,6 +41,9 @@ export function createProjectSituationsEvents({
     uiState.createError = "";
     uiState.createForm = getDefaultCreateForm();
     rerender(root);
+
+    const modal = document.getElementById("projectCreateSituationModal");
+    syncCreateSubmitButtonState(modal, uiState);
   }
 
   function closeCreateModal(root) {
@@ -107,6 +127,7 @@ export function createProjectSituationsEvents({
         uiState.createForm[key] = event.currentTarget.value;
         uiState.createError = "";
         logSituationCreate("create field input", { key, value: event.currentTarget.value });
+        syncCreateSubmitButtonState(modal, uiState);
       });
     });
 
@@ -126,8 +147,11 @@ export function createProjectSituationsEvents({
         uiState.createForm[key] = !!event.currentTarget.checked;
         uiState.createError = "";
         logSituationCreate("create checkbox changed", { key, checked: !!event.currentTarget.checked });
+        syncCreateSubmitButtonState(modal, uiState);
       });
     });
+
+    syncCreateSubmitButtonState(modal, uiState);
 
     const submitButton = modal.querySelector("#projectCreateSituationSubmit");
     if (submitButton) {
