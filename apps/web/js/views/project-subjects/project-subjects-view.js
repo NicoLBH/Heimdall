@@ -512,6 +512,9 @@ function getSujetKanbanStatus(sujetId, situationId = "") {
   const statusMap = bucket?.workflow?.sujet_kanban_status;
   const scopedStored = normalizeSujetKanbanStatus(normalizedSituationId ? statusMap?.[normalizedSituationId]?.[sujetId] : null);
   if (scopedStored) return scopedStored;
+  const persistedMap = store?.situationsView?.kanbanStatusBySituationId;
+  const persistedScoped = normalizeSujetKanbanStatus(normalizedSituationId ? persistedMap?.[normalizedSituationId]?.[sujetId] : null);
+  if (persistedScoped) return persistedScoped;
   const legacyStored = normalizeSujetKanbanStatus(statusMap?.[sujetId]);
   return legacyStored || getDefaultSujetKanbanStatus(sujetId);
 }
