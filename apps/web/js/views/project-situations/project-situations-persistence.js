@@ -13,6 +13,7 @@ export function createProjectSituationsPersistence({
   loadFlatSubjectsForCurrentProject,
   loadSituationsForCurrentProject,
   loadSubjectsForSituation,
+  loadSituationKanbanStatusMap,
   createSituation,
   updateSituation
 }) {
@@ -56,6 +57,7 @@ export function createProjectSituationsPersistence({
     });
     await loadFlatSubjectsForCurrentProject({ force: forceSubjects });
     const situations = await loadSituationsForCurrentProject();
+    store.situationsView.kanbanStatusBySituationId = await loadSituationKanbanStatusMap(situations.map((situation) => String(situation?.id || ""))).catch(() => ({}));
     logSituationCreate("refreshSituationsData situations loaded", {
       count: safeArray(situations).length,
       ids: safeArray(situations).map((situation) => String(situation?.id || "")).filter(Boolean)
