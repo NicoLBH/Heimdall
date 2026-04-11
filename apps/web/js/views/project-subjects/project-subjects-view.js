@@ -1019,7 +1019,12 @@ function buildSubjectMetaMenuItems(subject, field) {
 
   if (field === "situations") {
     const selectedSituationIds = new Set(getSubjectSidebarMeta(subject.id).situationIds);
-    const situations = Object.values(store.projectSubjectsView?.rawSubjectsResult?.relationOptionsById || {}).filter((situation) => matchSearch([situation.title, situation.id], query));
+    const situationSource = Object.keys(store.projectSubjectsView?.rawSubjectsResult?.situationsById || {}).length
+      ? Object.values(store.projectSubjectsView?.rawSubjectsResult?.situationsById || {})
+      : (Array.isArray(store.situationsView?.data) && store.situationsView.data.length
+        ? store.situationsView.data
+        : Object.values(store.projectSubjectsView?.rawSubjectsResult?.relationOptionsById || {}));
+    const situations = situationSource.filter((situation) => matchSearch([situation.title, situation.id], query));
     const toItem = (situation) => {
       const isSelected = selectedSituationIds.has(String(situation.id || ""));
       return {
@@ -1100,14 +1105,16 @@ function renderSubjectMetaDropdown(subject, field) {
     const { openItems, closedItems } = buildSubjectMetaMenuItems(subject, field);
     return `
       <div class="subject-meta-dropdown gh-menu gh-menu--open" role="dialog">
-        <div class="subject-meta-dropdown__title">Situations liées</div>
+        <div class="subject-meta-dropdown__title">Sélectionnez des situations</div>
         <div class="subject-meta-dropdown__search">
           <span class="subject-meta-dropdown__search-icon" aria-hidden="true">${svgIcon("search", { className: "octicon octicon-search" })}</span>
-          <input type="search" class="subject-meta-dropdown__search-input" data-subject-meta-search="${escapeHtml(field)}" value="${escapeHtml(query)}" placeholder="Filtrer les situations" autocomplete="off">
+          <input type="search" class="subject-meta-dropdown__search-input" data-subject-meta-search="${escapeHtml(field)}" value="${escapeHtml(query)}" placeholder="Rechercher une situation" autocomplete="off">
         </div>
         <div class="subject-meta-dropdown__body">
-          ${renderSelectMenuSection({ title: "Ouvertes", items: openItems, emptyTitle: "Aucune situation ouverte", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune situation ouverte disponible." })}
-          ${renderSelectMenuSection({ title: "Fermées", items: closedItems, emptyTitle: "Aucune situation fermée", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune situation fermée disponible." })}
+          <div class="subject-kanban-dropdown__separator" aria-hidden="true"></div>
+          ${renderSelectMenuSection({ items: openItems, emptyTitle: "Aucune situation ouverte", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune situation ouverte disponible." })}
+          <div class="subject-kanban-dropdown__separator" aria-hidden="true"></div>
+          ${renderSelectMenuSection({ title: "Situations fermées", items: closedItems, emptyTitle: "Aucune situation fermée", emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucune situation fermée disponible." })}
         </div>
       </div>
     `;
