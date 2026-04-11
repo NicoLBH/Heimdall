@@ -19,6 +19,11 @@ import { createProjectSituationsThread } from "./project-situations/project-situ
 import { createProjectSituationsKanbanView } from "./project-situations/project-situations-view-kanban.js";
 
 export { getEffectiveSujetStatus, getEffectiveSituationStatus } from "./project-subjects.js";
+import {
+  getSujetKanbanStatusForSituation,
+  setSujetKanbanStatusForSituation,
+  openSubjectDrilldownFromSituation
+} from "./project-subjects.js";
 
 const { uiState, ensureSituationsViewState } = createProjectSituationsState({ store });
 
@@ -37,6 +42,8 @@ const {
 } = createProjectSituationsSelection({ store, ensureSituationsViewState });
 
 const {
+  getSituationById,
+  loadSituationSelection,
   refreshSituationsData: refreshSituationsDataInternal,
   createSituationRecord
 } = createProjectSituationsPersistence({
@@ -61,16 +68,33 @@ const {
   formatSituationUpdatedLabel
 });
 
-const { renderPage } = createProjectSituationsView({
+const {
+  renderPage,
+  bindViewEvents
+} = createProjectSituationsView({
+  store,
   uiState,
   getDefaultCreateForm,
   normalizeSituationMode,
-  renderSituationsTable
+  renderSituationsTable,
+  getSituationById,
+  renderSituationKanban: (...args) => kanbanView.renderSituationKanban(...args)
 });
 
 createProjectSituationsReviewState({ store, uiState });
 createProjectSituationsThread({ store, uiState });
-createProjectSituationsKanbanView({ store, uiState });
+const kanbanView = createProjectSituationsKanbanView({
+  getSujetKanbanStatus: (...args) => getSujetKanbanStatusForSituation(...args),
+  setSujetKanbanStatus: (...args) => setSujetKanbanStatusForSituation(...args),
+  openSubjectDrilldown: (...args) => openSubjectDrilldownFromSituation(...args),
+  refreshAfterKanbanChange: async () => {
+    const selectedId = String(store.situationsView?.selectedSituationId || "").trim();
+    if (!selectedId) return;
+    await loadSituationSelection(selectedId);
+    const root = document.querySelector(".project-shell__content");
+    if (root) rerender(root);
+  }
+});
 
 function syncSituationsToolbar(root = document) {
   const toolbarHost = document.getElementById("situationsToolbarHost");
@@ -125,6 +149,8 @@ function rerender(root) {
   syncSituationsToolbar(root);
   registerProjectPrimaryScrollSource(document.getElementById("projectSituationsScroll"));
   bindEvents(root);
+  bindViewEvents(root);
+  kanbanView.bindKanbanEvents(root);
 }
 
 async function refreshSituationsData(root, { forceSubjects = false } = {}) {
@@ -151,7 +177,8 @@ const { bindEvents } = createProjectSituationsEvents({
   rerender,
   refreshSituationsData,
   createSituationRecord,
-  setSelectedSituationId
+  setSelectedSituationId,
+  loadSituationSelection
 });
 
 export function renderProjectSituations(root) {
