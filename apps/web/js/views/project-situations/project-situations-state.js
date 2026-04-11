@@ -1,7 +1,8 @@
-export function getDefaultCreateForm() {
+export function getDefaultSituationForm() {
   return {
     title: "",
     description: "",
+    status: "open",
     mode: "manual",
     automaticStatusOpen: true,
     automaticStatusClosed: false,
@@ -16,6 +17,38 @@ export function getDefaultCreateForm() {
   };
 }
 
+export function getDefaultCreateForm() {
+  return getDefaultSituationForm();
+}
+
+function toCsv(value) {
+  return Array.isArray(value) ? value.filter(Boolean).join(", ") : "";
+}
+
+export function getSituationEditForm(situation) {
+  const filter = situation?.filter_definition && typeof situation.filter_definition === "object"
+    ? situation.filter_definition
+    : {};
+
+  return {
+    ...getDefaultSituationForm(),
+    title: String(situation?.title || ""),
+    description: String(situation?.description || ""),
+    status: String(situation?.status || "open") === "closed" ? "closed" : "open",
+    mode: String(situation?.mode || "manual") === "automatic" ? "automatic" : "manual",
+    automaticStatusOpen: Array.isArray(filter.status) ? filter.status.includes("open") : true,
+    automaticStatusClosed: Array.isArray(filter.status) ? filter.status.includes("closed") : false,
+    automaticPriorityLow: Array.isArray(filter.priorities) ? filter.priorities.includes("low") : false,
+    automaticPriorityMedium: Array.isArray(filter.priorities) ? filter.priorities.includes("medium") : false,
+    automaticPriorityHigh: Array.isArray(filter.priorities) ? filter.priorities.includes("high") : false,
+    automaticPriorityCritical: Array.isArray(filter.priorities) ? filter.priorities.includes("critical") : false,
+    automaticBlockedOnly: Boolean(filter.blockedOnly),
+    automaticObjectiveIds: toCsv(filter.objectiveIds),
+    automaticLabelIds: toCsv(filter.labelIds),
+    automaticAssigneeIds: toCsv(filter.assigneeIds)
+  };
+}
+
 export function createProjectSituationsState({ store }) {
   const uiState = {
     loading: false,
@@ -27,7 +60,11 @@ export function createProjectSituationsState({ store }) {
     createModalOpen: false,
     createSubmitting: false,
     createError: "",
-    createForm: getDefaultCreateForm()
+    createForm: getDefaultCreateForm(),
+    editPanelOpen: false,
+    editSubmitting: false,
+    editError: "",
+    editForm: getDefaultSituationForm()
   };
 
   function ensureSituationsViewState() {
@@ -49,11 +86,19 @@ export function createProjectSituationsState({ store }) {
     uiState.createForm = getDefaultCreateForm();
   }
 
+  function resetEditState() {
+    uiState.editPanelOpen = false;
+    uiState.editSubmitting = false;
+    uiState.editError = "";
+    uiState.editForm = getDefaultSituationForm();
+  }
+
   ensureSituationsViewState();
 
   return {
     uiState,
     ensureSituationsViewState,
-    resetCreateState
+    resetCreateState,
+    resetEditState
   };
 }
