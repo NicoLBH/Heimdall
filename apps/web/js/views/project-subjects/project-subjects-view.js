@@ -77,8 +77,7 @@ function issueIcon(status = "open", options = {}) {
 
   const normalizedReview = normalizeReviewState(reviewState);
   if (normalizedReview === "rejected" || normalizedReview === "dismissed") {
-    const iconName = String(entityType || "").toLowerCase() === "avis" ? "slash" : "skip";
-    const svg = svgIcon(iconName, { style: "color: rgb(145, 152, 161)" });
+    const svg = svgIcon("skip", { style: "color: rgb(145, 152, 161)" });
     return `<span class="issue-status-icon" aria-hidden="true">${svg}</span>`;
   }
 
@@ -124,8 +123,7 @@ function statePill(status = "open", options = {}) {
 
   const normalizedReview = normalizeReviewState(reviewState);
   if (normalizedReview === "rejected" || normalizedReview === "dismissed") {
-    const iconName = String(entityType || "").toLowerCase() === "avis" ? "slash" : "skip";
-    const rejectedIcon = svgIcon(iconName, { style: "color: #fff" });
+    const rejectedIcon = svgIcon("skip", { style: "color: #fff" });
     return `<span class="gh-state gh-state--rejected"><span class="gh-state-dot" aria-hidden="true">${rejectedIcon}</span>Rejected</span>`;
   }
 
