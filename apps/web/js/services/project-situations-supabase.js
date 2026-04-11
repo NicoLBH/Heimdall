@@ -43,6 +43,14 @@ function normalizeArrayOfStrings(value) {
   return [...new Set(safeArray(value).map((entry) => String(entry || "").trim()).filter(Boolean))];
 }
 
+const SITUATION_KANBAN_STATUS_KEYS = new Set(["non_active", "to_activate", "in_progress", "in_arbitration", "resolved"]);
+
+function normalizeSituationKanbanStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return SITUATION_KANBAN_STATUS_KEYS.has(normalized) ? normalized : "";
+}
+
+
 function normalizeFilterDefinition(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
 
@@ -424,7 +432,7 @@ export async function loadManualSituationSubjectIds(situationId) {
   if (!normalizedSituationId) return [];
 
   const url = new URL(`${SUPABASE_URL}/rest/v1/situation_subjects`);
-  url.searchParams.set("select", "subject_id,created_at");
+  url.searchParams.set("select", "subject_id,created_at,kanban_status");
   url.searchParams.set("situation_id", `eq.${normalizedSituationId}`);
   url.searchParams.set("order", "created_at.asc");
 
@@ -447,7 +455,7 @@ export async function loadSituationSubjectIdsMap(situationIds = []) {
   if (!normalizedIds.length) return {};
 
   const url = new URL(`${SUPABASE_URL}/rest/v1/situation_subjects`);
-  url.searchParams.set("select", "situation_id,subject_id,created_at");
+  url.searchParams.set("select", "situation_id,subject_id,created_at,kanban_status");
   url.searchParams.set("situation_id", `in.(${normalizedIds.join(",")})`);
   url.searchParams.set("order", "created_at.asc");
 
@@ -474,7 +482,73 @@ export async function loadSituationSubjectIdsMap(situationIds = []) {
   return map;
 }
 
-export async function addSubjectToSituation(situationId, subjectId) {
+
+export async function loadSituationKanbanStatusMap(situationIds = []) {
+  const normalizedIds = normalizeArrayOfStrings(situationIds).map(normalizeUuid).filter(Boolean);
+  if (!normalizedIds.length) return {};
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/situation_subjects`);
+  url.searchParams.set("select", "situation_id,subject_id,kanban_status,created_at");
+  url.searchParams.set("situation_id", `in.(${normalizedIds.join(",")})`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`situation_subjects kanban fetch failed (${res.status}): ${text}`);
+  }
+
+  const rows = safeArray(await res.json());
+  const map = Object.fromEntries(normalizedIds.map((id) => [id, {}]));
+  rows.forEach((row) => {
+    const situationId = normalizeUuid(row?.situation_id);
+    const subjectId = normalizeUuid(row?.subject_id);
+    const kanbanStatus = normalizeSituationKanbanStatus(row?.kanban_status);
+    if (!situationId || !subjectId || !kanbanStatus) return;
+    if (!map[situationId] || typeof map[situationId] !== "object" || Array.isArray(map[situationId])) map[situationId] = {};
+    map[situationId][subjectId] = kanbanStatus;
+  });
+  return map;
+}
+
+export async function setSituationSubjectKanbanStatus(situationId, subjectId, kanbanStatus) {
+  const normalizedSituationId = normalizeUuid(situationId);
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  const normalizedStatus = normalizeSituationKanbanStatus(kanbanStatus);
+  if (!normalizedSituationId) throw new Error("situationId is required");
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  if (!normalizedStatus) throw new Error("kanbanStatus is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/situation_subjects`);
+  url.searchParams.set("situation_id", `eq.${normalizedSituationId}`);
+  url.searchParams.set("subject_id", `eq.${normalizedSubjectId}`);
+
+  const res = await fetch(url.toString(), {
+    method: "PATCH",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify({
+      kanban_status: normalizedStatus
+    })
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`situation_subjects kanban update failed (${res.status}): ${text}`);
+  }
+
+  return (safeArray(await res.json())[0]) || null;
+}
+
+export async function addSubjectToSituation(situationId, subjectId, options = {}) {
   const normalizedSituationId = normalizeUuid(situationId);
   const normalizedSubjectId = normalizeUuid(subjectId);
   if (!normalizedSituationId) throw new Error("situationId is required");
@@ -489,7 +563,8 @@ export async function addSubjectToSituation(situationId, subjectId) {
     }),
     body: JSON.stringify({
       situation_id: normalizedSituationId,
-      subject_id: normalizedSubjectId
+      subject_id: normalizedSubjectId,
+      ...(normalizeSituationKanbanStatus(options.kanbanStatus) ? { kanban_status: normalizeSituationKanbanStatus(options.kanbanStatus) } : {})
     })
   });
 
