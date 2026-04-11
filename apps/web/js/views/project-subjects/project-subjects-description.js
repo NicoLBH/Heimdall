@@ -20,11 +20,6 @@ export function createProjectSubjectsDescription(config = {}) {
     markEntityValidated
   } = config;
 
-  function getAvisSummary(avis) {
-    const raw = avis?.raw || {};
-    return firstNonEmpty(raw.description, avis?.description, raw.summary, raw.message, raw.comment, raw.reasoning, raw.analysis, avis?.title, "Aucune synthèse disponible.");
-  }
-
   function getSujetSummary(sujet) {
     const raw = sujet?.raw || {};
     return firstNonEmpty(raw.description, sujet?.description, raw.summary, raw.message, raw.comment, raw.reasoning, raw.analysis, sujet?.title, "Aucune synthèse disponible.");
@@ -47,24 +42,16 @@ export function createProjectSubjectsDescription(config = {}) {
     }
 
     const entity = selection?.item || getEntityByType(entityType, id);
-    const body =
-      entityType === "avis"
-        ? getAvisSummary(entity)
-        : entityType === "sujet"
-          ? getSujetSummary(entity)
-          : getSituationSummary(entity);
+    const body = entityType === "sujet"
+      ? getSujetSummary(entity)
+      : getSituationSummary(entity);
 
     return {
       body: String(body || ""),
       author: firstNonEmpty(entity?.agent, entity?.raw?.agent, "system"),
       agent: String(firstNonEmpty(entity?.agent, entity?.raw?.agent, "system")).toLowerCase(),
       avatar_type: "agent",
-      avatar_initial:
-        entityType === "avis"
-          ? "A"
-          : entityType === "sujet"
-            ? "P"
-            : "S"
+      avatar_initial: entityType === "sujet" ? "P" : "S"
     };
   }
 
@@ -96,7 +83,7 @@ export function createProjectSubjectsDescription(config = {}) {
   function setEntityDescriptionState(entityType, entityId, patch = {}, options = {}) {
     const ts = options.ts || nowIso();
     persistRunBucket((bucket) => {
-      bucket.descriptions = bucket.descriptions || { avis: {}, sujet: {}, situation: {} };
+      bucket.descriptions = bucket.descriptions || { sujet: {}, situation: {} };
       bucket.descriptions[entityType] = bucket.descriptions[entityType] || {};
       const prev = getEntityDescriptionState(entityType, entityId);
       const nextBody = firstNonEmpty(patch.body, prev.body, "");
@@ -114,14 +101,10 @@ export function createProjectSubjectsDescription(config = {}) {
       };
     });
 
-    if (entityType === "avis") {
-      const entity = getEntityByType(entityType, entityId);
-      const meta = getEntityReviewMeta(entityType, entityId);
-      setEntityReviewMeta(entityType, entityId, {
-        has_human_edit: Boolean(getRunBucket().bucket?.descriptions?.[entityType]?.[entityId]?.is_human_edited),
-        source_verdict: firstNonEmpty(entity?.raw?.verdict, entity?.verdict, meta.source_verdict, null)
-      }, options);
-    }
+    const meta = getEntityReviewMeta(entityType, entityId);
+    setEntityReviewMeta(entityType, entityId, {
+      has_human_edit: Boolean(getRunBucket().bucket?.descriptions?.[entityType]?.[entityId]?.is_human_edited)
+    }, options);
   }
 
   function claimDescriptionAsHuman(entityType, entityId, options = {}) {
@@ -268,7 +251,6 @@ export function createProjectSubjectsDescription(config = {}) {
   }
 
   return {
-    getAvisSummary,
     getSujetSummary,
     getSituationSummary,
     getDescriptionDefaults,
