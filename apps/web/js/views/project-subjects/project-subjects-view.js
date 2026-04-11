@@ -54,6 +54,7 @@ export function createProjectSubjectsView(deps) {
     getProjectSubjectLabels,
     getProjectSubjectDetail,
     getProjectSubjectDrilldown,
+    resetObjectiveEditState,
     loadExistingSubjectsForCurrentProject,
     getSubjectsCurrentRoot,
     registerProjectPrimaryScrollSource,
