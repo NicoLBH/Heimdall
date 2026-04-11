@@ -13,7 +13,8 @@ export function createProjectSituationsPersistence({
   loadFlatSubjectsForCurrentProject,
   loadSituationsForCurrentProject,
   loadSubjectsForSituation,
-  createSituation
+  createSituation,
+  updateSituation
 }) {
   function getSituationById(situationId) {
     const normalizedId = String(situationId || "").trim();
@@ -96,10 +97,16 @@ export function createProjectSituationsPersistence({
     return created;
   }
 
+  async function updateSituationRecord(situationId, patch) {
+    const updated = await updateSituation(situationId, patch);
+    return updated;
+  }
+
   return {
     getSituationById,
     loadSituationSelection,
     refreshSituationsData,
-    createSituationRecord
+    createSituationRecord,
+    updateSituationRecord
   };
 }
