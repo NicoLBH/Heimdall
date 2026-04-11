@@ -375,7 +375,7 @@ async function fetchSituationsByProject(projectId) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/situations`);
   url.searchParams.set(
     "select",
-    "id,project_id,title,description,objective_text,status,progress_percent,created_at,updated_at,closed_at"
+    "id,project_id,title,description,objective_text,progress_percent,status,mode,filter_definition,created_at,updated_at,closed_at"
   );
   url.searchParams.set("project_id", `eq.${projectId}`);
   url.searchParams.set("order", "created_at.asc");
@@ -592,7 +592,7 @@ function normalizeFinalResult(final, options = {}) {
       return withDocumentRefs({
         id: String(situationId || ""),
         title: firstNonEmpty(situation?.title, situation?.label, situation?.name, situation?.situation, situation?.topic, situationId),
-        description: firstNonEmpty(situation?.description, situation?.objective_text, ""),
+        description: firstNonEmpty(situation?.description, ""),
         priority: firstNonEmpty(situation?.priority, situation?.prio, "medium"),
         status: firstNonEmpty(situation?.status, "open"),
         raw: situation,
