@@ -91,15 +91,18 @@ function getProjectsSignature(projects = []) {
 }
 
 function renderProjectRow(project) {
+  const projectId = String(project?.id || "").trim();
+  const href = projectId ? `#project/${projectId}/documents` : "#projects";
+
   return `
-    <button class="projects-repo__row" type="button" data-project-id="${project.id}">
+    <a class="projects-repo__row" href="${href}" data-project-id="${projectId}">
       <div class="projects-repo__cell projects-repo__cell--name">
         <span class="projects-repo__name">${project.name}</span>
       </div>
       <div class="projects-repo__cell projects-repo__cell--client">${project.clientName}</div>
       <div class="projects-repo__cell projects-repo__cell--city">${project.city}</div>
       <div class="projects-repo__cell projects-repo__cell--phase">${project.currentPhase}</div>
-    </button>
+    </a>
   `;
 }
 
@@ -607,11 +610,11 @@ export function renderProjectsList(root) {
     </section>
   `;
 
-  root.querySelectorAll("[data-project-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const projectId = button.dataset.projectId || "";
-      const project = setCurrentDemoProject(projectId);
-      location.hash = `#project/${project.id}/documents`;
+  root.querySelectorAll("[data-project-id]").forEach((link) => {
+    link.addEventListener("click", () => {
+      const projectId = String(link.dataset.projectId || "").trim();
+      if (!projectId) return;
+      setCurrentDemoProject(projectId);
     });
   });
 }
