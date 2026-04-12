@@ -5,35 +5,13 @@ export function createProjectSubjectLabelsController(config) {
     svgIcon,
     renderIssuesTable,
     normalizeSubjectLabelKey,
-    getSubjectSidebarMeta
+    getSubjectSidebarMeta,
+    createLabel,
+    updateLabel,
+    deleteLabel,
+    reloadSubjectsFromSupabase,
+    getSubjectsCurrentRoot
   } = config;
-
-  const SUBJECT_DEFAULT_LABEL_DEFINITIONS = [
-    { key: "bloquant", label: "bloquant", description: "Empêche l'avancement ou la décision.", color: "rgba(182, 2, 5, 0.18)", textColor: "rgb(254, 155, 156)", borderColor: "rgba(254, 155, 156, 0.3)", hexColor: "#b60205" },
-    { key: "critique", label: "critique", description: "Point majeur à traiter en priorité.", color: "rgba(217, 63, 11, 0.18)", textColor: "rgb(247, 140, 104)", borderColor: "rgba(247, 140, 104, 0.3)", hexColor: "#d93f0b" },
-    { key: "sensible", label: "sensible", description: "Sujet délicat nécessitant de la vigilance.", color: "rgba(83, 25, 231, 0.18)", textColor: "rgb(219, 207, 250)", borderColor: "rgba(219, 207, 250, 0.3)", hexColor: "#5319e7" },
-    { key: "non conforme", label: "non conforme", description: "Écart constaté par rapport aux exigences.", color: "rgba(182, 2, 5, 0.18)", textColor: "rgb(254, 155, 156)", borderColor: "rgba(254, 155, 156, 0.3)", hexColor: "#b60205" },
-    { key: "incident", label: "incident", description: "Événement ou anomalie signalé(e).", color: "rgba(217, 63, 11, 0.18)", textColor: "rgb(247, 140, 104)", borderColor: "rgba(247, 140, 104, 0.3)", hexColor: "#d93f0b" },
-    { key: "réserve", label: "réserve", description: "Point à lever ou à suivre avant clôture.", color: "rgba(228, 230, 105, 0.18)", textColor: "rgb(228, 230, 107)", borderColor: "rgba(228, 230, 107, 0.3)", hexColor: "#fbca04" },
-    { key: "question", label: "question", description: "Clarification attendue sur ce point.", color: "rgba(216, 118, 227, 0.18)", textColor: "rgb(219, 130, 229)", borderColor: "rgba(219, 130, 229, 0.3)", hexColor: "#d876e3" },
-    { key: "à arbitrer", label: "à arbitrer", description: "Décision de pilotage ou d'arbitrage requise.", color: "rgba(0, 82, 204, 0.18)", textColor: "rgb(108, 167, 255)", borderColor: "rgba(108, 167, 255, 0.3)", hexColor: "#0052cc" },
-    { key: "validation requise", label: "validation requise", description: "Validation formelle attendue.", color: "rgba(191, 218, 220, 0.18)", textColor: "rgb(192, 219, 221)", borderColor: "rgba(192, 219, 221, 0.3)", hexColor: "#bfdadc" },
-    { key: "à préciser", label: "à préciser", description: "Informations complémentaires nécessaires.", color: "rgba(29, 118, 219, 0.18)", textColor: "rgb(107, 167, 236)", borderColor: "rgba(107, 167, 236, 0.3)", hexColor: "#1d76db" },
-    { key: "information", label: "information", description: "Point purement informatif.", color: "rgba(0, 107, 117, 0.18)", textColor: "rgb(0, 232, 253)", borderColor: "rgba(0, 232, 253, 0.3)", hexColor: "#006b75" },
-    { key: "refusé", label: "refusé", description: "Demande ou proposition rejetée.", color: "rgba(182, 2, 5, 0.18)", textColor: "rgb(254, 155, 156)", borderColor: "rgba(254, 155, 156, 0.3)", hexColor: "#b60205" },
-    { key: "variante", label: "variante", description: "Solution alternative proposée.", color: "rgba(29, 118, 219, 0.18)", textColor: "rgb(107, 167, 236)", borderColor: "rgba(107, 167, 236, 0.3)", hexColor: "#1d76db" },
-    { key: "modification", label: "modification", description: "Évolution demandée sur l'existant.", color: "rgba(0, 82, 204, 0.18)", textColor: "rgb(108, 167, 255)", borderColor: "rgba(108, 167, 255, 0.3)", hexColor: "#0052cc" },
-    { key: "optimisation", label: "optimisation", description: "Amélioration possible identifiée.", color: "rgba(14, 138, 22, 0.18)", textColor: "rgb(23, 230, 37)", borderColor: "rgba(23, 230, 37, 0.3)", hexColor: "#0e8a16" },
-    { key: "correction", label: "correction", description: "Action corrective à mettre en œuvre.", color: "rgba(194, 224, 198, 0.18)", textColor: "rgb(194, 224, 198)", borderColor: "rgba(194, 224, 198, 0.3)", hexColor: "#bfdadc" },
-    { key: "action moa", label: "action MOA", description: "Action attendue de la maîtrise d'ouvrage.", color: "rgba(191, 212, 242, 0.18)", textColor: "rgb(192, 213, 242)", borderColor: "rgba(192, 213, 242, 0.3)", hexColor: "#c5def5" },
-    { key: "action moe", label: "action MOE", description: "Action attendue de la maîtrise d'œuvre.", color: "rgba(191, 212, 242, 0.18)", textColor: "rgb(192, 213, 242)", borderColor: "rgba(192, 213, 242, 0.3)", hexColor: "#c5def5" },
-    { key: "action entreprise", label: "action Entreprise", description: "Action attendue de l'entreprise travaux.", color: "rgba(191, 212, 242, 0.18)", textColor: "rgb(192, 213, 242)", borderColor: "rgba(192, 213, 242, 0.3)", hexColor: "#c5def5" },
-    { key: "action bet", label: "action BET", description: "Action attendue du bureau d'études.", color: "rgba(191, 212, 242, 0.18)", textColor: "rgb(192, 213, 242)", borderColor: "rgba(192, 213, 242, 0.3)", hexColor: "#c5def5" },
-    { key: "coordination", label: "coordination", description: "Coordination nécessaire entre acteurs.", color: "rgba(83, 25, 231, 0.18)", textColor: "rgb(219, 207, 250)", borderColor: "rgba(219, 207, 250, 0.3)", hexColor: "#5319e7" },
-    { key: "doublon", label: "doublon", description: "Sujet déjà couvert ailleurs.", color: "rgba(0, 0, 0, 0)", textColor: "rgb(208, 212, 216)", borderColor: "rgba(208, 212, 216, 0.3)", hexColor: "#6e7781" },
-    { key: "hors périmètre", label: "hors périmètre", description: "En dehors du périmètre de traitement.", color: "rgba(0, 0, 0, 0)", textColor: "rgb(208, 212, 216)", borderColor: "rgba(208, 212, 216, 0.3)", hexColor: "#6e7781" },
-    { key: "sans suite", label: "sans suite", description: "Point clos sans action complémentaire.", color: "rgba(0, 0, 0, 0)", textColor: "rgb(208, 212, 216)", borderColor: "rgba(208, 212, 216, 0.3)", hexColor: "#6e7781" }
-  ];
 
   const LABEL_SWATCHES = [
     "#b60205", "#d93f0b", "#fbca04", "#0e8a16", "#006b75", "#1d76db", "#0052cc", "#5319e7",
@@ -51,42 +29,94 @@ export function createProjectSubjectLabelsController(config) {
       view.labelEditModal = {
         isOpen: false,
         mode: "edit",
+        targetId: "",
         targetKey: "",
         name: "",
         description: "",
         color: "#8b949e",
-        colorPickerOpen: false
+        colorPickerOpen: false,
+        isSaving: false,
+        isDeleting: false
       };
     }
     return view;
   }
 
+  function getRawLabelsResult() {
+    return store.projectSubjectsView?.rawSubjectsResult && typeof store.projectSubjectsView.rawSubjectsResult === "object"
+      ? store.projectSubjectsView.rawSubjectsResult
+      : (store.projectSubjectsView?.rawResult && typeof store.projectSubjectsView.rawResult === "object"
+        ? store.projectSubjectsView.rawResult
+        : {});
+  }
+
+  function normalizeLabelDef(labelDef = {}) {
+    const id = String(labelDef.id || "").trim();
+    const key = String(labelDef.label_key || labelDef.labelKey || labelDef.key || labelDef.name || id).trim();
+    const label = String(labelDef.name || labelDef.label || key || "Label").trim() || "Label";
+    const hexColor = String(labelDef.hex_color || labelDef.hexColor || labelDef.text_color || labelDef.textColor || "#8b949e").trim() || "#8b949e";
+    const textColor = String(labelDef.text_color || labelDef.textColor || hexColor).trim() || hexColor;
+    const backgroundColor = String(labelDef.background_color || labelDef.backgroundColor || labelDef.color || `${hexColor}22`).trim() || `${hexColor}22`;
+    const borderColor = String(labelDef.border_color || labelDef.borderColor || `${hexColor}66`).trim() || `${hexColor}66`;
+    const description = String(labelDef.description || "").trim();
+    return {
+      ...labelDef,
+      id,
+      key,
+      label_key: key,
+      labelKey: key,
+      label,
+      name: label,
+      description,
+      color: backgroundColor,
+      background_color: backgroundColor,
+      backgroundColor,
+      text_color: textColor,
+      textColor,
+      border_color: borderColor,
+      borderColor,
+      hex_color: hexColor,
+      hexColor,
+      sort_order: Number.isFinite(Number(labelDef.sort_order)) ? Number(labelDef.sort_order) : 0,
+      sortOrder: Number.isFinite(Number(labelDef.sort_order)) ? Number(labelDef.sort_order) : 0
+    };
+  }
+
   function getSubjectLabelDefinitions() {
-    return SUBJECT_DEFAULT_LABEL_DEFINITIONS;
+    const raw = getRawLabelsResult();
+    const labels = Array.isArray(raw.labels) ? raw.labels : [];
+    return labels.map((labelDef) => normalizeLabelDef(labelDef));
   }
 
   function getSubjectLabelDefinition(value) {
-    const key = normalizeSubjectLabelKey(value);
-    return getSubjectLabelDefinitions().find((labelDef) => normalizeSubjectLabelKey(labelDef.key) === key) || null;
+    const rawValue = String(value || "").trim();
+    const normalizedKey = normalizeSubjectLabelKey(rawValue);
+    return getSubjectLabelDefinitions().find((labelDef) => {
+      return rawValue === String(labelDef.id || "")
+        || normalizedKey === normalizeSubjectLabelKey(labelDef.id)
+        || normalizedKey === normalizeSubjectLabelKey(labelDef.key)
+        || normalizedKey === normalizeSubjectLabelKey(labelDef.label)
+        || normalizedKey === normalizeSubjectLabelKey(labelDef.label_key);
+    }) || null;
   }
 
   function getSubjectsLabelUsageCounts() {
+    const raw = getRawLabelsResult();
+    const subjectIdsByLabelId = raw.subjectIdsByLabelId && typeof raw.subjectIdsByLabelId === "object"
+      ? raw.subjectIdsByLabelId
+      : {};
     const counts = new Map();
-    const sujets = Array.isArray(store.projectSubjectsView?.subjectsData) ? store.projectSubjectsView.subjectsData : [];
-    sujets.forEach((sujet) => {
-      const seen = new Set();
-      getSubjectSidebarMeta(sujet?.id).labels.forEach((label) => {
-        const key = normalizeSubjectLabelKey(label);
-        if (!key || seen.has(key)) return;
-        seen.add(key);
-        counts.set(key, Number(counts.get(key) || 0) + 1);
-      });
+    getSubjectLabelDefinitions().forEach((labelDef) => {
+      const count = Array.isArray(subjectIdsByLabelId[labelDef.id]) ? subjectIdsByLabelId[labelDef.id].length : 0;
+      counts.set(String(labelDef.id || labelDef.key), count);
+      counts.set(normalizeSubjectLabelKey(labelDef.key), count);
     });
     return counts;
   }
 
   function renderSubjectLabelBadge(labelDef) {
-    return `<span class="subject-label-badge" style="--subject-label-bg:${escapeHtml(labelDef.color)};--subject-label-fg:${escapeHtml(labelDef.textColor || '#ffffff')};--subject-label-border:${escapeHtml(labelDef.borderColor || labelDef.color)};">${escapeHtml(labelDef.label)}</span>`;
+    const normalized = normalizeLabelDef(labelDef);
+    return `<span class="subject-label-badge" style="--subject-label-bg:${escapeHtml(normalized.color)};--subject-label-fg:${escapeHtml(normalized.textColor || '#ffffff')};--subject-label-border:${escapeHtml(normalized.borderColor || normalized.color)};">${escapeHtml(normalized.label)}</span>`;
   }
 
   function getFilteredSortedLabels() {
@@ -106,7 +136,7 @@ export function createProjectSubjectLabelsController(config) {
       .sort((left, right) => {
         let result = 0;
         if (sortBy === "issue_count") {
-          result = (Number(counts.get(normalizeSubjectLabelKey(left.key)) || 0) - Number(counts.get(normalizeSubjectLabelKey(right.key)) || 0)) * factor;
+          result = (Number(counts.get(String(left.id || left.key)) || 0) - Number(counts.get(String(right.id || right.key)) || 0)) * factor;
         } else {
           result = left.label.localeCompare(right.label, "fr", { sensitivity: "base" }) * factor;
         }
@@ -162,7 +192,7 @@ export function createProjectSubjectLabelsController(config) {
 
   function renderLabelRowMenu(labelDef) {
     const state = getLabelsUiState();
-    const key = String(labelDef.key || "");
+    const key = String(labelDef.id || labelDef.key || "");
     const isOpen = String(state.labelsRowMenuOpen || "") === key;
     return `
       <div class="labels-row-menu ${isOpen ? "is-open" : ""}">
@@ -178,6 +208,7 @@ export function createProjectSubjectLabelsController(config) {
         </button>
         <div class="gh-menu labels-row-menu__dropdown ${isOpen ? "gh-menu--open" : ""}" role="menu">
           <button type="button" class="gh-menu__item" data-label-edit="${escapeHtml(key)}">Modifier</button>
+          <button type="button" class="gh-menu__item" data-label-delete="${escapeHtml(key)}">Supprimer</button>
         </div>
       </div>
     `;
@@ -200,7 +231,7 @@ export function createProjectSubjectLabelsController(config) {
             <button type="button" class="labels-modal__close" data-close-label-modal="true" aria-label="Fermer">${svgIcon("x")}</button>
           </div>
           <div class="labels-modal__body">
-            ${isCreate ? "" : `<div class="labels-modal__preview">${renderSubjectLabelBadge({ ...modal, label: previewLabel, color: `${color}22`, borderColor: `${color}66`, textColor: color })}</div>`}
+            <div class="labels-modal__preview">${renderSubjectLabelBadge({ label: previewLabel, color: `${color}22`, borderColor: `${color}66`, textColor: color })}</div>
             <label class="labels-modal__field">
               <span class="labels-modal__label">Nom</span>
               <input type="text" class="labels-modal__input" data-label-modal-input="name" value="${escapeHtml(modal.name || "")}" autocomplete="off">
@@ -212,7 +243,7 @@ export function createProjectSubjectLabelsController(config) {
             <div class="labels-modal__field">
               <span class="labels-modal__label">Couleur</span>
               <div class="labels-modal__color-row">
-                <button type="button" class="labels-modal__color-reset" aria-label="Réinitialiser la couleur">${svgIcon("sync", { className: "octicon octicon-sync" })}</button>
+                <button type="button" class="labels-modal__color-reset" data-label-color-reset="true" aria-label="Réinitialiser la couleur">${svgIcon("sync", { className: "octicon octicon-sync" })}</button>
                 <div class="labels-modal__color-input-wrap ${modal.colorPickerOpen ? "is-open" : ""}">
                   <div class="labels-modal__color-trigger">
                     <span class="labels-modal__color-swatch" style="--label-color:${escapeHtml(color)};" aria-hidden="true"></span>
@@ -231,7 +262,8 @@ export function createProjectSubjectLabelsController(config) {
             </div>
             <div class="labels-modal__footer">
               <button type="button" class="gh-btn" data-close-label-modal="true">Annuler</button>
-              <button type="button" class="gh-btn gh-btn--primary">Enregistrer</button>
+              ${isCreate ? "" : `<button type="button" class="gh-btn" data-label-modal-delete="true" ${modal.isDeleting ? "disabled" : ""}>Supprimer</button>`}
+              <button type="button" class="gh-btn gh-btn--primary" data-label-modal-save="true" ${(modal.isSaving || modal.isDeleting) ? "disabled" : ""}>${modal.isSaving ? "Enregistrement..." : "Enregistrer"}</button>
             </div>
           </div>
         </div>
@@ -245,7 +277,7 @@ export function createProjectSubjectLabelsController(config) {
     const counts = getSubjectsLabelUsageCounts();
     const totalLabels = getSubjectLabelDefinitions().length;
     const rowsHtml = labels.map((labelDef) => {
-      const usageCount = Number(counts.get(normalizeSubjectLabelKey(labelDef.key)) || 0);
+      const usageCount = Number(counts.get(String(labelDef.id || labelDef.key)) || 0);
       return `
         <div class="labels-row">
           <div class="labels-row__name">${renderSubjectLabelBadge(labelDef)}</div>
@@ -284,12 +316,67 @@ export function createProjectSubjectLabelsController(config) {
     `;
   }
 
+  async function saveLabelFromModal() {
+    const state = getLabelsUiState();
+    const modal = state.labelEditModal || {};
+    const name = String(modal.name || "").trim();
+    if (!name) throw new Error("Le nom du label est requis.");
+
+    modal.isSaving = true;
+    state.labelEditModal = modal;
+
+    const payload = {
+      name,
+      description: String(modal.description || "").trim(),
+      color: String(modal.color || "#8b949e").trim() || "#8b949e"
+    };
+
+    try {
+      if (String(modal.mode || "edit") === "create") await createLabel?.(store.currentProjectId, payload);
+      else await updateLabel?.(modal.targetId, payload);
+      modal.isOpen = false;
+      modal.isSaving = false;
+      modal.isDeleting = false;
+      state.labelsRowMenuOpen = "";
+      await reloadSubjectsFromSupabase?.(getSubjectsCurrentRoot?.(), { rerender: false, updateModal: true });
+      return true;
+    } catch (error) {
+      modal.isSaving = false;
+      throw error;
+    }
+  }
+
+  async function deleteLabelFromModal(labelId) {
+    const state = getLabelsUiState();
+    const modal = state.labelEditModal || {};
+    const resolvedId = String(labelId || modal.targetId || "").trim();
+    if (!resolvedId) throw new Error("labelId is required");
+
+    modal.isDeleting = true;
+    state.labelEditModal = modal;
+
+    try {
+      await deleteLabel?.(resolvedId);
+      modal.isOpen = false;
+      modal.isSaving = false;
+      modal.isDeleting = false;
+      state.labelsRowMenuOpen = "";
+      await reloadSubjectsFromSupabase?.(getSubjectsCurrentRoot?.(), { rerender: false, updateModal: true });
+      return true;
+    } catch (error) {
+      modal.isDeleting = false;
+      throw error;
+    }
+  }
+
   return {
     getSubjectLabelDefinitions,
     getSubjectLabelDefinition,
     getSubjectsLabelUsageCounts,
     renderSubjectLabelBadge,
     renderLabelsTableHtml,
-    getLabelsUiState
+    getLabelsUiState,
+    saveLabelFromModal,
+    deleteLabelFromModal
   };
 }
