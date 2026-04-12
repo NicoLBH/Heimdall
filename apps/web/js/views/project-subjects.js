@@ -558,6 +558,19 @@ function getSubjectsTabResetState() {
   };
 }
 
+function rerenderSubjectsPanelsWhenConnected(root, remainingAttempts = 12) {
+  if (!root) return;
+  if (root.isConnected || document.getElementById("situationsPanelHost")?.isConnected) {
+    rerenderPanels();
+    syncSituationsPrimaryScrollSource();
+    return;
+  }
+  if (remainingAttempts <= 1) return;
+  requestAnimationFrame(() => {
+    rerenderSubjectsPanelsWhenConnected(root, remainingAttempts - 1);
+  });
+}
+
 /* =========================================================
    Legacy DOM / archive parity helpers
 ========================================================= */
@@ -773,11 +786,6 @@ export function renderProjectSubjects(root) {
   store.situationsView.showTableOnly = true;
   store.situationsView.displayDepth = "sujets";
 
-  reloadSubjectsFromSupabase(root, {
-    rerender: true,
-    updateModal: true
-  }).catch(() => undefined);
-
   root.className = "project-shell__content";
 
   setProjectViewHeader({
@@ -815,7 +823,13 @@ export function renderProjectSubjects(root) {
 
   rerenderPanels();
   syncSituationsPrimaryScrollSource();
+  rerenderSubjectsPanelsWhenConnected(root);
   bindSituationsEvents(root, headerRoot);
+
+  reloadSubjectsFromSupabase(root, {
+    rerender: true,
+    updateModal: true
+  }).catch(() => undefined);
   bindProjectSituationsRunbar(toolbarHost || root || document);
   bindModalEvents();
   projectSubjectDetail.updateDetailsModal();
