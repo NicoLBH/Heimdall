@@ -18,7 +18,7 @@ export function createProjectSubjectsEvents(config) {
     getSubjectKanbanMenuEntries,
     getSetSujetKanbanStatus,
     setSubjectMetaActiveEntry,
-    getSetSubjectObjective,
+    getToggleSubjectObjective,
     getToggleSubjectSituation,
     getToggleSubjectLabel,
     syncDescriptionEditorDraft,
@@ -160,13 +160,13 @@ export function createProjectSubjectsEvents(config) {
     const scopedSelection = getScopedSelection(root);
     const projectSubjectMilestones = getProjectSubjectMilestones?.();
     const setSujetKanbanStatus = getSetSujetKanbanStatus?.();
-    const setSubjectObjective = getSetSubjectObjective?.();
+    const toggleSubjectObjective = getToggleSubjectObjective?.();
     const toggleSubjectSituation = getToggleSubjectSituation?.();
     const toggleSubjectLabel = getToggleSubjectLabel?.();
     const applyIssueStatusAction = getApplyIssueStatusAction?.();
 
     root.querySelectorAll("[data-subject-meta-trigger]").forEach((btn) => {
-      btn.onclick = (event) => {
+      btn.onclick = async (event) => {
         event.preventDefault();
         event.stopPropagation();
         const field = String(btn.dataset.subjectMetaTrigger || "");
@@ -308,9 +308,9 @@ export function createProjectSubjectsEvents(config) {
           if (!activeKey) return;
           if (field === "objectives") {
             event.preventDefault();
-            setSubjectObjective(subjectSelection.item.id, activeKey);
-            closeSubjectMetaDropdown();
-            rerenderScope(root);
+            await toggleSubjectObjective(subjectSelection.item.id, activeKey, { root });
+            focusSubjectMetaSearch(root, field);
+            syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
             return;
           }
           if (field === "situations") {
@@ -332,15 +332,15 @@ export function createProjectSubjectsEvents(config) {
     });
 
     dropdownHost.querySelectorAll("[data-objective-select]").forEach((btn) => {
-      btn.onclick = (event) => {
+      btn.onclick = async (event) => {
         event.preventDefault();
         event.stopPropagation();
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
         const objectiveId = String(btn.dataset.objectiveSelect || "");
-        setSubjectObjective(subjectSelection.item.id, objectiveId);
-        closeSubjectMetaDropdown();
-        rerenderScope(root);
+        await toggleSubjectObjective(subjectSelection.item.id, objectiveId, { root });
+        focusSubjectMetaSearch(root, "objectives");
+        syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       };
     });
 
