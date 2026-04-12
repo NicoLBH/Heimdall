@@ -70,7 +70,7 @@ export function createProjectSubjectsPersistence(deps = {}) {
       }
     });
 
-    ["selectedAvisId", "tempAvisVerdict", "tempAvisVerdictFor"].forEach((key) => {
+    ["selectedAvisId", "tempAvisVerdict", "tempAvisVerdictFor", "objectives"].forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(bucket, key)) {
         delete bucket[key];
         mutated = true;
@@ -88,7 +88,6 @@ export function createProjectSubjectsPersistence(deps = {}) {
         descriptions: createEmptyEntityMap(),
         decisions: createEmptyEntityMap(),
         review: createEmptyEntityMap(),
-        objectives: [],
         workflow: {
           sujet_kanban_status: {}
         },
@@ -109,10 +108,6 @@ export function createProjectSubjectsPersistence(deps = {}) {
     if (!bucket.review) {
       bucket.review = createEmptyEntityMap();
       shouldSave = true;
-    }
-    if (!Array.isArray(bucket.objectives)) {
-      bucket.objectives = [];
-      saveHumanStore(all);
     }
     if (!bucket.workflow || typeof bucket.workflow !== "object") {
       bucket.workflow = { sujet_kanban_status: {} };
