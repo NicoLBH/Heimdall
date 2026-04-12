@@ -1,11 +1,3 @@
-function logSituationCreate(step, payload = undefined) {
-  if (payload === undefined) {
-    console.log(`[situations:create] ${step}`);
-    return;
-  }
-  console.log(`[situations:create] ${step}`, payload);
-}
-
 export function createProjectSituationsPersistence({
   store,
   uiState,
@@ -51,17 +43,9 @@ export function createProjectSituationsPersistence({
   }
 
   async function refreshSituationsData({ forceSubjects = false } = {}) {
-    logSituationCreate("refreshSituationsData start", {
-      forceSubjects,
-      currentProjectId: String(store.currentProjectId || "") || null
-    });
     await loadFlatSubjectsForCurrentProject({ force: forceSubjects });
     const situations = await loadSituationsForCurrentProject();
     store.situationsView.kanbanStatusBySituationId = await loadSituationKanbanStatusMap(situations.map((situation) => String(situation?.id || ""))).catch(() => ({}));
-    logSituationCreate("refreshSituationsData situations loaded", {
-      count: safeArray(situations).length,
-      ids: safeArray(situations).map((situation) => String(situation?.id || "")).filter(Boolean)
-    });
     const countsEntries = await Promise.all(situations.map(async (situation) => {
       const subjects = await loadSubjectsForSituation(situation, store.projectSubjectsView).catch(() => []);
       return [String(situation?.id || ""), safeArray(subjects).length];
@@ -89,13 +73,7 @@ export function createProjectSituationsPersistence({
   }
 
   async function createSituationRecord(payload) {
-    logSituationCreate("createSituationRecord called", {
-      currentProjectId: String(store.currentProjectId || "") || null,
-      currentProject: store.currentProject || null,
-      payload
-    });
     const created = await createSituation(store.currentProjectId, payload);
-    logSituationCreate("createSituationRecord resolved", created);
     return created;
   }
 
