@@ -773,11 +773,6 @@ export function renderProjectSubjects(root) {
   store.situationsView.showTableOnly = true;
   store.situationsView.displayDepth = "sujets";
 
-  reloadSubjectsFromSupabase(root, {
-    rerender: true,
-    updateModal: true
-  }).catch(() => undefined);
-
   root.className = "project-shell__content";
 
   setProjectViewHeader({
@@ -816,6 +811,11 @@ export function renderProjectSubjects(root) {
   rerenderPanels();
   syncSituationsPrimaryScrollSource();
   bindSituationsEvents(root, headerRoot);
+
+  reloadSubjectsFromSupabase(root, {
+    rerender: true,
+    updateModal: true
+  }).catch(() => undefined);
   bindProjectSituationsRunbar(toolbarHost || root || document);
   bindModalEvents();
   projectSubjectDetail.updateDetailsModal();
