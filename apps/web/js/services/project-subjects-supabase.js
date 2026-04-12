@@ -232,6 +232,56 @@ export async function reopenObjective(objectiveId) {
   return updateObjective(objectiveId, { status: "open" });
 }
 
+export async function addSubjectToObjective(objectiveId, subjectId) {
+  const normalizedObjectiveId = normalizeUuid(objectiveId);
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedObjectiveId) throw new Error("objectiveId is required");
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/milestone_subjects`, {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation"
+    }),
+    body: JSON.stringify({
+      milestone_id: normalizedObjectiveId,
+      subject_id: normalizedSubjectId
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone_subject create failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+export async function removeSubjectFromObjective(objectiveId, subjectId) {
+  const normalizedObjectiveId = normalizeUuid(objectiveId);
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedObjectiveId) throw new Error("objectiveId is required");
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/milestone_subjects`);
+  url.searchParams.set("milestone_id", `eq.${normalizedObjectiveId}`);
+  url.searchParams.set("subject_id", `eq.${normalizedSubjectId}`);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone_subject delete failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
 function normalizeObjectiveRow(row = {}, subjectIds = []) {
   const normalizedSubjectIds = [...new Set((Array.isArray(subjectIds) ? subjectIds : []).map((value) => String(value || "").trim()).filter(Boolean))];
   const status = normalizeObjectiveStatus(row.status);
