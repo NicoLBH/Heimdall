@@ -1,10 +1,217 @@
 import { store } from "../store.js";
-import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.js";
+import { buildSupabaseAuthHeaders, getCurrentUser, getSupabaseUrl } from "../../assets/js/auth.js";
 import { loadSituationsForCurrentProject, loadSituationSubjectIdsMap } from "./project-situations-supabase.js";
-import { resolveCurrentBackendProjectId } from "./project-supabase-sync.js";
 
 const SUPABASE_URL = getSupabaseUrl();
 const FRONT_PROJECT_MAP_STORAGE_KEY = "mdall.supabaseProjectMap.v1";
+
+
+export const PROJECT_SUPABASE_SYNC_EVENT = "project:supabase-sync";
+export const PROJECT_IDENTITY_UPDATED_EVENT = "project:identity-updated";
+
+const projectSubjectCountersCache = {
+  frontendProjectId: "",
+  openSujets: 0
+};
+
+function writeFrontendProjectMap(map) {
+  try {
+    localStorage.setItem(FRONT_PROJECT_MAP_STORAGE_KEY, JSON.stringify(map || {}));
+  } catch {
+    // no-op
+  }
+}
+
+function dispatchProjectSupabaseSync(frontendProjectId) {
+  window.dispatchEvent(new CustomEvent(PROJECT_SUPABASE_SYNC_EVENT, {
+    detail: {
+      frontendProjectId: String(frontendProjectId || store.currentProjectId || "").trim()
+    }
+  }));
+}
+
+function dispatchProjectIdentityUpdated(frontendProjectId, backendProjectId) {
+  window.dispatchEvent(new CustomEvent(PROJECT_IDENTITY_UPDATED_EVENT, {
+    detail: {
+      frontendProjectId: String(frontendProjectId || store.currentProjectId || "").trim(),
+      backendProjectId: String(backendProjectId || "").trim()
+    }
+  }));
+}
+
+function normalizeProjectRow(row = {}) {
+  const id = normalizeUuid(row.id);
+  const name = firstNonEmpty(row.name, row.title, "Projet");
+  const description = firstNonEmpty(row.description, "");
+  return {
+    ...row,
+    id,
+    backendProjectId: id,
+    supabaseProjectId: id,
+    supabase_project_id: id,
+    project_id: id,
+    name,
+    title: name,
+    clientName: firstNonEmpty(row.client_name, row.clientName, ""),
+    city: firstNonEmpty(row.city, row.project_city, ""),
+    currentPhase: firstNonEmpty(row.current_phase, row.currentPhase, store.projectForm?.currentPhase, store.projectForm?.phase, "APS"),
+    description
+  };
+}
+
+async function restInsert(table, payload, select = "*") {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  if (select) url.searchParams.set("select", select);
+
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`${table} insert failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? (rows[0] || null) : rows;
+}
+
+export async function syncProjectsCatalogFromSupabase() {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/projects`);
+  url.searchParams.set("select", "id,name,description,created_at");
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`projects fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const projects = Array.isArray(rows) ? rows.map((row) => normalizeProjectRow(row)) : [];
+  store.projects = projects;
+  dispatchProjectSupabaseSync(store.currentProjectId);
+  return projects;
+}
+
+export async function syncCurrentProjectIdentityFromSupabase() {
+  const frontendProjectId = getFrontendProjectKey();
+  let backendProjectId = await resolveCurrentBackendProjectId().catch(() => "");
+
+  let current = Array.isArray(store.projects)
+    ? store.projects.find((project) => String(project?.id || "").trim() === backendProjectId)
+    : null;
+
+  if (!current && backendProjectId) {
+    const catalog = await syncProjectsCatalogFromSupabase().catch(() => []);
+    current = Array.isArray(catalog)
+      ? catalog.find((project) => String(project?.id || "").trim() === backendProjectId)
+      : null;
+  }
+
+  if (!current && !backendProjectId && store.currentProjectId) {
+    const catalog = Array.isArray(store.projects) && store.projects.length
+      ? store.projects
+      : await syncProjectsCatalogFromSupabase().catch(() => []);
+    current = Array.isArray(catalog)
+      ? catalog.find((project) => String(project?.id || "").trim() === String(store.currentProjectId || "").trim())
+      : null;
+    backendProjectId = String(current?.id || "").trim();
+  }
+
+  if (current) {
+    store.currentProject = { ...(store.currentProject || {}), ...current };
+    if (!store.currentProjectId) store.currentProjectId = frontendProjectId;
+    dispatchProjectIdentityUpdated(frontendProjectId, backendProjectId || current.id);
+    return store.currentProject;
+  }
+
+  dispatchProjectIdentityUpdated(frontendProjectId, backendProjectId);
+  return store.currentProject || null;
+}
+
+export async function createProjectWithDefaultPhases(payload = {}) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser?.id) throw new Error("Utilisateur authentifié introuvable pour la création du projet.");
+
+  const frontendProjectKey = String(payload.frontendProjectId || payload.id || `project-${Date.now()}`).trim();
+  const projectName = firstNonEmpty(payload.projectName, payload.name, "Nouveau projet");
+  const description = firstNonEmpty(payload.description, "");
+
+  const row = await restInsert("projects", {
+    name: projectName,
+    description,
+    owner_id: currentUser.id
+  }, "id,name,description,created_at");
+
+  if (!row?.id) throw new Error("projects insert succeeded without id");
+
+  const map = readFrontendProjectMap();
+  map[frontendProjectKey] = row.id;
+  writeFrontendProjectMap(map);
+
+  const createdProject = normalizeProjectRow({
+    ...row,
+    city: firstNonEmpty(payload.city, ""),
+    client_name: firstNonEmpty(payload.clientName, ""),
+    current_phase: firstNonEmpty(payload.currentPhaseCode, "PC")
+  });
+
+  store.projects = [...(Array.isArray(store.projects) ? store.projects.filter((project) => String(project?.id || "").trim() !== createdProject.id) : []), createdProject];
+  dispatchProjectSupabaseSync(frontendProjectKey);
+  return createdProject;
+}
+
+export function getCurrentProjectSubjectCounters() {
+  return { openSujets: Number(projectSubjectCountersCache.openSujets || 0) };
+}
+
+export async function syncProjectSubjectCountersFromSupabase(options = {}) {
+  const backendProjectId = options?.projectId
+    ? await getResolvedProjectId(options.projectId)
+    : await resolveCurrentBackendProjectId().catch(() => "");
+
+  if (!backendProjectId) {
+    projectSubjectCountersCache.frontendProjectId = String(store.currentProjectId || "").trim();
+    projectSubjectCountersCache.openSujets = 0;
+    dispatchProjectSupabaseSync(projectSubjectCountersCache.frontendProjectId);
+    return getCurrentProjectSubjectCounters();
+  }
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subjects`);
+  url.searchParams.set("select", "id,status");
+  url.searchParams.set("project_id", `eq.${backendProjectId}`);
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subjects counters fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const openSujets = (Array.isArray(rows) ? rows : []).reduce((count, row) => count + (String(row?.status || "open").trim().toLowerCase() === "open" ? 1 : 0), 0);
+
+  projectSubjectCountersCache.frontendProjectId = String(store.currentProjectId || "").trim();
+  projectSubjectCountersCache.openSujets = openSujets;
+  dispatchProjectSupabaseSync(projectSubjectCountersCache.frontendProjectId);
+  return getCurrentProjectSubjectCounters();
+}
 
 
 
@@ -35,6 +242,21 @@ function getMappedBackendProjectId() {
   const frontendProjectKey = getFrontendProjectKey();
   const map = readFrontendProjectMap();
   return map[frontendProjectKey] || "";
+}
+
+export async function resolveCurrentBackendProjectId() {
+  const mappedProjectId = normalizeUuid(getMappedBackendProjectId());
+  if (mappedProjectId) return mappedProjectId;
+
+  const currentProjectBackendId = normalizeUuid(
+    store.currentProject?.backendProjectId
+    || store.currentProject?.project_id
+    || store.currentProject?.supabaseProjectId
+    || store.currentProject?.supabase_project_id
+  );
+  if (currentProjectBackendId) return currentProjectBackendId;
+
+  return "";
 }
 
 async function getSupabaseAuthHeaders(extra = {}) {
@@ -643,6 +865,86 @@ export async function deleteLabel(labelId) {
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`project_label delete failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+async function fetchSubjectProjectId(subjectId) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subjects`);
+  url.searchParams.set("select", "id,project_id");
+  url.searchParams.set("id", `eq.${normalizedSubjectId}`);
+  url.searchParams.set("limit", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const row = (Array.isArray(rows) ? rows[0] : rows) || {};
+  return normalizeUuid(row.project_id);
+}
+
+export async function addLabelToSubject(subjectId, labelId) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const projectId = await fetchSubjectProjectId(normalizedSubjectId);
+  const resolvedProjectId = await getResolvedProjectId(projectId);
+  if (!resolvedProjectId) throw new Error("projectId is required");
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/subject_labels`, {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation"
+    }),
+    body: JSON.stringify({
+      project_id: resolvedProjectId,
+      subject_id: normalizedSubjectId,
+      label_id: normalizedLabelId
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_label create failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+export async function removeLabelFromSubject(subjectId, labelId) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subject_labels`);
+  url.searchParams.set("subject_id", `eq.${normalizedSubjectId}`);
+  url.searchParams.set("label_id", `eq.${normalizedLabelId}`);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_label delete failed (${res.status}): ${txt}`);
   }
 
   return true;
