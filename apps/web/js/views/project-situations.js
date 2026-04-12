@@ -136,6 +136,7 @@ const kanbanView = createProjectSituationsKanbanView({
 function syncSituationsToolbar() {
   const toolbarHost = document.getElementById("situationsToolbarHost");
   if (!toolbarHost) return;
+  toolbarHost.dataset.toolbarOwner = "situations";
   toolbarHost.innerHTML = "";
 }
 
