@@ -55,7 +55,7 @@ export function createProjectSituationsTable({
             <span class="issue-row-title-grid__status" aria-hidden="true">${svgIcon(normalizeSituationStatus(situation.status) === "closed" ? "table-check" : "table", { className: "octicon" })}</span>
             <span class="issue-row-title-grid__title">
               <span class="project-situations-table__title-inline">
-                <button type="button" class="row-title-trigger theme-text theme-text--sit" data-open-situation="${escapeHtml(situation.id)}">${title}</button>
+                <button type="button" class="row-title-trigger theme-text theme-text--sit project-situations-table__title-trigger" data-open-situation="${escapeHtml(situation.id)}">${title}</button>
                 ${renderModePill(situation.mode)}
               </span>
             </span>
