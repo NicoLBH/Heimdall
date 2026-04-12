@@ -38,6 +38,8 @@ const {
   normalizeSituationMode,
   normalizeSituationStatus,
   getSituations,
+  getCurrentSituationsStatusFilter,
+  getSituationsStatusCounts,
   renderSituationCount,
   formatSituationUpdatedLabel
 } = createProjectSituationsSelectors({ store, uiState });
@@ -73,7 +75,9 @@ const {
   normalizeSituationMode,
   normalizeSituationStatus,
   renderSituationCount,
-  formatSituationUpdatedLabel
+  formatSituationUpdatedLabel,
+  getCurrentSituationsStatusFilter,
+  getSituationsStatusCounts
 });
 
 const {
