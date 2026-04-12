@@ -37,13 +37,6 @@ function getMappedBackendProjectId() {
   return map[frontendProjectKey] || "";
 }
 
-function debugSubjectsLoad(step, payload = {}) {
-  try {
-    console.info(`[project-subjects] ${step}`, payload);
-  } catch {
-    // no-op
-  }
-}
 
 async function getSupabaseAuthHeaders(extra = {}) {
   return buildSupabaseAuthHeaders(extra);
@@ -575,7 +568,7 @@ async function resolveSubjectLabelProjectId(subjectId, labelId) {
 function normalizeLabelHexColor(value) {
   const raw = String(value || "").trim();
   const match = raw.match(/^#([0-9a-fA-F]{6})$/);
-  return match ? `#${match.group(1).lower()}` : "#8b949e";
+  return match ? `#${String(match[1] || "").toLowerCase()}` : "#8b949e";
 }
 
 function buildProjectLabelWritePayload(projectId, payload = {}, current = null) {
@@ -922,10 +915,6 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   const currentProjectScopeId = String(store.currentProjectId || "").trim() || null;
   const existing = Array.isArray(store.projectSubjectsView?.subjectsData) ? store.projectSubjectsView.subjectsData : [];
   if (!force && existing.length && store.projectSubjectsView?.projectScopeId === currentProjectScopeId) {
-    debugSubjectsLoad('load.skip-cache-hit', {
-      frontendProjectId: currentProjectScopeId,
-      count: existing.length
-    });
     return existing;
   }
 
@@ -945,16 +934,6 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   try {
     const mappedBackendProjectId = normalizeUuid(getMappedBackendProjectId());
     const backendProjectId = await getResolvedProjectId();
-    debugSubjectsLoad('load.resolve-project', {
-      frontendProjectId: currentProjectScopeId,
-      mappedBackendProjectId,
-      backendProjectId,
-      resolutionSource: mappedBackendProjectId
-        ? 'frontend-map'
-        : (backendProjectId ? 'resolver' : 'none'),
-      force,
-      cachedCount: existing.length
-    });
     const previousSelectedSubjectId = normalizeUuid(
       store.projectSubjectsView?.selectedSubjectId
       || store.projectSubjectsView?.selectedSujetId
@@ -964,12 +943,6 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
     );
 
     if (!backendProjectId) {
-      debugSubjectsLoad('load.abort-no-backend-project', {
-        frontendProjectId: currentProjectScopeId,
-        mappedBackendProjectId,
-        currentProjectId: String(store.currentProjectId || ''),
-        currentProjectName: String(store.currentProject?.name || '')
-      });
       store.projectSubjectsView.subjectsData = [];
       store.projectSubjectsView.projectScopeId = currentProjectScopeId;
       store.projectSubjectsView.rawSubjectsResult = {
@@ -1074,14 +1047,6 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
     store.projectSubjectsView.loading = false;
     store.projectSubjectsView.loaded = true;
 
-    debugSubjectsLoad('load.success', {
-      frontendProjectId: currentProjectScopeId,
-      backendProjectId,
-      subjectCount: result.subjects.length,
-      selectedSubjectId: nextSelectedSubjectId,
-      labelsHydrated: !!result.labelsHydrated,
-      objectivesHydrated: !!result.objectivesHydrated
-    });
 
     return result.subjects;
   } catch (error) {
