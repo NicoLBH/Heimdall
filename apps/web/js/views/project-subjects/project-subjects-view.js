@@ -1414,7 +1414,12 @@ async function reloadSubjectsFromSupabase(root = getSubjectsCurrentRoot(), optio
     if (currentRoot?.isConnected || panelHost?.isConnected) {
       rerenderLoadedPanels();
     } else {
-      scheduleSubjectsPanelsRerender(rerenderLoadedPanels);
+      requestAnimationFrame(() => {
+        const nextRoot = getSubjectsCurrentRoot();
+        const nextPanelHost = document.getElementById("situationsPanelHost");
+        if (!nextRoot?.isConnected && !nextPanelHost?.isConnected) return;
+        rerenderLoadedPanels();
+      });
     }
   }
 
