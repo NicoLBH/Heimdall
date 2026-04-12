@@ -232,6 +232,24 @@ export function createProjectSubjectMilestonesController(config) {
     return statePill(objective?.closed ? "closed" : "open");
   }
 
+  function renderObjectiveDetailStatusText(objective) {
+    const isClosed = !!objective?.closed;
+    return `<span class="objective-detail__status objective-detail__status--${isClosed ? "closed" : "open"}">${isClosed ? "Fermé" : "Ouvert"}</span>`;
+  }
+
+  function formatObjectiveUpdatedAtLabel(objective) {
+    const parsed = new Date(objective?.updated_at || objective?.created_at || 0);
+    if (Number.isNaN(parsed.getTime())) return "Dernière mise à jour inconnue";
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfTargetDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+    const diffDays = Math.round((startOfToday - startOfTargetDay) / 86400000);
+    if (diffDays <= 0) return "Dernière mise à jour aujourd’hui";
+    if (diffDays == 1) return "Dernière mise à jour hier";
+    if (diffDays < 7) return `Dernière mise à jour il y a ${diffDays} jours`;
+    return `Dernière mise à jour le ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(parsed)}`;
+  }
+
   function normalizeObjectiveSortKey(value) {
     const allowed = new Set([
       "recently_updated",
@@ -542,20 +560,33 @@ export function createProjectSubjectMilestonesController(config) {
       });
     }
 
+    const overdue = getObjectiveOverdueMeta(objective);
+    const dueDateLabel = formatObjectiveDueDateLabel(objective);
+
     return `
       <section class="objective-detail">
-        <header class="objective-detail__header">
+        <button type="button" class="objective-detail__back-link" data-objectives-back="list">
+          <span class="objective-detail__back-icon" aria-hidden="true">${svgIcon("arrow-left", { className: "octicon octicon-arrow-left" })}</span>
+          <span>Retour aux Objectifs</span>
+        </button>
+        <header class="objective-detail__title-row">
           <div class="objective-detail__title">${escapeHtml(objective.title)}</div>
+          <div class="objective-detail__actions">
+            ${renderSubjectsToolbarButton({ id: "objectiveEditAction", label: "Modifier", action: "edit-objective" })}
+            ${renderSubjectsToolbarButton({ id: "objectiveCloseAction", label: objective?.closed ? "Rouvrir l'objectif" : "Fermer l'objectif", action: "close-objective" })}
+            ${renderSituationsAddAction()}
+          </div>
         </header>
-        <div class="objective-detail__meta-row">
-          <div class="objective-detail__meta-left">
-            ${renderObjectiveStatusBadge(objective)}
-            <span class="objective-detail__meta-text">${escapeHtml(formatObjectiveDueDateLabel(objective))}</span>
-          </div>
-          <div class="objective-detail__meta-right">
-            ${renderObjectiveProgressBar(objective)}
-          </div>
+        <div class="objective-detail__meta-line">
+          ${renderObjectiveDetailStatusText(objective)}
+          ${overdue ? `<span class="objective-detail__overdue"><span class="objective-detail__overdue-icon" aria-hidden="true">${svgIcon("alert-fill", { className: "octicon octicon-alert-fill" })}</span><span>${escapeHtml(overdue.label)}</span></span>` : ""}
+          <span class="objective-detail__meta-item">Échéance au ${escapeHtml(dueDateLabel)}</span>
+          <span class="objective-detail__meta-item">${escapeHtml(formatObjectiveUpdatedAtLabel(objective))}</span>
         </div>
+        <div class="objective-detail__progress-row">
+          ${renderObjectiveProgressBar(objective)}
+        </div>
+        <div class="objective-detail__divider" aria-hidden="true"></div>
         <div class="objective-detail__subjects">
           ${renderObjectiveSubjectsTableHtml(objective)}
         </div>
@@ -643,26 +674,13 @@ export function createProjectSubjectMilestonesController(config) {
 
   function renderObjectivesViewHeaderHtml() {
     const selectedObjective = getObjectiveById(store.situationsView.selectedObjectiveId || "");
-    const isEditingObjective = !!store.situationsView.objectiveEdit?.isOpen
-      && String(store.situationsView.objectiveEdit?.objectiveId || "") === String(selectedObjective?.id || "");
-    const leftHtml = selectedObjective
-      ? renderProjectTableToolbarGroup({
-          html: `<div class="objective-breadcrumb"><button type="button" class="objective-breadcrumb__link" data-objectives-back="list">Objectifs</button><span class="objective-breadcrumb__sep">/</span><span class="objective-breadcrumb__current">${escapeHtml(selectedObjective.title)}</span></div>`
-        })
-      : renderProjectTableToolbarGroup({
-          html: '<div class="project-table-toolbar__title">Objectifs</div>'
-        });
-    const rightHtml = selectedObjective
-      ? (isEditingObjective
-          ? ""
-          : [
-              renderProjectTableToolbarGroup({ html: renderSubjectsToolbarButton({ id: "objectiveEditAction", label: "Modifier", action: "edit-objective" }) }),
-              renderProjectTableToolbarGroup({ html: renderSubjectsToolbarButton({ id: "objectiveCloseAction", label: selectedObjective?.closed ? "Rouvrir l'objectif" : "Fermer l'objectif", action: "close-objective" }) }),
-              renderProjectTableToolbarGroup({ html: renderSituationsAddAction() })
-            ].join(""))
-      : renderProjectTableToolbarGroup({
-          html: renderObjectivesCreateAction()
-        });
+    if (selectedObjective) return "";
+    const leftHtml = renderProjectTableToolbarGroup({
+      html: '<div class="project-table-toolbar__title">Objectifs</div>'
+    });
+    const rightHtml = renderProjectTableToolbarGroup({
+      html: renderObjectivesCreateAction()
+    });
     return renderProjectTableToolbar({
       className: "project-table-toolbar--situations project-table-toolbar--objectives",
       leftHtml,
