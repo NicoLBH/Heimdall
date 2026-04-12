@@ -755,6 +755,21 @@ export function createProjectSubjectsEvents(config) {
         return;
       }
 
+      const objectiveLink = event.target.closest("[data-row-objective-id]");
+      if (objectiveLink) {
+        event.preventDefault();
+        event.stopPropagation();
+        const objectiveId = String(objectiveLink.dataset.rowObjectiveId || "");
+        if (objectiveId) {
+          resetObjectiveEditState();
+          store.situationsView.subjectsSubview = "objectives";
+          store.situationsView.selectedObjectiveId = objectiveId;
+          store.situationsView.showTableOnly = true;
+          rerenderPanels();
+          return;
+        }
+      }
+
       const titleTrigger = event.target.closest(".js-row-title-trigger");
       if (titleTrigger) {
         event.preventDefault();
