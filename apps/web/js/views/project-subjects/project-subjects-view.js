@@ -937,6 +937,28 @@ function renderSubjectMetaButtonValue(text, metaText = "") {
   `;
 }
 
+function getObjectiveSubjectCounts(objective) {
+  const linkedIds = Array.isArray(objective?.subjectIds) ? objective.subjectIds : [];
+  const linkedSubjects = linkedIds
+    .map((subjectId) => getNestedSujet(subjectId))
+    .filter(Boolean);
+
+  if (linkedSubjects.length) {
+    let open = 0;
+    let closed = 0;
+    for (const sujet of linkedSubjects) {
+      if (sujetMatchesStatusFilter(sujet, "closed")) closed += 1;
+      else open += 1;
+    }
+    return { open, closed, total: linkedSubjects.length, linkedSubjects };
+  }
+
+  const total = Number.isFinite(Number(objective?.subjectsCount)) ? Number(objective.subjectsCount) : 0;
+  const closed = Math.max(0, Math.min(total, Number.isFinite(Number(objective?.closedSubjectsCount)) ? Number(objective.closedSubjectsCount) : 0));
+  const open = Math.max(0, total - closed);
+  return { open, closed, total, linkedSubjects: [] };
+}
+
 function renderObjectiveCounterIcon(objective) {
   const counts = getObjectiveSubjectCounts(objective);
   return problemsCountsIconHtml(counts.closed, counts.total);
@@ -1040,7 +1062,7 @@ function buildSubjectMetaMenuItems(subject, field) {
         isSelected,
         iconHtml: `
           <span class="select-menu__objective-iconset" aria-hidden="true">
-            <span class="select-menu__checkbox ${isSelected ? "is-checked" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
+            <span class="select-menu__objective-check ${isSelected ? "is-visible" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
             <span class="select-menu__objective-milestone">${svgIcon("milestone", { className: "octicon octicon-milestone" })}</span>
           </span>
         `,
