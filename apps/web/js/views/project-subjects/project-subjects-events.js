@@ -178,6 +178,7 @@ export function createProjectSubjectsEvents(config) {
           closeSubjectKanbanDropdown();
           dropdown.field = field;
           dropdown.query = "";
+          dropdown.showClosedSituations = false;
           const entries = scopedSelection?.type === "sujet" ? getSubjectMetaMenuEntries(scopedSelection.item, field) : [];
           const selectedObjectiveKey = field === "objectives" && scopedSelection?.type === "sujet"
             ? String(getSubjectSidebarMeta(scopedSelection.item.id).objectiveIds[0] || "")
@@ -195,6 +196,16 @@ export function createProjectSubjectsEvents(config) {
           focusSubjectMetaSearch(root, field);
           syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
         }
+      };
+    });
+
+    root.querySelectorAll("[data-subject-situations-closed-toggle]").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const dropdownState = getSubjectsViewState().subjectMetaDropdown || {};
+        dropdownState.showClosedSituations = !dropdownState.showClosedSituations;
+        rerenderScope(root);
       };
     });
 
