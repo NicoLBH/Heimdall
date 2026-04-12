@@ -1845,6 +1845,10 @@ function renderSituationsViewHeaderHtml() {
 function rerenderSubjectsToolbar() {
   const toolbarHost = document.getElementById("situationsToolbarHost");
   if (!toolbarHost) return;
+  if (toolbarHost.dataset.toolbarOwner === "situations") {
+    toolbarHost.innerHTML = "";
+    return;
+  }
   const headerHtml = renderSituationsViewHeaderHtml();
   if (!String(headerHtml || "").trim()) {
     toolbarHost.innerHTML = "";
