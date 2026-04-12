@@ -918,6 +918,25 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   }
 
   const backendProjectId = getMappedBackendProjectId();
+  const previousProjectScopeId = String(store.projectSubjectsView?.projectScopeId || "").trim() || null;
+  const preserveViewState = previousProjectScopeId === currentProjectScopeId;
+  const previousSelectedSubjectId = normalizeUuid(
+    store.projectSubjectsView?.selectedSubjectId
+    || store.projectSubjectsView?.selectedSujetId
+  );
+  const previousSelectedSituationId = normalizeUuid(
+    store.projectSubjectsView?.selectedSituationId
+  );
+  const previousExpandedSubjectIds = preserveViewState
+    ? [...new Set(
+        Array.from(store.projectSubjectsView?.expandedSubjectIds instanceof Set ? store.projectSubjectsView.expandedSubjectIds : [])
+          .map((value) => normalizeUuid(value))
+          .filter(Boolean)
+      )]
+    : [];
+  const previousPage = preserveViewState && Number.isFinite(Number(store.projectSubjectsView?.page))
+    ? Math.max(1, Number(store.projectSubjectsView.page))
+    : 1;
 
   if (!backendProjectId) {
     store.projectSubjectsView.subjectsData = [];
@@ -1003,12 +1022,22 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   store.projectSubjectsView.rawSubjectsResult = result;
   store.projectSubjectsView.rawResult = result;
   store.projectSubjectsView.projectScopeId = currentProjectScopeId;
-  store.projectSubjectsView.page = 1;
-  store.projectSubjectsView.expandedSubjectIds = new Set();
+  store.projectSubjectsView.page = previousPage;
+  store.projectSubjectsView.expandedSubjectIds = new Set(
+    previousExpandedSubjectIds.filter((subjectId) => !!result.subjectsById?.[subjectId])
+  );
   store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
-  store.projectSubjectsView.selectedSubjectId = result.subjects[0]?.id || null;
-  store.projectSubjectsView.selectedSujetId = result.subjects[0]?.id || null;
-  store.projectSubjectsView.subjectsSelectedNodeId = result.subjects[0]?.id || "";
+  const nextSelectedSubjectId = previousSelectedSubjectId && result.subjectsById?.[previousSelectedSubjectId]
+    ? previousSelectedSubjectId
+    : (result.subjects[0]?.id || null);
+  const nextSelectedSituationId = previousSelectedSituationId && result.situationsById?.[previousSelectedSituationId]
+    ? previousSelectedSituationId
+    : (store.projectSubjectsView.selectedSituationId || null);
+
+  store.projectSubjectsView.selectedSubjectId = nextSelectedSubjectId;
+  store.projectSubjectsView.selectedSujetId = nextSelectedSubjectId;
+  store.projectSubjectsView.selectedSituationId = nextSelectedSituationId;
+  store.projectSubjectsView.subjectsSelectedNodeId = nextSelectedSubjectId || "";
 
   return result.subjects;
 }
