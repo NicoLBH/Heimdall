@@ -5,7 +5,9 @@ import {
   createObjective as createObjectiveInSupabase,
   updateObjective as updateObjectiveInSupabase,
   closeObjective as closeObjectiveInSupabase,
-  reopenObjective as reopenObjectiveInSupabase
+  reopenObjective as reopenObjectiveInSupabase,
+  addSubjectToObjective as addSubjectToObjectiveInSupabase,
+  removeSubjectFromObjective as removeSubjectFromObjectiveInSupabase
 } from "../services/project-subjects-supabase.js";
 import { loadSituationsForCurrentProject, addSubjectToSituation, removeSubjectFromSituation } from "../services/project-situations-supabase.js";
 import {
@@ -319,7 +321,7 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   getSubjectKanbanMenuEntries: (...args) => projectSubjectsView.getSubjectKanbanMenuEntries(...args),
   getSetSujetKanbanStatus: () => setSujetKanbanStatus,
   setSubjectMetaActiveEntry: (...args) => projectSubjectsView.setSubjectMetaActiveEntry(...args),
-  getSetSubjectObjective: () => setSubjectObjective,
+  getToggleSubjectObjective: () => toggleSubjectObjective,
   getToggleSubjectSituation: () => toggleSubjectSituation,
   getToggleSubjectLabel: () => toggleSubjectLabel,
   syncDescriptionEditorDraft,
