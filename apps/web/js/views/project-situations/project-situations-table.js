@@ -1,6 +1,7 @@
 import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { renderStatusBadge } from "../ui/status-badges.js";
+import { renderTableHeadFilterToggle } from "../ui/table-head-filter-toggle.js";
 import { renderDataTableHead } from "../ui/data-table-shell.js";
 import { renderIssuesTable } from "../ui/issues-table.js";
 
@@ -11,15 +12,10 @@ export function createProjectSituationsTable({
   normalizeSituationMode,
   normalizeSituationStatus,
   renderSituationCount,
-  formatSituationUpdatedLabel
+  formatSituationUpdatedLabel,
+  getCurrentSituationsStatusFilter,
+  getSituationsStatusCounts
 }) {
-  function renderStatePill(status) {
-    return renderStatusBadge({
-      label: normalizeSituationStatus(status) === "closed" ? "Fermée" : "Ouverte",
-      tone: normalizeSituationStatus(status) === "closed" ? "muted" : "success"
-    });
-  }
-
   function renderModePill(mode) {
     return renderStatusBadge({
       label: normalizeSituationMode(mode) === "automatic" ? "Automatique" : "Manuelle",
@@ -28,11 +24,20 @@ export function createProjectSituationsTable({
   }
 
   function getSituationsTableHeadHtml() {
+    const current = getCurrentSituationsStatusFilter();
+    const counts = getSituationsStatusCounts();
     return renderDataTableHead({
       columns: [
-        { className: "cell cell-theme", label: "Situation" },
-        { className: "cell", label: "Statut" },
-        { className: "cell", label: "Mode" },
+        {
+          className: "cell cell-theme",
+          html: renderTableHeadFilterToggle({
+            activeValue: current,
+            items: [
+              { label: "Ouverts", value: "open", count: counts.open, dataAttr: "situations-status-filter" },
+              { label: "Fermés", value: "closed", count: counts.closed, dataAttr: "situations-status-filter" }
+            ]
+          })
+        },
         { className: "cell", label: "Nb sujets" }
       ]
     });
@@ -47,15 +52,16 @@ export function createProjectSituationsTable({
       <div class="issue-row issue-row--sit${selectedClass}">
         <div class="cell cell-theme lvl0">
           <span class="issue-row-title-grid">
-            <span class="issue-row-title-grid__status" aria-hidden="true">${svgIcon("table", { className: "octicon" })}</span>
+            <span class="issue-row-title-grid__status" aria-hidden="true">${svgIcon(normalizeSituationStatus(situation.status) === "closed" ? "table-check" : "table", { className: "octicon" })}</span>
             <span class="issue-row-title-grid__title">
-              <button type="button" class="row-title-trigger theme-text theme-text--sit" data-open-situation="${escapeHtml(situation.id)}">${title}</button>
+              <span class="project-situations-table__title-inline">
+                <button type="button" class="row-title-trigger theme-text theme-text--sit" data-open-situation="${escapeHtml(situation.id)}">${title}</button>
+                ${renderModePill(situation.mode)}
+              </span>
             </span>
             <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${updatedLabel}</span>
           </span>
         </div>
-        <div class="cell">${renderStatePill(situation.status)}</div>
-        <div class="cell">${renderModePill(situation.mode)}</div>
         <div class="cell mono">${escapeHtml(renderSituationCount(situation.id))}</div>
       </div>
     `;
@@ -70,7 +76,7 @@ export function createProjectSituationsTable({
 
     if (uiState.loading && !situations.length) {
       return renderIssuesTable({
-        gridTemplate: "minmax(420px, 1.6fr) max-content max-content 90px",
+        gridTemplate: "minmax(420px, 1.6fr) 90px",
         headHtml: getSituationsTableHeadHtml(),
         emptyTitle: "Chargement des situations…",
         emptyDescription: ""
@@ -78,7 +84,7 @@ export function createProjectSituationsTable({
     }
 
     return renderIssuesTable({
-      gridTemplate: "minmax(420px, 1.6fr) max-content max-content 90px",
+      gridTemplate: "minmax(420px, 1.6fr) 90px",
       headHtml: getSituationsTableHeadHtml(),
       rowsHtml: situations.map((situation) => renderSituationTitleCell(situation)).join(""),
       emptyTitle: "Aucune situation",
@@ -87,7 +93,6 @@ export function createProjectSituationsTable({
   }
 
   return {
-    renderStatePill,
     renderModePill,
     getSituationsTableHeadHtml,
     renderSituationTitleCell,
