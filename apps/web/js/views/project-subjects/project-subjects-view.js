@@ -533,8 +533,7 @@ function renderSujetKanbanStatusBadge(sujetId, situationId = "") {
 }
 
 function normalizeSubjectObjectiveIds(objectiveIds) {
-  const normalized = [...new Set((Array.isArray(objectiveIds) ? objectiveIds : []).map((value) => String(value || "")).filter(Boolean))];
-  return normalized.length ? [normalized[0]] : [];
+  return [...new Set((Array.isArray(objectiveIds) ? objectiveIds : []).map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
 function normalizeSubjectSituationIds(situationIds) {
@@ -574,14 +573,6 @@ function getSubjectSidebarMeta(subjectId) {
 
   const { bucket } = getRunBucket();
   const subjectMeta = bucket?.subjectMeta?.sujet?.[normalizedSubjectId] || {};
-  const objectiveIds = Array.isArray(subjectMeta.objectiveIds)
-    ? normalizeSubjectObjectiveIds(subjectMeta.objectiveIds)
-    : normalizeSubjectObjectiveIds(
-        getObjectives()
-          .filter((objective) => Array.isArray(objective.subjectIds) && objective.subjectIds.includes(normalizedSubjectId))
-          .map((objective) => String(objective.id || ""))
-          .filter(Boolean)
-      );
 
   const subject = getNestedSujet(normalizedSubjectId);
   const rawResult = (store.projectSubjectsView?.rawSubjectsResult && typeof store.projectSubjectsView.rawSubjectsResult === "object")
@@ -592,6 +583,21 @@ function getSubjectSidebarMeta(subjectId) {
   const subjectIdsBySituationId = rawResult?.subjectIdsBySituationId && typeof rawResult.subjectIdsBySituationId === "object"
     ? rawResult.subjectIdsBySituationId
     : {};
+
+  const objectiveIdsBySubjectId = rawResult?.objectiveIdsBySubjectId && typeof rawResult.objectiveIdsBySubjectId === "object"
+    ? rawResult.objectiveIdsBySubjectId
+    : {};
+
+  const objectiveIds = Array.isArray(subjectMeta.objectiveIds) && subjectMeta.objectiveIds.length
+    ? normalizeSubjectObjectiveIds(subjectMeta.objectiveIds)
+    : normalizeSubjectObjectiveIds(
+        Array.isArray(objectiveIdsBySubjectId[normalizedSubjectId]) && objectiveIdsBySubjectId[normalizedSubjectId].length
+          ? objectiveIdsBySubjectId[normalizedSubjectId]
+          : getObjectives()
+              .filter((objective) => Array.isArray(objective.subjectIds) && objective.subjectIds.includes(normalizedSubjectId))
+              .map((objective) => String(objective.id || ""))
+              .filter(Boolean)
+      );
 
   const linkedSituationIdsFromMap = Object.entries(subjectIdsBySituationId)
     .filter(([, ids]) => Array.isArray(ids) && ids.map((value) => String(value || "")).includes(normalizedSubjectId))
@@ -1001,13 +1007,17 @@ function renderSubjectLabelsValue(subjectId) {
 }
 
 function renderSubjectObjectivesValue(subjectId) {
-  const objective = getSubjectObjectives(subjectId)[0] || null;
+  const objectives = getSubjectObjectives(subjectId);
+  const objective = objectives[0] || null;
   if (!objective) return renderSubjectMetaButtonValue("Aucun objectif");
+  const secondaryLabel = objectives.length > 1
+    ? `${objectives.length} objectifs`
+    : formatObjectiveDueDateLabel(objective);
   return `
     <span class="subject-meta-objective-card">
       <span class="subject-meta-objective-card__count">${renderObjectiveCounterIcon(objective)}</span>
       <span class="subject-meta-objective-card__title">${escapeHtml(objective.title)}</span>
-      <span class="subject-meta-objective-card__date">${escapeHtml(formatObjectiveDueDateLabel(objective))}</span>
+      <span class="subject-meta-objective-card__date">${escapeHtml(secondaryLabel)}</span>
     </span>
   `;
 }
@@ -1897,6 +1907,16 @@ function buildDefaultObjectives() {
 }
 
 function getObjectives() {
+  const rawResult = (store.projectSubjectsView?.rawSubjectsResult && typeof store.projectSubjectsView.rawSubjectsResult === "object")
+    ? store.projectSubjectsView.rawSubjectsResult
+    : ((store.projectSubjectsView?.rawResult && typeof store.projectSubjectsView.rawResult === "object")
+      ? store.projectSubjectsView.rawResult
+      : null);
+
+  if (rawResult?.objectivesHydrated) {
+    return Array.isArray(rawResult.objectives) ? rawResult.objectives : [];
+  }
+
   const { bucket } = getRunBucket();
   if (Array.isArray(bucket?.objectives) && bucket.objectives.length) return bucket.objectives;
 
@@ -1914,7 +1934,18 @@ function getObjectives() {
 }
 
 function getObjectiveById(objectiveId) {
-  return getObjectives().find((objective) => String(objective?.id || "") === String(objectiveId || "")) || null;
+  const normalizedObjectiveId = String(objectiveId || "");
+  const rawResult = (store.projectSubjectsView?.rawSubjectsResult && typeof store.projectSubjectsView.rawSubjectsResult === "object")
+    ? store.projectSubjectsView.rawSubjectsResult
+    : ((store.projectSubjectsView?.rawResult && typeof store.projectSubjectsView.rawResult === "object")
+      ? store.projectSubjectsView.rawResult
+      : null);
+
+  if (rawResult?.objectivesHydrated && rawResult?.objectivesById && typeof rawResult.objectivesById === "object") {
+    return rawResult.objectivesById[normalizedObjectiveId] || null;
+  }
+
+  return getObjectives().find((objective) => String(objective?.id || "") === normalizedObjectiveId) || null;
 }
 
 
