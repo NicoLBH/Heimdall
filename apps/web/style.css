@@ -1802,6 +1802,8 @@ body.modal-open {
 .issue-row-subject-objective:focus-visible{color:var(--fgColor-accent, #4493f8);outline:none;}
 .issue-row-subject-objective__icon{display:inline-flex;align-items:center;color:currentColor;}
 .issue-row-subject-objective__text{min-width:0;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;}
+.issue-row-subject-children-counter{margin-left:2px;flex:0 0 auto;}
+.issue-row-subject-children-counter span:last-child{white-space:nowrap;}
 
 
 /* Verdict badges (F/D/S/HM/PM/SO) */
