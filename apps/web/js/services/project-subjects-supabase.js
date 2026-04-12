@@ -1010,8 +1010,10 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   store.projectSubjectsView.rawSubjectsResult = result;
   store.projectSubjectsView.rawResult = result;
   store.projectSubjectsView.projectScopeId = currentProjectScopeId;
-  store.projectSubjectsView.page = 1;
-  store.projectSubjectsView.expandedSubjectIds = new Set();
+  store.projectSubjectsView.page = previousPage;
+  store.projectSubjectsView.expandedSubjectIds = new Set(
+    previousExpandedSubjectIds.filter((subjectId) => !!result.subjectsById?.[subjectId])
+  );
   store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
   const nextSelectedSubjectId = previousSelectedSubjectId && result.subjectsById?.[previousSelectedSubjectId]
     ? previousSelectedSubjectId
