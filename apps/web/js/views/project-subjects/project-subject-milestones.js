@@ -221,7 +221,7 @@ export function createProjectSubjectMilestonesController(config) {
     return { open, closed, total, linkedSubjects: [] };
   }
 
-  function formatObjectiveDueDateLabel(objective) {
+export function formatObjectiveDueDateLabel(objective) {
     if (!objective?.dueDate) return "Pas de date définie";
     const parsed = new Date(objective.dueDate);
     if (Number.isNaN(parsed.getTime())) return String(objective.dueDate);
