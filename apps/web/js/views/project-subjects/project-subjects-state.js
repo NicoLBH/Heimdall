@@ -89,9 +89,11 @@ export function createProjectSubjectsState({ store }) {
       v.subjectMetaDropdown = {
         field: null,
         query: "",
-        activeKey: ""
+        activeKey: "",
+        showClosedSituations: false
       };
     }
+    if (typeof v.subjectMetaDropdown.showClosedSituations !== "boolean") v.subjectMetaDropdown.showClosedSituations = false;
     if (!v.subjectKanbanDropdown || typeof v.subjectKanbanDropdown !== "object") {
       v.subjectKanbanDropdown = {
         subjectId: "",
@@ -134,7 +136,8 @@ export function createProjectSubjectsState({ store }) {
     v.subjectMetaDropdown = {
       field: null,
       query: "",
-      activeKey: ""
+      activeKey: "",
+      showClosedSituations: false
     };
     v.subjectKanbanDropdown = {
       subjectId: "",
