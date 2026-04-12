@@ -929,143 +929,167 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
     return existing;
   }
 
-  const mappedBackendProjectId = normalizeUuid(getMappedBackendProjectId());
-  const backendProjectId = await getResolvedProjectId();
-  debugSubjectsLoad('load.resolve-project', {
-    frontendProjectId: currentProjectScopeId,
-    mappedBackendProjectId,
-    backendProjectId,
-    resolutionSource: mappedBackendProjectId
-      ? 'frontend-map'
-      : (backendProjectId ? 'resolver' : 'none'),
-    force,
-    cachedCount: existing.length
-  });
-  const previousSelectedSubjectId = normalizeUuid(
-    store.projectSubjectsView?.selectedSubjectId
-    || store.projectSubjectsView?.selectedSujetId
-  );
-  const previousSelectedSituationId = normalizeUuid(
-    store.projectSubjectsView?.selectedSituationId
-  );
+  if (store.projectSubjectsView && typeof store.projectSubjectsView === "object") {
+    store.projectSubjectsView.loading = true;
+  }
 
-  if (!backendProjectId) {
-    debugSubjectsLoad('load.abort-no-backend-project', {
+  const previousExpandedSubjectIds = Array.isArray(store.projectSubjectsView?.expandedSubjectIds)
+    ? store.projectSubjectsView.expandedSubjectIds
+    : (store.projectSubjectsView?.expandedSubjectIds instanceof Set
+      ? Array.from(store.projectSubjectsView.expandedSubjectIds)
+      : []);
+  const previousPage = Number.isFinite(Number(store.projectSubjectsView?.page))
+    ? Math.max(1, Number(store.projectSubjectsView.page))
+    : 1;
+
+  try {
+    const mappedBackendProjectId = normalizeUuid(getMappedBackendProjectId());
+    const backendProjectId = await getResolvedProjectId();
+    debugSubjectsLoad('load.resolve-project', {
       frontendProjectId: currentProjectScopeId,
       mappedBackendProjectId,
-      currentProjectId: String(store.currentProjectId || ''),
-      currentProjectName: String(store.currentProject?.name || '')
+      backendProjectId,
+      resolutionSource: mappedBackendProjectId
+        ? 'frontend-map'
+        : (backendProjectId ? 'resolver' : 'none'),
+      force,
+      cachedCount: existing.length
     });
-    store.projectSubjectsView.subjectsData = [];
-    store.projectSubjectsView.projectScopeId = currentProjectScopeId;
-    store.projectSubjectsView.rawSubjectsResult = {
-      run_id: store.ui.runId || "",
-      status: "IDLE",
-      subjects: [],
-      subjectsById: {},
-      rootSubjectIds: [],
-      childrenBySubjectId: {},
-      parentBySubjectId: {},
-      linksBySubjectId: {},
-      relationIdsBySubjectId: {},
-      relationOptionsById: {},
-      labels: [],
-      labelsById: {},
-      labelsByKey: {},
-      labelIdsBySubjectId: {},
-      subjectIdsByLabelId: {},
-      labelsHydrated: false,
-      situationsById: {},
-      subjectIdsBySituationId: {},
-      objectives: [],
-      objectivesById: {},
-      objectiveIdsBySubjectId: {},
-      objectivesHydrated: false
+    const previousSelectedSubjectId = normalizeUuid(
+      store.projectSubjectsView?.selectedSubjectId
+      || store.projectSubjectsView?.selectedSujetId
+    );
+    const previousSelectedSituationId = normalizeUuid(
+      store.projectSubjectsView?.selectedSituationId
+    );
+
+    if (!backendProjectId) {
+      debugSubjectsLoad('load.abort-no-backend-project', {
+        frontendProjectId: currentProjectScopeId,
+        mappedBackendProjectId,
+        currentProjectId: String(store.currentProjectId || ''),
+        currentProjectName: String(store.currentProject?.name || '')
+      });
+      store.projectSubjectsView.subjectsData = [];
+      store.projectSubjectsView.projectScopeId = currentProjectScopeId;
+      store.projectSubjectsView.rawSubjectsResult = {
+        run_id: store.ui.runId || "",
+        status: "IDLE",
+        subjects: [],
+        subjectsById: {},
+        rootSubjectIds: [],
+        childrenBySubjectId: {},
+        parentBySubjectId: {},
+        linksBySubjectId: {},
+        relationIdsBySubjectId: {},
+        relationOptionsById: {},
+        labels: [],
+        labelsById: {},
+        labelsByKey: {},
+        labelIdsBySubjectId: {},
+        subjectIdsByLabelId: {},
+        labelsHydrated: false,
+        situationsById: {},
+        subjectIdsBySituationId: {},
+        objectives: [],
+        objectivesById: {},
+        objectiveIdsBySubjectId: {},
+        objectivesHydrated: false
+      };
+      store.projectSubjectsView.rawResult = store.projectSubjectsView.rawSubjectsResult;
+      store.projectSubjectsView.loading = false;
+      store.projectSubjectsView.loaded = true;
+      return [];
+    }
+
+    const subjects = await fetchProjectFlatSubjects(backendProjectId);
+    const subjectLinks = await fetchProjectSubjectLinks(backendProjectId).catch(() => []);
+    const situations = await loadSituationsForCurrentProject(backendProjectId).catch(() => []);
+    const manualSituationIds = situations
+      .filter((situation) => String(situation?.mode || "manual").trim().toLowerCase() === "manual")
+      .map((situation) => String(situation?.id || "").trim())
+      .filter(Boolean);
+    const subjectIdsBySituationId = await loadSituationSubjectIdsMap(manualSituationIds).catch(() => ({}));
+    const result = buildProjectFlatSubjectsResult(subjects, subjectLinks, { runId: store.ui.runId || "" });
+    result.situationsById = Object.fromEntries(situations.map((situation) => [String(situation?.id || ""), situation]).filter(([id]) => !!id));
+    result.subjectIdsBySituationId = subjectIdsBySituationId;
+
+    try {
+      const labelsResult = await loadLabelsForProject(backendProjectId);
+      result.labels = Array.isArray(labelsResult?.labels) ? labelsResult.labels : [];
+      result.labelsById = labelsResult?.labelsById && typeof labelsResult.labelsById === "object" ? labelsResult.labelsById : {};
+      result.labelsByKey = labelsResult?.labelsByKey && typeof labelsResult.labelsByKey === "object" ? labelsResult.labelsByKey : {};
+      result.labelIdsBySubjectId = labelsResult?.labelIdsBySubjectId && typeof labelsResult.labelIdsBySubjectId === "object" ? labelsResult.labelIdsBySubjectId : {};
+      result.subjectIdsByLabelId = labelsResult?.subjectIdsByLabelId && typeof labelsResult.subjectIdsByLabelId === "object" ? labelsResult.subjectIdsByLabelId : {};
+      result.labelsHydrated = true;
+    } catch (error) {
+      console.warn("[project-subjects] labels load failed", error);
+      result.labels = [];
+      result.labelsById = {};
+      result.labelsByKey = {};
+      result.labelIdsBySubjectId = {};
+      result.subjectIdsByLabelId = {};
+      result.labelsHydrated = false;
+    }
+
+    try {
+      const objectivesResult = await loadObjectivesForProject(backendProjectId);
+      result.objectives = Array.isArray(objectivesResult?.objectives) ? objectivesResult.objectives : [];
+      result.objectivesById = objectivesResult?.objectivesById && typeof objectivesResult.objectivesById === "object" ? objectivesResult.objectivesById : {};
+      result.objectiveIdsBySubjectId = objectivesResult?.objectiveIdsBySubjectId && typeof objectivesResult.objectiveIdsBySubjectId === "object" ? objectivesResult.objectiveIdsBySubjectId : {};
+      result.objectivesHydrated = true;
+    } catch (error) {
+      console.warn("[project-subjects] objectives load failed", error);
+      result.objectives = [];
+      result.objectivesById = {};
+      result.objectiveIdsBySubjectId = {};
+      result.objectivesHydrated = false;
+    }
+
+    result.relationOptionsById = {
+      ...(result.relationOptionsById && typeof result.relationOptionsById === "object" ? result.relationOptionsById : {}),
+      ...result.situationsById
     };
-    store.projectSubjectsView.rawResult = store.projectSubjectsView.rawSubjectsResult;
-    return [];
-  }
 
-  const subjects = await fetchProjectFlatSubjects(backendProjectId);
-  const subjectLinks = await fetchProjectSubjectLinks(backendProjectId).catch(() => []);
-  const situations = await loadSituationsForCurrentProject(backendProjectId).catch(() => []);
-  const manualSituationIds = situations
-    .filter((situation) => String(situation?.mode || "manual").trim().toLowerCase() === "manual")
-    .map((situation) => String(situation?.id || "").trim())
-    .filter(Boolean);
-  const subjectIdsBySituationId = await loadSituationSubjectIdsMap(manualSituationIds).catch(() => ({}));
-  const result = buildProjectFlatSubjectsResult(subjects, subjectLinks, { runId: store.ui.runId || "" });
-  result.situationsById = Object.fromEntries(situations.map((situation) => [String(situation?.id || ""), situation]).filter(([id]) => !!id));
-  result.subjectIdsBySituationId = subjectIdsBySituationId;
+    store.projectSubjectsView.subjectsData = result.subjects;
+    store.projectSubjectsView.rawSubjectsResult = result;
+    store.projectSubjectsView.rawResult = result;
+    store.projectSubjectsView.projectScopeId = currentProjectScopeId;
+    store.projectSubjectsView.page = previousPage;
+    store.projectSubjectsView.expandedSubjectIds = new Set(
+      previousExpandedSubjectIds.filter((subjectId) => !!result.subjectsById?.[subjectId])
+    );
+    store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
+    const nextSelectedSubjectId = previousSelectedSubjectId && result.subjectsById?.[previousSelectedSubjectId]
+      ? previousSelectedSubjectId
+      : (result.subjects[0]?.id || null);
+    const nextSelectedSituationId = previousSelectedSituationId && result.situationsById?.[previousSelectedSituationId]
+      ? previousSelectedSituationId
+      : (store.projectSubjectsView.selectedSituationId || null);
 
-  try {
-    const labelsResult = await loadLabelsForProject(backendProjectId);
-    result.labels = Array.isArray(labelsResult?.labels) ? labelsResult.labels : [];
-    result.labelsById = labelsResult?.labelsById && typeof labelsResult.labelsById === "object" ? labelsResult.labelsById : {};
-    result.labelsByKey = labelsResult?.labelsByKey && typeof labelsResult.labelsByKey === "object" ? labelsResult.labelsByKey : {};
-    result.labelIdsBySubjectId = labelsResult?.labelIdsBySubjectId && typeof labelsResult.labelIdsBySubjectId === "object" ? labelsResult.labelIdsBySubjectId : {};
-    result.subjectIdsByLabelId = labelsResult?.subjectIdsByLabelId && typeof labelsResult.subjectIdsByLabelId === "object" ? labelsResult.subjectIdsByLabelId : {};
-    result.labelsHydrated = true;
+    store.projectSubjectsView.selectedSubjectId = nextSelectedSubjectId;
+    store.projectSubjectsView.selectedSujetId = nextSelectedSubjectId;
+    store.projectSubjectsView.selectedSituationId = nextSelectedSituationId;
+    store.projectSubjectsView.subjectsSelectedNodeId = nextSelectedSubjectId || "";
+    store.projectSubjectsView.loading = false;
+    store.projectSubjectsView.loaded = true;
+
+    debugSubjectsLoad('load.success', {
+      frontendProjectId: currentProjectScopeId,
+      backendProjectId,
+      subjectCount: result.subjects.length,
+      selectedSubjectId: nextSelectedSubjectId,
+      labelsHydrated: !!result.labelsHydrated,
+      objectivesHydrated: !!result.objectivesHydrated
+    });
+
+    return result.subjects;
   } catch (error) {
-    console.warn("[project-subjects] labels load failed", error);
-    result.labels = [];
-    result.labelsById = {};
-    result.labelsByKey = {};
-    result.labelIdsBySubjectId = {};
-    result.subjectIdsByLabelId = {};
-    result.labelsHydrated = false;
+    if (store.projectSubjectsView && typeof store.projectSubjectsView === "object") {
+      store.projectSubjectsView.loading = false;
+    }
+    throw error;
   }
-
-  try {
-    const objectivesResult = await loadObjectivesForProject(backendProjectId);
-    result.objectives = Array.isArray(objectivesResult?.objectives) ? objectivesResult.objectives : [];
-    result.objectivesById = objectivesResult?.objectivesById && typeof objectivesResult.objectivesById === "object" ? objectivesResult.objectivesById : {};
-    result.objectiveIdsBySubjectId = objectivesResult?.objectiveIdsBySubjectId && typeof objectivesResult.objectiveIdsBySubjectId === "object" ? objectivesResult.objectiveIdsBySubjectId : {};
-    result.objectivesHydrated = true;
-  } catch (error) {
-    console.warn("[project-subjects] objectives load failed", error);
-    result.objectives = [];
-    result.objectivesById = {};
-    result.objectiveIdsBySubjectId = {};
-    result.objectivesHydrated = false;
-  }
-
-  result.relationOptionsById = {
-    ...(result.relationOptionsById && typeof result.relationOptionsById === "object" ? result.relationOptionsById : {}),
-    ...result.situationsById
-  };
-
-  store.projectSubjectsView.subjectsData = result.subjects;
-  store.projectSubjectsView.rawSubjectsResult = result;
-  store.projectSubjectsView.rawResult = result;
-  store.projectSubjectsView.projectScopeId = currentProjectScopeId;
-  store.projectSubjectsView.page = previousPage;
-  store.projectSubjectsView.expandedSubjectIds = new Set(
-    previousExpandedSubjectIds.filter((subjectId) => !!result.subjectsById?.[subjectId])
-  );
-  store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
-  const nextSelectedSubjectId = previousSelectedSubjectId && result.subjectsById?.[previousSelectedSubjectId]
-    ? previousSelectedSubjectId
-    : (result.subjects[0]?.id || null);
-  const nextSelectedSituationId = previousSelectedSituationId && result.situationsById?.[previousSelectedSituationId]
-    ? previousSelectedSituationId
-    : (store.projectSubjectsView.selectedSituationId || null);
-
-  store.projectSubjectsView.selectedSubjectId = nextSelectedSubjectId;
-  store.projectSubjectsView.selectedSujetId = nextSelectedSubjectId;
-  store.projectSubjectsView.selectedSituationId = nextSelectedSituationId;
-  store.projectSubjectsView.subjectsSelectedNodeId = nextSelectedSubjectId || "";
-
-  debugSubjectsLoad('load.success', {
-    frontendProjectId: currentProjectScopeId,
-    backendProjectId,
-    subjectCount: result.subjects.length,
-    selectedSubjectId: nextSelectedSubjectId,
-    labelsHydrated: !!result.labelsHydrated,
-    objectivesHydrated: !!result.objectivesHydrated
-  });
-
-  return result.subjects;
 }
 
 export function resetFlatSubjectsForCurrentProject() {
@@ -1073,6 +1097,8 @@ export function resetFlatSubjectsForCurrentProject() {
   store.projectSubjectsView.rawSubjectsResult = null;
   store.projectSubjectsView.rawResult = null;
   store.projectSubjectsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
+  store.projectSubjectsView.loading = false;
+  store.projectSubjectsView.loaded = false;
   store.projectSubjectsView.expandedSubjectIds = new Set();
   store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
   store.projectSubjectsView.selectedSubjectId = null;

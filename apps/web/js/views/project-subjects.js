@@ -782,7 +782,9 @@ export function renderProjectSubjects(root) {
   traceSubjectsRender('render.start', {
     currentProjectId: String(store.currentProjectId || ''),
     rootConnected: !!root?.isConnected,
-    cachedSubjectCount: Array.isArray(store.projectSubjectsView?.subjectsData) ? store.projectSubjectsView.subjectsData.length : 0
+    cachedSubjectCount: Array.isArray(store.projectSubjectsView?.subjectsData) ? store.projectSubjectsView.subjectsData.length : 0,
+    loading: !!store.projectSubjectsView?.loading,
+    loaded: !!store.projectSubjectsView?.loaded
   });
 
   const subjectsViewState = ensureViewUiState();
@@ -816,8 +818,11 @@ export function renderProjectSubjects(root) {
   }
   const data = store.projectSubjectsView.subjectsData || [];
   const firstSituationId = data[0]?.id || null;
+  const currentProjectScopeId = String(store.currentProjectId || "").trim() || null;
+  if (!store.projectSubjectsView.loaded || store.projectSubjectsView.projectScopeId !== currentProjectScopeId) {
+    store.projectSubjectsView.loading = true;
+  }
 
-  
   if (toolbarHost) {
     toolbarHost.dataset.toolbarOwner = "subjects";
     rerenderSubjectsToolbar();

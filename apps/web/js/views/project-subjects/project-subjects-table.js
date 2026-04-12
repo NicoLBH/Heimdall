@@ -145,6 +145,17 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
   });
   const flatSubjects = selectorFlatSubjects.length ? selectorFlatSubjects : fallbackFlatSubjects;
   const hasAnySubjects = !!Object.keys(rawSubjectsById).length || !!flatSubjects.length;
+  const isLoading = !!store.projectSubjectsView?.loading;
+
+  if (isLoading && !hasAnySubjects) {
+    return renderIssuesTable({
+      gridTemplate: getSituationsTableGridTemplate(),
+      headHtml: renderSituationsTableHeadHtml({ deps }),
+      state: "loading",
+      loadingTitle: "Chargement des sujets…",
+      loadingDescription: "Récupération des sujets du projet en cours."
+    });
+  }
 
   if (!hasAnySubjects) return renderWelcomeHtml(deps);
 

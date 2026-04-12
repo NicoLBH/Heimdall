@@ -1,4 +1,5 @@
 import { escapeHtml } from "../../utils/escape-html.js";
+import { renderSpinnerHtml } from "./spinner.js";
 
 function buildTableVars(gridTemplate = "") {
   if (!gridTemplate) return "";
@@ -39,6 +40,7 @@ export function renderDataTableLoadingState({
 } = {}) {
   return `
     <div class="data-table-shell__loading emptyState ${className}">
+      <div class="data-table-shell__loading-spinner">${renderSpinnerHtml({ label: title || "Chargement", size: "lg" })}</div>
       ${title ? `<div class="data-table-shell__loading-title">${escapeHtml(title)}</div>` : ""}
       ${description ? `<div class="data-table-shell__loading-description">${escapeHtml(description)}</div>` : ""}
     </div>
