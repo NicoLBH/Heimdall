@@ -76,6 +76,14 @@ export function createProjectSituationsState({ store }) {
     if (typeof view.selectedSituationId !== "string" && view.selectedSituationId !== null) {
       view.selectedSituationId = null;
     }
+    if (!view.filters || typeof view.filters !== "object") {
+      view.filters = { status: "open" };
+    }
+    if (typeof view.situationsStatusFilter !== "string") {
+      view.situationsStatusFilter = String(view.filters.status || "open");
+    }
+    view.filters.status = String(view.situationsStatusFilter || view.filters.status || "open").toLowerCase() === "closed" ? "closed" : "open";
+    view.situationsStatusFilter = view.filters.status;
     if (!view.kanbanStatusBySituationId || typeof view.kanbanStatusBySituationId !== "object" || Array.isArray(view.kanbanStatusBySituationId)) {
       view.kanbanStatusBySituationId = {};
     }
