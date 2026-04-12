@@ -1,0 +1,863 @@
+import { store } from "../store.js";
+import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.js";
+import { loadSituationsForCurrentProject, loadSituationSubjectIdsMap } from "./project-situations-supabase.js";
+import { resolveCurrentBackendProjectId } from "./project-supabase-sync.js";
+
+const SUPABASE_URL = getSupabaseUrl();
+const FRONT_PROJECT_MAP_STORAGE_KEY = "mdall.supabaseProjectMap.v1";
+
+
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function readFrontendProjectMap() {
+  try {
+    const raw = localStorage.getItem(FRONT_PROJECT_MAP_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function getFrontendProjectKey() {
+  return String(store.currentProjectId || store.currentProject?.id || "default").trim() || "default";
+}
+
+function getMappedBackendProjectId() {
+  const frontendProjectKey = getFrontendProjectKey();
+  const map = readFrontendProjectMap();
+  return map[frontendProjectKey] || "";
+}
+
+async function getSupabaseAuthHeaders(extra = {}) {
+  return buildSupabaseAuthHeaders(extra);
+}
+
+async function fetchProjectFlatSubjects(projectId) {
+  if (!projectId) {
+    return [];
+  }
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subjects`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,document_id,analysis_run_id,situation_id,parent_subject_id,title,description,priority,status,closure_reason,subject_type,created_at,updated_at,closed_at"
+  );
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const headers = await getSupabaseAuthHeaders({ Accept: "application/json" });
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers,
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subjects fetch failed (${res.status}): ${txt}`);
+  }
+
+  const json = await res.json();
+  return json;
+}
+
+async function fetchProjectSubjectLinks(projectId) {
+  if (!projectId) {
+    return [];
+  }
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subject_links`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,source_subject_id,target_subject_id,link_type,score,explanation,created_at"
+  );
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const headers = await getSupabaseAuthHeaders({ Accept: "application/json" });
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers,
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_links fetch failed (${res.status}): ${txt}`);
+  }
+
+  const json = await res.json();
+  return json;
+}
+
+function normalizeUuid(value) {
+  const normalized = String(value || "").trim();
+  return normalized || "";
+}
+
+function normalizeObjectiveStatus(value) {
+  return String(value || "open").trim().toLowerCase() === "closed" ? "closed" : "open";
+}
+
+function normalizeSubjectLabelKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeProjectLabelRow(row = {}) {
+  const id = normalizeUuid(row.id);
+  const projectId = normalizeUuid(row.project_id);
+  const labelKey = firstNonEmpty(row.label_key, row.name, id);
+  const name = firstNonEmpty(row.name, row.label_key, "Label");
+  const description = firstNonEmpty(row.description, "");
+  const textColor = firstNonEmpty(row.text_color, "rgb(208, 215, 222)");
+  const backgroundColor = firstNonEmpty(row.background_color, "rgba(110, 118, 129, 0.18)");
+  const borderColor = firstNonEmpty(row.border_color, textColor);
+  const hexColor = firstNonEmpty(row.hex_color, "");
+  const sortOrder = Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : 0;
+  return {
+    ...row,
+    id,
+    project_id: projectId,
+    label_key: labelKey,
+    labelKey,
+    key: labelKey,
+    name,
+    label: name,
+    description,
+    text_color: textColor,
+    textColor,
+    background_color: backgroundColor,
+    backgroundColor,
+    color: backgroundColor,
+    border_color: borderColor,
+    borderColor,
+    hex_color: hexColor,
+    hexColor,
+    sort_order: sortOrder,
+    sortOrder,
+    created_at: row.created_at || "",
+    updated_at: row.updated_at || ""
+  };
+}
+
+
+async function getResolvedProjectId(projectId) {
+  const explicitProjectId = normalizeUuid(projectId);
+  if (explicitProjectId) return explicitProjectId;
+
+  const mappedProjectId = getMappedBackendProjectId();
+  if (mappedProjectId) return mappedProjectId;
+
+  return normalizeUuid(await resolveCurrentBackendProjectId().catch(() => ""));
+}
+
+function getMilestonesSelectClause() {
+  return "id,project_id,title,description,due_date,status,created_at,updated_at,closed_at";
+}
+
+async function fetchProjectMilestoneById(objectiveId) {
+  const normalizedObjectiveId = normalizeUuid(objectiveId);
+  if (!normalizedObjectiveId) throw new Error("objectiveId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/milestones`);
+  url.searchParams.set("select", getMilestonesSelectClause());
+  url.searchParams.set("id", `eq.${normalizedObjectiveId}`);
+  url.searchParams.set("limit", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return (Array.isArray(rows) ? rows[0] : rows) || null;
+}
+
+export async function createObjective(projectId, payload = {}) {
+  const resolvedProjectId = await getResolvedProjectId(projectId);
+  if (!resolvedProjectId) throw new Error("projectId is required");
+
+  const body = {
+    project_id: resolvedProjectId,
+    title: firstNonEmpty(payload.title, "Nouvel objectif"),
+    description: firstNonEmpty(payload.description, "") || null,
+    due_date: firstNonEmpty(payload.dueDate, "") || null,
+    status: normalizeObjectiveStatus(payload.status),
+    closed_at: normalizeObjectiveStatus(payload.status) === "closed" ? new Date().toISOString() : null
+  };
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/milestones`, {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone create failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const created = normalizeObjectiveRow((Array.isArray(rows) ? rows[0] : rows) || {});
+  await loadObjectivesForProject(resolvedProjectId);
+  return created;
+}
+
+export async function updateObjective(objectiveId, patch = {}) {
+  const normalizedObjectiveId = normalizeUuid(objectiveId);
+  if (!normalizedObjectiveId) throw new Error("objectiveId is required");
+
+  const current = await fetchProjectMilestoneById(normalizedObjectiveId);
+  if (!current?.id) throw new Error("objective not found");
+
+  const nextStatus = Object.prototype.hasOwnProperty.call(patch, "status")
+    ? normalizeObjectiveStatus(patch.status)
+    : normalizeObjectiveStatus(current.status);
+
+  const body = {};
+  if (Object.prototype.hasOwnProperty.call(patch, "title")) body.title = firstNonEmpty(patch.title, current.title, "Objectif");
+  if (Object.prototype.hasOwnProperty.call(patch, "description")) body.description = firstNonEmpty(patch.description, "") || null;
+  if (Object.prototype.hasOwnProperty.call(patch, "dueDate")) body.due_date = firstNonEmpty(patch.dueDate, "") || null;
+  if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+    body.status = nextStatus;
+    body.closed_at = nextStatus === "closed" ? new Date().toISOString() : null;
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/milestones?id=eq.${normalizedObjectiveId}`, {
+    method: "PATCH",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone update failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const updated = normalizeObjectiveRow((Array.isArray(rows) ? rows[0] : rows) || {});
+  await loadObjectivesForProject(updated.project_id || normalizeUuid(current.project_id));
+  return updated;
+}
+
+export async function closeObjective(objectiveId) {
+  return updateObjective(objectiveId, { status: "closed" });
+}
+
+export async function reopenObjective(objectiveId) {
+  return updateObjective(objectiveId, { status: "open" });
+}
+
+export async function addSubjectToObjective(objectiveId, subjectId) {
+  const normalizedObjectiveId = normalizeUuid(objectiveId);
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedObjectiveId) throw new Error("objectiveId is required");
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/milestone_subjects`, {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation"
+    }),
+    body: JSON.stringify({
+      milestone_id: normalizedObjectiveId,
+      subject_id: normalizedSubjectId
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone_subject create failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+export async function removeSubjectFromObjective(objectiveId, subjectId) {
+  const normalizedObjectiveId = normalizeUuid(objectiveId);
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedObjectiveId) throw new Error("objectiveId is required");
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/milestone_subjects`);
+  url.searchParams.set("milestone_id", `eq.${normalizedObjectiveId}`);
+  url.searchParams.set("subject_id", `eq.${normalizedSubjectId}`);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone_subject delete failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+function normalizeObjectiveRow(row = {}, subjectIds = []) {
+  const normalizedSubjectIds = [...new Set((Array.isArray(subjectIds) ? subjectIds : []).map((value) => String(value || "").trim()).filter(Boolean))];
+  const status = normalizeObjectiveStatus(row.status);
+  return {
+    ...row,
+    id: normalizeUuid(row.id),
+    project_id: normalizeUuid(row.project_id),
+    title: firstNonEmpty(row.title, "Objectif"),
+    description: firstNonEmpty(row.description, ""),
+    dueDate: row.due_date || "",
+    status,
+    closed: status === "closed",
+    created_at: row.created_at || "",
+    updated_at: row.updated_at || "",
+    closed_at: row.closed_at || null,
+    subjectIds: normalizedSubjectIds
+  };
+}
+
+async function fetchProjectMilestones(projectId) {
+  if (!projectId) return [];
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/milestones`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,title,description,due_date,status,created_at,updated_at,closed_at"
+  );
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestones fetch failed (${res.status}): ${txt}`);
+  }
+
+  const json = await res.json().catch(() => []);
+  return Array.isArray(json) ? json : [];
+}
+
+async function fetchProjectMilestoneSubjects(projectId, milestoneIds = []) {
+  const normalizedMilestoneIds = [...new Set((Array.isArray(milestoneIds) ? milestoneIds : []).map((value) => normalizeUuid(value)).filter(Boolean))];
+  if (!normalizedMilestoneIds.length) return [];
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/milestone_subjects`);
+  url.searchParams.set("select", "id,milestone_id,subject_id,created_at");
+  url.searchParams.set("milestone_id", `in.(${normalizedMilestoneIds.join(',')})`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`milestone_subjects fetch failed (${res.status}): ${txt}`);
+  }
+
+  const json = await res.json().catch(() => []);
+  return Array.isArray(json) ? json : [];
+}
+
+async function loadObjectivesForProject(projectId) {
+  const milestoneRows = await fetchProjectMilestones(projectId);
+  const milestoneIds = milestoneRows.map((row) => normalizeUuid(row?.id)).filter(Boolean);
+  const milestoneSubjectRows = await fetchProjectMilestoneSubjects(projectId, milestoneIds);
+  return buildObjectivesResult(milestoneRows, milestoneSubjectRows);
+}
+
+function buildObjectivesResult(milestoneRows = [], milestoneSubjectRows = []) {
+  const orderedMilestoneIds = (milestoneRows || []).map((row) => normalizeUuid(row?.id)).filter(Boolean);
+  const orderedMilestoneIdSet = new Set(orderedMilestoneIds);
+  const subjectIdsByMilestoneId = {};
+  const objectiveIdsBySubjectId = {};
+
+  for (const link of milestoneSubjectRows || []) {
+    const milestoneId = normalizeUuid(link?.milestone_id);
+    const subjectId = normalizeUuid(link?.subject_id);
+    if (!milestoneId || !subjectId || !orderedMilestoneIdSet.has(milestoneId)) continue;
+
+    if (!Array.isArray(subjectIdsByMilestoneId[milestoneId])) subjectIdsByMilestoneId[milestoneId] = [];
+    if (!subjectIdsByMilestoneId[milestoneId].includes(subjectId)) {
+      subjectIdsByMilestoneId[milestoneId].push(subjectId);
+    }
+
+    if (!Array.isArray(objectiveIdsBySubjectId[subjectId])) objectiveIdsBySubjectId[subjectId] = [];
+    if (!objectiveIdsBySubjectId[subjectId].includes(milestoneId)) {
+      objectiveIdsBySubjectId[subjectId].push(milestoneId);
+    }
+  }
+
+  const objectives = (milestoneRows || []).map((row) => normalizeObjectiveRow(row, subjectIdsByMilestoneId[normalizeUuid(row?.id)] || []));
+  const objectivesById = Object.fromEntries(objectives.map((objective) => [String(objective.id || ""), objective]).filter(([id]) => !!id));
+
+  return {
+    objectives,
+    objectivesById,
+    objectiveIdsBySubjectId
+  };
+}
+
+
+async function fetchProjectLabels(projectId) {
+  if (!projectId) return [];
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/project_labels`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,label_key,name,description,text_color,background_color,border_color,hex_color,sort_order,created_at,updated_at"
+  );
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "sort_order.asc,name.asc,created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`project_labels fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? rows.map((row) => normalizeProjectLabelRow(row)) : [];
+}
+
+async function fetchProjectSubjectLabels(projectId) {
+  if (!projectId) return [];
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subject_labels`);
+  url.searchParams.set("select", "id,project_id,subject_id,label_id,created_at");
+  url.searchParams.set("project_id", `eq.${projectId}`);
+  url.searchParams.set("order", "created_at.asc");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_labels fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+
+
+function normalizeLabelHexColor(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^#([0-9a-fA-F]{6})$/);
+  return match ? `#${match.group(1).lower()}` : "#8b949e";
+}
+
+function buildProjectLabelWritePayload(projectId, payload = {}, current = null) {
+  const name = firstNonEmpty(payload.name, current?.name, "").trim();
+  if (!name) throw new Error("Le nom du label est requis.");
+
+  const hexColor = normalizeLabelHexColor(firstNonEmpty(payload.hexColor, payload.color, current?.hex_color, current?.hexColor, "#8b949e"));
+  const description = Object.prototype.hasOwnProperty.call(payload, "description")
+    ? firstNonEmpty(payload.description, "")
+    : firstNonEmpty(current?.description, "");
+
+  return {
+    project_id: normalizeUuid(firstNonEmpty(projectId, current?.project_id, current?.projectId, "")),
+    label_key: normalizeSubjectLabelKey(firstNonEmpty(payload.labelKey, payload.label_key, current?.label_key, current?.labelKey, name)),
+    name,
+    description: description || null,
+    text_color: hexColor,
+    background_color: `${hexColor}22`,
+    border_color: `${hexColor}66`,
+    hex_color: hexColor
+  };
+}
+
+function buildLabelsResult(labelRows = [], subjectLabelRows = []) {
+  const labels = (Array.isArray(labelRows) ? labelRows : []).map((row) => normalizeProjectLabelRow(row));
+  const labelsById = {};
+  const labelsByKey = {};
+  const labelIdsBySubjectId = {};
+  const subjectIdsByLabelId = {};
+
+  for (const label of labels) {
+    const labelId = normalizeUuid(label?.id);
+    if (!labelId) continue;
+    labelsById[labelId] = label;
+    const normalizedKey = normalizeSubjectLabelKey(label?.label_key || label?.labelKey || label?.key || label?.name || labelId);
+    if (normalizedKey && !labelsByKey[normalizedKey]) {
+      labelsByKey[normalizedKey] = label;
+    }
+    subjectIdsByLabelId[labelId] = [];
+  }
+
+  for (const row of Array.isArray(subjectLabelRows) ? subjectLabelRows : []) {
+    const subjectId = normalizeUuid(row?.subject_id);
+    const labelId = normalizeUuid(row?.label_id);
+    if (!subjectId || !labelId || !labelsById[labelId]) continue;
+
+    if (!Array.isArray(labelIdsBySubjectId[subjectId])) labelIdsBySubjectId[subjectId] = [];
+    if (!labelIdsBySubjectId[subjectId].includes(labelId)) labelIdsBySubjectId[subjectId].push(labelId);
+
+    if (!Array.isArray(subjectIdsByLabelId[labelId])) subjectIdsByLabelId[labelId] = [];
+    if (!subjectIdsByLabelId[labelId].includes(subjectId)) subjectIdsByLabelId[labelId].push(subjectId);
+  }
+
+  return {
+    labels,
+    labelsById,
+    labelsByKey,
+    labelIdsBySubjectId,
+    subjectIdsByLabelId
+  };
+}
+
+
+
+export async function createLabel(projectId, payload = {}) {
+  const resolvedProjectId = await getResolvedProjectId(projectId);
+  if (!resolvedProjectId) throw new Error("projectId is required");
+
+  const body = buildProjectLabelWritePayload(resolvedProjectId, payload);
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/project_labels`, {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`project_label create failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return normalizeProjectLabelRow((Array.isArray(rows) ? rows[0] : rows) || {});
+}
+
+export async function updateLabel(labelId, patch = {}) {
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/project_labels`);
+  url.searchParams.set(
+    "select",
+    "id,project_id,label_key,name,description,text_color,background_color,border_color,hex_color,sort_order,created_at,updated_at"
+  );
+  url.searchParams.set("id", `eq.${normalizedLabelId}`);
+  url.searchParams.set("limit", "1");
+
+  const currentRes = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!currentRes.ok) {
+    const txt = await currentRes.text().catch(() => "");
+    throw new Error(`project_label fetch failed (${currentRes.status}): ${txt}`);
+  }
+
+  const currentRows = await currentRes.json().catch(() => []);
+  const current = normalizeProjectLabelRow((Array.isArray(currentRows) ? currentRows[0] : currentRows) || {});
+  if (!current?.id) throw new Error("label not found");
+
+  const body = buildProjectLabelWritePayload(current.project_id, patch, current);
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/project_labels?id=eq.${normalizedLabelId}`, {
+    method: "PATCH",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`project_label update failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return normalizeProjectLabelRow((Array.isArray(rows) ? rows[0] : rows) || {});
+}
+
+export async function deleteLabel(labelId) {
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/project_labels?id=eq.${normalizedLabelId}`, {
+    method: "DELETE",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      Prefer: "return=minimal"
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`project_label delete failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+export async function loadLabelsForProject(projectId) {
+  const resolvedProjectId = await getResolvedProjectId(projectId);
+  if (!resolvedProjectId) {
+    return {
+      labels: [],
+      labelsById: {},
+      labelsByKey: {},
+      labelIdsBySubjectId: {},
+      subjectIdsByLabelId: {},
+      labelsHydrated: false
+    };
+  }
+
+  const [labelRows, subjectLabelRows] = await Promise.all([
+    fetchProjectLabels(resolvedProjectId),
+    fetchProjectSubjectLabels(resolvedProjectId)
+  ]);
+
+  return {
+    ...buildLabelsResult(labelRows, subjectLabelRows),
+    labelsHydrated: true
+  };
+}
+
+function buildProjectFlatSubjectsResult(subjectRows = [], subjectLinks = [], options = {}) {
+  const subjectsById = {};
+  const parentBySubjectId = {};
+  const childrenBySubjectId = {};
+  const linksBySubjectId = {};
+  const rootSubjectIds = [];
+  const relationIdsBySubjectId = {};
+  const relationOptionsById = {};
+
+  for (const subject of subjectRows || []) {
+    const subjectId = String(subject?.id || "");
+    if (!subjectId) continue;
+    const normalizedSubject = { ...subject, id: subjectId };
+    subjectsById[subjectId] = normalizedSubject;
+    childrenBySubjectId[subjectId] = [];
+    linksBySubjectId[subjectId] = [];
+    relationIdsBySubjectId[subjectId] = [];
+
+    const relationId = String(subject?.situation_id || "").trim();
+    if (relationId) {
+      relationIdsBySubjectId[subjectId].push(relationId);
+      if (!relationOptionsById[relationId]) {
+        relationOptionsById[relationId] = {
+          id: relationId,
+          title: relationId,
+          status: "open"
+        };
+      }
+    }
+  }
+
+  for (const subject of subjectRows || []) {
+    const subjectId = String(subject?.id || "");
+    if (!subjectId) continue;
+    const parentId = String(subject?.parent_subject_id || "");
+    parentBySubjectId[subjectId] = parentId || null;
+    if (parentId && subjectsById[parentId] && parentId !== subjectId) childrenBySubjectId[parentId].push(subjectId);
+    else rootSubjectIds.push(subjectId);
+  }
+
+  for (const link of subjectLinks || []) {
+    const sourceId = String(link?.source_subject_id || "");
+    const targetId = String(link?.target_subject_id || "");
+    if (!sourceId || !targetId) continue;
+    const normalizedLink = { ...link, source_subject_id: sourceId, target_subject_id: targetId };
+    if (!Array.isArray(linksBySubjectId[sourceId])) linksBySubjectId[sourceId] = [];
+    if (!Array.isArray(linksBySubjectId[targetId])) linksBySubjectId[targetId] = [];
+    linksBySubjectId[sourceId].push(normalizedLink);
+    linksBySubjectId[targetId].push(normalizedLink);
+  }
+
+  const flatSubjects = Object.values(subjectsById).sort((left, right) => {
+    const leftTs = Date.parse(left?.created_at || "") || 0;
+    const rightTs = Date.parse(right?.created_at || "") || 0;
+    if (leftTs != rightTs) return leftTs - rightTs;
+    return String(firstNonEmpty(left?.title, left?.id, "")).localeCompare(String(firstNonEmpty(right?.title, right?.id, "")), "fr");
+  });
+
+  return {
+    run_id: options.runId || "",
+    status: "SUCCEEDED",
+    subjects: flatSubjects,
+    subjectsById,
+    rootSubjectIds,
+    childrenBySubjectId,
+    parentBySubjectId,
+    linksBySubjectId,
+    relationIdsBySubjectId,
+    relationOptionsById
+  };
+}
+
+export async function loadFlatSubjectsForCurrentProject(options = {}) {
+  const force = !!options.force;
+  const currentProjectScopeId = String(store.currentProjectId || "").trim() || null;
+  const existing = Array.isArray(store.projectSubjectsView?.subjectsData) ? store.projectSubjectsView.subjectsData : [];
+  if (!force && existing.length && store.projectSubjectsView?.projectScopeId === currentProjectScopeId) {
+    return existing;
+  }
+
+  const backendProjectId = getMappedBackendProjectId();
+
+  if (!backendProjectId) {
+    store.projectSubjectsView.subjectsData = [];
+    store.projectSubjectsView.projectScopeId = currentProjectScopeId;
+    store.projectSubjectsView.rawSubjectsResult = {
+      run_id: store.ui.runId || "",
+      status: "IDLE",
+      subjects: [],
+      subjectsById: {},
+      rootSubjectIds: [],
+      childrenBySubjectId: {},
+      parentBySubjectId: {},
+      linksBySubjectId: {},
+      relationIdsBySubjectId: {},
+      relationOptionsById: {},
+      labels: [],
+      labelsById: {},
+      labelsByKey: {},
+      labelIdsBySubjectId: {},
+      subjectIdsByLabelId: {},
+      labelsHydrated: false,
+      situationsById: {},
+      subjectIdsBySituationId: {},
+      objectives: [],
+      objectivesById: {},
+      objectiveIdsBySubjectId: {},
+      objectivesHydrated: false
+    };
+    store.projectSubjectsView.rawResult = store.projectSubjectsView.rawSubjectsResult;
+    return [];
+  }
+
+  const subjects = await fetchProjectFlatSubjects(backendProjectId);
+  const subjectLinks = await fetchProjectSubjectLinks(backendProjectId).catch(() => []);
+  const situations = await loadSituationsForCurrentProject(backendProjectId).catch(() => []);
+  const manualSituationIds = situations
+    .filter((situation) => String(situation?.mode || "manual").trim().toLowerCase() === "manual")
+    .map((situation) => String(situation?.id || "").trim())
+    .filter(Boolean);
+  const subjectIdsBySituationId = await loadSituationSubjectIdsMap(manualSituationIds).catch(() => ({}));
+  const result = buildProjectFlatSubjectsResult(subjects, subjectLinks, { runId: store.ui.runId || "" });
+  result.situationsById = Object.fromEntries(situations.map((situation) => [String(situation?.id || ""), situation]).filter(([id]) => !!id));
+  result.subjectIdsBySituationId = subjectIdsBySituationId;
+
+  try {
+    const labelsResult = await loadLabelsForProject(backendProjectId);
+    result.labels = Array.isArray(labelsResult?.labels) ? labelsResult.labels : [];
+    result.labelsById = labelsResult?.labelsById && typeof labelsResult.labelsById === "object" ? labelsResult.labelsById : {};
+    result.labelsByKey = labelsResult?.labelsByKey && typeof labelsResult.labelsByKey === "object" ? labelsResult.labelsByKey : {};
+    result.labelIdsBySubjectId = labelsResult?.labelIdsBySubjectId && typeof labelsResult.labelIdsBySubjectId === "object" ? labelsResult.labelIdsBySubjectId : {};
+    result.subjectIdsByLabelId = labelsResult?.subjectIdsByLabelId && typeof labelsResult.subjectIdsByLabelId === "object" ? labelsResult.subjectIdsByLabelId : {};
+    result.labelsHydrated = true;
+  } catch (error) {
+    console.warn("[project-subjects] labels load failed", error);
+    result.labels = [];
+    result.labelsById = {};
+    result.labelsByKey = {};
+    result.labelIdsBySubjectId = {};
+    result.subjectIdsByLabelId = {};
+    result.labelsHydrated = false;
+  }
+
+  try {
+    const objectivesResult = await loadObjectivesForProject(backendProjectId);
+    result.objectives = Array.isArray(objectivesResult?.objectives) ? objectivesResult.objectives : [];
+    result.objectivesById = objectivesResult?.objectivesById && typeof objectivesResult.objectivesById === "object" ? objectivesResult.objectivesById : {};
+    result.objectiveIdsBySubjectId = objectivesResult?.objectiveIdsBySubjectId && typeof objectivesResult.objectiveIdsBySubjectId === "object" ? objectivesResult.objectiveIdsBySubjectId : {};
+    result.objectivesHydrated = true;
+  } catch (error) {
+    console.warn("[project-subjects] objectives load failed", error);
+    result.objectives = [];
+    result.objectivesById = {};
+    result.objectiveIdsBySubjectId = {};
+    result.objectivesHydrated = false;
+  }
+
+  result.relationOptionsById = {
+    ...(result.relationOptionsById && typeof result.relationOptionsById === "object" ? result.relationOptionsById : {}),
+    ...result.situationsById
+  };
+
+  store.projectSubjectsView.subjectsData = result.subjects;
+  store.projectSubjectsView.rawSubjectsResult = result;
+  store.projectSubjectsView.rawResult = result;
+  store.projectSubjectsView.projectScopeId = currentProjectScopeId;
+  store.projectSubjectsView.page = 1;
+  store.projectSubjectsView.expandedSubjectIds = new Set();
+  store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
+  store.projectSubjectsView.selectedSubjectId = result.subjects[0]?.id || null;
+  store.projectSubjectsView.selectedSujetId = result.subjects[0]?.id || null;
+  store.projectSubjectsView.subjectsSelectedNodeId = result.subjects[0]?.id || "";
+
+  return result.subjects;
+}
+
+export function resetFlatSubjectsForCurrentProject() {
+  store.projectSubjectsView.subjectsData = [];
+  store.projectSubjectsView.rawSubjectsResult = null;
+  store.projectSubjectsView.rawResult = null;
+  store.projectSubjectsView.projectScopeId = String(store.currentProjectId || "").trim() || null;
+  store.projectSubjectsView.expandedSubjectIds = new Set();
+  store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
+  store.projectSubjectsView.selectedSubjectId = null;
+  store.projectSubjectsView.selectedSujetId = null;
+  store.projectSubjectsView.subjectsSelectedNodeId = "";
+  store.projectSubjectsView.search = "";
+  store.projectSubjectsView.page = 1;
+}
