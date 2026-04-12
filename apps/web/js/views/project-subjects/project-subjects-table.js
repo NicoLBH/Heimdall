@@ -1,3 +1,4 @@
+import { renderProblemsCountsIconHtml } from "../ui/subissues-counts.js";
 import { getDisplayAuthorName } from "../ui/author-identity.js";
 export function getSituationsTableGridTemplate() {
   return "minmax(0, 1fr) max-content";
@@ -13,6 +14,34 @@ export function renderSituationsTableHeadHtml(options = {}) {
       ];
 
   return renderDataTableHead({ columns });
+}
+
+
+function getSubjectChildrenCounts(sujet, getChildSubjects, getEffectiveSujetStatus) {
+  const childSubjects = typeof getChildSubjects === "function"
+    ? getChildSubjects(String(sujet?.id || ""))
+    : [];
+  let closed = 0;
+  for (const childSubject of childSubjects) {
+    const childStatus = String(getEffectiveSujetStatus(childSubject?.id) || childSubject?.status || "open").toLowerCase();
+    if (childStatus !== "open") closed += 1;
+  }
+  return {
+    total: childSubjects.length,
+    closed,
+    open: Math.max(0, childSubjects.length - closed)
+  };
+}
+
+function renderSubjectChildrenCounterHtml(sujet, deps) {
+  const counts = getSubjectChildrenCounts(sujet, deps.getChildSubjects, deps.getEffectiveSujetStatus);
+  if (!counts.total) return "";
+  return `
+    <span class="subissues-counts subissues-counts--problems issue-row-subject-children-counter" aria-label="${counts.open} sous-sujets ouverts, ${counts.closed} fermés, ${counts.total} au total">
+      ${renderProblemsCountsIconHtml(counts.closed, counts.total)}
+      <span>${counts.closed} / ${counts.total}</span>
+    </span>
+  `;
 }
 
 function renderWelcomeHtml(deps) {
@@ -43,6 +72,7 @@ export function renderFlatSujetRow(sujet, situationId, options = {}) {
     getSubjectLabelDefinition,
     renderSubjectLabelBadge,
     getObjectiveById,
+    getChildSubjects,
     firstNonEmpty
   } = deps;
 
@@ -75,7 +105,7 @@ export function renderFlatSujetRow(sujet, situationId, options = {}) {
           </span>
             <span class="issue-row-title-grid__title issue-row-subject-title-line">
             <button type="button" class="row-title-trigger js-row-title-trigger theme-text theme-text--pb ${titleSeenClass}" data-row-entity-type="sujet" data-row-entity-id="${escapeHtml(sujet.id)}">${escapeHtml(firstNonEmpty(sujet.title, sujet.id, "Non classé"))}</button>
-            ${subjectLabelsHtml ? `<span class="issue-row-subject-labels">${subjectLabelsHtml}</span>` : ""}
+            ${renderSubjectChildrenCounterHtml(sujet, deps)}${subjectLabelsHtml ? `<span class="issue-row-subject-labels">${subjectLabelsHtml}</span>` : ""}
           </span>
           <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${escapeHtml(displayRef)} - ${escapeHtml(author)} • ${escapeHtml(openedLabel)}${objectiveLabel}</span>
         </span>
