@@ -1423,6 +1423,19 @@ async function reloadSubjectsFromSupabase(root = getSubjectsCurrentRoot(), optio
 }
 
 
+function getScrollableElementScrollState(element) {
+  if (!element) return null;
+  return {
+    scrollTop: Number(element.scrollTop || 0)
+  };
+}
+
+function restoreScrollableElementScrollState(element, state) {
+  if (!element || !state) return;
+  const maxScrollTop = Math.max(0, Number(element.scrollHeight || 0) - Number(element.clientHeight || 0));
+  element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
+}
+
 function syncSituationsPrimaryScrollSource() {
   const panelHost = document.getElementById("situationsPanelHost");
 
@@ -1453,6 +1466,7 @@ function syncSituationsPrimaryScrollSource() {
 function rerenderPanels() {
   ensureViewUiState();
 
+  const detailsScrollState = getScrollableElementScrollState(document.getElementById("situationsDetailsHost"));
   const filteredSituations = getFilteredSituations();
   const counts = getVisibleCounts(filteredSituations);
   const panelHost = document.getElementById("situationsPanelHost");
@@ -1498,7 +1512,12 @@ function rerenderPanels() {
       const detailsHost = document.getElementById("situationsDetailsHost");
       wireDetailsInteractive(detailsHost);
       bindDetailsScroll(document);
-      detailsHost?.__syncCondensedTitle?.();
+      restoreScrollableElementScrollState(detailsHost, detailsScrollState);
+      requestAnimationFrame(() => {
+        const currentDetailsHost = document.getElementById("situationsDetailsHost");
+        restoreScrollableElementScrollState(currentDetailsHost, detailsScrollState);
+        currentDetailsHost?.__syncCondensedTitle?.();
+      });
       syncSituationsPrimaryScrollSource();
     }
   }
@@ -1654,19 +1673,29 @@ function rerenderSubjectMetaScopes() {
   if (document.getElementById("drilldownBody")) getProjectSubjectDrilldown().updateDrilldownPanel();
 }
 
+function focusInputWithoutScrolling(input) {
+  if (!input) return;
+  if (typeof input.focus === "function") {
+    try {
+      input.focus({ preventScroll: true });
+    } catch (_) {
+      input.focus();
+    }
+  }
+  input.select?.();
+}
+
 function focusSubjectMetaSearch(root, field) {
   requestAnimationFrame(() => {
     const input = ensureSubjectMetaDropdownHost().querySelector(`[data-subject-meta-search="${field}"]`);
-    input?.focus();
-    input?.select?.();
+    focusInputWithoutScrolling(input);
   });
 }
 
 function focusSubjectKanbanSearch(subjectId, situationId) {
   requestAnimationFrame(() => {
     const input = ensureSubjectMetaDropdownHost().querySelector(`[data-subject-kanban-search="${CSS.escape(String(subjectId || ""))}"][data-subject-kanban-search-situation-id="${CSS.escape(String(situationId || ""))}"]`);
-    input?.focus();
-    input?.select?.();
+    focusInputWithoutScrolling(input);
   });
 }
 

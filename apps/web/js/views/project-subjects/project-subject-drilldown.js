@@ -1,3 +1,16 @@
+function getScrollableElementScrollState(element) {
+  if (!element) return null;
+  return {
+    scrollTop: Number(element.scrollTop || 0)
+  };
+}
+
+function restoreScrollableElementScrollState(element, state) {
+  if (!element || !state) return;
+  const maxScrollTop = Math.max(0, Number(element.scrollHeight || 0) - Number(element.clientHeight || 0));
+  element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
+}
+
 export function createProjectSubjectDrilldownController(config) {
   const {
     store,
@@ -55,6 +68,7 @@ export function createProjectSubjectDrilldownController(config) {
     const body = document.getElementById("drilldownBody");
     if (!panel || !title || !body) return;
 
+    const bodyScrollState = getScrollableElementScrollState(body);
     const expandedSubjectIds = store.projectSubjectsView?.drilldown?.expandedSubjectIds
       || store.situationsView?.drilldown?.expandedSubjectIds
       || store.situationsView?.drilldown?.expandedSujets
@@ -75,7 +89,13 @@ export function createProjectSubjectDrilldownController(config) {
 
     wireDetailsInteractive(body);
     bindDetailsScroll(document);
+    restoreScrollableElementScrollState(body, bodyScrollState);
     body.__syncCondensedTitle?.();
+    requestAnimationFrame(() => {
+      const currentBody = document.getElementById("drilldownBody");
+      restoreScrollableElementScrollState(currentBody, bodyScrollState);
+      currentBody?.__syncCondensedTitle?.();
+    });
   }
 
   function applyDrilldownVariant(variant = "") {

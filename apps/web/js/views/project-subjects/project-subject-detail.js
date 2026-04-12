@@ -1,3 +1,16 @@
+function getScrollableElementScrollState(element) {
+  if (!element) return null;
+  return {
+    scrollTop: Number(element.scrollTop || 0)
+  };
+}
+
+function restoreScrollableElementScrollState(element, state) {
+  if (!element || !state) return;
+  const maxScrollTop = Math.max(0, Number(element.scrollHeight || 0) - Number(element.clientHeight || 0));
+  element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
+}
+
 export function createProjectSubjectDetailController(config) {
   const {
     store,
@@ -30,6 +43,7 @@ export function createProjectSubjectDetailController(config) {
       || store.situationsView?.rightExpandedSujets
       || new Set();
 
+    const bodyScrollState = getScrollableElementScrollState(body);
     const details = renderDetailsHtml(null, {
       subissuesOptions: {
         sujetRowClass: "js-modal-drilldown-sujet",
@@ -50,11 +64,13 @@ export function createProjectSubjectDetailController(config) {
 
     wireDetailsInteractive(body);
     bindDetailsScroll(document);
+    restoreScrollableElementScrollState(body, bodyScrollState);
     body.__syncCondensedTitle?.();
 
     if (isOpen) {
       requestAnimationFrame(() => {
         const currentBody = document.getElementById("detailsBodyModal");
+        restoreScrollableElementScrollState(currentBody, bodyScrollState);
         currentBody?.__syncCondensedTitle?.();
       });
     }
