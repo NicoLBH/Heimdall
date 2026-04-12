@@ -71,6 +71,11 @@ export function createProjectSubjectsView(deps) {
     getScopedSelection
   } = deps;
 
+  const {
+    getSubjectLabelDefinition,
+    renderSubjectLabelBadge
+  } = getProjectSubjectLabels();
+
 function issueIcon(status = "open", options = {}) {
   const {
     reviewState = "pending",
