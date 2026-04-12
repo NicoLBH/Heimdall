@@ -596,6 +596,7 @@ export function createProjectSubjectsEvents(config) {
       labelsState.labelEditModal = {
         isOpen: true,
         mode,
+        targetId: String(labelDef?.id || ""),
         targetKey: labelDef?.key || "",
         name: String(labelDef?.label || ""),
         description: String(labelDef?.description || ""),
@@ -734,6 +735,18 @@ export function createProjectSubjectsEvents(config) {
         return;
       }
 
+      const labelColorResetButton = event.target.closest("[data-label-color-reset]");
+      if (labelColorResetButton) {
+        event.preventDefault();
+        const labelsState = getLabelsUiState();
+        if (labelsState.labelEditModal && typeof labelsState.labelEditModal === "object") {
+          labelsState.labelEditModal.color = "#8b949e";
+          labelsState.labelEditModal.colorPickerOpen = false;
+        }
+        rerenderPanels();
+        return;
+      }
+
       const labelRowMenuToggle = event.target.closest("[data-label-row-menu-toggle]");
       if (labelRowMenuToggle) {
         event.preventDefault();
@@ -753,6 +766,49 @@ export function createProjectSubjectsEvents(config) {
         return;
       }
 
+      const labelDeleteButton = event.target.closest("[data-label-delete]");
+      if (labelDeleteButton) {
+        event.preventDefault();
+        projectSubjectLabels?.deleteLabelFromModal?.(String(labelDeleteButton.dataset.labelDelete || ""))
+          .then(() => {
+            rerenderPanels();
+          })
+          .catch((error) => {
+            showError(`Suppression du label impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+            rerenderPanels();
+          });
+        return;
+      }
+
+      const labelModalSaveButton = event.target.closest("[data-label-modal-save]");
+      if (labelModalSaveButton) {
+        event.preventDefault();
+        projectSubjectLabels?.saveLabelFromModal?.()
+          .then(() => {
+            rerenderPanels();
+          })
+          .catch((error) => {
+            showError(`Enregistrement du label impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+            rerenderPanels();
+          });
+        rerenderPanels();
+        return;
+      }
+
+      const labelModalDeleteButton = event.target.closest("[data-label-modal-delete]");
+      if (labelModalDeleteButton) {
+        event.preventDefault();
+        projectSubjectLabels?.deleteLabelFromModal?.()
+          .then(() => {
+            rerenderPanels();
+          })
+          .catch((error) => {
+            showError(`Suppression du label impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+            rerenderPanels();
+          });
+        rerenderPanels();
+        return;
+      }
 
       const labelColorValueButton = event.target.closest("[data-label-color-value]");
       if (labelColorValueButton) {
