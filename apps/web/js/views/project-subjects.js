@@ -510,7 +510,10 @@ const projectSubjectsActions = createProjectSubjectsActions({
   normalizeSubjectSituationIds: (...args) => projectSubjectsView.normalizeSubjectSituationIds(...args),
   normalizeSubjectLabels: (...args) => projectSubjectsView.normalizeSubjectLabels(...args),
   normalizeSubjectLabelKey: (...args) => projectSubjectsView.normalizeSubjectLabelKey(...args),
-  getObjectives: (...args) => projectSubjectsView.getObjectives(...args)
+  getObjectives: (...args) => projectSubjectsView.getObjectives(...args),
+  addSubjectToObjectiveInSupabase: (...args) => addSubjectToObjectiveInSupabase(...args),
+  removeSubjectFromObjectiveInSupabase: (...args) => removeSubjectFromObjectiveInSupabase(...args),
+  rerenderPanels: (...args) => projectSubjectsView.rerenderPanels(...args)
 });
 
 const {
@@ -520,6 +523,7 @@ const {
   toggleSubjectSituation,
   setSubjectLabels,
   toggleSubjectLabel,
+  toggleSubjectObjective,
   setSubjectObjective,
   applyReviewStateChange,
   applyRestoreReviewState,
