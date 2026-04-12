@@ -486,6 +486,83 @@ async function fetchProjectSubjectLabels(projectId) {
 }
 
 
+async function fetchSubjectProjectId(subjectId) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const cachedProjectId = normalizeUuid(
+    store.projectSubjectsView?.rawSubjectsResult?.subjectsById?.[normalizedSubjectId]?.project_id
+  );
+  if (cachedProjectId) return cachedProjectId;
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subjects`);
+  url.searchParams.set("select", "id,project_id");
+  url.searchParams.set("id", `eq.${normalizedSubjectId}`);
+  url.searchParams.set("limit", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const row = (Array.isArray(rows) ? rows[0] : rows) || {};
+  const projectId = normalizeUuid(row.project_id);
+  if (!projectId) throw new Error("subject project_id not found");
+  return projectId;
+}
+
+async function fetchLabelProjectId(labelId) {
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const cachedProjectId = normalizeUuid(
+    store.projectSubjectsView?.rawSubjectsResult?.labelsById?.[normalizedLabelId]?.project_id
+  );
+  if (cachedProjectId) return cachedProjectId;
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/project_labels`);
+  url.searchParams.set("select", "id,project_id");
+  url.searchParams.set("id", `eq.${normalizedLabelId}`);
+  url.searchParams.set("limit", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`project_label fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const row = (Array.isArray(rows) ? rows[0] : rows) || {};
+  const projectId = normalizeUuid(row.project_id);
+  if (!projectId) throw new Error("label project_id not found");
+  return projectId;
+}
+
+async function resolveSubjectLabelProjectId(subjectId, labelId) {
+  const [subjectProjectId, labelProjectId] = await Promise.all([
+    fetchSubjectProjectId(subjectId),
+    fetchLabelProjectId(labelId)
+  ]);
+
+  if (!subjectProjectId || !labelProjectId || subjectProjectId !== labelProjectId) {
+    throw new Error("subject and label must belong to the same project");
+  }
+
+  return subjectProjectId;
+}
+
 
 function normalizeLabelHexColor(value) {
   const raw = String(value || "").trim();
@@ -643,6 +720,94 @@ export async function deleteLabel(labelId) {
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`project_label delete failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+export async function addLabelToSubject(subjectId, labelId) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const projectId = await resolveSubjectLabelProjectId(normalizedSubjectId, normalizedLabelId);
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subject_labels`);
+  url.searchParams.set("on_conflict", "subject_id,label_id");
+
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation"
+    }),
+    body: JSON.stringify({
+      project_id: projectId,
+      subject_id: normalizedSubjectId,
+      label_id: normalizedLabelId
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_label create failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return (Array.isArray(rows) ? rows[0] : rows) || {
+    project_id: projectId,
+    subject_id: normalizedSubjectId,
+    label_id: normalizedLabelId
+  };
+}
+
+export async function removeLabelFromSubject(subjectId, labelId) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  const normalizedLabelId = normalizeUuid(labelId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  if (!normalizedLabelId) throw new Error("labelId is required");
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subject_labels`);
+  url.searchParams.set("subject_id", `eq.${normalizedSubjectId}`);
+  url.searchParams.set("label_id", `eq.${normalizedLabelId}`);
+
+  const res = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      Prefer: "return=minimal"
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`subject_label delete failed (${res.status}): ${txt}`);
+  }
+
+  return true;
+}
+
+export async function replaceSubjectLabels(subjectId, labelIds = []) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+
+  const nextLabelIds = [...new Set((Array.isArray(labelIds) ? labelIds : []).map((value) => normalizeUuid(value)).filter(Boolean))];
+  const currentLabelIds = [
+    ...new Set((store.projectSubjectsView?.rawSubjectsResult?.labelIdsBySubjectId?.[normalizedSubjectId] || []).map((value) => normalizeUuid(value)).filter(Boolean))
+  ];
+
+  const currentSet = new Set(currentLabelIds);
+  const nextSet = new Set(nextLabelIds);
+  const labelIdsToRemove = currentLabelIds.filter((labelId) => !nextSet.has(labelId));
+  const labelIdsToAdd = nextLabelIds.filter((labelId) => !currentSet.has(labelId));
+
+  for (const labelId of labelIdsToRemove) {
+    await removeLabelFromSubject(normalizedSubjectId, labelId);
+  }
+  for (const labelId of labelIdsToAdd) {
+    await addLabelToSubject(normalizedSubjectId, labelId);
   }
 
   return true;
