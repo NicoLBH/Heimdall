@@ -1374,6 +1374,25 @@ function renderSubIssuesForSituation(situation, options = {}) {
 }
 
 
+function scheduleSubjectsPanelsRerender(callback, options = {}) {
+  const maxAttempts = Number.isFinite(Number(options?.maxAttempts)) ? Math.max(1, Number(options.maxAttempts)) : 12;
+  let attempt = 0;
+
+  const tryRerender = () => {
+    const connectedRoot = getSubjectsCurrentRoot();
+    const connectedPanelHost = document.getElementById("situationsPanelHost");
+    if (connectedRoot?.isConnected || connectedPanelHost?.isConnected) {
+      callback();
+      return;
+    }
+    attempt += 1;
+    if (attempt >= maxAttempts) return;
+    requestAnimationFrame(tryRerender);
+  };
+
+  tryRerender();
+}
+
 async function reloadSubjectsFromSupabase(root = getSubjectsCurrentRoot(), options = {}) {
   const targetRoot = root || getSubjectsCurrentRoot();
   const shouldRerender = options?.rerender !== false;
