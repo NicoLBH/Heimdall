@@ -1383,10 +1383,25 @@ async function reloadSubjectsFromSupabase(root = getSubjectsCurrentRoot(), optio
 
   const data = await loadExistingSubjectsForCurrentProject({ force: true });
 
-  if (shouldRerender && targetRoot?.isConnected) {
+  const rerenderLoadedPanels = () => {
     rerenderPanels();
     const nextPrimaryScrollHost = document.querySelector("#situationsPanelHost .data-table-shell__body") || document.getElementById("situationsDetailsHost");
     restoreScrollableElementScrollState(nextPrimaryScrollHost, primaryScrollState);
+  };
+
+  if (shouldRerender) {
+    const currentRoot = targetRoot?.isConnected ? targetRoot : getSubjectsCurrentRoot();
+    const panelHost = document.getElementById("situationsPanelHost");
+    if (currentRoot?.isConnected || panelHost?.isConnected) {
+      rerenderLoadedPanels();
+    } else {
+      requestAnimationFrame(() => {
+        const nextRoot = getSubjectsCurrentRoot();
+        const nextPanelHost = document.getElementById("situationsPanelHost");
+        if (!nextRoot?.isConnected && !nextPanelHost?.isConnected) return;
+        rerenderLoadedPanels();
+      });
+    }
   }
 
   if (shouldUpdateModal) {
