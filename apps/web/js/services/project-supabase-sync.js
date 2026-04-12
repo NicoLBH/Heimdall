@@ -37,6 +37,132 @@ function getMappedBackendProjectId() {
 }
 
 
+
+function writeFrontendProjectMapEntry(frontendProjectKey, backendProjectId) {
+  const key = String(frontendProjectKey || '').trim();
+  const backendId = normalizeUuid(backendProjectId);
+  if (!key || !backendId) return;
+  try {
+    const map = readFrontendProjectMap();
+    map[key] = backendId;
+    localStorage.setItem(FRONT_PROJECT_MAP_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore localStorage failures
+  }
+}
+
+function normalizeProjectRow(row = {}) {
+  const id = normalizeUuid(row.id);
+  const backendProjectId = normalizeUuid(row.backendProjectId || row.project_id || row.id);
+  const currentPhase = firstNonEmpty(row.current_phase_code, row.currentPhase, store.projectForm?.currentPhase, store.projectForm?.phase, 'APS');
+  return {
+    ...row,
+    id,
+    backendProjectId,
+    project_id: backendProjectId,
+    name: firstNonEmpty(row.name, 'Projet'),
+    description: firstNonEmpty(row.description, ''),
+    city: firstNonEmpty(row.city, ''),
+    postalCode: firstNonEmpty(row.postal_code, row.postalCode, ''),
+    departmentCode: firstNonEmpty(row.department_code, row.departmentCode, ''),
+    clientName: firstNonEmpty(row.project_owner_name, row.clientName, '—'),
+    projectOwnerName: firstNonEmpty(row.project_owner_name, row.projectOwnerName, ''),
+    currentPhase,
+    current_phase_code: currentPhase,
+    ownerId: firstNonEmpty(row.owner_id, row.ownerId, ''),
+    owner_id: firstNonEmpty(row.owner_id, row.ownerId, ''),
+    createdAt: firstNonEmpty(row.created_at, row.createdAt, ''),
+    updatedAt: firstNonEmpty(row.updated_at, row.updatedAt, '')
+  };
+}
+
+async function fetchProjectsCatalogFromSupabase() {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/projects`);
+  url.searchParams.set('select', 'id,name,description,city,postal_code,department_code,project_owner_name,current_phase_code,owner_id,created_at,updated_at');
+  url.searchParams.set('order', 'updated_at.desc');
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: await getSupabaseAuthHeaders({ Accept: 'application/json' }),
+    cache: 'no-store'
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`projects fetch failed (${res.status}): ${txt}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? rows.map(normalizeProjectRow).filter((row) => !!row.id) : [];
+}
+
+export async function syncProjectsCatalogFromSupabase() {
+  const projects = await fetchProjectsCatalogFromSupabase();
+  store.projects = projects;
+  return projects;
+}
+
+export async function syncCurrentProjectIdentityFromSupabase() {
+  const currentProjectId = String(store.currentProjectId || store.currentProject?.id || '').trim();
+  if (!currentProjectId) return null;
+
+  const projects = Array.isArray(store.projects) && store.projects.length
+    ? store.projects
+    : await syncProjectsCatalogFromSupabase().catch(() => []);
+
+  const matchedProject = (projects || []).find((project) => String(project?.id || '').trim() === currentProjectId)
+    || (projects || []).find((project) => String(project?.backendProjectId || '').trim() === currentProjectId)
+    || null;
+
+  if (!matchedProject) {
+    const current = store.currentProject && typeof store.currentProject === 'object' ? store.currentProject : { id: currentProjectId };
+    const fallback = normalizeProjectRow({ ...current, id: currentProjectId, backendProjectId: current.backendProjectId || current.project_id || currentProjectId });
+    store.currentProject = fallback;
+    store.currentProjectId = fallback.id;
+    writeFrontendProjectMapEntry(fallback.id, fallback.backendProjectId);
+    return fallback;
+  }
+
+  const merged = { ...(store.currentProject && typeof store.currentProject === 'object' ? store.currentProject : {}), ...matchedProject };
+  store.currentProject = merged;
+  store.currentProjectId = matchedProject.id;
+  writeFrontendProjectMapEntry(matchedProject.id, matchedProject.backendProjectId);
+  return merged;
+}
+
+export async function createProjectWithDefaultPhases(payload = {}) {
+  const body = {
+    p_project_name: firstNonEmpty(payload.projectName, payload.name, ''),
+    p_description: firstNonEmpty(payload.description, '') || null,
+    p_city: firstNonEmpty(payload.city, ''),
+    p_postal_code: firstNonEmpty(payload.postalCode, ''),
+    p_department_code: firstNonEmpty(payload.departmentCode, ''),
+    p_project_owner_name: firstNonEmpty(payload.clientName, payload.projectOwnerName, ''),
+    p_current_phase_code: firstNonEmpty(payload.currentPhaseCode, payload.currentPhase, 'PC')
+  };
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_project`, {
+    method: 'POST',
+    headers: await getSupabaseAuthHeaders({
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    }),
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`create_project failed (${res.status}): ${txt}`);
+  }
+
+  const row = normalizeProjectRow(await res.json().catch(() => ({})));
+  if (row.id) {
+    writeFrontendProjectMapEntry(row.id, row.backendProjectId);
+  }
+  await syncProjectsCatalogFromSupabase().catch(() => undefined);
+  return row;
+}
+
 export async function resolveCurrentBackendProjectId() {
   const mappedProjectId = getMappedBackendProjectId();
   if (mappedProjectId) return mappedProjectId;
