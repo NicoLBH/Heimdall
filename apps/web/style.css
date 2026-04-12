@@ -582,18 +582,18 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   width:100%;
   display:flex;
   align-items:center;
-  justify-content:space-between;
+  justify-content:left;
   gap:8px;
   padding:8px 10px;
   border:0;
   border-radius:8px;
-  background:rgba(110,118,129,.14);
   color:var(--text);
   font:inherit;
-  font-size:13px;
+  font-size:12px;
   font-weight:600;
   text-align:left;
   cursor:pointer;
+  background:transparent;
 }
 
 .subject-meta-collapsible-toggle:hover,
