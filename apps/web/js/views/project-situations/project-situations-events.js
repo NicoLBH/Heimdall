@@ -267,6 +267,20 @@ export function createProjectSituationsEvents({
       });
     });
 
+    root.querySelectorAll("[data-situations-status-filter]").forEach((node) => {
+      node.addEventListener("click", (event) => {
+        event.preventDefault();
+        const value = String(node.getAttribute("data-situations-status-filter") || "open").trim().toLowerCase() === "closed" ? "closed" : "open";
+        if (!store.situationsView || typeof store.situationsView !== "object") store.situationsView = {};
+        if (!store.situationsView.filters || typeof store.situationsView.filters !== "object") {
+          store.situationsView.filters = { status: value };
+        }
+        store.situationsView.situationsStatusFilter = value;
+        store.situationsView.filters.status = value;
+        rerender(root);
+      });
+    });
+
     bindCreateModalEvents(root);
     bindEditPanelEvents(root);
   }
