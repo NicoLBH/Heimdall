@@ -1022,6 +1022,11 @@ function renderSubjectSituationsValue(subjectId) {
   return `
     <span class="subject-meta-field__chips">
       ${openSituations.map((situation) => renderSubjectSituationCard(situation, subjectId)).join("")}
+      ${showClosedSituations ? `
+        <span class="subject-meta-field__chips subject-meta-field__chips--closed">
+          ${closedSituations.map((situation) => renderSubjectSituationCard(situation, subjectId)).join("")}
+        </span>
+      ` : ""}
       ${closedCount ? `
         <button
           type="button"
@@ -1030,13 +1035,8 @@ function renderSubjectSituationsValue(subjectId) {
           aria-expanded="${showClosedSituations ? "true" : "false"}"
         >
           <span class="subject-meta-collapsible-toggle__label">${escapeHtml(showClosedSituations ? "Montrer moins" : closedLabel)}</span>
-          <span class="subject-meta-collapsible-toggle__chevron" aria-hidden="true">${svgIcon(showClosedSituations ? "chevron-up" : "chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+          <span class="subject-meta-collapsible-toggle__chevron" aria-hidden="true">${svgIcon(showClosedSituations ? "chevron-up" : "chevron-down", { className: showClosedSituations ? "octicon octicon-chevron-up" : "octicon octicon-chevron-down" })}</span>
         </button>
-      ` : ""}
-      ${showClosedSituations ? `
-        <span class="subject-meta-field__chips subject-meta-field__chips--closed">
-          ${closedSituations.map((situation) => renderSubjectSituationCard(situation, subjectId)).join("")}
-        </span>
       ` : ""}
     </span>
   `;
