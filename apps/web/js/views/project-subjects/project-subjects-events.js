@@ -172,13 +172,42 @@ export function createProjectSubjectsEvents(config) {
     element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
   }
 
+  function captureSubjectMetaDropdownScrollState() {
+    const host = document.getElementById("subjectMetaDropdownHost");
+    if (!host) return null;
+    const body = host.querySelector(".subject-meta-dropdown__body");
+    const sectionBodies = [...host.querySelectorAll(".select-menu__section-body")].map((element) => getScrollableElementScrollState(element));
+    return {
+      bodyState: getScrollableElementScrollState(body),
+      sectionBodies
+    };
+  }
+
+  function restoreSubjectMetaDropdownScrollState(state) {
+    if (!state) return;
+    const apply = () => {
+      const host = document.getElementById("subjectMetaDropdownHost");
+      if (!host) return;
+      restoreScrollableElementScrollState(host.querySelector(".subject-meta-dropdown__body"), state.bodyState);
+      host.querySelectorAll(".select-menu__section-body").forEach((element, index) => {
+        restoreScrollableElementScrollState(element, state.sectionBodies?.[index] || null);
+      });
+    };
+    apply();
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+  }
+
   function captureSubjectMetaScrollState(root) {
     return {
       root,
       rootState: getScrollableElementScrollState(root),
       detailsBodyState: getScrollableElementScrollState(document.getElementById("detailsBodyModal")),
       drilldownBodyState: getScrollableElementScrollState(document.getElementById("drilldownBody")),
-      situationsDetailsState: getScrollableElementScrollState(document.getElementById("situationsDetailsHost"))
+      situationsDetailsState: getScrollableElementScrollState(document.getElementById("situationsDetailsHost")),
+      dropdownState: captureSubjectMetaDropdownScrollState()
     };
   }
 
@@ -189,6 +218,7 @@ export function createProjectSubjectsEvents(config) {
       restoreScrollableElementScrollState(document.getElementById("detailsBodyModal"), state.detailsBodyState);
       restoreScrollableElementScrollState(document.getElementById("drilldownBody"), state.drilldownBodyState);
       restoreScrollableElementScrollState(document.getElementById("situationsDetailsHost"), state.situationsDetailsState);
+      restoreSubjectMetaDropdownScrollState(state.dropdownState);
     };
     apply();
     requestAnimationFrame(() => {
