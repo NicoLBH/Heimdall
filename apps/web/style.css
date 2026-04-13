@@ -162,8 +162,8 @@
 }
 
 *{box-sizing:border-box;}
-html, body{height:100%;}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden;}
+html, body{min-height:100%;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);overflow-x:hidden;overflow-y:auto;}
 .mono{font-family:var(--mono);line-height:14px;}
 
 .ui-icon{
@@ -2889,8 +2889,14 @@ body.drilldown-open .drilldown__inner,
 }
 
 body.route--project #app{
-  overflow:hidden;
-  padding:0;
+  position:relative;
+  top:auto;
+  left:auto;
+  right:auto;
+  bottom:auto;
+  overflow:visible;
+  min-height:calc(100dvh - var(--app-top));
+  padding:var(--app-top) 0 0 0;
 }
 
 body.route--projects-list #app{
@@ -2909,6 +2915,67 @@ body.route--project{
 body.route--project.project-shell-compact{
   --app-top:var(--header-h-compact);
 }
+
+body.route--project .project-shell{
+  min-height:calc(100dvh - var(--app-top));
+}
+
+body.route--project .project-shell__body,
+body.route--project .project-shell__content{
+  overflow:visible;
+}
+
+body.route--project .project-simple-page{
+  height:auto;
+  min-height:0;
+}
+
+body.route--project .project-simple-scroll{
+  overflow:visible;
+  min-height:0;
+}
+
+body.route--project .settings-content--project-page,
+body.route--project .settings-shell--project-page,
+body.route--project .documents-shell--project-page{
+  padding:24px 32px 40px;
+}
+
+body.route--project .settings-shell--project-page{
+  max-width:1400px;
+  margin:0 auto;
+}
+
+body.route--project .documents-shell--project-page{
+  width:min(100%, 1280px);
+  margin:0 auto;
+}
+
+body.route--project .documents-shell--project-page.documents-shell--pdf-preview{
+  width:100%;
+  max-width:none;
+}
+
+body.route--project .data-table-shell--document-scroll{
+  height:auto;
+  min-height:0;
+  flex:0 0 auto;
+  overflow:visible;
+}
+
+body.route--project .data-table-shell--document-scroll > .data-table-shell__head{
+  top:var(--app-top);
+}
+
+body.route--project .data-table-shell--document-scroll > .data-table-shell__body{
+  overflow:visible;
+}
+
+body.route--project .settings-nav,
+body.route--project .settings-nav--parametres{
+  top:calc(var(--app-top) + 12px);
+}
+
 
 .global-nav{
   position:absolute;
@@ -3816,12 +3883,12 @@ color:var(--text);
 .project-simple-page--parametres-standalone .project-collaborator-create-shell,
 .project-simple-page--parametres-standalone .project-collaborator-create-shell__inner,
 .project-simple-page--parametres-standalone .project-collaborator-create{
-  /*min-height:calc(100dvh - var(--header-h) - var(--project-tabs-h));*/
-  max-height:calc(100dvh - var(--header-h) - var(--project-tabs-h));
+  min-height:0;
+  max-height:none;
 }
 
 .project-simple-page--parametres-standalone .project-simple-scroll--parametres{
-  overflow:hidden;
+  overflow:visible;
 }
 
 .settings-page-header--parametres h2{
@@ -11033,10 +11100,15 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   gap:10px;
 }
 
+body.route--project .project-collaborator-create__body,
+body.route--project .project-collaborator-create__body .project-collaborators-modal__section:last-of-type{
+  overflow:visible;
+}
+
 .project-simple-page--parametres-standalone .project-collaborator-create-shell,
 .project-simple-page--parametres-standalone .project-collaborator-create-shell__inner,
 .project-simple-page--parametres-standalone .project-collaborator-create{
-  overflow:hidden;
+  overflow:visible;
 }
 
 .project-simple-page--parametres-standalone .project-collaborator-create__body{
