@@ -1,4 +1,5 @@
 import { store } from "../store.js";
+import { buildSubjectHierarchyIndexes } from "./subject-hierarchy.js";
 import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.js";
 import { loadSituationsForCurrentProject, loadSituationSubjectIdsMap } from "./project-situations-supabase.js";
 import { resolveCurrentBackendProjectId } from "./project-supabase-sync.js";
@@ -840,10 +841,7 @@ export async function loadLabelsForProject(projectId) {
 
 function buildProjectFlatSubjectsResult(subjectRows = [], subjectLinks = [], options = {}) {
   const subjectsById = {};
-  const parentBySubjectId = {};
-  const childrenBySubjectId = {};
   const linksBySubjectId = {};
-  const rootSubjectIds = [];
   const relationIdsBySubjectId = {};
   const relationOptionsById = {};
 
@@ -852,7 +850,6 @@ function buildProjectFlatSubjectsResult(subjectRows = [], subjectLinks = [], opt
     if (!subjectId) continue;
     const normalizedSubject = { ...subject, id: subjectId };
     subjectsById[subjectId] = normalizedSubject;
-    childrenBySubjectId[subjectId] = [];
     linksBySubjectId[subjectId] = [];
     relationIdsBySubjectId[subjectId] = [];
 
@@ -869,14 +866,11 @@ function buildProjectFlatSubjectsResult(subjectRows = [], subjectLinks = [], opt
     }
   }
 
-  for (const subject of subjectRows || []) {
-    const subjectId = String(subject?.id || "");
-    if (!subjectId) continue;
-    const parentId = String(subject?.parent_subject_id || "");
-    parentBySubjectId[subjectId] = parentId || null;
-    if (parentId && subjectsById[parentId] && parentId !== subjectId) childrenBySubjectId[parentId].push(subjectId);
-    else rootSubjectIds.push(subjectId);
-  }
+  const {
+    parentBySubjectId,
+    childrenBySubjectId,
+    rootSubjectIds
+  } = buildSubjectHierarchyIndexes(subjectRows, subjectsById);
 
   for (const link of subjectLinks || []) {
     const sourceId = String(link?.source_subject_id || "");
