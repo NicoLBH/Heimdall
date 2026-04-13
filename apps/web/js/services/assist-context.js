@@ -138,7 +138,7 @@ function summarizeSituations() {
 
   const childIds = new Set();
   for (const subject of subjects) {
-    const parentId = String(subject?.parent_subject_id || subject?.parentSubjectId || "");
+    const parentId = String(subject?.parent_subject_id || "");
     if (parentId) childIds.add(String(subject?.id || ""));
   }
 
