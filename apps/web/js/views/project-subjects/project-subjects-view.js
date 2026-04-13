@@ -1413,15 +1413,13 @@ async function reloadSubjectsFromSupabase(root = getSubjectsCurrentRoot(), optio
   const targetRoot = root || getSubjectsCurrentRoot();
   const shouldRerender = options?.rerender !== false;
   const shouldUpdateModal = !!options?.updateModal;
-  const primaryScrollHost = document.querySelector("#situationsPanelHost .data-table-shell__body") || document.getElementById("situationsDetailsHost");
-  const primaryScrollState = getScrollableElementScrollState(primaryScrollHost);
+  const primaryScrollState = getDocumentScrollState();
 
   const data = await loadExistingSubjectsForCurrentProject({ force: true });
 
   const rerenderLoadedPanels = () => {
     rerenderPanels();
-    const nextPrimaryScrollHost = document.querySelector("#situationsPanelHost .data-table-shell__body") || document.getElementById("situationsDetailsHost");
-    restoreScrollableElementScrollState(nextPrimaryScrollHost, primaryScrollState);
+    restoreDocumentScrollState(primaryScrollState);
   };
 
   if (shouldRerender) {
@@ -1464,6 +1462,17 @@ function restoreScrollableElementScrollState(element, state) {
   element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
 }
 
+function getDocumentScrollState() {
+  return {
+    scrollTop: Number(window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || document.body?.scrollTop || 0)
+  };
+}
+
+function restoreDocumentScrollState(state) {
+  if (!state) return;
+  window.scrollTo({ top: Math.max(0, Number(state.scrollTop || 0)), behavior: "auto" });
+}
+
 function syncSituationsPrimaryScrollSource() {
   const panelHost = document.getElementById("situationsPanelHost");
 
@@ -1494,7 +1503,7 @@ function syncSituationsPrimaryScrollSource() {
 function rerenderPanels() {
   ensureViewUiState();
 
-  const detailsScrollState = getScrollableElementScrollState(document.getElementById("situationsDetailsHost"));
+  const detailsScrollState = getDocumentScrollState();
   const filteredSituations = getFilteredSituations();
   const counts = getVisibleCounts(filteredSituations);
   const panelHost = document.getElementById("situationsPanelHost");
@@ -1541,10 +1550,10 @@ function rerenderPanels() {
       const detailsHost = document.getElementById("situationsDetailsHost");
       wireDetailsInteractive(detailsHost);
       bindDetailsScroll(document);
-      restoreScrollableElementScrollState(detailsHost, detailsScrollState);
+      restoreDocumentScrollState(detailsScrollState);
       requestAnimationFrame(() => {
+        restoreDocumentScrollState(detailsScrollState);
         const currentDetailsHost = document.getElementById("situationsDetailsHost");
-        restoreScrollableElementScrollState(currentDetailsHost, detailsScrollState);
         currentDetailsHost?.__syncCondensedTitle?.();
       });
       syncSituationsPrimaryScrollSource();
