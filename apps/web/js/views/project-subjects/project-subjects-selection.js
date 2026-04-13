@@ -73,10 +73,17 @@ export function createProjectSubjectsSelection({
     const sujet = getNestedSujet(subjectId);
     if (!sujet) return null;
     const situation = getSituationBySujetId(subjectId);
+    const viewState = getViewState();
     setActiveSelection({ selectedSituationId: situation?.id || null, selectedSubjectId: sujet.id });
-    if (situation?.id) getViewState().expandedSituations.add(situation.id);
-    getViewState().showTableOnly = true;
-    openDetailsModal();
+    if (situation?.id) viewState.expandedSituations.add(situation.id);
+    viewState.showTableOnly = false;
+    viewState.detailsModalOpen = false;
+    if (store.situationsView && typeof store.situationsView === "object") {
+      store.situationsView.detailsModalOpen = false;
+    }
+    document.body.classList.remove("modal-open");
+    window.scrollTo({ top: 0, behavior: "auto" });
+    rerenderPanels();
     return { type: "sujet", item: sujet };
   }
 
