@@ -91,11 +91,18 @@ export function createProjectSubjectsSelection({
     return { type: "situation", item: situation };
   }
 
+  function getDocumentScrollTop() {
+    return Number(window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || document.body?.scrollTop || 0);
+  }
+
   function selectSubject(subjectId) {
     const sujet = getNestedSujet(subjectId);
     if (!sujet) return null;
     const situation = getSituationBySujetId(subjectId);
     const viewState = getViewState();
+    if (viewState.showTableOnly) {
+      viewState.tableScrollRestoreY = getDocumentScrollTop();
+    }
     setActiveSelection({ selectedSituationId: situation?.id || null, selectedSubjectId: sujet.id });
     if (situation?.id) viewState.expandedSituations.add(situation.id);
     viewState.showTableOnly = false;

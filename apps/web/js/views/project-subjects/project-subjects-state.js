@@ -36,6 +36,7 @@ export function createProjectSubjectsState({ store }) {
     if (typeof v.commentPreviewMode !== "boolean") v.commentPreviewMode = false;
     if (typeof v.helpMode !== "boolean") v.helpMode = false;
     if (typeof v.showTableOnly !== "boolean") v.showTableOnly = true;
+    if (!Number.isFinite(Number(v.tableScrollRestoreY))) v.tableScrollRestoreY = 0;
     if (!v.descriptionEdit || typeof v.descriptionEdit !== "object") {
       v.descriptionEdit = {
         entityType: null,
