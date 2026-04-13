@@ -28,6 +28,71 @@ function bindSelectDropdownHostInteractions(host) {
   return host;
 }
 
+
+// Public factory used by feature modules to inject their own rendering and business actions
+// while reusing the same dropdown UI lifecycle (host, focus, scroll, positioning, close/open).
+export function createSelectDropdownController(config = {}) {
+  const {
+    getViewState,
+    getScopeRoot,
+    renderHost,
+    ensureHost = ensureSelectDropdownHost,
+    bindingKey = "select-dropdown",
+    onRequestClose,
+    onRerender,
+    onSyncPosition
+  } = config;
+
+  return {
+    ensureHost: (options) => ensureHost(options),
+    getScopeRoot: () => (typeof getScopeRoot === "function" ? getScopeRoot() : getSubjectSelectDropdownScopeRoot(getViewState)),
+    closeMeta: () => closeMetaSelectDropdown(getViewState),
+    closeKanban: () => closeKanbanSelectDropdown(getViewState),
+    openMeta: (options) => openMetaSelectDropdown(getViewState, options),
+    openKanban: (options) => openKanbanSelectDropdown(getViewState, options),
+    setMetaQuery: (query) => setMetaSelectDropdownQuery(getViewState, query),
+    setKanbanQuery: (query) => setKanbanSelectDropdownQuery(getViewState, query),
+    renderHost: (root) => {
+      if (typeof renderHost === "function") return renderHost(root);
+      return ensureHost();
+    },
+    focusSearch: (args = {}) => focusSelectDropdownSearch({ ensureHost, ...args }),
+    syncPosition: (root) => {
+      if (typeof onSyncPosition === "function") return onSyncPosition(root || (typeof getScopeRoot === "function" ? getScopeRoot() : undefined));
+      return syncSelectDropdownPosition({
+        getViewState,
+        root: root || (typeof getScopeRoot === "function" ? getScopeRoot() : undefined),
+        getScopeRoot,
+        ensureHost
+      });
+    },
+    captureScrollState: () => captureSelectDropdownScrollState({ host: ensureHost() }),
+    restoreScrollState: (state) => restoreSelectDropdownScrollState(state, { host: ensureHost() }),
+    captureContextScrollState: (root) => captureSelectDropdownContextScrollState(root, { host: ensureHost() }),
+    restoreContextScrollState: (state) => restoreSelectDropdownContextScrollState(state, { host: ensureHost() }),
+    bindDocumentEvents: (overrides = {}) => bindSelectDropdownDocumentEvents({
+      bindingKey: overrides.bindingKey || bindingKey,
+      getViewState,
+      onRequestClose: overrides.onRequestClose || onRequestClose || (() => {
+        closeMetaSelectDropdown(getViewState);
+        closeKanbanSelectDropdown(getViewState);
+      }),
+      onRerender: overrides.onRerender || onRerender,
+      onSyncPosition: overrides.onSyncPosition || ((scopeRoot) => {
+        if (typeof onSyncPosition === "function") return onSyncPosition(scopeRoot);
+        return syncSelectDropdownPosition({
+          getViewState,
+          root: scopeRoot,
+          getScopeRoot,
+          ensureHost
+        });
+      }),
+      getScopeRoot: overrides.getScopeRoot || getScopeRoot,
+      ensureHost
+    })
+  };
+}
+
 export function ensureSelectDropdownHost({
   hostId = "subjectMetaDropdownHost",
   hostClassName = "subject-meta-dropdown-host"
