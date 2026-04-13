@@ -34,3 +34,42 @@ export function buildSubjectHierarchyIndexes(subjectRows = [], subjectsById = {}
     rootSubjectIds
   };
 }
+
+function getRawSubjectsById(rawResult = {}) {
+  return rawResult && typeof rawResult.subjectsById === "object" && rawResult.subjectsById
+    ? rawResult.subjectsById
+    : {};
+}
+
+export function getSubjectHierarchyFromRawResult(rawResult = {}) {
+  const subjectsById = getRawSubjectsById(rawResult);
+  const subjectRows = Object.values(subjectsById);
+
+  if (!subjectRows.length) {
+    return {
+      parentBySubjectId: rawResult?.parentBySubjectId && typeof rawResult.parentBySubjectId === "object"
+        ? rawResult.parentBySubjectId
+        : {},
+      childrenBySubjectId: rawResult?.childrenBySubjectId && typeof rawResult.childrenBySubjectId === "object"
+        ? rawResult.childrenBySubjectId
+        : {},
+      rootSubjectIds: Array.isArray(rawResult?.rootSubjectIds)
+        ? rawResult.rootSubjectIds
+        : []
+    };
+  }
+
+  return buildSubjectHierarchyIndexes(subjectRows, subjectsById);
+}
+
+export function getParentBySubjectIdMapFromRawResult(rawResult = {}) {
+  return getSubjectHierarchyFromRawResult(rawResult).parentBySubjectId;
+}
+
+export function getChildrenBySubjectIdMapFromRawResult(rawResult = {}) {
+  return getSubjectHierarchyFromRawResult(rawResult).childrenBySubjectId;
+}
+
+export function getRootSubjectIdsFromRawResult(rawResult = {}) {
+  return getSubjectHierarchyFromRawResult(rawResult).rootSubjectIds;
+}

@@ -73,9 +73,7 @@ export function createProjectSituationsKanbanView({
     const subjectsById = rawSubjectsResult.subjectsById && typeof rawSubjectsResult.subjectsById === "object"
       ? rawSubjectsResult.subjectsById
       : {};
-    const childrenBySubjectId = rawSubjectsResult.childrenBySubjectId && typeof rawSubjectsResult.childrenBySubjectId === "object"
-      ? rawSubjectsResult.childrenBySubjectId
-      : {};
+    const childrenBySubjectId = getChildrenBySubjectIdMapFromRawResult(rawSubjectsResult);
     const currentUserAvatar = String(store?.user?.avatar || "").trim();
 
     subjects.forEach((subject) => {
