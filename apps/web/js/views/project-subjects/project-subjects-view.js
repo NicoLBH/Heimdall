@@ -1071,6 +1071,17 @@ function renderSubjectObjectivesValue(subjectId) {
   `;
 }
 
+
+function renderFlatSubjectRowById(subjectId, options = {}) {
+  const subject = getNestedSujet(String(subjectId || ""));
+  if (!subject) return "";
+  return deps.renderFlatSujetRow(subject, "", {
+    isSelectable: false,
+    deps: getSubjectsTableDeps(),
+    ...options
+  });
+}
+
 function renderSubjectMetaFieldValue(subject, field) {
   if (!subject || String(subject.type || "") === "") return "";
   if (field === "labels") return renderSubjectLabelsValue(subject.id);
@@ -1957,6 +1968,7 @@ function getObjectiveById(objectiveId) {
     renderDetailedMetaForSelection,
     renderSubjectMetaControls,
     renderSubjectMetaFieldValue,
+    renderFlatSubjectRowById,
     renderSubIssuesForSujet,
     renderSubIssuesForSituation,
     closeSubjectMetaDropdown,
