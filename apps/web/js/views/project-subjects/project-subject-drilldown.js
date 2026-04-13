@@ -30,6 +30,8 @@ export function createProjectSubjectDrilldownController(config) {
     ensureViewUiState
   } = config;
 
+  let lockedWindowScrollY = 0;
+
   function ensureDrilldownDom() {
     if (document.getElementById("drilldownPanel")) return;
 
@@ -54,6 +56,7 @@ export function createProjectSubjectDrilldownController(config) {
 
     document.body.appendChild(panel);
 
+    bindDrilldownScrollProxy(panel, document.getElementById("drilldownBody"));
     bindOverlayChromeDismiss(panel, {
       onClose: closeDrilldown
     });
@@ -103,6 +106,37 @@ export function createProjectSubjectDrilldownController(config) {
     if (!panel) return;
     panel.classList.toggle("drilldown--situation-kanban", String(variant || "").trim() === "situation-kanban");
   }
+  function syncWindowScrollLock(open) {
+    if (open) {
+      lockedWindowScrollY = Number(window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0);
+      document.body.style.top = `${-lockedWindowScrollY}px`;
+      document.body.classList.add("drilldown-open");
+      return;
+    }
+
+    document.body.classList.remove("drilldown-open");
+    document.body.style.top = "";
+    window.scrollTo({ top: lockedWindowScrollY, behavior: "auto" });
+  }
+
+  function bindDrilldownScrollProxy(panel, body) {
+    if (!panel || !body || panel.dataset.drilldownScrollProxyBound === "1") return;
+
+    const forwardWheelToBody = (event) => {
+      if (!store.situationsView?.drilldown?.isOpen) return;
+      if (!body) return;
+      const deltaY = Number(event.deltaY || 0);
+      const deltaX = Number(event.deltaX || 0);
+      if (!deltaY && !deltaX) return;
+      body.scrollTop += deltaY;
+      body.scrollLeft += deltaX;
+      event.preventDefault();
+    };
+
+    panel.addEventListener("wheel", forwardWheelToBody, { passive: false });
+    panel.dataset.drilldownScrollProxyBound = "1";
+  }
+
 
   function openDrilldown(options = {}) {
     const viewState = ensureViewUiState();
@@ -115,7 +149,7 @@ export function createProjectSubjectDrilldownController(config) {
     const panel = document.getElementById("drilldownPanel");
     applyDrilldownVariant(options?.variant);
     setOverlayChromeOpenState(panel, true);
-    document.body.classList.add("drilldown-open");
+    syncWindowScrollLock(true);
     updateDrilldownPanel();
   }
 
@@ -128,7 +162,7 @@ export function createProjectSubjectDrilldownController(config) {
     const panel = document.getElementById("drilldownPanel");
     panel?.classList.remove("drilldown--situation-kanban");
     setOverlayChromeOpenState(panel, false);
-    document.body.classList.remove("drilldown-open");
+    syncWindowScrollLock(false);
   }
 
   function openDrilldownFromSituation(situationId, options = {}) {
