@@ -7,11 +7,10 @@ function normalizeProblemsCounts(closedCount, totalCount) {
 function resolveProblemsCountsOptions(options = {}) {
   const size = Math.max(0, Number(options.size) || 16);
   const className = String(options.className || "").trim();
-  const completeIcon = String(options.completeIcon || options.svgIssueClosed || "");
   const ariaLabel = typeof options.ariaLabel === "string" && options.ariaLabel.trim()
     ? options.ariaLabel.trim()
     : "";
-  return { size, className, completeIcon, ariaLabel };
+  return { size, className, ariaLabel };
 }
 
 function renderProblemsProgressRingSvg(ratio, size) {
@@ -67,20 +66,18 @@ function renderProblemsProgressRingSvg(ratio, size) {
 /**
  * Renders the shared subissues progress icon.
  *
- * API invariants for phase 2:
+ * API invariants:
  * - closedCount and totalCount are already computed by the caller.
  * - this component only normalizes, clamps and renders.
- * - completeIcon is optional and only affects the fully-complete state.
- * - svgIssueClosed is preserved as a compatibility alias until call sites are fully harmonized.
+ * - all call sites share the same ring-based rendering contract.
  */
 export function renderProblemsCountsIconHtml(closedCount, totalCount, options = {}) {
   const { closed, total, ratio } = normalizeProblemsCounts(closedCount, totalCount);
-  const { size, className, completeIcon, ariaLabel } = resolveProblemsCountsOptions(options);
+  const { size, className, ariaLabel } = resolveProblemsCountsOptions(options);
   const wrapperClassName = [
     "subissues-problems-icon",
     total <= 0 ? "subissues-problems-icon--empty" : "",
     ratio >= 1 ? "subissues-problems-icon--complete" : "",
-    completeIcon ? "subissues-problems-icon--has-complete-icon" : "",
     className,
   ].filter(Boolean).join(" ");
   const computedAriaLabel = ariaLabel || (total > 0
