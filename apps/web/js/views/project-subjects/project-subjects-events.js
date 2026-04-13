@@ -1,3 +1,16 @@
+import {
+  bindSelectDropdownDocumentEvents,
+  captureSelectDropdownContextScrollState,
+  closeKanbanSelectDropdown,
+  closeMetaSelectDropdown,
+  focusSelectDropdownSearch,
+  openKanbanSelectDropdown,
+  openMetaSelectDropdown,
+  restoreSelectDropdownContextScrollState,
+  setKanbanSelectDropdownQuery,
+  setMetaSelectDropdownQuery
+} from "../ui/select-dropdown-controller.js";
+
 export function createProjectSubjectsEvents(config) {
   const {
     store,
@@ -9,12 +22,8 @@ export function createProjectSubjectsEvents(config) {
     getSubjectMetaMenuEntries,
     getSubjectSidebarMeta,
     rerenderScope,
-    focusSubjectMetaSearch,
-    focusSubjectKanbanSearch,
     syncSubjectMetaDropdownPosition,
     getSubjectMetaScopeRoot,
-    closeSubjectMetaDropdown,
-    closeSubjectKanbanDropdown,
     getSubjectKanbanMenuEntries,
     getSetSujetKanbanStatus,
     setSubjectMetaActiveEntry,
@@ -56,46 +65,27 @@ export function createProjectSubjectsEvents(config) {
   let subjectsTabResetBound = false;
 
   function bindSubjectMetaDropdownDocumentEvents() {
-    if (subjectMetaDropdownDocumentBound) return;
-    subjectMetaDropdownDocumentBound = true;
-
-    document.addEventListener("click", (event) => {
-      const state = getSubjectsViewState();
-      const hasMetaOpen = !!state.subjectMetaDropdown?.field;
-      const hasKanbanOpen = !!state.subjectKanbanDropdown?.subjectId && !!state.subjectKanbanDropdown?.situationId;
-      if (!hasMetaOpen && !hasKanbanOpen) return;
-      if (event.target.closest("#subjectMetaDropdownHost .subject-meta-dropdown")) return;
-      if (event.target.closest("[data-subject-meta-trigger]")) return;
-      if (event.target.closest("[data-subject-kanban-trigger]")) return;
-      closeSubjectMetaDropdown();
-      closeSubjectKanbanDropdown();
-      rerenderScope();
+    bindSelectDropdownDocumentEvents({
+      isAlreadyBound: () => subjectMetaDropdownDocumentBound,
+      markBound: () => {
+        subjectMetaDropdownDocumentBound = true;
+      },
+      getViewState: getSubjectsViewState,
+      onRequestClose: () => {
+        closeMetaSelectDropdown(getSubjectsViewState);
+        closeKanbanSelectDropdown(getSubjectsViewState);
+      },
+      onRerender: () => rerenderScope(),
+      onSyncPosition: (scopeRoot) => syncSubjectMetaDropdownPosition(scopeRoot),
+      getScopeRoot: getSubjectMetaScopeRoot
     });
-
-    window.addEventListener("resize", () => {
-      const state = getSubjectsViewState();
-      if (!state.subjectMetaDropdown?.field && !(state.subjectKanbanDropdown?.subjectId && state.subjectKanbanDropdown?.situationId)) return;
-      dropdownHost.querySelectorAll(".select-menu__item").forEach((btn) => {
-      btn.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-      });
-    });
-
-    syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
-    });
-
-    document.addEventListener("scroll", () => {
-      const state = getSubjectsViewState();
-      if (!state.subjectMetaDropdown?.field && !(state.subjectKanbanDropdown?.subjectId && state.subjectKanbanDropdown?.situationId)) return;
-      syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
-    }, true);
   }
 
   function resetSubjectsTabView(reason = "manual") {
     resetSubjectsViewTransientState();
 
-    closeSubjectMetaDropdown();
-    closeSubjectKanbanDropdown();
+    closeMetaSelectDropdown(getSubjectsViewState);
+    closeKanbanSelectDropdown(getSubjectsViewState);
     resetObjectiveEditState();
     store.situationsView.subjectsSubview = "subjects";
     store.situationsView.selectedObjectiveId = "";
@@ -159,74 +149,6 @@ export function createProjectSubjectsEvents(config) {
   }
 
 
-  function getScrollableElementScrollState(element) {
-    if (!element) return null;
-    return {
-      scrollTop: Number(element.scrollTop || 0)
-    };
-  }
-
-  function restoreScrollableElementScrollState(element, state) {
-    if (!element || !state) return;
-    const maxScrollTop = Math.max(0, Number(element.scrollHeight || 0) - Number(element.clientHeight || 0));
-    element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
-  }
-
-  function captureSubjectMetaDropdownScrollState() {
-    const host = document.getElementById("subjectMetaDropdownHost");
-    if (!host) return null;
-    const body = host.querySelector(".subject-meta-dropdown__body");
-    const sectionBodies = [...host.querySelectorAll(".select-menu__section-body")].map((element) => getScrollableElementScrollState(element));
-    return {
-      bodyState: getScrollableElementScrollState(body),
-      sectionBodies
-    };
-  }
-
-  function restoreSubjectMetaDropdownScrollState(state) {
-    if (!state) return;
-    const apply = () => {
-      const host = document.getElementById("subjectMetaDropdownHost");
-      if (!host) return;
-      restoreScrollableElementScrollState(host.querySelector(".subject-meta-dropdown__body"), state.bodyState);
-      host.querySelectorAll(".select-menu__section-body").forEach((element, index) => {
-        restoreScrollableElementScrollState(element, state.sectionBodies?.[index] || null);
-      });
-    };
-    apply();
-    requestAnimationFrame(() => {
-      apply();
-      requestAnimationFrame(apply);
-    });
-  }
-
-  function captureSubjectMetaScrollState(root) {
-    return {
-      root,
-      rootState: getScrollableElementScrollState(root),
-      detailsBodyState: getScrollableElementScrollState(document.getElementById("detailsBodyModal")),
-      drilldownBodyState: getScrollableElementScrollState(document.getElementById("drilldownBody")),
-      situationsDetailsState: getScrollableElementScrollState(document.getElementById("situationsDetailsHost")),
-      dropdownState: captureSubjectMetaDropdownScrollState()
-    };
-  }
-
-  function restoreSubjectMetaScrollState(state) {
-    if (!state) return;
-    const apply = () => {
-      restoreScrollableElementScrollState(state.root, state.rootState);
-      restoreScrollableElementScrollState(document.getElementById("detailsBodyModal"), state.detailsBodyState);
-      restoreScrollableElementScrollState(document.getElementById("drilldownBody"), state.drilldownBodyState);
-      restoreScrollableElementScrollState(document.getElementById("situationsDetailsHost"), state.situationsDetailsState);
-      restoreSubjectMetaDropdownScrollState(state.dropdownState);
-    };
-    apply();
-    requestAnimationFrame(() => {
-      apply();
-      requestAnimationFrame(apply);
-    });
-  }
-
   function wireDetailsInteractive(root) {
     if (!root) return;
 
@@ -248,12 +170,10 @@ export function createProjectSubjectsEvents(config) {
         const dropdown = getSubjectsViewState().subjectMetaDropdown || {};
         const isAlreadyOpen = dropdown.field === field;
         if (isAlreadyOpen) {
-          closeSubjectMetaDropdown();
+          closeMetaSelectDropdown(getSubjectsViewState);
         } else {
-          closeSubjectKanbanDropdown();
-          dropdown.field = field;
-          dropdown.query = "";
-          dropdown.showClosedSituations = false;
+          closeKanbanSelectDropdown(getSubjectsViewState);
+          openMetaSelectDropdown(getSubjectsViewState, { field, showClosedSituations: false });
           const entries = scopedSelection?.type === "sujet" ? getSubjectMetaMenuEntries(scopedSelection.item, field) : [];
           const selectedObjectiveKey = field === "objectives" && scopedSelection?.type === "sujet"
             ? String(getSubjectSidebarMeta(scopedSelection.item.id).objectiveIds[0] || "")
@@ -268,7 +188,7 @@ export function createProjectSubjectsEvents(config) {
         }
         rerenderScope(root);
         if (!isAlreadyOpen) {
-          focusSubjectMetaSearch(root, field);
+          focusSelectDropdownSearch({ field });
           syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
         }
       };
@@ -293,18 +213,16 @@ export function createProjectSubjectsEvents(config) {
         const dropdown = getSubjectsViewState().subjectKanbanDropdown || {};
         const isAlreadyOpen = String(dropdown.subjectId || "") === subjectId && String(dropdown.situationId || "") === situationId;
         if (isAlreadyOpen) {
-          closeSubjectKanbanDropdown();
+          closeKanbanSelectDropdown(getSubjectsViewState);
         } else {
-          closeSubjectMetaDropdown();
-          dropdown.subjectId = subjectId;
-          dropdown.situationId = situationId;
-          dropdown.query = "";
+          closeMetaSelectDropdown(getSubjectsViewState);
+          openKanbanSelectDropdown(getSubjectsViewState, { subjectId, situationId });
           const entries = getSubjectKanbanMenuEntries(subjectId, situationId, "");
           dropdown.activeKey = String((entries.find((entry) => entry.isSelected) || entries[0] || {}).key || "");
         }
         rerenderScope(root);
         if (!isAlreadyOpen) {
-          focusSubjectKanbanSearch(subjectId, situationId);
+          focusSelectDropdownSearch({ subjectId, situationId });
           syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
         }
       };
@@ -314,11 +232,11 @@ export function createProjectSubjectsEvents(config) {
       input.addEventListener("input", () => {
         const subjectId = String(input.dataset.subjectKanbanSearch || "");
         const situationId = String(input.dataset.subjectKanbanSearchSituationId || "");
-        getSubjectsViewState().subjectKanbanDropdown.query = String(input.value || "");
+        setKanbanSelectDropdownQuery(getSubjectsViewState, input.value || "");
         const entries = getSubjectKanbanMenuEntries(subjectId, situationId, input.value || "");
         getSubjectsViewState().subjectKanbanDropdown.activeKey = String((entries.find((entry) => entry.isSelected) || entries[0] || {}).key || "");
         rerenderScope(root);
-        focusSubjectKanbanSearch(subjectId, situationId);
+        focusSelectDropdownSearch({ subjectId, situationId });
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       });
 
@@ -334,13 +252,13 @@ export function createProjectSubjectsEvents(config) {
           const nextIndex = currentIndex >= 0 ? (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + entries.length) % entries.length : 0;
           getSubjectsViewState().subjectKanbanDropdown.activeKey = String(entries[nextIndex]?.key || "");
           rerenderScope(root);
-          focusSubjectKanbanSearch(subjectId, situationId);
+          focusSelectDropdownSearch({ subjectId, situationId });
           syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
           return;
         }
         if (event.key === "Escape") {
           event.preventDefault();
-          closeSubjectKanbanDropdown();
+          closeKanbanSelectDropdown(getSubjectsViewState);
           rerenderScope(root);
           return;
         }
@@ -349,7 +267,7 @@ export function createProjectSubjectsEvents(config) {
           if (!activeKey) return;
           event.preventDefault();
           setSujetKanbanStatus(subjectId, activeKey, { situationId });
-          closeSubjectKanbanDropdown();
+          closeKanbanSelectDropdown(getSubjectsViewState);
           rerenderScope(root);
         }
       });
@@ -358,7 +276,7 @@ export function createProjectSubjectsEvents(config) {
     dropdownHost.querySelectorAll("[data-subject-meta-search]").forEach((input) => {
       input.addEventListener("input", () => {
         const field = String(input.dataset.subjectMetaSearch || "");
-        getSubjectsViewState().subjectMetaDropdown.query = String(input.value || "");
+        setMetaSelectDropdownQuery(getSubjectsViewState, input.value || "");
         const selection = getScopedSelection(root);
         const subject = selection?.type === "sujet" ? selection.item : null;
         const entries = subject ? getSubjectMetaMenuEntries(subject, field) : [];
@@ -367,7 +285,7 @@ export function createProjectSubjectsEvents(config) {
           ? currentKey
           : String(entries[0]?.key || "");
         rerenderScope(root);
-        focusSubjectMetaSearch(root, field);
+        focusSelectDropdownSearch({ field });
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       });
 
@@ -379,13 +297,13 @@ export function createProjectSubjectsEvents(config) {
           event.preventDefault();
           setSubjectMetaActiveEntry(subjectSelection.item, field, event.key === "ArrowDown" ? 1 : -1);
           rerenderScope(root);
-          focusSubjectMetaSearch(root, field);
+          focusSelectDropdownSearch({ field });
           syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
           return;
         }
         if (event.key === "Escape") {
           event.preventDefault();
-          closeSubjectMetaDropdown();
+          closeMetaSelectDropdown(getSubjectsViewState);
           rerenderScope(root);
           return;
         }
@@ -394,28 +312,28 @@ export function createProjectSubjectsEvents(config) {
           if (!activeKey) return;
           if (field === "objectives") {
             event.preventDefault();
-            const scrollState = captureSubjectMetaScrollState(root);
+            const scrollState = captureSelectDropdownContextScrollState(root);
             await toggleSubjectObjective(subjectSelection.item.id, activeKey, { root });
-            restoreSubjectMetaScrollState(scrollState);
-            focusSubjectMetaSearch(root, field);
+            restoreSelectDropdownContextScrollState(scrollState);
+            focusSelectDropdownSearch({ field });
             syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
             return;
           }
           if (field === "situations") {
             event.preventDefault();
-            const scrollState = captureSubjectMetaScrollState(root);
+            const scrollState = captureSelectDropdownContextScrollState(root);
             await toggleSubjectSituation(subjectSelection.item.id, activeKey, { root });
-            restoreSubjectMetaScrollState(scrollState);
-            focusSubjectMetaSearch(root, field);
+            restoreSelectDropdownContextScrollState(scrollState);
+            focusSelectDropdownSearch({ field });
             syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
             return;
           }
           if (field === "labels") {
             event.preventDefault();
-            const scrollState = captureSubjectMetaScrollState(root);
+            const scrollState = captureSelectDropdownContextScrollState(root);
             await toggleSubjectLabel(subjectSelection.item.id, activeKey, { root });
-            restoreSubjectMetaScrollState(scrollState);
-            focusSubjectMetaSearch(root, field);
+            restoreSelectDropdownContextScrollState(scrollState);
+            focusSelectDropdownSearch({ field });
             syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
           }
         }
@@ -429,10 +347,10 @@ export function createProjectSubjectsEvents(config) {
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
         const objectiveId = String(btn.dataset.objectiveSelect || "");
-        const scrollState = captureSubjectMetaScrollState(root);
+        const scrollState = captureSelectDropdownContextScrollState(root);
         await toggleSubjectObjective(subjectSelection.item.id, objectiveId, { root });
-        restoreSubjectMetaScrollState(scrollState);
-        focusSubjectMetaSearch(root, "objectives");
+        restoreSelectDropdownContextScrollState(scrollState);
+        focusSelectDropdownSearch({ field: "objectives" });
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       };
     });
@@ -443,10 +361,10 @@ export function createProjectSubjectsEvents(config) {
         event.stopPropagation();
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
-        const scrollState = captureSubjectMetaScrollState(root);
+        const scrollState = captureSelectDropdownContextScrollState(root);
         await toggleSubjectSituation(subjectSelection.item.id, String(btn.dataset.situationToggle || ""), { root });
-        restoreSubjectMetaScrollState(scrollState);
-        focusSubjectMetaSearch(root, "situations");
+        restoreSelectDropdownContextScrollState(scrollState);
+        focusSelectDropdownSearch({ field: "situations" });
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       };
     });
@@ -457,10 +375,10 @@ export function createProjectSubjectsEvents(config) {
         event.stopPropagation();
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
-        const scrollState = captureSubjectMetaScrollState(root);
+        const scrollState = captureSelectDropdownContextScrollState(root);
         await toggleSubjectLabel(subjectSelection.item.id, String(btn.dataset.subjectLabelToggle || ""), { root });
-        restoreSubjectMetaScrollState(scrollState);
-        focusSubjectMetaSearch(root, "labels");
+        restoreSelectDropdownContextScrollState(scrollState);
+        focusSelectDropdownSearch({ field: "labels" });
         syncSubjectMetaDropdownPosition(getSubjectMetaScopeRoot());
       };
     });
@@ -473,7 +391,7 @@ export function createProjectSubjectsEvents(config) {
         const situationId = String(btn.dataset.subjectKanbanSituationId || "");
         const nextStatus = String(btn.dataset.subjectKanbanSelect || "");
         setSujetKanbanStatus(subjectId, nextStatus, { situationId });
-        closeSubjectKanbanDropdown();
+        closeKanbanSelectDropdown(getSubjectsViewState);
         rerenderScope(root);
       };
     });
@@ -482,7 +400,7 @@ export function createProjectSubjectsEvents(config) {
       btn.onclick = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        closeSubjectMetaDropdown();
+        closeMetaSelectDropdown(getSubjectsViewState);
         rerenderScope(root);
       };
     });
@@ -491,7 +409,7 @@ export function createProjectSubjectsEvents(config) {
       btn.onclick = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        closeSubjectKanbanDropdown();
+        closeKanbanSelectDropdown(getSubjectsViewState);
         rerenderScope(root);
       };
     });
@@ -918,7 +836,7 @@ export function createProjectSubjectsEvents(config) {
       const createSubjectCancelButton = event.target.closest("[data-create-subject-cancel]");
       if (createSubjectCancelButton && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        closeSubjectMetaDropdown();
+        closeMetaSelectDropdown(getSubjectsViewState);
         resetCreateSubjectForm({ keepCreateMore: true });
         rerenderPanels();
         return;

@@ -1,6 +1,15 @@
 import { getDisplayAuthorName, getAuthorIdentity } from "../ui/author-identity.js";
 import { renderProblemsCountsIconHtml } from "../ui/subissues-counts.js";
 import { formatObjectiveDueDateLabel } from "./project-subject-milestones.js";
+import {
+  closeMetaSelectDropdown,
+  closeKanbanSelectDropdown,
+  ensureSelectDropdownHost,
+  getSubjectSelectDropdownScopeRoot,
+  renderSelectDropdownHost,
+  focusSelectDropdownSearch,
+  syncSelectDropdownPosition
+} from "../ui/select-dropdown-controller.js";
 export function createProjectSubjectsView(deps) {
   const {
     store,
@@ -1593,22 +1602,11 @@ function syncCommentPreview(root) {
 
 
 function closeSubjectMetaDropdown() {
-  const dropdown = getSubjectsViewState().subjectMetaDropdown;
-  if (dropdown) {
-    dropdown.field = null;
-    dropdown.query = "";
-    dropdown.activeKey = "";
-  }
+  closeMetaSelectDropdown(getSubjectsViewState);
 }
 
 function closeSubjectKanbanDropdown() {
-  const dropdown = getSubjectsViewState().subjectKanbanDropdown;
-  if (dropdown) {
-    dropdown.subjectId = "";
-    dropdown.situationId = "";
-    dropdown.query = "";
-    dropdown.activeKey = "";
-  }
+  closeKanbanSelectDropdown(getSubjectsViewState);
 }
 
 function getSubjectMetaMenuEntries(subject, field) {
@@ -1632,52 +1630,22 @@ function setSubjectMetaActiveEntry(subject, field, direction = 1) {
 }
 
 function ensureSubjectMetaDropdownHost() {
-  let host = document.getElementById("subjectMetaDropdownHost");
-  if (host) return host;
-  host = document.createElement("div");
-  host.id = "subjectMetaDropdownHost";
-  host.className = "subject-meta-dropdown-host";
-  document.body.appendChild(host);
-  return host;
+  return ensureSelectDropdownHost();
 }
 
 function getSubjectMetaScopeRoot() {
-  const viewState = getSubjectsViewState();
-  const createSubjectFormRoot = document.querySelector("[data-create-subject-form]");
-  if (viewState.createSubjectForm?.isOpen && createSubjectFormRoot) return createSubjectFormRoot;
-
-  const drilldownBody = document.getElementById("drilldownBody");
-  if (viewState.drilldown?.isOpen && drilldownBody) return drilldownBody;
-
-  const detailsBody = document.getElementById("detailsBodyModal");
-  if (viewState.detailsModalOpen && detailsBody) return detailsBody;
-
-  return document.getElementById("situationsDetailsHost") || detailsBody || drilldownBody || createSubjectFormRoot || document;
+  return getSubjectSelectDropdownScopeRoot(getSubjectsViewState);
 }
 
 function renderSubjectMetaDropdownHost(root) {
-  const host = ensureSubjectMetaDropdownHost();
-  const field = String(getSubjectsViewState().subjectMetaDropdown?.field || "");
-  const kanbanDropdown = getSubjectsViewState().subjectKanbanDropdown || {};
-  const selection = getScopedSelection(root);
-  if (selection?.type !== "sujet") {
-    host.innerHTML = "";
-    host.setAttribute("aria-hidden", "true");
-    return host;
-  }
-  if (field) {
-    host.innerHTML = renderSubjectMetaDropdown(selection.item, field);
-    host.setAttribute("aria-hidden", "false");
-    return host;
-  }
-  if (String(kanbanDropdown.subjectId || "") === String(selection.item.id || "") && String(kanbanDropdown.situationId || "")) {
-    host.innerHTML = renderSubjectKanbanDropdown(selection.item.id, String(kanbanDropdown.situationId || ""));
-    host.setAttribute("aria-hidden", "false");
-    return host;
-  }
-  host.innerHTML = "";
-  host.setAttribute("aria-hidden", "true");
-  return host;
+  return renderSelectDropdownHost({
+    getViewState: getSubjectsViewState,
+    root,
+    getScopedSelection,
+    renderMetaDropdown: renderSubjectMetaDropdown,
+    renderKanbanDropdown: renderSubjectKanbanDropdown,
+    ensureHost: ensureSubjectMetaDropdownHost
+  });
 }
 
 function rerenderSubjectMetaScopes() {
@@ -1686,89 +1654,20 @@ function rerenderSubjectMetaScopes() {
   if (document.getElementById("drilldownBody")) getProjectSubjectDrilldown().updateDrilldownPanel();
 }
 
-function focusInputWithoutScrolling(input) {
-  if (!input) return;
-  if (typeof input.focus === "function") {
-    try {
-      input.focus({ preventScroll: true });
-    } catch (_) {
-      input.focus();
-    }
-  }
-  input.select?.();
-}
-
 function focusSubjectMetaSearch(root, field) {
-  requestAnimationFrame(() => {
-    const input = ensureSubjectMetaDropdownHost().querySelector(`[data-subject-meta-search="${field}"]`);
-    focusInputWithoutScrolling(input);
-  });
+  focusSelectDropdownSearch({ field, ensureHost: ensureSubjectMetaDropdownHost });
 }
 
 function focusSubjectKanbanSearch(subjectId, situationId) {
-  requestAnimationFrame(() => {
-    const input = ensureSubjectMetaDropdownHost().querySelector(`[data-subject-kanban-search="${CSS.escape(String(subjectId || ""))}"][data-subject-kanban-search-situation-id="${CSS.escape(String(situationId || ""))}"]`);
-    focusInputWithoutScrolling(input);
-  });
+  focusSelectDropdownSearch({ subjectId, situationId, ensureHost: ensureSubjectMetaDropdownHost });
 }
 
 function syncSubjectMetaDropdownPosition(root) {
-  const field = String(getSubjectsViewState().subjectMetaDropdown?.field || "");
-  const kanbanDropdown = getSubjectsViewState().subjectKanbanDropdown || {};
-  const host = ensureSubjectMetaDropdownHost();
-  let anchorSelector = "";
-  if (field) {
-    anchorSelector = `[data-subject-meta-anchor="${field}"]`;
-  } else if (String(kanbanDropdown.subjectId || "") && String(kanbanDropdown.situationId || "")) {
-    anchorSelector = `[data-subject-kanban-anchor="${CSS.escape(String(kanbanDropdown.subjectId || ""))}::${CSS.escape(String(kanbanDropdown.situationId || ""))}"]`;
-  } else {
-    host.innerHTML = "";
-    host.setAttribute("aria-hidden", "true");
-    return;
-  }
-  requestAnimationFrame(() => {
-    const scopeRoot = root || getSubjectMetaScopeRoot();
-    const dropdown = host.querySelector(".subject-meta-dropdown");
-    const candidateRoots = [
-      scopeRoot,
-      root,
-      document.getElementById("detailsBodyModal"),
-      document.getElementById("drilldownBody"),
-      document.querySelector("[data-create-subject-form]"),
-      document.getElementById("situationsDetailsHost")
-    ].filter(Boolean);
-    const anchor = candidateRoots
-      .map((candidateRoot) => candidateRoot?.querySelector?.(anchorSelector))
-      .find(Boolean);
-    if (!anchor || !dropdown) {
-      host.innerHTML = "";
-      host.setAttribute("aria-hidden", "true");
-      return;
-    }
-    const rect = anchor.getBoundingClientRect();
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const dropdownWidth = 320;
-    const gutter = 12;
-    const spacing = 8;
-    const left = Math.max(gutter, Math.min(rect.right - dropdownWidth, viewportWidth - dropdownWidth - gutter));
-    const spaceBelow = Math.max(0, viewportHeight - rect.bottom - gutter);
-    const spaceAbove = Math.max(0, rect.top - gutter);
-    const preferredHeight = Math.min(420, Math.max(240, Math.max(spaceBelow, spaceAbove)));
-    const maxHeight = Math.max(180, preferredHeight);
-
-    dropdown.style.width = `${dropdownWidth}px`;
-    dropdown.style.maxHeight = `${maxHeight}px`;
-
-    const measuredHeight = Math.min(dropdown.offsetHeight || maxHeight, maxHeight);
-    const shouldOpenAbove = spaceBelow < Math.min(240, measuredHeight) && spaceAbove > spaceBelow;
-    const top = shouldOpenAbove
-      ? Math.max(gutter, rect.top - measuredHeight - spacing)
-      : Math.max(gutter, rect.bottom - 4);
-
-    dropdown.style.left = `${left}px`;
-    dropdown.style.top = `${top}px`;
-    host.setAttribute("aria-hidden", "false");
+  syncSelectDropdownPosition({
+    getViewState: getSubjectsViewState,
+    root,
+    getScopeRoot: getSubjectMetaScopeRoot,
+    ensureHost: ensureSubjectMetaDropdownHost
   });
 }
 
