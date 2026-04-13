@@ -1440,7 +1440,7 @@ async function reloadSubjectsFromSupabase(root = getSubjectsCurrentRoot(), optio
   }
 
   if (shouldUpdateModal) {
-    getProjectSubjectDetail().updateDetailsModal();
+    getProjectSubjectDetail().syncDetailsModalIfOpen();
   }
 
   if (store.situationsView.drilldown?.isOpen) {
@@ -1533,11 +1533,7 @@ function rerenderPanels() {
         }
       });
       panelHost.innerHTML = `
-        <section class="gh-panel gh-panel--details gh-panel--details-standalone" aria-label="Details">
-          <button type="button" class="objective-detail__back-link" data-subjects-back="table">
-            <span class="objective-detail__back-icon" aria-hidden="true">${svgIcon("arrow-left", { className: "octicon octicon-arrow-left" })}</span>
-            <span>Retour aux Sujets</span>
-          </button>
+        <section aria-label="Details">
           <div class="gh-panel__head gh-panel__head--tight" id="situationsDetailsTitle">${details.titleHtml}</div>
           <div class="details-body" id="situationsDetailsHost">${details.bodyHtml}</div>
         </section>
@@ -1555,7 +1551,7 @@ function rerenderPanels() {
     }
   }
 
-  getProjectSubjectDetail().updateDetailsModal();
+  getProjectSubjectDetail().syncDetailsModalIfOpen();
   if (store.situationsView.drilldown?.isOpen) getProjectSubjectDrilldown().updateDrilldownPanel();
   refreshProjectShellChrome("situations");
 }
@@ -1573,7 +1569,7 @@ function rerenderScope(root) {
   const detailsBody = document.getElementById("detailsBodyModal");
   const drilldownBody = document.getElementById("drilldownBody");
   if (root?.closest?.("#detailsModal") && detailsBody) {
-    getProjectSubjectDetail().updateDetailsModal();
+    getProjectSubjectDetail().syncDetailsModalIfOpen();
   }
   if (root?.closest?.("#drilldownPanel") && drilldownBody) {
     getProjectSubjectDrilldown().updateDrilldownPanel();
@@ -1675,7 +1671,7 @@ function renderSubjectMetaDropdownHost(root) {
 
 function rerenderSubjectMetaScopes() {
   rerenderPanels();
-  if (document.getElementById("detailsBodyModal")) getProjectSubjectDetail().updateDetailsModal();
+  if (document.getElementById("detailsBodyModal")) getProjectSubjectDetail().syncDetailsModalIfOpen();
   if (document.getElementById("drilldownBody")) getProjectSubjectDrilldown().updateDrilldownPanel();
 }
 
@@ -1883,6 +1879,10 @@ function rerenderSubjectsToolbar() {
   const toolbarHost = document.getElementById("situationsToolbarHost");
   if (!toolbarHost) return;
   if (toolbarHost.dataset.toolbarOwner === "situations") {
+    toolbarHost.innerHTML = "";
+    return;
+  }
+  if (!store.situationsView?.showTableOnly) {
     toolbarHost.innerHTML = "";
     return;
   }
