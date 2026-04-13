@@ -2485,7 +2485,16 @@ body.is-resizing{
   background:var(--bg);
   display:flex;
   flex-direction:column;
-  overflow:auto;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+
+.drilldown__inner > .overlay-chrome__body,
+.drilldown__inner > .drilldown__body,
+#drilldownBody{
+  flex:0 0 auto;
+  min-height:auto;
+  overflow:visible;
 }
 
 body.drilldown-open .drilldown__inner,
@@ -2501,7 +2510,8 @@ body.drilldown-open .drilldown__inner,
 }
 
 .drilldown__body{
-  flex:1 1 auto;
+  flex:0 0 auto;
+  min-height:auto;
   overflow:visible;
 }
 
@@ -8161,11 +8171,15 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
     }
 
     #situationsDetailsHost,
-    #detailsBodyModal,
-    #drilldownBody{
+    #detailsBodyModal{
       overflow-y:auto;
       overflow-x:hidden;
       min-height:0;
+    }
+
+    #drilldownBody{
+      overflow:visible;
+      min-height:auto;
     }
 
     .details-subissues .issue-row:hover,

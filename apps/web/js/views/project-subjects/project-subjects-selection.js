@@ -82,15 +82,12 @@ export function createProjectSubjectsSelection({
     if (!situation) return null;
     setActiveSelection({ selectedSituationId: situation.id, selectedSubjectId: null });
     getViewState().showTableOnly = true;
-    getViewState().detailsModalOpen = false;
     syncLegacySituationsView({
       selectedSituationId: situation.id,
       selectedSubjectId: null,
-      showTableOnly: true,
-      detailsModalOpen: false
+      showTableOnly: true
     });
-    document.body.classList.remove("modal-open");
-    rerenderPanels();
+    openDetailsModal();
     return { type: "situation", item: situation };
   }
 
