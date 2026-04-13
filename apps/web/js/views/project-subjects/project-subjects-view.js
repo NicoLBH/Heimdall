@@ -1071,6 +1071,14 @@ function renderSubjectObjectivesValue(subjectId) {
   `;
 }
 
+function renderSubjectMetaFieldValue(subject, field) {
+  if (!subject || String(subject.type || "") === "") return "";
+  if (field === "labels") return renderSubjectLabelsValue(subject.id);
+  if (field === "situations") return renderSubjectSituationsValue(subject.id);
+  if (field === "objectives") return renderSubjectObjectivesValue(subject.id);
+  return renderSubjectMetaButtonValue("Aucune donnée");
+}
+
 function buildSubjectMetaMenuItems(subject, field) {
   const dropdownState = getSubjectsViewState().subjectMetaDropdown || {};
   const query = String(dropdownState.query || "").trim().toLowerCase();
@@ -1948,6 +1956,7 @@ function getObjectiveById(objectiveId) {
     problemsCountsIconHtml,
     renderDetailedMetaForSelection,
     renderSubjectMetaControls,
+    renderSubjectMetaFieldValue,
     renderSubIssuesForSujet,
     renderSubIssuesForSituation,
     closeSubjectMetaDropdown,
