@@ -169,7 +169,7 @@ export function getSubjectSelectDropdownScopeRoot(getViewState) {
   const detailsBody = document.getElementById("detailsBodyModal");
   if (viewState.detailsModalOpen && detailsBody) return detailsBody;
 
-  return document.getElementById("situationsDetailsHost") || detailsBody || drilldownBody || createSubjectFormRoot || document;
+  return document;
 }
 
 export function renderSelectDropdownHost({
@@ -303,8 +303,17 @@ export function syncSelectDropdownPosition({
   });
 }
 
+function isDocumentScrollTarget(element) {
+  return element === document || element === document.documentElement || element === document.body || element === document.scrollingElement;
+}
+
 function getScrollableElementScrollState(element) {
   if (!element) return null;
+  if (isDocumentScrollTarget(element)) {
+    return {
+      scrollTop: Number(window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || document.body?.scrollTop || 0)
+    };
+  }
   return {
     scrollTop: Number(element.scrollTop || 0)
   };
@@ -312,6 +321,10 @@ function getScrollableElementScrollState(element) {
 
 function restoreScrollableElementScrollState(element, state) {
   if (!element || !state) return;
+  if (isDocumentScrollTarget(element)) {
+    window.scrollTo({ top: Math.max(0, Number(state.scrollTop || 0)), behavior: "auto" });
+    return;
+  }
   const maxScrollTop = Math.max(0, Number(element.scrollHeight || 0) - Number(element.clientHeight || 0));
   element.scrollTop = Math.max(0, Math.min(Number(state.scrollTop || 0), maxScrollTop));
 }
