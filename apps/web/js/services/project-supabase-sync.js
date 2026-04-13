@@ -886,9 +886,9 @@ export async function syncProjectSubjectCountersFromSupabase(options = {}) {
   params.set("order", "created_at.asc");
 
   const rows = await restFetch("subjects", params);
-  const topLevelRows = (Array.isArray(rows) ? rows : []).filter((row) => !safeString(row.parent_subject_id));
-  const openSujets = topLevelRows.filter((row) => !String(row.status || "open").toLowerCase().startsWith("closed")).length;
-  const totalSujets = topLevelRows.length;
+  const subjectRows = Array.isArray(rows) ? rows : [];
+  const openSujets = subjectRows.filter((row) => !String(row.status || "open").toLowerCase().startsWith("closed")).length;
+  const totalSujets = subjectRows.length;
 
   projectBucket.backendProjectId = backendProjectId;
   projectBucket.subjectCounters = { openSujets, totalSujets };
