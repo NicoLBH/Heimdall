@@ -1110,6 +1110,13 @@ body.modal-open {
   margin-right: calc(50% - 50vw);
 }
 
+/* Keep drilldown compact header aligned to drilldown container width. */
+.drilldown__head.details-head--compact {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
 
 #project-content.gh-page{
   position:static;
