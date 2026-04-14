@@ -1,3 +1,5 @@
+import { renderOverlayChromeHead } from "./overlay-chrome.js";
+
 function renderCompactTitleBody({ variant = "grid", leftHtml = "", topHtml = "", bottomHtml = "", idHtml = "", wrapClass = "", bodyClass = "" } = {}) {
   const safeWrapClass = wrapClass ? ` ${wrapClass}` : "";
   const safeBodyClass = bodyClass ? ` ${bodyClass}` : "";
@@ -70,6 +72,33 @@ export function renderSharedDetailsTitleWrap(selection, options = {}) {
       bodyClass: compactConfig.bodyClass
     })}
   `;
+}
+
+
+
+export function renderSharedDetailsChromeHeadHtml(selection, options = {}) {
+  const {
+    headId = "",
+    headClassName = "",
+    closeId = "",
+    closeLabel = "Fermer",
+    actionsHtml = "",
+    titleWrapHtml = "",
+    emptyPanelTitle = "Sélectionner un élément",
+    buildMetaHtml = (currentSelection) => currentSelection?.item?.id || "—"
+  } = options;
+
+  return renderOverlayChromeHead({
+    headId,
+    titleId: "",
+    titleHtml: selection ? titleWrapHtml : `<span class="details-title-text">${emptyPanelTitle}</span>`,
+    metaId: "detailsMeta",
+    metaHtml: buildMetaHtml(selection),
+    closeId,
+    closeLabel,
+    headClassName,
+    actionsHtml
+  });
 }
 
 export function renderSharedDetailsTitleHtml(selection, options = {}) {
