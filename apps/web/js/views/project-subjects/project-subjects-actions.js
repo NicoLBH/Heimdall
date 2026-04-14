@@ -335,12 +335,13 @@ export function createProjectSubjectsActions(config) {
       ? meta.objectiveIds.map((id) => String(id || "")).filter(Boolean)
       : [];
     const wasLinked = previousIds.includes(objectiveKey);
-    const nextIds = wasLinked
-      ? previousIds.filter((id) => id !== objectiveKey)
-      : [...previousIds, objectiveKey];
+    const nextIds = wasLinked ? [] : [objectiveKey];
+    const removedObjectiveIds = previousIds.filter((id) => !nextIds.includes(id));
+    const addedObjectiveIds = nextIds.filter((id) => !previousIds.includes(id));
 
     setSubjectObjectiveIds(subjectKey, nextIds);
-    syncSubjectObjectiveMaps(subjectKey, objectiveKey, !wasLinked);
+    removedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, false));
+    addedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, true));
 
     if (!options.skipRerender) {
       if (options.root) rerenderScope(options.root);
@@ -348,12 +349,17 @@ export function createProjectSubjectsActions(config) {
     }
 
     try {
-      if (wasLinked) await removeSubjectFromObjectiveInSupabase(objectiveKey, subjectKey);
-      else await addSubjectToObjectiveInSupabase(objectiveKey, subjectKey);
+      for (const removedId of removedObjectiveIds) {
+        await removeSubjectFromObjectiveInSupabase(removedId, subjectKey);
+      }
+      for (const addedId of addedObjectiveIds) {
+        await addSubjectToObjectiveInSupabase(addedId, subjectKey);
+      }
       return true;
     } catch (error) {
       setSubjectObjectiveIds(subjectKey, previousIds);
-      syncSubjectObjectiveMaps(subjectKey, objectiveKey, wasLinked);
+      removedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, true));
+      addedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, false));
       if (!options.skipRerender) {
         if (options.root) rerenderScope(options.root);
         else rerenderPanels();
