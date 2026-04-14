@@ -545,15 +545,20 @@ export function createProjectSubjectsEvents(config) {
 
   }
 
-  function bindCondensedTitleScroll(scrollEl, classHost, key) {
-    bindOverlayChromeCompact(scrollEl, classHost, key);
+  function bindCondensedTitleScroll(scrollEl, classHost, key, options = {}) {
+    bindOverlayChromeCompact(scrollEl, classHost, key, options);
   }
 
   function bindDetailsScroll(root) {
     bindCondensedTitleScroll(
       root.querySelector("#situationsDetailsHost"),
-      root.querySelector(".gh-panel--details"),
-      "details"
+      root.querySelector("#situationsDetailsTitle"),
+      "details",
+      {
+        onCompactChange(scrolled) {
+          document.body.classList.toggle("project-subject-details-top-compact", !!scrolled);
+        }
+      }
     );
 
     bindCondensedTitleScroll(

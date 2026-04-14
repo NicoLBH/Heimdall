@@ -3283,6 +3283,28 @@ body.route--project:not(.project-shell-compact) [data-chrome-visibility="compact
 .gh-header--project .gh-brand__name{font-weight:400;font-size:13px;}
 .gh-header--project .gh-brand__repo{opacity:.92;}
 
+
+
+body.route--project #situationsDetailsTitle.details-head--compact{
+  position:sticky;
+  top:var(--app-top);
+  z-index:calc(var(--z-header) - 1);
+  background:var(--headbg) !important;
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(8px);
+}
+
+body.route--project.project-shell-compact.project-subject-details-top-compact #globalHeaderHost{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+
+body.route--project.project-shell-compact.project-subject-details-top-compact #situationsDetailsTitle.details-head--compact{
+  top:0;
+  z-index:calc(var(--z-header) + 1);
+}
+
 .project-tabs{transition:opacity .12s ease, visibility .12s ease;}
 body.route--project.project-shell-compact .project-tabs, 
 .project-tabs.project-tabs--hidden{
