@@ -14,6 +14,12 @@
     <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"></path>
   </symbol>
 
+
+  <symbol id="subissues-problems-completed" viewBox="0 0 16 16">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M10.0206 11.1074C9.68518 11.3949 9.18014 11.3561 8.8926 11.0206L5.8926 7.52061C5.62055 7.20322 5.63873 6.72989 5.93432 6.4343L7.43432 4.9343C7.74674 4.62188 8.25327 4.62188 8.56569 4.9343C8.87811 5.24672 8.87811 5.75325 8.56569 6.06567L7.58953 7.04182L10.1074 9.97935C10.3949 10.3148 10.3561 10.8198 10.0206 11.1074Z" fill="var(--bgColor-done-emphasis, var(--color-done-emphasis, #8957e5))"></path>
+    <circle stroke="var(--bgColor-done-emphasis, var(--color-done-emphasis, #8957e5))" stroke-width="2" fill="transparent" cx="8" cy="8" r="6"></circle>
+  </symbol>
+
   <symbol id="issue-opened" viewBox="0 0 16 16">
     <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"></path>
     <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"></path>
