@@ -27,7 +27,9 @@ export function createProjectSubjectDrilldownController(config) {
     renderDetailsTitleWrapHtml,
     wireDetailsInteractive,
     bindDetailsScroll,
-    ensureViewUiState
+    ensureViewUiState,
+    setProjectActiveScrollSource,
+    clearProjectActiveScrollSource
   } = config;
 
   let lockedWindowScrollY = 0;
@@ -93,6 +95,7 @@ export function createProjectSubjectDrilldownController(config) {
 
     wireDetailsInteractive(body);
     bindDetailsScroll(document);
+    syncProjectChromeWithDrilldownScroll();
     restoreScrollableElementScrollState(shell, shellScrollState);
     shell.__syncCondensedTitle?.();
     requestAnimationFrame(() => {
@@ -139,6 +142,13 @@ export function createProjectSubjectDrilldownController(config) {
   }
 
 
+  function syncProjectChromeWithDrilldownScroll() {
+    const resolveShell = () => document.querySelector("#drilldownPanel .drilldown__inner");
+    const shell = resolveShell();
+    if (!shell) return;
+    setProjectActiveScrollSource?.(shell, { resolve: resolveShell });
+  }
+
   function openDrilldown(options = {}) {
     const viewState = ensureViewUiState();
     ensureDrilldownDom();
@@ -151,6 +161,7 @@ export function createProjectSubjectDrilldownController(config) {
     applyDrilldownVariant(options?.variant);
     setOverlayChromeOpenState(panel, true);
     syncWindowScrollLock(true);
+    syncProjectChromeWithDrilldownScroll();
     updateDrilldownPanel();
   }
 
@@ -163,6 +174,7 @@ export function createProjectSubjectDrilldownController(config) {
     const panel = document.getElementById("drilldownPanel");
     panel?.classList.remove("drilldown--situation-kanban");
     setOverlayChromeOpenState(panel, false);
+    clearProjectActiveScrollSource?.(panel?.querySelector?.(".drilldown__inner") || null);
     syncWindowScrollLock(false);
   }
 
