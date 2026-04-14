@@ -1,4 +1,4 @@
-import { renderSharedDetailsTitleWrap, renderSharedDetailsTitleHtml } from "../ui/detail-header.js";
+import { renderSharedDetailsTitleWrap, renderSharedDetailsTitleHtml, renderSharedDetailsChromeHeadHtml } from "../ui/detail-header.js";
 
 export function createProjectSubjectsDetailsRenderer(config) {
   const {
@@ -76,6 +76,20 @@ export function createProjectSubjectsDetailsRenderer(config) {
     });
   }
 
+  function renderDetailsChromeHeadHtml(selection, options = {}) {
+    return renderSharedDetailsChromeHeadHtml(selection, {
+      headId: options.headId || "",
+      headClassName: options.headClassName || "",
+      closeId: options.closeId || "",
+      closeLabel: options.closeLabel || "Fermer",
+      titleWrapHtml: renderDetailsTitleWrapHtml(selection),
+      emptyPanelTitle: "Sélectionner un élément",
+      buildMetaHtml(currentSelection) {
+        return escapeHtml(currentSelection?.item?.id || "—");
+      }
+    });
+  }
+
   function renderDetailsTitleHtml(selection, options = {}) {
     const showExpand = options.showExpand !== false;
     return renderSharedDetailsTitleHtml(selection, {
@@ -139,6 +153,7 @@ export function createProjectSubjectsDetailsRenderer(config) {
   return {
     renderDetailsTitleWrapHtml,
     renderDetailsTitleHtml,
+    renderDetailsChromeHeadHtml,
     renderDetailsBody,
     renderDetailsHtml
   };
