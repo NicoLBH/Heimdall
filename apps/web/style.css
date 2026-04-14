@@ -2393,7 +2393,7 @@ body.is-resizing{
 .subissues-problems-icon__svg{display:block;overflow:visible;}
 .subissues-problems-icon__svg--complete,
 .subissues-problems-icon__svg--complete *{
-  transform:none !important;
+  transform:rotate(135deg);;
   transform-origin:center center;
 }
 .subissues-problems-icon__shade{
