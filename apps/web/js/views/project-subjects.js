@@ -22,7 +22,9 @@ import {
 import { closeGlobalNav } from "./global-nav.js";
 import {
   setProjectViewHeader,
-  refreshProjectShellChrome
+  refreshProjectShellChrome,
+  setProjectActiveScrollSource,
+  clearProjectActiveScrollSource
 } from "./project-shell-chrome.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderGhActionButton } from "./ui/gh-split-button.js";
@@ -424,7 +426,9 @@ const projectSubjectDrilldown = createProjectSubjectDrilldownController({
   renderDetailsTitleWrapHtml: renderSharedDetailsTitleWrapHtml,
   wireDetailsInteractive,
   bindDetailsScroll,
-  ensureViewUiState
+  ensureViewUiState,
+  setProjectActiveScrollSource,
+  clearProjectActiveScrollSource
 });
 
 const projectSubjectMilestones = createProjectSubjectMilestonesController({
