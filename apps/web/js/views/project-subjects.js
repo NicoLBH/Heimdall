@@ -392,6 +392,7 @@ const projectSubjectsDetailsRenderer = createProjectSubjectsDetailsRenderer({
 
 const {
   renderDetailsTitleWrapHtml: renderSharedDetailsTitleWrapHtml,
+  renderDetailsChromeHeadHtml: renderSharedDetailsChromeHeadHtml,
   renderDetailsHtml: renderSharedDetailsHtml
 } = projectSubjectsDetailsRenderer;
 
@@ -402,6 +403,7 @@ const projectSubjectDetail = createProjectSubjectDetailController({
   getSelectionEntityType,
   renderDetailsHtml: renderSharedDetailsHtml,
   renderDetailsTitleWrapHtml: renderSharedDetailsTitleWrapHtml,
+  renderDetailsChromeHeadHtml: renderSharedDetailsChromeHeadHtml,
   wireDetailsInteractive,
   bindDetailsScroll,
   ensureDrilldownDom: () => projectSubjectDrilldown.ensureDrilldownDom(),
@@ -422,6 +424,7 @@ const projectSubjectDrilldown = createProjectSubjectDrilldownController({
   openDrilldownFromSujetSelection: openDrilldownFromSujet,
   renderDetailsHtml: renderSharedDetailsHtml,
   renderDetailsTitleWrapHtml: renderSharedDetailsTitleWrapHtml,
+  renderDetailsChromeHeadHtml: renderSharedDetailsChromeHeadHtml,
   wireDetailsInteractive,
   bindDetailsScroll,
   ensureViewUiState

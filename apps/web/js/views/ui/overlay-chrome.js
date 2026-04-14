@@ -2,6 +2,7 @@ import { escapeHtml } from "../../utils/escape-html.js";
 
 export function renderOverlayChromeHead({
   eyebrow = "",
+  headId = "",
   titleId = "",
   titleHtml = "—",
   metaId = "",
@@ -12,7 +13,7 @@ export function renderOverlayChromeHead({
   actionsHtml = ""
 } = {}) {
   return `
-    <div class="overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded ${escapeHtml(headClassName)}">
+    <div ${headId ? `id="${escapeHtml(headId)}"` : ""} class="overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded ${escapeHtml(headClassName)}">
       <div class="overlay-chrome__bar">
         <div class="overlay-chrome__context">
           ${eyebrow ? `<div class="overlay-chrome__eyebrow mono">${escapeHtml(eyebrow)}</div>` : ""}
