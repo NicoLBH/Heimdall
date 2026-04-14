@@ -1102,9 +1102,14 @@ body.modal-open {
 .gh-panel__head--tight.details-head--compact, 
 .modal__head.details-head--compact, 
 .drilldown__head.details-head--compact, 
-.overlay-chrome__head.details-head--compact{
-  background: rgb(13, 17, 23) !important;
+.overlay-chrome__head
+/* FIX: full-width compact subject header */
+.details-head--compact {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
 }
+
 
 #project-content.gh-page{
   position:static;
