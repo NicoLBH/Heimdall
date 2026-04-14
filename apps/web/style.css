@@ -1099,12 +1099,9 @@ body.modal-open {
 /* ===== Details head state classes (for clean CSS cascade) =====
    JS toggles these classes on .gh-panel__head--tight and .modal__head.
    You can override/extend these rules as needed. */
-.gh-panel__head--tight.details-head--compact, 
-.modal__head.details-head--compact, 
-.drilldown__head.details-head--compact, 
-.overlay-chrome__head
-/* FIX: full-width compact subject header */
-.details-head--compact {
+.gh-panel__head--tight.details-head--compact,
+.modal__head.details-head--compact,
+.overlay-chrome__head .details-head--compact {
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
@@ -2525,7 +2522,7 @@ body.is-resizing{
 /* ===== Drilldown slide-in panel ===== */
 .drilldown__inner {
   width:min(720px, 92vw);
-  height:100vh;
+  height:100%;
   border-left:1px solid var(--border);
   transform:translateX(100%);
   transition:transform 180ms ease;
@@ -3333,6 +3330,9 @@ body.route--project #situationsDetailsTitle.details-head--compact{
   position:sticky;
   top:var(--app-top);
   z-index:calc(var(--z-header) - 1);
+  width:100vw;
+  margin-left:calc(50% - 50vw);
+  margin-right:calc(50% - 50vw);
   background: var(--bg) !important;
   border-bottom:1px solid var(--border);
   backdrop-filter:blur(8px);
@@ -3347,6 +3347,10 @@ body.route--project.project-shell-compact.project-subject-details-top-compact #g
 body.route--project.project-shell-compact.project-subject-details-top-compact #situationsDetailsTitle.details-head--compact{
   top:0;
   z-index:calc(var(--z-header) + 1);
+}
+
+#drilldownPanel{
+  top:var(--subject-drilldown-top-offset, 0px);
 }
 
 .project-tabs{transition:opacity .12s ease, visibility .12s ease;}
