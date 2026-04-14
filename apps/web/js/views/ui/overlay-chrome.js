@@ -2,6 +2,7 @@ import { escapeHtml } from "../../utils/escape-html.js";
 
 export function renderOverlayChromeHead({
   eyebrow = "",
+  headId = "",
   titleId = "",
   titleHtml = "—",
   metaId = "",
@@ -12,7 +13,7 @@ export function renderOverlayChromeHead({
   actionsHtml = ""
 } = {}) {
   return `
-    <div class="overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded ${escapeHtml(headClassName)}">
+    <div ${headId ? `id="${escapeHtml(headId)}"` : ""} class="overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded ${escapeHtml(headClassName)}">
       <div class="overlay-chrome__bar">
         <div class="overlay-chrome__context">
           ${eyebrow ? `<div class="overlay-chrome__eyebrow mono">${escapeHtml(eyebrow)}</div>` : ""}
@@ -105,11 +106,14 @@ export function bindOverlayChromeCompact(scrollEl, chromeEl, key = "default", op
   if (!scrollEl || !chromeEl) return;
 
   const { onCompactChange = null } = options || {};
+  const isDocumentLike = scrollEl === document || scrollEl === document.documentElement || scrollEl === document.body;
+  const eventTarget = isDocumentLike ? window : scrollEl;
+  const stateTarget = isDocumentLike ? (document.scrollingElement || document.documentElement || document.body) : scrollEl;
   const attr = `data-overlay-chrome-bound-${String(key)
     .replace(/[^a-zA-Z0-9_-]/g, "")
     .toLowerCase()}`;
   const sync = () => {
-    const scrolled = (scrollEl.scrollTop || 0) > 8;
+    const scrolled = (stateTarget?.scrollTop || 0) > 8;
     chromeEl.classList.toggle("overlay-chrome--compact", scrolled);
 
     getOverlayCompactHeads(chromeEl).forEach((head) => {
@@ -122,13 +126,13 @@ export function bindOverlayChromeCompact(scrollEl, chromeEl, key = "default", op
 
   scrollEl.__syncCondensedTitle = sync;
 
-  if (scrollEl.getAttribute(attr) === "1") {
+  if (scrollEl.getAttribute?.(attr) === "1") {
     sync();
     return;
   }
 
-  scrollEl.setAttribute(attr, "1");
-  scrollEl.addEventListener("scroll", sync, { passive: true });
+  scrollEl.setAttribute?.(attr, "1");
+  eventTarget.addEventListener("scroll", sync, { passive: true });
 
   sync();
   setTimeout(sync, 0);
