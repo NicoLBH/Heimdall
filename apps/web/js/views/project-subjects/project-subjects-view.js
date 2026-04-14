@@ -73,6 +73,7 @@ export function createProjectSubjectsView(deps) {
     wireDetailsInteractive,
     bindDetailsScroll,
     refreshProjectShellChrome,
+    setProjectCompactEnabled,
     currentDecisionTarget,
     addComment,
     getScopedSelection
@@ -1486,6 +1487,12 @@ function rerenderPanels() {
 
   rerenderSubjectsToolbar();
 
+  const shouldDisableProjectCompact = !!panelHost
+    && !store.situationsView.createSubjectForm?.isOpen
+    && String(store.situationsView.subjectsSubview || "subjects") === "subjects"
+    && !store.situationsView.showTableOnly;
+  setProjectCompactEnabled(!shouldDisableProjectCompact);
+
   if (panelHost) {
     if (store.situationsView.createSubjectForm?.isOpen) {
       panelHost.innerHTML = `<div id="subjectCreateFormHost" class="project-table-host">${renderCreateSubjectFormHtml()}</div>`;
@@ -1515,9 +1522,9 @@ function rerenderPanels() {
         }
       });
       panelHost.innerHTML = `
-        <section aria-label="Details">
-          ${getProjectSubjectDetail().renderNormalDetailsChromeHeadHtml(null, { headId: "situationsDetailsTitle", headClassName: "drilldown__head details-head--normal" })}
-          <div class="details-body" id="situationsDetailsHost">${details.bodyHtml}</div>
+        <section id="situationsDetailsChrome" class="overlay-chrome gh-panel gh-panel--details" aria-label="Details">
+          ${getProjectSubjectDetail().renderNormalDetailsChromeHeadHtml(null, { headId: "situationsDetailsTitle", headClassName: "drilldown__head" })}
+          <div class="overlay-chrome__body details-body" id="situationsDetailsHost">${details.bodyHtml}</div>
         </section>
       `;
       const detailsHost = document.getElementById("situationsDetailsHost");
