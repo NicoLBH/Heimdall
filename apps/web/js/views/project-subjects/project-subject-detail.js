@@ -19,6 +19,7 @@ export function createProjectSubjectDetailController(config) {
     getSelectionEntityType,
     renderDetailsHtml,
     renderDetailsTitleWrapHtml,
+    renderDetailsChromeHeadHtml,
     wireDetailsInteractive,
     bindDetailsScroll,
     ensureDrilldownDom,
@@ -80,6 +81,12 @@ export function createProjectSubjectDetailController(config) {
     }
   }
 
+
+  function renderNormalDetailsChromeHeadHtml(selectionOverride = null, options = {}) {
+    const selection = selectionOverride || getActiveSelection();
+    return renderDetailsChromeHeadHtml(selection, options);
+  }
+
   function openDetailsModal() {
     closeGlobalNav();
     const selection = getActiveSelection();
@@ -119,6 +126,7 @@ export function createProjectSubjectDetailController(config) {
 
   return {
     renderDetailsTitleWrapHtml,
+    renderNormalDetailsChromeHeadHtml,
     renderDetailsHtml,
     isDetailsModalOpen,
     updateDetailsModal,
