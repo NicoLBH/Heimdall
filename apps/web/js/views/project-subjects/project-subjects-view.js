@@ -64,6 +64,7 @@ export function createProjectSubjectsView(deps) {
     getProjectSubjectLabels,
     getProjectSubjectDetail,
     getProjectSubjectDrilldown,
+    ensureProjectCollaboratorsLoaded,
     resetObjectiveEditState,
     loadExistingSubjectsForCurrentProject,
     getSubjectsCurrentRoot,
@@ -83,6 +84,8 @@ export function createProjectSubjectsView(deps) {
     getSubjectLabelDefinition,
     renderSubjectLabelBadge
   } = getProjectSubjectLabels();
+
+  let collaboratorsHydrationInFlight = false;
 
 function issueIcon(status = "open", options = {}) {
   const {
@@ -657,9 +660,19 @@ function getSubjectSidebarMeta(subjectId) {
       .filter(Boolean)
       .map((labelDef) => String(labelDef?.name || labelDef?.label || labelDef?.label_key || labelDef?.key || "").trim())
   );
+  const assigneePersonIdsBySubjectId = rawResult?.assigneePersonIdsBySubjectId && typeof rawResult.assigneePersonIdsBySubjectId === "object"
+    ? rawResult.assigneePersonIdsBySubjectId
+    : {};
+  const derivedAssignees = (Array.isArray(subjectMeta.assignees) && subjectMeta.assignees.length)
+    ? subjectMeta.assignees
+    : (
+      Array.isArray(assigneePersonIdsBySubjectId[normalizedSubjectId]) && assigneePersonIdsBySubjectId[normalizedSubjectId].length
+        ? assigneePersonIdsBySubjectId[normalizedSubjectId]
+        : [String(subject?.assignee_person_id || subject?.raw?.assignee_person_id || "")].filter(Boolean)
+    );
 
   return {
-    assignees: Array.isArray(subjectMeta.assignees) ? subjectMeta.assignees.map((value) => String(value || "")).filter(Boolean) : [],
+    assignees: derivedAssignees.map((value) => String(value || "")).filter(Boolean),
     labels: derivedLabels,
     objectiveIds,
     situationIds: derivedSituationIds,
@@ -1105,18 +1118,38 @@ function renderSubjectObjectivesValue(subjectId) {
   `;
 }
 
+function ensureCollaboratorsHydrated() {
+  if (collaboratorsHydrationInFlight) return;
+  const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
+  if (collaborators.length) return;
+  if (typeof ensureProjectCollaboratorsLoaded !== "function") return;
+  collaboratorsHydrationInFlight = true;
+  Promise.resolve(ensureProjectCollaboratorsLoaded())
+    .then(() => {
+      rerenderPanels();
+    })
+    .catch((error) => {
+      console.warn("[subject-assignees] collaborators load failed", error);
+    })
+    .finally(() => {
+      collaboratorsHydrationInFlight = false;
+    });
+}
+
 function getActiveProjectCollaborators() {
+  ensureCollaboratorsHydrated();
   const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
   return collaborators
     .filter((collaborator) => String(collaborator?.status || "Actif").toLowerCase() !== "retiré")
     .map((collaborator) => ({
-      id: String(collaborator?.id || ""),
+      id: String(collaborator?.personId || collaborator?.id || ""),
       userId: String(collaborator?.userId || collaborator?.linkedUserId || ""),
       name: firstNonEmpty(collaborator?.name, [collaborator?.firstName, collaborator?.lastName].filter(Boolean).join(" "), collaborator?.email, "Utilisateur"),
       role: firstNonEmpty(collaborator?.role, "Collaborateur"),
       roleGroupCode: String(collaborator?.roleGroupCode || "").trim().toLowerCase(),
       roleGroupLabel: firstNonEmpty(collaborator?.roleGroupLabel, ""),
-      email: firstNonEmpty(collaborator?.email, "")
+      email: firstNonEmpty(collaborator?.email, ""),
+      avatarUrl: firstNonEmpty(collaborator?.avatarUrl, collaborator?.avatar, "")
     }))
     .filter((collaborator) => !!collaborator.id);
 }
@@ -1140,7 +1173,7 @@ function renderCollaboratorAvatar(collaborator = {}) {
     .map((part) => part.charAt(0).toUpperCase())
     .join("") || "U";
   const isCurrentUser = String(collaborator?.userId || "") && String(collaborator.userId) === String(store.user?.id || "");
-  const avatarUrl = isCurrentUser ? String(store.user?.avatar || "") : "";
+  const avatarUrl = firstNonEmpty(collaborator?.avatarUrl, isCurrentUser ? String(store.user?.avatar || "") : "");
   if (avatarUrl) {
     return `<span class="subject-assignee-avatar"><img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayName)}" class="subject-assignee-avatar__img"></span>`;
   }

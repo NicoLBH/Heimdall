@@ -38,6 +38,7 @@ export function createProjectSubjectsActions(config) {
     getObjectives,
     addLabelToSubjectInSupabase,
     removeLabelFromSubjectInSupabase,
+    replaceSubjectAssigneesInSupabase,
     addSubjectToObjectiveInSupabase,
     removeSubjectFromObjectiveInSupabase,
     rerenderPanels
@@ -152,7 +153,21 @@ export function createProjectSubjectsActions(config) {
     });
   }
 
-  function toggleSubjectAssignee(subjectId, assigneeId) {
+  function syncSubjectAssigneeMap(subjectId, assigneeIds = []) {
+    const raw = store.projectSubjectsView?.rawSubjectsResult;
+    if (!raw || typeof raw !== "object") return;
+    const subjectKey = String(subjectId || "");
+    if (!subjectKey) return;
+    raw.assigneePersonIdsBySubjectId = raw.assigneePersonIdsBySubjectId && typeof raw.assigneePersonIdsBySubjectId === "object"
+      ? raw.assigneePersonIdsBySubjectId
+      : {};
+    raw.assigneePersonIdsBySubjectId[subjectKey] = normalizeSubjectAssigneeIds(assigneeIds);
+    if (raw.subjectsById && typeof raw.subjectsById === "object" && raw.subjectsById[subjectKey]) {
+      raw.subjectsById[subjectKey].assignee_person_id = raw.assigneePersonIdsBySubjectId[subjectKey][0] || null;
+    }
+  }
+
+  async function toggleSubjectAssignee(subjectId, assigneeId, options = {}) {
     const subjectKey = String(subjectId || "");
     const assigneeKey = String(assigneeId || "").trim();
     if (!subjectKey || !assigneeKey) return false;
@@ -163,7 +178,27 @@ export function createProjectSubjectsActions(config) {
       ? currentIds.filter((id) => id !== assigneeKey)
       : [...currentIds, assigneeKey];
     setSubjectAssigneeIds(subjectKey, nextIds);
-    return true;
+    syncSubjectAssigneeMap(subjectKey, nextIds);
+
+    if (!options.skipRerender) {
+      if (options.root) rerenderScope(options.root);
+      else rerenderPanels();
+    }
+
+    try {
+      await replaceSubjectAssigneesInSupabase(subjectKey, nextIds);
+      return true;
+    } catch (error) {
+      setSubjectAssigneeIds(subjectKey, currentIds);
+      syncSubjectAssigneeMap(subjectKey, currentIds);
+      if (!options.skipRerender) {
+        if (options.root) rerenderScope(options.root);
+        else rerenderPanels();
+      }
+      console.warn("toggleSubjectAssignee failed", error);
+      showError(`Mise à jour des assignés impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+      return false;
+    }
   }
 
   function syncSubjectSituationMaps(subjectId, situationId, shouldLink) {

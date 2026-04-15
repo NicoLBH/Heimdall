@@ -235,7 +235,7 @@ export function createProjectSubjectsEvents(config) {
             return;
           }
           if (field === "assignees") {
-            await applyNonDestructiveMetaToggle(root, field, () => toggleSubjectAssignee(subjectSelection.item.id, activeKey));
+            await applyNonDestructiveMetaToggle(root, field, () => toggleSubjectAssignee(subjectSelection.item.id, activeKey, { root, skipRerender: true }));
           }
         }
       });
@@ -281,7 +281,7 @@ export function createProjectSubjectsEvents(config) {
         const subjectSelection = getScopedSelection(root);
         if (subjectSelection?.type !== "sujet") return;
         const assigneeId = String(btn.dataset.subjectAssigneeToggle || "");
-        await applyNonDestructiveMetaToggle(root, "assignees", () => toggleSubjectAssignee(subjectSelection.item.id, assigneeId));
+        await applyNonDestructiveMetaToggle(root, "assignees", () => toggleSubjectAssignee(subjectSelection.item.id, assigneeId, { root, skipRerender: true }));
       };
     });
 
@@ -578,7 +578,7 @@ export function createProjectSubjectsEvents(config) {
         const currentUserId = String(store.user?.id || "");
         const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
         const selfCollaborator = collaborators.find((collaborator) => String(collaborator?.userId || collaborator?.linkedUserId || "") === currentUserId);
-        const selfAssigneeId = String(selfCollaborator?.id || "");
+        const selfAssigneeId = String(selfCollaborator?.personId || selfCollaborator?.id || "");
         if (!selfAssigneeId) {
           showError("Votre profil n'est pas présent dans la liste des collaborateurs du projet.");
           return;
@@ -587,8 +587,7 @@ export function createProjectSubjectsEvents(config) {
         const alreadyAssigned = Array.isArray(meta.assignees) && meta.assignees.some((id) => String(id || "") === selfAssigneeId);
         if (alreadyAssigned) return;
         if (typeof toggleSubjectAssignee !== "function") return;
-        toggleSubjectAssignee(selection.item.id, selfAssigneeId);
-        rerenderScope(root);
+        await toggleSubjectAssignee(selection.item.id, selfAssigneeId, { root, skipRerender: false });
       };
     });
 
