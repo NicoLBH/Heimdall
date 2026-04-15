@@ -732,7 +732,21 @@ function getChildSubjectList(subject) {
   const subjectId = String(subject?.id || "");
   if (!subjectId) return [];
   const children = Array.isArray(getChildSubjects(subjectId)) ? getChildSubjects(subjectId) : [];
-  return children.filter(Boolean);
+  return children
+    .filter(Boolean)
+    .sort((left, right) => {
+      const leftOrder = Number(left?.parent_child_order ?? left?.raw?.parent_child_order);
+      const rightOrder = Number(right?.parent_child_order ?? right?.raw?.parent_child_order);
+      const leftHasOrder = Number.isFinite(leftOrder) && leftOrder > 0;
+      const rightHasOrder = Number.isFinite(rightOrder) && rightOrder > 0;
+      if (leftHasOrder && rightHasOrder && leftOrder !== rightOrder) return leftOrder - rightOrder;
+      if (leftHasOrder !== rightHasOrder) return leftHasOrder ? -1 : 1;
+
+      const leftLinkedTs = Date.parse(firstNonEmpty(left?.parent_linked_at, left?.raw?.parent_linked_at, left?.created_at, left?.raw?.created_at) || "") || 0;
+      const rightLinkedTs = Date.parse(firstNonEmpty(right?.parent_linked_at, right?.raw?.parent_linked_at, right?.created_at, right?.raw?.created_at) || "") || 0;
+      if (leftLinkedTs !== rightLinkedTs) return leftLinkedTs - rightLinkedTs;
+      return String(firstNonEmpty(left?.title, left?.id, "")).localeCompare(String(firstNonEmpty(right?.title, right?.id, "")), "fr");
+    });
 }
 
 function problemsCountsIconHtml(closedCount, totalCount) {
@@ -1755,7 +1769,20 @@ function renderSubIssuesForSujet(sujet, options = {}) {
   const childSubjects = getChildSubjectList(sujet);
   if (!childSubjects.length) return "";
   const rows = childSubjects.map((childSujet) => `
-      <div class="issue-row issue-row--pb click ${sujetRowClass}" data-sujet-id="${escapeHtml(childSujet.id)}">
+      <div
+        class="issue-row issue-row--pb click ${sujetRowClass} subissues-sortable-row"
+        data-sujet-id="${escapeHtml(childSujet.id)}"
+        data-subissue-sortable-row="true"
+        data-parent-subject-id="${escapeHtml(String(sujet?.id || ""))}"
+        data-child-subject-id="${escapeHtml(childSujet.id)}"
+        draggable="true"
+      >
+        <div class="cell cell-subissue-drag-handle">
+          <button type="button" class="subissue-drag-handle" data-subissue-drag-handle aria-label="Réordonner le sous-sujet">
+            ${svgIcon("grabber", { className: "octicon octicon-grabber" })}
+          </button>
+        </div>
+        <div class="cell cell-subissue-drag-spacer" aria-hidden="true"></div>
         <div class="cell cell-theme cell-theme--full lvl0">
           ${issueIcon(getEffectiveSujetStatus(childSujet.id))}
           <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(childSujet.title, childSujet.id, ""))}</span>
@@ -1764,6 +1791,7 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     `).join("");
 
   const body = renderSubIssuesTable({
+    className: "issues-table subissues-table subissues-table--sortable",
     rowsHtml: rows,
     emptyTitle: "Aucun sous-sujet"
   });

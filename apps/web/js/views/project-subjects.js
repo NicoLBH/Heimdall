@@ -18,6 +18,10 @@ import {
 import { loadSituationsForCurrentProject, addSubjectToSituation, removeSubjectFromSituation } from "../services/project-situations-supabase.js";
 import { setSubjectParentRelationInSupabase } from "../services/subject-parent-relation-service.js";
 import {
+  setSubjectParentRelationInSupabase,
+  reorderSubjectChildrenInSupabase as reorderSubjectChildrenInSupabaseService
+} from "../services/subject-parent-relation-service.js";
+import {
   bindProjectSituationsRunbar,
   syncProjectSituationsRunbar
 } from "./project-situations-runbar.js";
@@ -336,6 +340,7 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   getToggleSubjectLabel: () => toggleSubjectLabel,
   getToggleSubjectAssignee: () => toggleSubjectAssignee,
   getSetSubjectParent: () => setSubjectParent,
+  getReorderSubjectChildren: () => reorderSubjectChildren,
   syncDescriptionEditorDraft,
   startDescriptionEdit,
   clearDescriptionEditState,
@@ -549,6 +554,10 @@ const projectSubjectsActions = createProjectSubjectsActions({
     parentSubjectId,
     rawSubjectsResult: store.projectSubjectsView?.rawSubjectsResult || null
   }),
+  reorderSubjectChildrenInSupabase: (parentSubjectId, orderedChildIds) => reorderSubjectChildrenInSupabaseService({
+    parentSubjectId,
+    orderedChildIds
+  }),
   rerenderPanels: (...args) => projectSubjectsView.rerenderPanels(...args)
 });
 
@@ -559,6 +568,7 @@ const {
   toggleSubjectAssignee,
   toggleSubjectSituation,
   setSubjectParent,
+  reorderSubjectChildren,
   setSubjectLabels,
   toggleSubjectLabel,
   toggleSubjectObjective,

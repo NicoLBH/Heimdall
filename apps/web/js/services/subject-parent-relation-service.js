@@ -48,6 +48,34 @@ function assertSameProject(subject, parentSubject) {
   }
 }
 
+async function fetchNextParentChildOrder(parentSubjectId) {
+  const normalizedParentSubjectId = normalizeId(parentSubjectId);
+  if (!normalizedParentSubjectId) return null;
+
+  const url = new URL(`${SUPABASE_URL}/rest/v1/subjects`);
+  url.searchParams.set("select", "parent_child_order");
+  url.searchParams.set("parent_subject_id", `eq.${normalizedParentSubjectId}`);
+  url.searchParams.set("order", "parent_child_order.desc.nullslast");
+  url.searchParams.set("limit", "1");
+
+  const headers = await buildSupabaseAuthHeaders({ Accept: "application/json" });
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers,
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Impossible de calculer l'ordre des sous-sujets (${res.status}) : ${text}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  const row = (Array.isArray(rows) ? rows[0] : rows) || null;
+  const lastOrder = Number(row?.parent_child_order);
+  return Number.isFinite(lastOrder) && lastOrder > 0 ? lastOrder + 1 : 1;
+}
+
 export async function setSubjectParentRelationInSupabase({ subjectId, parentSubjectId = null, rawSubjectsResult = null } = {}) {
   const normalizedSubjectId = normalizeId(subjectId);
   const normalizedParentSubjectId = normalizeId(parentSubjectId);
@@ -77,11 +105,18 @@ export async function setSubjectParentRelationInSupabase({ subjectId, parentSubj
     Prefer: "return=representation"
   });
 
+  const nowIso = new Date().toISOString();
+  const nextOrder = normalizedParentSubjectId
+    ? await fetchNextParentChildOrder(normalizedParentSubjectId)
+    : null;
+
   const res = await fetch(`${SUPABASE_URL}/rest/v1/subjects?id=eq.${encodeURIComponent(normalizedSubjectId)}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify({
-      parent_subject_id: normalizedParentSubjectId || null
+      parent_subject_id: normalizedParentSubjectId || null,
+      parent_linked_at: normalizedParentSubjectId ? nowIso : null,
+      parent_child_order: normalizedParentSubjectId ? nextOrder : null
     })
   });
 
@@ -97,4 +132,31 @@ export async function setSubjectParentRelationInSupabase({ subjectId, parentSubj
     parentSubjectId: normalizeId(updatedRow?.parent_subject_id),
     updatedRow
   };
+}
+
+export async function reorderSubjectChildrenInSupabase({ parentSubjectId, orderedChildIds = [] } = {}) {
+  const normalizedParentSubjectId = normalizeId(parentSubjectId);
+  if (!normalizedParentSubjectId) throw new Error("parentSubjectId est requis.");
+  const normalizedOrderedChildIds = [...new Set((Array.isArray(orderedChildIds) ? orderedChildIds : []).map(normalizeId).filter(Boolean))];
+  if (!normalizedOrderedChildIds.length) throw new Error("orderedChildIds est requis.");
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/reorder_subject_children`, {
+    method: "POST",
+    headers: await buildSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    }),
+    body: JSON.stringify({
+      p_parent_subject_id: normalizedParentSubjectId,
+      p_child_subject_ids: normalizedOrderedChildIds
+    })
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Réordonnancement des sous-sujets impossible (${res.status}) : ${text}`);
+  }
+
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? rows : [];
 }

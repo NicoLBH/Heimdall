@@ -20,6 +20,7 @@ export function createProjectSubjectsEvents(config) {
     getToggleSubjectLabel,
     getToggleSubjectAssignee,
     getSetSubjectParent,
+    getReorderSubjectChildren,
     syncDescriptionEditorDraft,
     startDescriptionEdit,
     clearDescriptionEditState,
@@ -179,6 +180,7 @@ export function createProjectSubjectsEvents(config) {
     const toggleSubjectLabel = getToggleSubjectLabel?.();
     const toggleSubjectAssignee = getToggleSubjectAssignee?.();
     const setSubjectParent = getSetSubjectParent?.();
+    const reorderSubjectChildren = getReorderSubjectChildren?.();
 
     dropdownHost.querySelectorAll("[data-subject-kanban-search]").forEach((input) => {
       input.addEventListener("input", () => {
@@ -596,6 +598,78 @@ export function createProjectSubjectsEvents(config) {
         rerenderPanels();
       };
     });
+
+    const sortableRows = Array.from(root.querySelectorAll("[data-subissue-sortable-row='true']"));
+    if (sortableRows.length) {
+      const clearDragClasses = () => {
+        sortableRows.forEach((row) => {
+          row.classList.remove("is-subissue-dragging", "is-subissue-drop-before", "is-subissue-drop-after");
+        });
+      };
+
+      sortableRows.forEach((row) => {
+        row.addEventListener("dragstart", (event) => {
+          if (!event.target?.closest?.("[data-subissue-drag-handle]")) {
+            event.preventDefault();
+            return;
+          }
+          const childSubjectId = String(row.dataset.childSubjectId || "");
+          if (!childSubjectId) return;
+          row.classList.add("is-subissue-dragging");
+          event.dataTransfer?.setData("text/plain", childSubjectId);
+          if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+        });
+
+        row.addEventListener("dragover", (event) => {
+          const draggingRow = root.querySelector(".is-subissue-dragging");
+          if (!draggingRow || draggingRow === row) return;
+          event.preventDefault();
+          row.classList.remove("is-subissue-drop-before", "is-subissue-drop-after");
+          const rect = row.getBoundingClientRect();
+          const insertAfter = event.clientY >= (rect.top + rect.height / 2);
+          row.classList.add(insertAfter ? "is-subissue-drop-after" : "is-subissue-drop-before");
+        });
+
+        row.addEventListener("drop", async (event) => {
+          const draggingRow = root.querySelector(".is-subissue-dragging");
+          if (!draggingRow || draggingRow === row) return;
+          event.preventDefault();
+
+          const parentSubjectId = String(row.dataset.parentSubjectId || "");
+          if (!parentSubjectId || typeof reorderSubjectChildren !== "function") {
+            clearDragClasses();
+            return;
+          }
+
+          const container = row.parentElement;
+          if (!container) {
+            clearDragClasses();
+            return;
+          }
+          const sourceId = String(draggingRow.dataset.childSubjectId || "");
+          const targetId = String(row.dataset.childSubjectId || "");
+          if (!sourceId || !targetId || sourceId === targetId) {
+            clearDragClasses();
+            return;
+          }
+
+          const targetRect = row.getBoundingClientRect();
+          const placeAfter = event.clientY >= (targetRect.top + targetRect.height / 2);
+          const referenceNode = placeAfter ? row.nextElementSibling : row;
+          container.insertBefore(draggingRow, referenceNode);
+
+          const orderedChildIds = Array.from(container.querySelectorAll("[data-subissue-sortable-row='true']"))
+            .map((item) => String(item.dataset.childSubjectId || ""))
+            .filter(Boolean);
+          await reorderSubjectChildren(parentSubjectId, orderedChildIds, { root, skipRerender: false });
+          clearDragClasses();
+        });
+
+        row.addEventListener("dragend", () => {
+          clearDragClasses();
+        });
+      });
+    }
 
     const isDrilldownScope = !!root.closest?.("#drilldownPanel");
     root.querySelectorAll(".js-sub-right-toggle-sujet, .js-modal-toggle-sujet, .js-drilldown-toggle-sujet").forEach((btn) => {
