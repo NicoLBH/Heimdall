@@ -62,7 +62,9 @@ export function createProjectSubjectsEvents(config) {
       const search = String(window?.location?.search || "");
       if (search.includes("debugSubissuesDnd=1")) return true;
       const storageValue = String(window?.localStorage?.getItem?.("mdall:debug-subissues-dnd") || "").trim().toLowerCase();
-      return storageValue === "1" || storageValue === "true";
+      const sessionStorageValue = String(window?.sessionStorage?.getItem?.("mdall:debug-subissues-dnd") || "").trim().toLowerCase();
+      const globalFlag = String(window?.__MDALL_DEBUG_SUBISSUES_DND__ || "").trim().toLowerCase();
+      return storageValue === "1" || storageValue === "true" || sessionStorageValue === "1" || sessionStorageValue === "true" || globalFlag === "1" || globalFlag === "true";
     } catch {
       return false;
     }
@@ -70,7 +72,7 @@ export function createProjectSubjectsEvents(config) {
 
   function debugSubissuesDnd(eventName, payload = {}) {
     if (!isSubissuesDndDebugEnabled()) return;
-    console.debug("[subissues-dnd]", eventName, payload);
+    console.log("[subissues-dnd]", eventName, payload);
   }
 
   function dropdownController() {
@@ -618,6 +620,11 @@ export function createProjectSubjectsEvents(config) {
 
     const sortableRows = Array.from(root.querySelectorAll("[data-subissue-sortable-row='true']"));
     if (sortableRows.length) {
+      debugSubissuesDnd("debug-enabled", {
+        scope: "wireDetailsInteractive",
+        rows: sortableRows.length
+      });
+
       let dragPreviewNode = null;
 
       const clearDragPreview = () => {
@@ -692,13 +699,15 @@ export function createProjectSubjectsEvents(config) {
           dragPreviewNode.style.gridTemplateColumns = rowStyles.gridTemplateColumns;
           dragPreviewNode.style.padding = rowStyles.padding;
           dragPreviewNode.style.opacity = "1";
-          dragPreviewNode.style.backgroundColor = "var(--bbg, var(--bg))";
-          dragPreviewNode.style.border = "solid 1px var(--border)";
+          dragPreviewNode.style.backgroundColor = "var(--bbg, var(--bg, #0d1117))";
+          dragPreviewNode.style.border = "solid 1px var(--border, rgba(139,148,158,.35))";
           dragPreviewNode.style.borderRadius = "var(--radius)";
           dragPreviewNode.style.borderBottom = "none";
           dragPreviewNode.style.position = "fixed";
-          dragPreviewNode.style.top = "-9999px";
-          dragPreviewNode.style.left = "-9999px";
+          dragPreviewNode.style.top = "0";
+          dragPreviewNode.style.left = "0";
+          dragPreviewNode.style.transform = "translate(-200vw, -200vh)";
+          dragPreviewNode.style.zIndex = "-1";
           dragPreviewNode.style.pointerEvents = "none";
           dragPreviewNode.setAttribute("aria-hidden", "true");
           document.body.appendChild(dragPreviewNode);
