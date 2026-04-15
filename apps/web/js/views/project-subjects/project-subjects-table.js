@@ -1,5 +1,6 @@
 import { renderProblemsCountsIconHtml } from "../ui/subissues-counts.js";
 import { getDisplayAuthorName } from "../ui/author-identity.js";
+import { findCollaboratorByAssigneeId, normalizeAssigneeIds } from "../../services/subject-assignees-service.js";
 export function getSituationsTableGridTemplate() {
   return "minmax(0, 1fr) max-content";
 }
@@ -66,10 +67,74 @@ function renderWelcomeHtml(deps) {
   const { renderIssuesTable } = deps;
   return renderIssuesTable({
     gridTemplate: getSituationsTableGridTemplate(),
-    headHtml: renderSituationsTableHeadHtml({ deps }),
+    headHtml: renderSituationsTableHeadHtml({
+      deps,
+      columns: [
+        { className: "cell cell-theme", html: deps.renderSubjectsStatusHeadHtml() },
+        { className: "cell cell-assignees-head", html: "Assignés" }
+      ]
+    }),
     emptyTitle: "Aucune analyse disponible",
     emptyDescription: "Lancer une analyse pour générer des sujets."
   });
+}
+
+function getActiveProjectCollaborators(store) {
+  const collaborators = Array.isArray(store?.projectForm?.collaborators) ? store.projectForm.collaborators : [];
+  return collaborators
+    .filter((collaborator) => String(collaborator?.status || "Actif").toLowerCase() !== "retiré")
+    .map((collaborator) => ({
+      id: String(collaborator?.personId || collaborator?.id || ""),
+      userId: String(collaborator?.userId || collaborator?.linkedUserId || ""),
+      name: String(collaborator?.name || [collaborator?.firstName, collaborator?.lastName].filter(Boolean).join(" ") || collaborator?.email || "Utilisateur"),
+      email: String(collaborator?.email || ""),
+      avatarUrl: String(collaborator?.avatarUrl || collaborator?.avatar || ""),
+      avatarStoragePath: String(collaborator?.avatarStoragePath || "")
+    }))
+    .filter((collaborator) => !!collaborator.id);
+}
+
+function renderAssigneeAvatar(collaborator = {}, escapeHtml, fallbackAvatar = "") {
+  const displayName = String(collaborator?.name || collaborator?.email || "U");
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "U";
+  const avatarUrl = String(collaborator?.avatarUrl || fallbackAvatar || "");
+  if (avatarUrl) {
+    return `<span class="subject-assignee-avatar"><img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayName)}" class="subject-assignee-avatar__img"></span>`;
+  }
+  return `<span class="subject-assignee-avatar subject-assignee-avatar--fallback" aria-hidden="true">${escapeHtml(initials)}</span>`;
+}
+
+function renderSubjectAssigneesCellHtml(sujet, deps) {
+  const { store, escapeHtml } = deps;
+  const subjectMeta = deps.getSubjectSidebarMeta(sujet.id);
+  const collaborators = getActiveProjectCollaborators(store);
+  const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
+  const selected = normalizeAssigneeIds(subjectMeta.assignees)
+    .map((assigneeId) => findCollaboratorByAssigneeId(collaboratorsById, assigneeId) || {
+      id: assigneeId,
+      userId: "",
+      name: `Collaborateur ${String(assigneeId || "").slice(0, 8)}`,
+      email: "",
+      avatarUrl: ""
+    })
+    .slice(0, 3);
+
+  if (!selected.length) return `<span class="issue-row-assignees-empty">—</span>`;
+
+  return `
+    <span class="issue-row-assignees" aria-label="${escapeHtml(`${selected.length} assigné(s)`)}}">
+      ${selected.map((collaborator) => renderAssigneeAvatar(
+        collaborator,
+        escapeHtml,
+        String(collaborator?.userId || "") === String(store?.user?.id || "") ? String(store?.user?.avatar || "") : ""
+      )).join("")}
+    </span>
+  `;
 }
 
 export function renderFlatSujetRow(sujet, situationId, options = {}) {
@@ -78,7 +143,6 @@ export function renderFlatSujetRow(sujet, situationId, options = {}) {
     escapeHtml,
     svgIcon,
     issueIcon,
-    priorityBadge,
     getEffectiveSujetStatus,
     getEntityReviewMeta,
     getReviewTitleStateClass,
@@ -128,7 +192,7 @@ export function renderFlatSujetRow(sujet, situationId, options = {}) {
           <span class="issue-row-title-grid__meta issue-row-meta-text mono-small">${escapeHtml(displayRef)} - ${escapeHtml(author)} • ${escapeHtml(openedLabel)}${objectiveLabel}</span>
         </span>
       </div>
-      <div class="cell cell-priority-value">${priorityBadge(sujet.priority)}</div>
+      <div class="cell cell-assignees-value">${renderSubjectAssigneesCellHtml(sujet, deps)}</div>
     </div>
   `;
 }
@@ -172,7 +236,13 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
   if (isLoading && !hasAnySubjects) {
     return renderIssuesTable({
       gridTemplate: getSituationsTableGridTemplate(),
-      headHtml: renderSituationsTableHeadHtml({ deps }),
+      headHtml: renderSituationsTableHeadHtml({
+        deps,
+        columns: [
+          { className: "cell cell-theme", html: deps.renderSubjectsStatusHeadHtml() },
+          { className: "cell cell-assignees-head", html: "Assignés" }
+        ]
+      }),
       state: "loading",
       loadingTitle: "Chargement des sujets…",
       loadingDescription: "Récupération des sujets du projet en cours."
@@ -194,7 +264,13 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
   if (!rows.length) {
     return renderIssuesTable({
       gridTemplate: getSituationsTableGridTemplate(),
-      headHtml: renderSituationsTableHeadHtml({ deps }),
+      headHtml: renderSituationsTableHeadHtml({
+        deps,
+        columns: [
+          { className: "cell cell-theme", html: deps.renderSubjectsStatusHeadHtml() },
+          { className: "cell cell-assignees-head", html: "Assignés" }
+        ]
+      }),
       emptyTitle: "Aucun résultat",
       emptyDescription: pagination?.enabled
         ? "Aucun résultat pour cette page avec les filtres actuels."
@@ -204,7 +280,13 @@ export function renderProjectSubjectsTable({ filteredSituations, deps }) {
 
   return renderIssuesTable({
     gridTemplate: getSituationsTableGridTemplate(),
-    headHtml: renderSituationsTableHeadHtml({ deps }),
+    headHtml: renderSituationsTableHeadHtml({
+      deps,
+      columns: [
+        { className: "cell cell-theme", html: deps.renderSubjectsStatusHeadHtml() },
+        { className: "cell cell-assignees-head", html: "Assignés" }
+      ]
+    }),
     rowsHtml: rows.join(""),
     emptyTitle: "Aucun résultat",
     emptyDescription: pagination?.enabled
