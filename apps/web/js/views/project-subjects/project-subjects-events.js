@@ -691,7 +691,6 @@ export function createProjectSubjectsEvents(config) {
             event.preventDefault();
             return;
           }
-          row.classList.add("is-subissue-dragging", "is-subissue-drag-gap");
           event.dataTransfer?.setData("text/plain", childSubjectId);
           if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 
@@ -750,6 +749,7 @@ export function createProjectSubjectsEvents(config) {
             event.dataTransfer.setDragImage(dragPreviewNode, offsetX, offsetY);
             debugSubissuesDnd("dragstart-setDragImage", { offsetX, offsetY });
           }
+          row.classList.add("is-subissue-dragging", "is-subissue-drag-gap");
         });
 
         row.addEventListener("dragover", (event) => {
