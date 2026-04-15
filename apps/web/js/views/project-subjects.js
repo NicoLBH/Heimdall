@@ -22,6 +22,10 @@ import {
   reorderSubjectChildrenInSupabase as reorderSubjectChildrenInSupabaseService
 } from "../services/subject-parent-relation-service.js";
 import {
+  setSubjectParentRelationInSupabase as setSubjectParentRelationInSupabaseService,
+  reorderSubjectChildrenInSupabase as reorderSubjectChildrenInSupabaseService
+} from "../services/subject-parent-relation-service.js";
+import {
   bindProjectSituationsRunbar,
   syncProjectSituationsRunbar
 } from "./project-situations-runbar.js";
@@ -549,7 +553,7 @@ const projectSubjectsActions = createProjectSubjectsActions({
   replaceSubjectAssigneesInSupabase: (...args) => replaceSubjectAssigneesInSupabase(...args),
   addSubjectToObjectiveInSupabase: (...args) => addSubjectToObjectiveInSupabase(...args),
   removeSubjectFromObjectiveInSupabase: (...args) => removeSubjectFromObjectiveInSupabase(...args),
-  setSubjectParentInSupabase: (subjectId, parentSubjectId) => setSubjectParentRelationInSupabase({
+  setSubjectParentInSupabase: (subjectId, parentSubjectId) => setSubjectParentRelationInSupabaseService({
     subjectId,
     parentSubjectId,
     rawSubjectsResult: store.projectSubjectsView?.rawSubjectsResult || null
