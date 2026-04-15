@@ -1513,6 +1513,31 @@ async function ensureDirectoryPerson({ personId = "", email = "", firstName = ""
   };
 }
 
+export async function resolveCurrentUserDirectoryPersonId(options = {}) {
+  const {
+    email = "",
+    firstName = "",
+    lastName = "",
+    company = ""
+  } = options || {};
+
+  const currentUser = await getCurrentUser().catch(() => null);
+  const resolvedEmail = safeString(email || currentUser?.email || "").toLowerCase();
+  if (!resolvedEmail || !isValidEmailAddress(resolvedEmail)) {
+    return "";
+  }
+
+  const person = await ensureDirectoryPerson({
+    email: resolvedEmail,
+    userId: safeString(currentUser?.id || ""),
+    firstName: safeString(firstName || currentUser?.user_metadata?.first_name || ""),
+    lastName: safeString(lastName || currentUser?.user_metadata?.last_name || ""),
+    company: safeString(company)
+  });
+
+  return safeString(person?.id || "");
+}
+
 export async function addProjectCollaboratorToSupabase({ personId = "", userId = "", email = "", firstName = "", lastName = "", company = "", projectLotId = "", status = "Actif" } = {}) {
   const backendProjectId = await resolveCurrentBackendProjectId();
   const lotId = safeString(projectLotId);
