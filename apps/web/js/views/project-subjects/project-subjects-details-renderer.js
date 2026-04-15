@@ -10,6 +10,7 @@ export function createProjectSubjectsDetailsRenderer(config) {
     getReviewTitleStateClass,
     entityDisplayLinkHtml,
     problemsCountsHtml,
+    renderSubjectParentHeadHtml,
     firstNonEmpty,
     escapeHtml,
     statePill,
@@ -38,10 +39,13 @@ export function createProjectSubjectsDetailsRenderer(config) {
       buildExpandedBottomHtml(currentSelection) {
         const item = currentSelection.item;
         if (currentSelection.type === "sujet") {
+          const countsHtml = problemsCountsHtml(item, { entityType: "sujet", hideIfEmpty: true });
+          const parentHtml = renderSubjectParentHeadHtml(item, { compact: false });
+          const dividerHtml = parentHtml ? `<span class="details-title-divider" aria-hidden="true"></span>` : "";
           return `${statePill(getEffectiveSujetStatus(item.id), {
             reviewState: getEntityReviewMeta("sujet", item.id).review_state,
             entityType: "sujet"
-          })}${problemsCountsHtml(item, { entityType: "sujet" })}`;
+          })}${countsHtml}${dividerHtml}${parentHtml}`;
         }
         return `${statePill(getEffectiveSituationStatus(item.id), {
           reviewState: getEntityReviewMeta("situation", item.id).review_state,
@@ -51,6 +55,8 @@ export function createProjectSubjectsDetailsRenderer(config) {
       buildCompactConfig(currentSelection, { titleTextHtml }) {
         const item = currentSelection.item;
         if (currentSelection.type === "sujet") {
+          const countsHtml = problemsCountsHtml(item, { entityType: "sujet", hideIfEmpty: true });
+          const parentHtml = renderSubjectParentHeadHtml(item, { compact: true });
           return {
             variant: "grid",
             wrapClass: "details-title--compact-grid",
@@ -59,7 +65,7 @@ export function createProjectSubjectsDetailsRenderer(config) {
               entityType: "sujet"
             }),
             topHtml: titleTextHtml,
-            bottomHtml: `${problemsCountsHtml(item, { entityType: "sujet" })}`
+            bottomHtml: `${countsHtml}${parentHtml}`
           };
         }
         return {

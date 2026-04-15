@@ -708,10 +708,12 @@ function problemsCountsIconHtml(closedCount, totalCount) {
 
 function problemsCountsHtml(item, options = {}) {
   const entityType = String(options.entityType || "situation").toLowerCase();
+  const hideIfEmpty = options.hideIfEmpty === true;
   const linkedSubjects = entityType === "sujet"
     ? getChildSubjectList(item)
     : getSituationSubjects(item);
   const totalSubjects = linkedSubjects.length;
+  if (hideIfEmpty && totalSubjects <= 0) return "";
   const openSubjects = linkedSubjects.filter((subject) => String(getEffectiveSujetStatus(subject?.id) || "open").toLowerCase() === "open").length;
   const closedSubjects = Math.max(0, totalSubjects - openSubjects);
   const ariaLabel = `${openSubjects} sous-sujets ouverts, ${closedSubjects} fermés, ${totalSubjects} au total`;
@@ -1134,6 +1136,20 @@ function renderSubjectParentCard(subjectId) {
   `;
 }
 
+function renderSubjectParentHeadHtml(subject, options = {}) {
+  const compact = options.compact === true;
+  const parentSubject = getSubjectParentSubject(subject?.id || subject);
+  if (!parentSubject) return "";
+  const title = escapeHtml(firstNonEmpty(parentSubject.title, parentSubject.id, "Sujet parent"));
+  const wrapperClass = compact ? "details-parent-badge details-parent-badge--compact" : "details-parent-badge";
+  return `
+    <span class="${wrapperClass}" title="Sujet parent : ${title}">
+      <span class="details-parent-badge__icon">${issueIcon(getEffectiveSujetStatus(parentSubject.id))}</span>
+      <span class="details-parent-badge__text">Parent: ${title}</span>
+    </span>
+  `;
+}
+
 function renderSubjectMetaFieldValue(subject, field) {
   if (!subject || String(subject.type || "") === "") return "";
   if (field === "labels") return renderSubjectLabelsValue(subject.id);
@@ -1406,6 +1422,7 @@ function renderSubIssuesForSujet(sujet, options = {}) {
   ensureViewUiState();
   const sujetRowClass = options.sujetRowClass || "js-row-sujet";
   const childSubjects = getChildSubjectList(sujet);
+  if (!childSubjects.length) return "";
   const rows = childSubjects.map((childSujet) => `
       <div class="issue-row issue-row--pb click ${sujetRowClass}" data-sujet-id="${escapeHtml(childSujet.id)}">
         <div class="cell cell-theme cell-theme--full lvl0">
@@ -2045,6 +2062,7 @@ function getObjectiveById(objectiveId) {
     getEffectiveSituationStatus,
     problemsCountsHtml,
     problemsCountsIconHtml,
+    renderSubjectParentHeadHtml,
     renderDetailedMetaForSelection,
     renderSubjectMetaControls,
     renderSubjectMetaFieldValue,
