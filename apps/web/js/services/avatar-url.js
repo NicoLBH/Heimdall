@@ -44,12 +44,20 @@ function extractStoragePathFromSupabaseUrl(value = "") {
   return "";
 }
 
-function isLikelyExpiringSignedAvatarUrl(value = "") {
+function isSupabaseSignedAvatarUrl(value = "") {
   const url = buildUrl(value);
   if (!url) return false;
   const path = safeString(url.pathname || "").toLowerCase();
-  if (!/\/storage\/v1\/object\/sign\/avatars\//.test(path)) return false;
-  return url.searchParams.has("token") || url.searchParams.has("expires") || url.searchParams.has("t");
+  return /\/storage\/v1\/object\/sign\/avatars\//.test(path);
+}
+
+function normalizeAvatarStoragePath(value = "") {
+  const raw = safeString(value);
+  if (!raw) return "";
+  if (looksLikeDirectAvatarUrl(raw)) {
+    return extractStoragePathFromSupabaseUrl(raw) || raw;
+  }
+  return raw;
 }
 
 function buildPublicAvatarUrl(storagePath = "", fallback = DEFAULT_AVATAR_URL) {
@@ -82,11 +90,13 @@ export async function resolveAvatarUrl({
   const directAvatarUrl = safeString(avatarUrl || avatar);
   const storagePathFromDirectUrl = extractStoragePathFromSupabaseUrl(directAvatarUrl);
 
-  if (directAvatarUrl && looksLikeDirectAvatarUrl(directAvatarUrl) && !isLikelyExpiringSignedAvatarUrl(directAvatarUrl)) {
+  if (directAvatarUrl && looksLikeDirectAvatarUrl(directAvatarUrl) && !isSupabaseSignedAvatarUrl(directAvatarUrl)) {
     return directAvatarUrl;
   }
 
-  const storagePath = safeString(avatarStoragePath || storagePathFromDirectUrl || directAvatarUrl);
+  const storagePath = normalizeAvatarStoragePath(avatarStoragePath)
+    || storagePathFromDirectUrl
+    || normalizeAvatarStoragePath(directAvatarUrl);
   if (!storagePath) return safeString(fallback) || DEFAULT_AVATAR_URL;
 
   try {
