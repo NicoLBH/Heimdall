@@ -74,6 +74,27 @@ export function createProjectSubjectsEvents(config) {
     detachDropdownDocumentEvents = null;
   }
 
+  function resolveSelfCollaboratorAssigneeId() {
+    const currentUserId = String(store.user?.id || "").trim();
+    const currentEmail = String(store.user?.email || "").trim().toLowerCase();
+    const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
+    if (!collaborators.length) return "";
+
+    const collaboratorByUserId = collaborators.find((collaborator) => {
+      const collaboratorUserId = String(collaborator?.userId || collaborator?.linkedUserId || "").trim();
+      return collaboratorUserId && currentUserId && collaboratorUserId === currentUserId;
+    });
+    if (collaboratorByUserId) return String(collaboratorByUserId?.personId || collaboratorByUserId?.id || "");
+
+    const collaboratorByEmail = collaborators.find((collaborator) => {
+      const collaboratorEmail = String(collaborator?.email || "").trim().toLowerCase();
+      return collaboratorEmail && currentEmail && collaboratorEmail === currentEmail;
+    });
+    if (collaboratorByEmail) return String(collaboratorByEmail?.personId || collaboratorByEmail?.id || "");
+
+    return "";
+  }
+
   function resetSubjectsTabView(reason = "manual") {
     resetSubjectsViewTransientState();
 
@@ -575,10 +596,7 @@ export function createProjectSubjectsEvents(config) {
         event.stopPropagation();
         const selection = getScopedSelection(root);
         if (selection?.type !== "sujet") return;
-        const currentUserId = String(store.user?.id || "");
-        const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
-        const selfCollaborator = collaborators.find((collaborator) => String(collaborator?.userId || collaborator?.linkedUserId || "") === currentUserId);
-        const selfAssigneeId = String(selfCollaborator?.personId || selfCollaborator?.id || "");
+        const selfAssigneeId = resolveSelfCollaboratorAssigneeId();
         if (!selfAssigneeId) {
           showError("Votre profil n'est pas présent dans la liste des collaborateurs du projet.");
           return;
