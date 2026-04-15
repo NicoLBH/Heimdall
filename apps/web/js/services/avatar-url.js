@@ -19,6 +19,74 @@ function looksLikeDirectAvatarUrl(value = "") {
     || candidate.startsWith("assets/");
 }
 
+function buildUrl(value = "") {
+  const candidate = safeString(value);
+  if (!candidate) return null;
+  try {
+    return new URL(candidate, window.location.origin || "http://localhost");
+  } catch {
+    return null;
+  }
+}
+
+function extractStoragePathFromSupabaseUrl(value = "") {
+  const url = buildUrl(value);
+  if (!url) return "";
+  const path = safeString(url.pathname || "");
+  if (!path) return "";
+
+  const directMatch = path.match(/\/storage\/v1\/object\/(?:public|sign)\/avatars\/(.+)$/i);
+  if (directMatch?.[1]) return safeString(decodeURIComponent(directMatch[1]));
+
+  const encodedMatch = path.match(/\/storage\/v1\/object\/sign\/avatars\/(.+)$/i);
+  if (encodedMatch?.[1]) return safeString(decodeURIComponent(encodedMatch[1]));
+
+  return "";
+}
+
+function isSupabaseSignedAvatarUrl(value = "") {
+  const url = buildUrl(value);
+  if (!url) return false;
+  const path = safeString(url.pathname || "").toLowerCase();
+  return /\/storage\/v1\/object\/sign\/avatars\//.test(path);
+}
+
+function normalizeAvatarStoragePath(value = "") {
+  const raw = safeString(value);
+  if (!raw) return "";
+  if (looksLikeDirectAvatarUrl(raw)) {
+    return extractStoragePathFromSupabaseUrl(raw) || raw;
+  }
+  return raw.replace(/^\/+/, "").replace(/^avatars\//i, "");
+}
+
+function buildAvatarPathCandidates(storagePath = "") {
+  const normalized = normalizeAvatarStoragePath(storagePath);
+  if (!normalized) return [];
+  const candidates = new Set([normalized]);
+
+  if (/\/avatar\.png$/i.test(normalized)) {
+    candidates.add(normalized.replace(/\/avatar\.png$/i, "/public-avatar.png"));
+    candidates.add(normalized.replace(/\/avatar\.png$/i, "/public-avatar.jpg"));
+  }
+
+  if (/\/avatar\.jpg$/i.test(normalized)) {
+    candidates.add(normalized.replace(/\/avatar\.jpg$/i, "/public-avatar.jpg"));
+    candidates.add(normalized.replace(/\/avatar\.jpg$/i, "/public-avatar.png"));
+  }
+
+  return Array.from(candidates).map((candidate) => safeString(candidate)).filter(Boolean);
+}
+
+function buildPublicAvatarUrl(storagePath = "", fallback = DEFAULT_AVATAR_URL) {
+  const normalizedPath = safeString(storagePath);
+  if (!normalizedPath) return safeString(fallback) || DEFAULT_AVATAR_URL;
+  const { data } = supabase.storage
+    .from(AVATARS_BUCKET)
+    .getPublicUrl(normalizedPath);
+  return safeString(data?.publicUrl) || safeString(fallback) || DEFAULT_AVATAR_URL;
+}
+
 export async function createAvatarSignedUrl(storagePath = "", fallback = DEFAULT_AVATAR_URL) {
   const normalizedPath = safeString(storagePath);
   if (!normalizedPath) return safeString(fallback) || DEFAULT_AVATAR_URL;
@@ -38,14 +106,31 @@ export async function resolveAvatarUrl({
   fallback = DEFAULT_AVATAR_URL
 } = {}) {
   const directAvatarUrl = safeString(avatarUrl || avatar);
-  if (directAvatarUrl && looksLikeDirectAvatarUrl(directAvatarUrl)) return directAvatarUrl;
+  const storagePathFromDirectUrl = extractStoragePathFromSupabaseUrl(directAvatarUrl);
 
-  const storagePath = safeString(avatarStoragePath || directAvatarUrl);
-  if (!storagePath) return safeString(fallback) || DEFAULT_AVATAR_URL;
-
-  try {
-    return await createAvatarSignedUrl(storagePath, fallback);
-  } catch {
-    return safeString(fallback) || DEFAULT_AVATAR_URL;
+  if (directAvatarUrl && looksLikeDirectAvatarUrl(directAvatarUrl) && !isSupabaseSignedAvatarUrl(directAvatarUrl)) {
+    return directAvatarUrl;
   }
+
+  const primaryStoragePath = normalizeAvatarStoragePath(avatarStoragePath)
+    || storagePathFromDirectUrl
+    || normalizeAvatarStoragePath(directAvatarUrl);
+  if (!primaryStoragePath) return safeString(fallback) || DEFAULT_AVATAR_URL;
+
+  const candidates = buildAvatarPathCandidates(primaryStoragePath);
+
+  for (const pathCandidate of candidates) {
+    try {
+      return await createAvatarSignedUrl(pathCandidate, fallback);
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  for (const pathCandidate of candidates) {
+    const publicUrl = buildPublicAvatarUrl(pathCandidate, "");
+    if (publicUrl) return publicUrl;
+  }
+
+  return safeString(fallback) || DEFAULT_AVATAR_URL;
 }
