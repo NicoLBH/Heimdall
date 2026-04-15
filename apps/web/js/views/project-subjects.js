@@ -78,7 +78,11 @@ import {
   toSharedDateInputValue
 } from "./ui/shared-date-picker.js";
 import { getSelectionDocumentRefs } from "../services/project-document-selectors.js";
-import { persistSubjectIssueActionToSupabase, syncProjectCollaboratorsFromSupabase } from "../services/project-supabase-sync.js";
+import {
+  persistSubjectIssueActionToSupabase,
+  resolveCurrentUserDirectoryPersonId,
+  syncProjectCollaboratorsFromSupabase
+} from "../services/project-supabase-sync.js";
 import {
   getSituationsTableGridTemplate,
   renderFlatSujetRow,
@@ -360,7 +364,13 @@ const projectSubjectsEvents = createProjectSubjectsEvents({
   getProjectSubjectMilestones: () => projectSubjectMilestones,
   getProjectSubjectLabels: () => projectSubjectLabels,
   renderSubjectMetaFieldValue: (...args) => projectSubjectsView.renderSubjectMetaFieldValue(...args),
-  getSubjectsCurrentRoot: () => subjectsCurrentRoot
+  getSubjectsCurrentRoot: () => subjectsCurrentRoot,
+  resolveCurrentUserAssigneeId: () => resolveCurrentUserDirectoryPersonId({
+    email: store.user?.email || "",
+    firstName: store.user?.firstName || "",
+    lastName: store.user?.lastName || "",
+    company: store.user?.publicProfile?.company || ""
+  })
 });
 
 const {

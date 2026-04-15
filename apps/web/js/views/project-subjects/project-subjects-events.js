@@ -47,7 +47,8 @@ export function createProjectSubjectsEvents(config) {
     bindOverlayChromeDismiss,
     bindOverlayChromeCompact,
     getProjectSubjectMilestones,
-    renderSubjectMetaFieldValue
+    renderSubjectMetaFieldValue,
+    resolveCurrentUserAssigneeId
   } = config;
 
   let detachDropdownDocumentEvents = null;
@@ -74,11 +75,16 @@ export function createProjectSubjectsEvents(config) {
     detachDropdownDocumentEvents = null;
   }
 
-  function resolveSelfCollaboratorAssigneeId() {
+  async function resolveSelfCollaboratorAssigneeId() {
     const currentUserId = String(store.user?.id || "").trim();
     const currentEmail = String(store.user?.email || "").trim().toLowerCase();
     const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
-    if (!collaborators.length) return "";
+    if (!collaborators.length) {
+      if (typeof resolveCurrentUserAssigneeId === "function") {
+        return String(await resolveCurrentUserAssigneeId() || "");
+      }
+      return "";
+    }
 
     const collaboratorByUserId = collaborators.find((collaborator) => {
       const collaboratorUserId = String(collaborator?.userId || collaborator?.linkedUserId || "").trim();
@@ -91,6 +97,10 @@ export function createProjectSubjectsEvents(config) {
       return collaboratorEmail && currentEmail && collaboratorEmail === currentEmail;
     });
     if (collaboratorByEmail) return String(collaboratorByEmail?.personId || collaboratorByEmail?.id || "");
+
+    if (typeof resolveCurrentUserAssigneeId === "function") {
+      return String(await resolveCurrentUserAssigneeId() || "");
+    }
 
     return "";
   }
@@ -423,6 +433,7 @@ export function createProjectSubjectsEvents(config) {
     const toggleSubjectObjective = getToggleSubjectObjective?.();
     const toggleSubjectSituation = getToggleSubjectSituation?.();
     const toggleSubjectLabel = getToggleSubjectLabel?.();
+    const toggleSubjectAssignee = getToggleSubjectAssignee?.();
     const applyIssueStatusAction = getApplyIssueStatusAction?.();
 
     root.querySelectorAll("[data-subject-meta-trigger]").forEach((btn) => {
@@ -594,18 +605,36 @@ export function createProjectSubjectsEvents(config) {
       btn.onclick = async (event) => {
         event.preventDefault();
         event.stopPropagation();
+
+        const subjectIdFromButton = String(btn.dataset.subjectAssignSelf || "").trim();
         const selection = getScopedSelection(root);
-        if (selection?.type !== "sujet") return;
-        const selfAssigneeId = resolveSelfCollaboratorAssigneeId();
+        const subjectIdFromSelection = selection?.type === "sujet"
+          ? String(selection?.item?.id || "").trim()
+          : "";
+        const subjectId = subjectIdFromButton || subjectIdFromSelection;
+
+        if (!subjectId) {
+          showError("Impossible d'identifier le sujet à assigner.");
+          return;
+        }
+
+        const selfAssigneeId = await resolveSelfCollaboratorAssigneeId();
         if (!selfAssigneeId) {
           showError("Votre profil n'est pas présent dans la liste des collaborateurs du projet.");
           return;
         }
-        const meta = getSubjectSidebarMeta(selection.item.id);
+        const meta = getSubjectSidebarMeta(subjectId);
         const alreadyAssigned = Array.isArray(meta.assignees) && meta.assignees.some((id) => String(id || "") === selfAssigneeId);
         if (alreadyAssigned) return;
-        if (typeof toggleSubjectAssignee !== "function") return;
-        await toggleSubjectAssignee(selection.item.id, selfAssigneeId, { root, skipRerender: false });
+        if (typeof toggleSubjectAssignee !== "function") {
+          showError("Action indisponible: gestionnaire d'assignation introuvable.");
+          return;
+        }
+        try {
+          await toggleSubjectAssignee(subjectId, selfAssigneeId, { root, skipRerender: false });
+        } catch (error) {
+          showError(`Mise à jour des assignés impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+        }
       };
     });
 

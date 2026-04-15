@@ -1955,6 +1955,34 @@ body.modal-open {
   justify-content:flex-end;
 }
 
+.cell-assignees-head,
+.cell-assignees-value{
+  justify-self:end;
+}
+
+.cell-assignees-value{
+  width:140px;
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+}
+
+.issue-row-assignees{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-end;
+}
+
+.issue-row-assignees .subject-assignee-avatar + .subject-assignee-avatar{
+  margin-left:-6px;
+  box-shadow:0 0 0 1px var(--panel);
+}
+
+.issue-row-assignees-empty{
+  color:var(--muted);
+  font-size:12px;
+}
+
 .cell{min-width:0;}
 .cell-theme{display:flex;align-items:center;gap:5px;min-width:0;}
 .chev{width:16px;text-align:center;color:var(--muted);user-select:none;}
