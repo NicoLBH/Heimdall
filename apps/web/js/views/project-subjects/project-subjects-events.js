@@ -47,7 +47,8 @@ export function createProjectSubjectsEvents(config) {
     bindOverlayChromeDismiss,
     bindOverlayChromeCompact,
     getProjectSubjectMilestones,
-    renderSubjectMetaFieldValue
+    renderSubjectMetaFieldValue,
+    resolveCurrentUserAssigneeId
   } = config;
 
   let detachDropdownDocumentEvents = null;
@@ -74,11 +75,16 @@ export function createProjectSubjectsEvents(config) {
     detachDropdownDocumentEvents = null;
   }
 
-  function resolveSelfCollaboratorAssigneeId() {
+  async function resolveSelfCollaboratorAssigneeId() {
     const currentUserId = String(store.user?.id || "").trim();
     const currentEmail = String(store.user?.email || "").trim().toLowerCase();
     const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
-    if (!collaborators.length) return "";
+    if (!collaborators.length) {
+      if (typeof resolveCurrentUserAssigneeId === "function") {
+        return String(await resolveCurrentUserAssigneeId() || "");
+      }
+      return "";
+    }
 
     const collaboratorByUserId = collaborators.find((collaborator) => {
       const collaboratorUserId = String(collaborator?.userId || collaborator?.linkedUserId || "").trim();
@@ -91,6 +97,10 @@ export function createProjectSubjectsEvents(config) {
       return collaboratorEmail && currentEmail && collaboratorEmail === currentEmail;
     });
     if (collaboratorByEmail) return String(collaboratorByEmail?.personId || collaboratorByEmail?.id || "");
+
+    if (typeof resolveCurrentUserAssigneeId === "function") {
+      return String(await resolveCurrentUserAssigneeId() || "");
+    }
 
     return "";
   }
@@ -596,7 +606,7 @@ export function createProjectSubjectsEvents(config) {
         event.stopPropagation();
         const selection = getScopedSelection(root);
         if (selection?.type !== "sujet") return;
-        const selfAssigneeId = resolveSelfCollaboratorAssigneeId();
+        const selfAssigneeId = await resolveSelfCollaboratorAssigneeId();
         if (!selfAssigneeId) {
           showError("Votre profil n'est pas présent dans la liste des collaborateurs du projet.");
           return;
