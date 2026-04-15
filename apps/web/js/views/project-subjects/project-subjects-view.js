@@ -1105,6 +1105,81 @@ function renderSubjectObjectivesValue(subjectId) {
   `;
 }
 
+function getActiveProjectCollaborators() {
+  const collaborators = Array.isArray(store.projectForm?.collaborators) ? store.projectForm.collaborators : [];
+  return collaborators
+    .filter((collaborator) => String(collaborator?.status || "Actif").toLowerCase() !== "retiré")
+    .map((collaborator) => ({
+      id: String(collaborator?.id || ""),
+      userId: String(collaborator?.userId || collaborator?.linkedUserId || ""),
+      name: firstNonEmpty(collaborator?.name, [collaborator?.firstName, collaborator?.lastName].filter(Boolean).join(" "), collaborator?.email, "Utilisateur"),
+      role: firstNonEmpty(collaborator?.role, "Collaborateur"),
+      roleGroupCode: String(collaborator?.roleGroupCode || "").trim().toLowerCase(),
+      roleGroupLabel: firstNonEmpty(collaborator?.roleGroupLabel, ""),
+      email: firstNonEmpty(collaborator?.email, "")
+    }))
+    .filter((collaborator) => !!collaborator.id);
+}
+
+function getCollaboratorGroupLabel(collaborator) {
+  const code = String(collaborator?.roleGroupCode || "").trim().toLowerCase();
+  const label = String(collaborator?.roleGroupLabel || "").trim();
+  if (label) return label;
+  if (code.includes("moa")) return "Maîtrise d'ouvrage";
+  if (code.includes("moe")) return "Maîtrise d'œuvre";
+  if (code.includes("entre")) return "Entreprises";
+  return "Divers";
+}
+
+function renderCollaboratorAvatar(collaborator = {}) {
+  const displayName = firstNonEmpty(collaborator.name, collaborator.email, "U");
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "U";
+  const isCurrentUser = String(collaborator?.userId || "") && String(collaborator.userId) === String(store.user?.id || "");
+  const avatarUrl = isCurrentUser ? String(store.user?.avatar || "") : "";
+  if (avatarUrl) {
+    return `<span class="subject-assignee-avatar"><img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayName)}" class="subject-assignee-avatar__img"></span>`;
+  }
+  return `<span class="subject-assignee-avatar subject-assignee-avatar--fallback" aria-hidden="true">${escapeHtml(initials)}</span>`;
+}
+
+function renderSubjectAssigneesValue(subjectId) {
+  const assigneeIds = getSubjectSidebarMeta(subjectId).assignees;
+  const collaborators = getActiveProjectCollaborators();
+  const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
+  const selected = assigneeIds
+    .map((assigneeId) => collaboratorsById.get(String(assigneeId || "")))
+    .filter(Boolean);
+
+  if (!selected.length) {
+    return `
+      <span class="subject-meta-assignees-empty">
+        <span class="subject-meta-assignees-empty__text">Personne</span>
+        <span aria-hidden="true"> - </span>
+        <button type="button" class="subject-meta-assign-self-link" data-subject-assign-self="${escapeHtml(subjectId)}">Assigner à moi-même</button>
+      </span>
+    `;
+  }
+
+  return `
+    <span class="subject-meta-assignees-list">
+      ${selected.map((collaborator) => `
+        <span class="subject-meta-assignee-row">
+          <span class="subject-meta-assignee-row__avatar">${renderCollaboratorAvatar(collaborator)}</span>
+          <span class="subject-meta-assignee-row__content">
+            <span class="subject-meta-assignee-row__name">${escapeHtml(collaborator.name)}</span>
+            <span class="subject-meta-assignee-row__role">${escapeHtml(collaborator.role)}</span>
+          </span>
+        </span>
+      `).join("")}
+    </span>
+  `;
+}
+
 function getSubjectParentSubject(subjectId) {
   const subject = getNestedSujet(subjectId);
   if (!subject) return null;
@@ -1168,6 +1243,7 @@ function renderSubjectParentHeadHtml(subject, options = {}) {
 
 function renderSubjectMetaFieldValue(subject, field) {
   if (!subject || String(subject.type || "") === "") return "";
+  if (field === "assignees") return renderSubjectAssigneesValue(subject.id);
   if (field === "labels") return renderSubjectLabelsValue(subject.id);
   if (field === "situations") return renderSubjectSituationsValue(subject.id);
   if (field === "objectives") return renderSubjectObjectivesValue(subject.id);
@@ -1178,6 +1254,51 @@ function renderSubjectMetaFieldValue(subject, field) {
 function buildSubjectMetaMenuItems(subject, field) {
   const dropdownState = getSubjectsViewState().subjectMetaDropdown || {};
   const query = String(dropdownState.query || "").trim().toLowerCase();
+
+  if (field === "assignees") {
+    const selectedAssigneeIds = new Set(getSubjectSidebarMeta(subject.id).assignees.map((value) => String(value || "")));
+    const collaborators = getActiveProjectCollaborators()
+      .filter((collaborator) => matchSearch([collaborator.name, collaborator.role, collaborator.roleGroupLabel, collaborator.email], query));
+
+    const items = collaborators.map((collaborator) => ({
+      key: collaborator.id,
+      isActive: String(dropdownState.activeKey || "") === collaborator.id,
+      isSelected: selectedAssigneeIds.has(collaborator.id),
+      iconHtml: `
+        <span class="select-menu__assignee-iconset" aria-hidden="true">
+          <span class="select-menu__checkbox ${selectedAssigneeIds.has(collaborator.id) ? "is-checked" : ""}">${svgIcon("check", { className: "octicon octicon-check" })}</span>
+          ${renderCollaboratorAvatar(collaborator)}
+        </span>
+      `,
+      title: collaborator.name,
+      metaHtml: escapeHtml(collaborator.role),
+      dataAttrs: { "subject-assignee-toggle": collaborator.id },
+      groupLabel: getCollaboratorGroupLabel(collaborator)
+    }));
+
+    const groupedItemsMap = new Map();
+    for (const item of items) {
+      const groupLabel = String(item.groupLabel || "Divers");
+      if (!groupedItemsMap.has(groupLabel)) groupedItemsMap.set(groupLabel, []);
+      groupedItemsMap.get(groupLabel).push(item);
+    }
+    const preferredOrder = ["Maîtrise d'ouvrage", "Maîtrise d'œuvre", "Entreprises", "Divers"];
+    const groupedSections = Array.from(groupedItemsMap.entries())
+      .sort((left, right) => {
+        const leftIndex = preferredOrder.indexOf(left[0]);
+        const rightIndex = preferredOrder.indexOf(right[0]);
+        const safeLeft = leftIndex >= 0 ? leftIndex : Number.MAX_SAFE_INTEGER;
+        const safeRight = rightIndex >= 0 ? rightIndex : Number.MAX_SAFE_INTEGER;
+        if (safeLeft !== safeRight) return safeLeft - safeRight;
+        return String(left[0]).localeCompare(String(right[0]), "fr");
+      })
+      .map(([title, groupItems]) => ({ title, items: groupItems }));
+
+    return {
+      groupedSections,
+      items
+    };
+  }
 
   if (field === "objectives") {
     const selectedObjectiveIds = new Set(getSubjectSidebarMeta(subject.id).objectiveIds);
@@ -1272,6 +1393,34 @@ function buildSubjectMetaMenuItems(subject, field) {
 function renderSubjectMetaDropdown(subject, field) {
   const dropdownState = getSubjectsViewState().subjectMetaDropdown || {};
   const query = String(dropdownState.query || "");
+
+  if (field === "assignees") {
+    const { groupedSections = [] } = buildSubjectMetaMenuItems(subject, field);
+    return `
+      <div class="subject-meta-dropdown gh-menu gh-menu--open" role="dialog">
+        <div class="subject-meta-dropdown__title">Sélectionner des assignés</div>
+        <div class="subject-meta-dropdown__search">
+          <span class="subject-meta-dropdown__search-icon" aria-hidden="true">${svgIcon("search", { className: "octicon octicon-search" })}</span>
+          <input type="search" class="subject-meta-dropdown__search-input" data-subject-meta-search="${escapeHtml(field)}" value="${escapeHtml(query)}" placeholder="Filtrer les assignés" autocomplete="off">
+        </div>
+        <div class="subject-kanban-dropdown__separator" aria-hidden="true"></div>
+        <div class="subject-meta-dropdown__body">
+          ${groupedSections.length
+            ? groupedSections.map((section) => renderSelectMenuSection({
+              title: section.title,
+              items: section.items,
+              emptyTitle: "Aucun collaborateur",
+              emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucun collaborateur disponible."
+            })).join("")
+            : renderSelectMenuSection({
+              items: [],
+              emptyTitle: "Aucun collaborateur",
+              emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucun collaborateur disponible."
+            })}
+        </div>
+      </div>
+    `;
+  }
 
   if (field === "relations") {
     const relationItems = [
@@ -1408,7 +1557,7 @@ function renderSubjectMetaControls(subject) {
       ${renderSubjectMetaField({
         field: "assignees",
         label: "Assigné à",
-        valueHtml: renderSubjectMetaButtonValue(summarizeSubjectMetaValue(meta.assignees, "Personne"))
+        valueHtml: renderSubjectAssigneesValue(subject.id)
       })}
       ${renderSubjectMetaField({
         field: "labels",
@@ -1855,7 +2004,7 @@ function renderCreateSubjectMetaControls() {
       ${renderSubjectMetaField({
         field: "assignees",
         label: "Assigné à",
-        valueHtml: renderSubjectMetaButtonValue(summarizeSubjectMetaValue(meta.assignees, "Personne"))
+        valueHtml: renderSubjectAssigneesValue(subject.id)
       })}
       ${renderSubjectMetaField({
         field: "labels",

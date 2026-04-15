@@ -965,7 +965,8 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 }
 
 .select-menu__objective-iconset,
-.select-menu__situation-iconset{
+.select-menu__situation-iconset,
+.select-menu__assignee-iconset{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -1064,6 +1065,31 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   background:var(--select-menu-label-dot, var(--muted));
 }
 
+.subject-assignee-avatar{
+  width:20px;
+  height:20px;
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  background:rgba(110,118,129,.22);
+}
+
+.subject-assignee-avatar__img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.subject-assignee-avatar--fallback{
+  font-size:10px;
+  font-weight:700;
+  color:var(--text);
+  letter-spacing:.01em;
+}
+
 .select-menu__item-content{
   display:flex;
   flex-direction:column;
@@ -1081,6 +1107,62 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 .select-menu__item-meta{
   font-size:12px;
   color:var(--muted);
+}
+
+.subject-meta-assignees-empty{
+  display:inline-flex;
+  align-items:center;
+  font-size:13px;
+  color:var(--muted);
+}
+
+.subject-meta-assign-self-link{
+  border:none;
+  background:transparent;
+  color:#2f81f7;
+  font:inherit;
+  padding:0;
+  cursor:pointer;
+  text-decoration:underline;
+}
+
+.subject-meta-assignees-list{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.subject-meta-assignee-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  column-gap:8px;
+  align-items:start;
+}
+
+.subject-meta-assignee-row__avatar{
+  margin-top:1px;
+}
+
+.subject-meta-assignee-row__content{
+  min-width:0;
+}
+
+.subject-meta-assignee-row__name{
+  display:block;
+  font-size:13px;
+  font-weight:600;
+  color:var(--text);
+  line-height:18px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.subject-meta-assignee-row__role{
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+  line-height:16px;
 }
 
 .select-menu__item-right{
