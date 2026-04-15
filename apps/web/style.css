@@ -642,6 +642,71 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   flex:0 0 auto;
   color:var(--muted);
 }
+.subject-meta-collapsible-toggle__chevron .octicon-chevron-up,
+.subject-meta-collapsible-toggle__chevron .octicon-chevron-down{
+  color:var(--muted);
+}
+
+.subject-meta-parent-card{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:rgba(13,17,23,.32);
+  color:var(--text);
+  text-align:left;
+  padding:10px;
+  cursor:pointer;
+}
+.subject-meta-parent-card:hover,
+.subject-meta-parent-card:focus-visible{
+  background:rgba(56,139,253,.08);
+  border-color:rgba(88,166,255,.45);
+  outline:none;
+}
+.subject-meta-parent-card__label{
+  font-size:11px;
+  font-weight:600;
+  color:var(--muted);
+}
+.subject-meta-parent-card__head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.subject-meta-parent-card__icon{
+  display:inline-flex;
+  align-items:center;
+  flex:0 0 auto;
+}
+.subject-meta-parent-card__title{
+  min-width:0;
+  font-size:13px;
+  line-height:18px;
+  font-weight:600;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.subject-meta-parent-card__count{
+  margin-left:auto;
+  flex:0 0 auto;
+}
+.subject-meta-parent-card__count .subissues-counts{
+  margin-left:0;
+}
+.subject-meta-parent-card__meta{
+  font-size:12px;
+  color:var(--muted);
+}
+
+.subject-meta-relations-menu__item{
+  width:100%;
+}
 
 .subject-meta-field__chip{
   display:flex;
