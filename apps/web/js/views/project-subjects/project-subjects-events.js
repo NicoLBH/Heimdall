@@ -629,7 +629,32 @@ export function createProjectSubjectsEvents(config) {
 
       const clearDragClasses = () => {
         sortableRows.forEach((row) => {
-          row.classList.remove("is-subissue-dragging", "is-subissue-drop-before", "is-subissue-drop-after");
+          row.classList.remove("is-subissue-dragging", "is-subissue-drag-gap", "is-subissue-drop-before", "is-subissue-drop-after");
+        });
+      };
+
+      const animateSubissueRowReflow = (container, mutateDom) => {
+        if (!container || typeof mutateDom !== "function") return;
+        const rowsBefore = Array.from(container.querySelectorAll("[data-subissue-sortable-row='true']"));
+        const beforeTopByRow = new Map(rowsBefore.map((item) => [item, item.getBoundingClientRect().top]));
+        mutateDom();
+        const rowsAfter = Array.from(container.querySelectorAll("[data-subissue-sortable-row='true']"));
+        rowsAfter.forEach((item) => {
+          const beforeTop = beforeTopByRow.get(item);
+          if (typeof beforeTop !== "number") return;
+          const afterTop = item.getBoundingClientRect().top;
+          const delta = beforeTop - afterTop;
+          if (!Number.isFinite(delta) || Math.abs(delta) < 0.5) return;
+          item.style.transition = "none";
+          item.style.transform = `translateY(${delta}px)`;
+          requestAnimationFrame(() => {
+            item.style.transition = "transform .18s ease";
+            item.style.transform = "";
+            const clearInlineTransition = () => {
+              item.style.transition = "";
+            };
+            item.addEventListener("transitionend", clearInlineTransition, { once: true });
+          });
         });
       };
 
@@ -651,7 +676,7 @@ export function createProjectSubjectsEvents(config) {
             event.preventDefault();
             return;
           }
-          row.classList.add("is-subissue-dragging");
+          row.classList.add("is-subissue-dragging", "is-subissue-drag-gap");
           event.dataTransfer?.setData("text/plain", childSubjectId);
           if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 
@@ -676,13 +701,21 @@ export function createProjectSubjectsEvents(config) {
           const draggingRow = root.querySelector(".is-subissue-dragging");
           if (!draggingRow || draggingRow === row) return;
           event.preventDefault();
-          row.classList.remove("is-subissue-drop-before", "is-subissue-drop-after");
+
+          const container = row.parentElement;
+          if (!container || draggingRow.parentElement !== container) return;
           const rect = row.getBoundingClientRect();
           const insertAfter = event.clientY >= (rect.top + rect.height / 2);
-          row.classList.add(insertAfter ? "is-subissue-drop-after" : "is-subissue-drop-before");
-          debugSubissuesDnd("dragover", {
-            overChildSubjectId: String(row.dataset.childSubjectId || ""),
-            insertAfter
+          if (insertAfter) {
+            if (row.nextElementSibling === draggingRow) return;
+            animateSubissueRowReflow(container, () => {
+              container.insertBefore(draggingRow, row.nextElementSibling);
+            });
+            return;
+          }
+          if (row.previousElementSibling === draggingRow) return;
+          animateSubissueRowReflow(container, () => {
+            container.insertBefore(draggingRow, row);
           });
         });
 
@@ -715,11 +748,6 @@ export function createProjectSubjectsEvents(config) {
             clearDragPreview();
             return;
           }
-
-          const targetRect = row.getBoundingClientRect();
-          const placeAfter = event.clientY >= (targetRect.top + targetRect.height / 2);
-          const referenceNode = placeAfter ? row.nextElementSibling : row;
-          container.insertBefore(draggingRow, referenceNode);
 
           const orderedChildIds = Array.from(container.querySelectorAll("[data-subissue-sortable-row='true']"))
             .map((item) => String(item.dataset.childSubjectId || ""))
