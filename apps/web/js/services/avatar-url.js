@@ -57,7 +57,25 @@ function normalizeAvatarStoragePath(value = "") {
   if (looksLikeDirectAvatarUrl(raw)) {
     return extractStoragePathFromSupabaseUrl(raw) || raw;
   }
-  return raw;
+  return raw.replace(/^\/+/, "").replace(/^avatars\//i, "");
+}
+
+function buildAvatarPathCandidates(storagePath = "") {
+  const normalized = normalizeAvatarStoragePath(storagePath);
+  if (!normalized) return [];
+  const candidates = new Set([normalized]);
+
+  if (/\/avatar\.png$/i.test(normalized)) {
+    candidates.add(normalized.replace(/\/avatar\.png$/i, "/public-avatar.png"));
+    candidates.add(normalized.replace(/\/avatar\.png$/i, "/public-avatar.jpg"));
+  }
+
+  if (/\/avatar\.jpg$/i.test(normalized)) {
+    candidates.add(normalized.replace(/\/avatar\.jpg$/i, "/public-avatar.jpg"));
+    candidates.add(normalized.replace(/\/avatar\.jpg$/i, "/public-avatar.png"));
+  }
+
+  return Array.from(candidates).map((candidate) => safeString(candidate)).filter(Boolean);
 }
 
 function buildPublicAvatarUrl(storagePath = "", fallback = DEFAULT_AVATAR_URL) {
@@ -94,14 +112,25 @@ export async function resolveAvatarUrl({
     return directAvatarUrl;
   }
 
-  const storagePath = normalizeAvatarStoragePath(avatarStoragePath)
+  const primaryStoragePath = normalizeAvatarStoragePath(avatarStoragePath)
     || storagePathFromDirectUrl
     || normalizeAvatarStoragePath(directAvatarUrl);
-  if (!storagePath) return safeString(fallback) || DEFAULT_AVATAR_URL;
+  if (!primaryStoragePath) return safeString(fallback) || DEFAULT_AVATAR_URL;
 
-  try {
-    return await createAvatarSignedUrl(storagePath, fallback);
-  } catch {
-    return buildPublicAvatarUrl(storagePath, fallback);
+  const candidates = buildAvatarPathCandidates(primaryStoragePath);
+
+  for (const pathCandidate of candidates) {
+    try {
+      return await createAvatarSignedUrl(pathCandidate, fallback);
+    } catch {
+      // Try next candidate.
+    }
   }
+
+  for (const pathCandidate of candidates) {
+    const publicUrl = buildPublicAvatarUrl(pathCandidate, "");
+    if (publicUrl) return publicUrl;
+  }
+
+  return safeString(fallback) || DEFAULT_AVATAR_URL;
 }
