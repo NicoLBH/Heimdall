@@ -34,6 +34,9 @@ test("le dragstart est armé par pointerdown sur le handle et utilise un drag pr
   assert.match(eventsSource, /dragPreviewNode = row\.cloneNode\(true\);/);
   assert.match(eventsSource, /dragPreviewNode\.classList\.remove\("is-subissue-dragging", "is-subissue-drag-gap", "is-subissue-drop-before", "is-subissue-drop-after"\);/);
   assert.match(eventsSource, /dragPreviewNode\.classList\.add\("subissue-drag-preview"\);/);
+  assert.match(eventsSource, /const issuesCols = String\(rowStyles\.getPropertyValue\("--issues-cols"\) \|\| ""\)\.trim\(\);/);
+  assert.match(eventsSource, /if \(issuesCols\) dragPreviewNode\.style\.setProperty\("--issues-cols", issuesCols\);/);
+  assert.match(eventsSource, /dragPreviewNode\.style\.gridTemplateColumns = rowStyles\.gridTemplateColumns;/);
   assert.match(eventsSource, /event\.dataTransfer\.setDragImage\(dragPreviewNode, offsetX, offsetY\);/);
   assert.match(eventsSource, /row\.classList\.add\("is-subissue-dragging", "is-subissue-drag-gap"\);/);
 });

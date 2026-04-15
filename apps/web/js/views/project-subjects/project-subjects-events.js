@@ -681,10 +681,18 @@ export function createProjectSubjectsEvents(config) {
           if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 
           const rowRect = row.getBoundingClientRect();
+          const rowStyles = window.getComputedStyle(row);
+          const issuesCols = String(rowStyles.getPropertyValue("--issues-cols") || "").trim();
           dragPreviewNode = row.cloneNode(true);
           dragPreviewNode.classList.remove("is-subissue-dragging", "is-subissue-drag-gap", "is-subissue-drop-before", "is-subissue-drop-after");
           dragPreviewNode.classList.add("subissue-drag-preview");
           dragPreviewNode.style.width = `${Math.max(1, Math.round(rowRect.width))}px`;
+          if (issuesCols) dragPreviewNode.style.setProperty("--issues-cols", issuesCols);
+          dragPreviewNode.style.display = rowStyles.display;
+          dragPreviewNode.style.gridTemplateColumns = rowStyles.gridTemplateColumns;
+          dragPreviewNode.style.padding = rowStyles.padding;
+          dragPreviewNode.style.opacity = "1";
+          dragPreviewNode.style.borderBottom = "none";
           dragPreviewNode.style.position = "fixed";
           dragPreviewNode.style.top = "-9999px";
           dragPreviewNode.style.left = "-9999px";
