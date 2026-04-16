@@ -1824,7 +1824,6 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     const isExpanded = hasChildren && expandedIds.has(subjectId);
     const canDrag = depth === 0;
     const isRowMenuOpen = openMenuId === subjectId;
-    const levelClass = depth <= 2 ? `lvl${depth}` : "lvl2";
     const nestedSpacerCells = depth > 0
       ? new Array(depth).fill('<div class="cell cell-subissue-drag-spacer" aria-hidden="true"></div>').join("")
       : "";
@@ -1856,7 +1855,7 @@ function renderSubIssuesForSujet(sujet, options = {}) {
             : ""}
         </div>
         <div class="subissue-row-main">
-          <div class="cell cell-theme cell-theme--full ${levelClass}">
+          <div class="cell cell-theme cell-theme--full">
             ${issueIcon(getEffectiveSujetStatus(subjectId))}
             <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(subjectNode.title, subjectId, ""))}</span>
           </div>
