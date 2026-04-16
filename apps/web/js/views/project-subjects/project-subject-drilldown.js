@@ -135,10 +135,15 @@ export function createProjectSubjectDrilldownController(config) {
     if (!panel || !title || !body || !shell) return;
 
     const shellScrollState = getScrollableElementScrollState(shell);
-    const expandedSubjectIds = store.projectSubjectsView?.drilldown?.expandedSubjectIds
-      || store.situationsView?.drilldown?.expandedSubjectIds
+    const drilldownState = store.projectSubjectsView?.drilldown
+      || store.situationsView?.drilldown
+      || {};
+    const expandedSubjectIds = drilldownState.expandedSubjectIds
       || store.situationsView?.drilldown?.expandedSujets
       || new Set();
+    const expandedSubissueSubjectIds = drilldownState.rightSubissuesExpandedSubjectIds || new Set();
+    const subissuesOpen = drilldownState.rightSubissuesOpen !== false;
+    const openSubissueMenuId = String(drilldownState.rightSubissueMenuOpenId || "");
 
     const selection = getDrilldownSelection();
     const details = renderDetailsHtml(selection, {
@@ -146,7 +151,9 @@ export function createProjectSubjectDrilldownController(config) {
         sujetRowClass: "js-drilldown-select-sujet",
         sujetToggleClass: "js-drilldown-toggle-sujet",
         expandedSujets: expandedSubjectIds,
-        expandedSubjectIds
+        expandedSubjectIds: expandedSubissueSubjectIds,
+        openMenuId: openSubissueMenuId,
+        isOpen: subissuesOpen
       }
     });
 

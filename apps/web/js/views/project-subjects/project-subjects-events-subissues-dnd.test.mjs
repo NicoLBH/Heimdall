@@ -134,6 +134,12 @@ test("la navigation vers le sujet parent ne capte que la carte parent dédiée",
   assert.doesNotMatch(eventsSource, /event\.target\.closest\("\[data-parent-subject-id\]"\)/);
 });
 
+test("les toggles de sous-sujets utilisent l'état du scope drilldown quand présent", () => {
+  assert.match(eventsSource, /const isDrilldownScope = !!root\.closest\?\.\("#drilldownPanel"\);/);
+  assert.match(eventsSource, /const scopedUiState = \(\(\) => \{/);
+  assert.match(eventsSource, /if \(isDrilldownScope\) \{\s*updateDrilldownPanel\(\);\s*\}\s*else \{\s*rerenderPanels\(\);\s*\}/);
+});
+
 test("l'instrumentation DnD est activable via query/localStorage", () => {
   assert.match(eventsSource, /function isSubissuesDndDebugEnabled\(\)/);
   assert.match(eventsSource, /debugSubissuesDnd=1/);
