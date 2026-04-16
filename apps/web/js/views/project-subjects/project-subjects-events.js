@@ -761,7 +761,6 @@ export function createProjectSubjectsEvents(config) {
         previewCard.style.gridTemplateColumns = issuesCols || rowStyles.gridTemplateColumns;
         previewCard.style.height = "48px";
         previewCard.style.minHeight = "48px";
-        previewCard.style.padding = "12px 8px";
         previewCard.style.alignItems = "center";
         previewCard.style.boxSizing = "border-box";
         previewCard.style.overflow = "hidden";
