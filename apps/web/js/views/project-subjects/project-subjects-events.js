@@ -703,17 +703,23 @@ export function createProjectSubjectsEvents(config) {
         });
       };
 
-      const collectDraggedSubissueDescendantRows = (draggingRow) => {
-        if (!draggingRow) return [];
-        const descendants = [];
-        let cursor = draggingRow.nextElementSibling;
-        while (cursor) {
-          if (cursor.matches?.("[data-subissue-sortable-row='true']")) break;
-          const isTreeRow = cursor.matches?.("[data-subissue-tree-row]");
-          if (isTreeRow) descendants.push(cursor);
-          cursor = cursor.nextElementSibling;
+      const collapseSubissueTreeForDrag = (container) => {
+        const expandedSnapshot = Array.from(subissuesExpandedSet);
+        subissuesExpandedSet.clear();
+        if (container) {
+          Array.from(container.querySelectorAll("[data-subissue-tree-row]"))
+            .filter((item) => item.dataset.subissueSortableRow !== "true")
+            .forEach((item) => item.remove());
         }
-        return descendants;
+        return expandedSnapshot;
+      };
+
+      const restoreExpandedSubissueTreeAfterDrag = (expandedSnapshot = []) => {
+        subissuesExpandedSet.clear();
+        expandedSnapshot.forEach((subjectId) => {
+          const key = String(subjectId || "").trim();
+          if (key) subissuesExpandedSet.add(key);
+        });
       };
 
       const resolveCssCustomProp = (styles, name, fallback = "") => {
@@ -931,15 +937,12 @@ export function createProjectSubjectsEvents(config) {
             event.preventDefault();
             return;
           }
-          const wasExpandedOnDragStart = subissuesExpandedSet.has(childSubjectId);
-          if (wasExpandedOnDragStart) {
-            subissuesExpandedSet.delete(childSubjectId);
-          }
-          const descendantRows = wasExpandedOnDragStart ? collectDraggedSubissueDescendantRows(row) : [];
-          descendantRows.forEach((descendantRow) => descendantRow.remove());
+          const container = row.parentElement;
+          const expandedSnapshot = collapseSubissueTreeForDrag(container);
           draggedSubissueContext = {
             childSubjectId,
-            wasExpandedOnDragStart
+            expandedSnapshot,
+            dropCommitted: false
           };
           const uiState = getSubjectsViewState();
           uiState.rightSubissueMenuOpenId = "";
@@ -1055,19 +1058,29 @@ export function createProjectSubjectsEvents(config) {
             .map((item) => String(item.dataset.childSubjectId || ""))
             .filter(Boolean);
           debugSubissuesDnd("drop-reorder", { parentSubjectId, sourceId, targetId, orderedChildIds });
-          if (draggedSubissueContext?.wasExpandedOnDragStart && draggedSubissueContext?.childSubjectId) {
-            subissuesExpandedSet.add(draggedSubissueContext.childSubjectId);
-          }
+          restoreExpandedSubissueTreeAfterDrag(draggedSubissueContext?.expandedSnapshot || []);
           await reorderSubjectChildren(parentSubjectId, orderedChildIds, { root, skipRerender: false });
+          if (draggedSubissueContext) draggedSubissueContext.dropCommitted = true;
           draggedSubissueContext = null;
           clearDragClasses();
           clearDragPreview();
         });
 
-        row.addEventListener("dragend", () => {
-          if (draggedSubissueContext?.wasExpandedOnDragStart && draggedSubissueContext?.childSubjectId) {
-            subissuesExpandedSet.add(draggedSubissueContext.childSubjectId);
-            rerenderPanels();
+        row.addEventListener("dragend", async () => {
+          const dndContext = draggedSubissueContext;
+          const shouldCommitOrderOnDragEnd = dndContext && !dndContext.dropCommitted;
+          restoreExpandedSubissueTreeAfterDrag(dndContext?.expandedSnapshot || []);
+          if (shouldCommitOrderOnDragEnd) {
+            const container = row.parentElement;
+            const parentSubjectId = String(row.dataset.parentSubjectId || "");
+            const orderedChildIds = Array.from(container?.querySelectorAll?.("[data-subissue-sortable-row='true']") || [])
+              .map((item) => String(item.dataset.childSubjectId || ""))
+              .filter(Boolean);
+            if (parentSubjectId && orderedChildIds.length && typeof reorderSubjectChildren === "function") {
+              await reorderSubjectChildren(parentSubjectId, orderedChildIds, { root, skipRerender: false });
+            } else {
+              rerenderPanels();
+            }
           }
           draggedSubissueContext = null;
           clearDragClasses();
