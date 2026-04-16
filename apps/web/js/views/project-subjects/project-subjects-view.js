@@ -1313,11 +1313,19 @@ function renderSubjectParentHeadHtml(subject, options = {}) {
   const parentSubject = getSubjectParentSubject(subject?.id || subject);
   if (!parentSubject) return "";
   const title = escapeHtml(firstNonEmpty(parentSubject.title, parentSubject.id, "Sujet parent"));
+  const parentSubjectId = escapeHtml(String(parentSubject.id || ""));
   const wrapperClass = compact ? "details-parent-badge details-parent-badge--compact" : "details-parent-badge";
   return `
     <span class="${wrapperClass}" title="Sujet parent : ${title}">
       <span class="details-parent-badge__icon">${issueIcon(getEffectiveSujetStatus(parentSubject.id))}</span>
-      <span class="details-parent-badge__text">Parent: ${title}</span>
+      <button
+        type="button"
+        class="details-parent-badge__link js-details-parent-subject-link"
+        data-parent-subject-id="${parentSubjectId}"
+        aria-label="Ouvrir le sujet parent ${title}"
+      >
+        Parent: ${title}
+      </button>
     </span>
   `;
 }

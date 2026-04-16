@@ -1135,6 +1135,15 @@ export function createProjectSubjectsEvents(config) {
       };
     });
 
+    root.querySelectorAll(".js-details-parent-subject-link[data-parent-subject-id]").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const parentSubjectId = String(btn.dataset.parentSubjectId || "");
+        if (parentSubjectId) (openDrilldownFromSubjectPanel || openDrilldownFromSujetPanel)(parentSubjectId);
+      };
+    });
+
     root.querySelectorAll(".subject-meta-parent-card[data-parent-subject-id]").forEach((card) => {
       card.onclick = (event) => {
         event.preventDefault();
