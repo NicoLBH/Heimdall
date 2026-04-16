@@ -115,6 +115,21 @@ test("le dragover réordonne en direct avec animation FLIP pour faire la place d
   assert.match(eventsSource, /item\.style\.transform = `translateY\(\$\{delta\}px\)`;/);
 });
 
+test("le drag replie toute l'arborescence puis restitue l'état d'ouverture initial", () => {
+  assert.match(eventsSource, /const collapseSubissueTreeForDrag = \(container\) => \{/);
+  assert.match(eventsSource, /const expandedSnapshot = Array\.from\(subissuesExpandedSet\);/);
+  assert.match(eventsSource, /subissuesExpandedSet\.clear\(\);/);
+  assert.match(eventsSource, /\.filter\(\(item\) => item\.dataset\.subissueSortableRow !== "true"\)/);
+  assert.match(eventsSource, /const restoreExpandedSubissueTreeAfterDrag = \(expandedSnapshot = \[\]\) => \{/);
+  assert.match(eventsSource, /restoreExpandedSubissueTreeAfterDrag\(draggedSubissueContext\?\.expandedSnapshot \|\| \[\]\);/);
+  assert.match(eventsSource, /draggedSubissueContext = \{\s*childSubjectId,\s*expandedSnapshot,\s*dropCommitted: false\s*\};/);
+});
+
+test("le dragend persiste l'ordre même sans drop explicite", () => {
+  assert.match(eventsSource, /const shouldCommitOrderOnDragEnd = dndContext && !dndContext\.dropCommitted;/);
+  assert.match(eventsSource, /await reorderSubjectChildren\(parentSubjectId, orderedChildIds, \{ root, skipRerender: false \}\);/);
+});
+
 test("l'instrumentation DnD est activable via query/localStorage", () => {
   assert.match(eventsSource, /function isSubissuesDndDebugEnabled\(\)/);
   assert.match(eventsSource, /debugSubissuesDnd=1/);
