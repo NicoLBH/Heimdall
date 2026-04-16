@@ -676,6 +676,7 @@ export function createProjectSubjectsEvents(config) {
       let dragPreviewOffsetX = 0;
       let dragPreviewOffsetY = 0;
       let detachGlobalDragTracking = null;
+      let draggedSubissueContext = null;
 
       const clearDragPreview = () => {
         const previewRoot = document.getElementById("nativeDragPreviewRoot");
@@ -700,6 +701,19 @@ export function createProjectSubjectsEvents(config) {
         sortableRows.forEach((row) => {
           row.classList.remove("is-subissue-dragging", "is-subissue-drag-gap", "is-subissue-drop-before", "is-subissue-drop-after");
         });
+      };
+
+      const collectDraggedSubissueDescendantRows = (draggingRow) => {
+        if (!draggingRow) return [];
+        const descendants = [];
+        let cursor = draggingRow.nextElementSibling;
+        while (cursor) {
+          if (cursor.matches?.("[data-subissue-sortable-row='true']")) break;
+          const isTreeRow = cursor.matches?.("[data-subissue-tree-row]");
+          if (isTreeRow) descendants.push(cursor);
+          cursor = cursor.nextElementSibling;
+        }
+        return descendants;
       };
 
       const resolveCssCustomProp = (styles, name, fallback = "") => {
@@ -917,9 +931,16 @@ export function createProjectSubjectsEvents(config) {
             event.preventDefault();
             return;
           }
-          if (subissuesExpandedSet.has(childSubjectId)) {
+          const wasExpandedOnDragStart = subissuesExpandedSet.has(childSubjectId);
+          if (wasExpandedOnDragStart) {
             subissuesExpandedSet.delete(childSubjectId);
           }
+          const descendantRows = wasExpandedOnDragStart ? collectDraggedSubissueDescendantRows(row) : [];
+          descendantRows.forEach((descendantRow) => descendantRow.remove());
+          draggedSubissueContext = {
+            childSubjectId,
+            wasExpandedOnDragStart
+          };
           const uiState = getSubjectsViewState();
           uiState.rightSubissueMenuOpenId = "";
           event.dataTransfer?.setData("text/plain", childSubjectId);
@@ -1034,12 +1055,21 @@ export function createProjectSubjectsEvents(config) {
             .map((item) => String(item.dataset.childSubjectId || ""))
             .filter(Boolean);
           debugSubissuesDnd("drop-reorder", { parentSubjectId, sourceId, targetId, orderedChildIds });
+          if (draggedSubissueContext?.wasExpandedOnDragStart && draggedSubissueContext?.childSubjectId) {
+            subissuesExpandedSet.add(draggedSubissueContext.childSubjectId);
+          }
           await reorderSubjectChildren(parentSubjectId, orderedChildIds, { root, skipRerender: false });
+          draggedSubissueContext = null;
           clearDragClasses();
           clearDragPreview();
         });
 
         row.addEventListener("dragend", () => {
+          if (draggedSubissueContext?.wasExpandedOnDragStart && draggedSubissueContext?.childSubjectId) {
+            subissuesExpandedSet.add(draggedSubissueContext.childSubjectId);
+            rerenderPanels();
+          }
+          draggedSubissueContext = null;
           clearDragClasses();
           clearDragPreview();
           row.dataset.subissueDragFromHandle = "false";
