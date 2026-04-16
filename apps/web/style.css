@@ -2760,9 +2760,20 @@ body.is-resizing{
   align-items:center;
   justify-content:center;
 }
-.subissues-assignees-placeholder .octicon-circle{
-  width:18px;
-  height:18px;
+.subissues-assignees-placeholder__icon-wrap{
+  width:24px;
+  height:24px;
+  border-radius:100px;
+  justify-content:center;
+  align-items:center;
+  margin-right:-2px;
+  display:flex;
+  position:relative;
+  border:solid 1px var(--muted);
+}
+.subissues-assignees-placeholder__icon{
+  width:16px;
+  height:16px;
 }
 .cell-subissue-actions{
   position:relative;
