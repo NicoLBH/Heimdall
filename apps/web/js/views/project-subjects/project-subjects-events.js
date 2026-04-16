@@ -673,18 +673,20 @@ export function createProjectSubjectsEvents(config) {
         const previewBorderColor = resolveCssCustomProp(rowStyles, "--border", "rgba(139,148,158,.35)");
         const previewBorderRadius = resolveCssCustomProp(rowStyles, "--radius", "6px");
         const previewTitle = String(
-          row.querySelector(".js-row-title-trigger")?.textContent
+          row.querySelector(".theme-text--pb")?.textContent
+          || row.querySelector(".js-row-title-trigger")?.textContent
           || row.querySelector("[data-subissue-title]")?.textContent
           || row.textContent
           || ""
         ).replace(/\s+/g, " ").trim();
+        const previewIssueIcon = row.querySelector(".issue-status-icon");
 
         previewCard.setAttribute("data-child-subject-id", childSubjectId);
-        previewCard.textContent = previewTitle;
+        previewCard.innerHTML = "";
         previewCard.style.width = `${Math.max(1, Math.round(rowRect.width))}px`;
         if (issuesCols) previewCard.style.setProperty("--issues-cols", issuesCols);
         previewCard.style.display = "grid";
-        previewCard.style.gridTemplateColumns = rowStyles.gridTemplateColumns;
+        previewCard.style.gridTemplateColumns = issuesCols || rowStyles.gridTemplateColumns;
         previewCard.style.padding = rowStyles.padding;
         previewCard.style.opacity = "1";
         previewCard.style.backgroundColor = previewBackgroundColor;
@@ -693,6 +695,20 @@ export function createProjectSubjectsEvents(config) {
         previewCard.style.borderColor = previewBorderColor;
         previewCard.style.borderRadius = previewBorderRadius;
         previewCard.style.boxShadow = "0 14px 36px rgba(1,4,9,.55), 0 0 0 1px rgba(1,4,9,.35)";
+        const leftSpacer = document.createElement("div");
+        leftSpacer.className = "cell cell-subissue-drag-handle";
+        leftSpacer.setAttribute("aria-hidden", "true");
+        const middleSpacer = document.createElement("div");
+        middleSpacer.className = "cell cell-subissue-drag-spacer";
+        middleSpacer.setAttribute("aria-hidden", "true");
+        const contentCell = document.createElement("div");
+        contentCell.className = "cell cell-theme cell-theme--full lvl0";
+        if (previewIssueIcon) contentCell.appendChild(previewIssueIcon.cloneNode(true));
+        const titleSpan = document.createElement("span");
+        titleSpan.className = "theme-text theme-text--pb";
+        titleSpan.textContent = previewTitle;
+        contentCell.appendChild(titleSpan);
+        previewCard.append(leftSpacer, middleSpacer, contentCell);
         const previewPaintRect = previewCard.getBoundingClientRect();
 
         debugSubissuesDnd("dragstart-preview", {
