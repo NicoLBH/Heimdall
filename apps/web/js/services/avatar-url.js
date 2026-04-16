@@ -2,7 +2,7 @@ import { supabase } from "../../assets/js/auth.js";
 
 export const DEFAULT_AVATAR_URL = "assets/images/260093543.png";
 
-const AVATARS_BUCKET = "avatars";
+export const AVATARS_BUCKET = "avatars";
 const AVATAR_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 function safeString(value = "") {
