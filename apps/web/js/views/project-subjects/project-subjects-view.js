@@ -1827,14 +1827,18 @@ function renderSubIssuesForSujet(sujet, options = {}) {
   const sujetRowClass = options.sujetRowClass || "js-row-sujet";
   const childSubjects = getChildSubjectList(sujet);
   if (!childSubjects.length) return "";
-  const uiState = getSubjectsViewState();
-  if (!(uiState.rightSubissuesExpandedSubjectIds instanceof Set)) {
-    uiState.rightSubissuesExpandedSubjectIds = new Set(Array.isArray(uiState.rightSubissuesExpandedSubjectIds) ? uiState.rightSubissuesExpandedSubjectIds : []);
-  }
-  if (typeof uiState.rightSubissueMenuOpenId !== "string") uiState.rightSubissueMenuOpenId = "";
-
-  const expandedIds = uiState.rightSubissuesExpandedSubjectIds;
-  const openMenuId = String(uiState.rightSubissueMenuOpenId || "");
+  const expandedIds = options.expandedSubjectIds instanceof Set
+    ? options.expandedSubjectIds
+    : (() => {
+      const uiState = getSubjectsViewState();
+      if (!(uiState.rightSubissuesExpandedSubjectIds instanceof Set)) {
+        uiState.rightSubissuesExpandedSubjectIds = new Set(
+          Array.isArray(uiState.rightSubissuesExpandedSubjectIds) ? uiState.rightSubissuesExpandedSubjectIds : []
+        );
+      }
+      return uiState.rightSubissuesExpandedSubjectIds;
+    })();
+  const openMenuId = String(firstNonEmpty(options.openMenuId, getSubjectsViewState().rightSubissueMenuOpenId, ""));
   const rows = [];
   const walkSubissueTree = (subjectNode, depth = 0, parentId = "") => {
     const subjectId = String(subjectNode?.id || "");
@@ -1918,7 +1922,7 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     leftMetaHtml: subissuesHeadCountsHtml(childSubjects),
     rightMetaHtml: "",
     bodyHtml: body,
-    isOpen: store.situationsView.rightSubissuesOpen !== false
+    isOpen: options.isOpen !== false
   });
 }
 
@@ -2106,7 +2110,10 @@ function rerenderPanels() {
           sujetRowClass: "js-modal-drilldown-sujet",
           sujetToggleClass: "js-modal-toggle-sujet",
           avisRowClass: "js-modal-drilldown-avis",
-          expandedSujets: store.situationsView.rightExpandedSujets
+          expandedSujets: store.situationsView.rightExpandedSujets,
+          expandedSubjectIds: store.situationsView.rightSubissuesExpandedSubjectIds,
+          openMenuId: store.situationsView.rightSubissueMenuOpenId,
+          isOpen: store.situationsView.rightSubissuesOpen
         }
       });
       panelHost.innerHTML = `
