@@ -36,6 +36,7 @@ test("le dragstart est armé par pointerdown sur le handle et utilise un drag pr
   assert.match(eventsSource, /const getNativeSubissueDragPreviewNodes = \(\) => \{/);
   assert.match(eventsSource, /const mountSubissueDragPreview = \(\{ row, rowRect, rowStyles, issuesCols, childSubjectId \}\) => \{/);
   assert.match(eventsSource, /const createSubissueDragCanvasPreview = \(\{ rowRect, rowStyles, title \}\) => \{/);
+  assert.match(eventsSource, /const moveSubissueDragPreview = \(clientX, clientY\) => \{/);
   assert.match(eventsSource, /const previewRoot = document\.getElementById\("nativeDragPreviewRoot"\);/);
   assert.match(eventsSource, /const previewCard = document\.getElementById\("nativeDragPreviewCard"\);/);
   assert.match(eventsSource, /previewCard\.textContent = previewTitle;/);
@@ -61,8 +62,12 @@ test("le dragstart est armé par pointerdown sur le handle et utilise un drag pr
   assert.match(eventsSource, /const canvasDragPreview = createSubissueDragCanvasPreview\(\{/);
   assert.match(eventsSource, /const dragImageNode = canvasDragPreview \|\| dragPreviewNode \|\| row;/);
   assert.match(eventsSource, /dragImageKind: canvasDragPreview \? "canvas" : \(dragPreviewNode \? "dom" : "row"\)/);
+  assert.match(eventsSource, /dragPreviewOffsetX = offsetX;/);
+  assert.match(eventsSource, /dragPreviewOffsetY = offsetY;/);
   assert.match(eventsSource, /if \(!canvasDragPreview && dragPreviewNode\) \{/);
   assert.match(eventsSource, /if \(previewRoot\) previewRoot\.classList\.add\("is-active"\);/);
+  assert.match(eventsSource, /if \(previewRoot && dragPreviewNode\) \{/);
+  assert.match(eventsSource, /moveSubissueDragPreview\(event\.clientX, event\.clientY\);/);
   assert.match(eventsSource, /event\.dataTransfer\.setDragImage\(dragImageNode, offsetX, offsetY\);/);
   assert.match(eventsSource, /usesVisibleDomPreviewHost: !canvasDragPreview && !!dragPreviewNode/);
   assert.match(eventsSource, /previewCard\.removeAttribute\("style"\);/);
@@ -89,6 +94,7 @@ test("le root de drag preview natif est déclaré dans index.html", () => {
 
 test("le dragover réordonne en direct avec animation FLIP pour faire la place d'une ligne", () => {
   assert.match(eventsSource, /const animateSubissueRowReflow = \(container, mutateDom\) => \{/);
+  assert.match(eventsSource, /moveSubissueDragPreview\(event\.clientX, event\.clientY\);/);
   assert.match(eventsSource, /container\.insertBefore\(draggingRow, row\.nextElementSibling\);/);
   assert.match(eventsSource, /container\.insertBefore\(draggingRow, row\);/);
   assert.match(eventsSource, /item\.style\.transform = `translateY\(\$\{delta\}px\)`;/);

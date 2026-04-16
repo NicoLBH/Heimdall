@@ -626,17 +626,22 @@ export function createProjectSubjectsEvents(config) {
       });
 
       let dragPreviewNode = null;
+      let dragPreviewOffsetX = 0;
+      let dragPreviewOffsetY = 0;
 
       const clearDragPreview = () => {
         const previewRoot = document.getElementById("nativeDragPreviewRoot");
         const previewCard = document.getElementById("nativeDragPreviewCard");
         if (previewRoot) previewRoot.classList.remove("is-active");
+        if (previewRoot) previewRoot.style.transform = "";
         if (previewCard) {
           previewCard.textContent = "";
           previewCard.removeAttribute("data-child-subject-id");
           previewCard.removeAttribute("style");
         }
         dragPreviewNode = null;
+        dragPreviewOffsetX = 0;
+        dragPreviewOffsetY = 0;
       };
 
       const clearDragClasses = () => {
@@ -716,6 +721,14 @@ export function createProjectSubjectsEvents(config) {
         });
 
         return previewCard;
+      };
+
+      const moveSubissueDragPreview = (clientX, clientY) => {
+        const { previewRoot } = getNativeSubissueDragPreviewNodes();
+        if (!previewRoot || !previewRoot.classList.contains("is-active")) return;
+        const x = Math.round(Number(clientX || 0) - dragPreviewOffsetX);
+        const y = Math.round(Number(clientY || 0) - dragPreviewOffsetY);
+        previewRoot.style.transform = `translate(${x}px, ${y}px)`;
       };
 
       const createSubissueDragCanvasPreview = ({ rowRect, rowStyles, title }) => {
@@ -826,6 +839,8 @@ export function createProjectSubjectsEvents(config) {
           if (event.dataTransfer) {
             const offsetX = Math.max(0, Math.round(event.clientX - rowRect.left));
             const offsetY = Math.max(0, Math.round(event.clientY - rowRect.top));
+            dragPreviewOffsetX = offsetX;
+            dragPreviewOffsetY = offsetY;
             if (!canvasDragPreview && dragPreviewNode) {
               const previewRoot = document.getElementById("nativeDragPreviewRoot");
               if (previewRoot) previewRoot.classList.add("is-active");
@@ -841,6 +856,11 @@ export function createProjectSubjectsEvents(config) {
               usesVisibleDomPreviewHost: !canvasDragPreview && !!dragPreviewNode
             });
           }
+          const previewRoot = document.getElementById("nativeDragPreviewRoot");
+          if (previewRoot && dragPreviewNode) {
+            previewRoot.classList.add("is-active");
+            moveSubissueDragPreview(event.clientX, event.clientY);
+          }
           row.classList.add("is-subissue-dragging", "is-subissue-drag-gap");
         });
 
@@ -848,6 +868,7 @@ export function createProjectSubjectsEvents(config) {
           const draggingRow = root.querySelector(".is-subissue-dragging");
           if (!draggingRow || draggingRow === row) return;
           event.preventDefault();
+          moveSubissueDragPreview(event.clientX, event.clientY);
 
           const container = row.parentElement;
           if (!container || draggingRow.parentElement !== container) return;
