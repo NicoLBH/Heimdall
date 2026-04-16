@@ -1824,7 +1824,6 @@ function renderSubIssuesForSujet(sujet, options = {}) {
     const isExpanded = hasChildren && expandedIds.has(subjectId);
     const canDrag = depth === 0;
     const isRowMenuOpen = openMenuId === subjectId;
-    const levelClass = depth <= 2 ? `lvl${depth}` : "lvl2";
     const nestedSpacerCells = depth > 0
       ? new Array(depth).fill('<div class="cell cell-subissue-drag-spacer" aria-hidden="true"></div>').join("")
       : "";
@@ -1847,16 +1846,16 @@ function renderSubIssuesForSujet(sujet, options = {}) {
               </button>`
             : ""}
         </div>
+        ${nestedSpacerCells}
+        <div class="cell cell-subissue-drag-spacer">
+          ${hasChildren
+            ? `<button type="button" class="subissue-tree-toggle js-subissue-tree-toggle" data-subissue-tree-toggle="${escapeHtml(subjectId)}" aria-label="${isExpanded ? "Replier" : "Déplier"} le sous-sujet">
+                ${svgIcon(isExpanded ? "chevron-down" : "chevron-right", { className: isExpanded ? "octicon octicon-chevron-down" : "octicon octicon-chevron-right" })}
+              </button>`
+            : ""}
+        </div>
         <div class="subissue-row-main">
-          ${nestedSpacerCells}
-          <div class="cell cell-subissue-drag-spacer">
-            ${hasChildren
-              ? `<button type="button" class="subissue-tree-toggle js-subissue-tree-toggle" data-subissue-tree-toggle="${escapeHtml(subjectId)}" aria-label="${isExpanded ? "Replier" : "Déplier"} le sous-sujet">
-                  ${svgIcon(isExpanded ? "chevron-down" : "chevron-right", { className: isExpanded ? "octicon octicon-chevron-down" : "octicon octicon-chevron-right" })}
-                </button>`
-              : ""}
-          </div>
-          <div class="cell cell-theme cell-theme--full ${levelClass}">
+          <div class="cell cell-theme cell-theme--full">
             ${issueIcon(getEffectiveSujetStatus(subjectId))}
             <span class="theme-text theme-text--pb">${escapeHtml(firstNonEmpty(subjectNode.title, subjectId, ""))}</span>
           </div>
