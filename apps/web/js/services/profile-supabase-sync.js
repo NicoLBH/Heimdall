@@ -2,7 +2,7 @@ import { store } from "../store.js";
 import { ensureProjectDocumentsState } from "./project-documents-store.js";
 import { ensureProjectAutomationDefaults } from "./project-automation.js";
 import { supabase, buildSupabaseAuthHeaders, getCurrentUser, getSupabaseUrl, getSupabaseAnonKey } from "../../assets/js/auth.js";
-import { DEFAULT_AVATAR_URL, resolveAvatarUrl } from "./avatar-url.js";
+import { AVATARS_BUCKET, DEFAULT_AVATAR_URL, resolveAvatarUrl } from "./avatar-url.js";
 
 const SUPABASE_URL = getSupabaseUrl();
 const SUPABASE_ANON_KEY = getSupabaseAnonKey();
