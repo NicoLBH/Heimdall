@@ -719,6 +719,50 @@ export function createProjectSubjectsEvents(config) {
         return previewCard;
       };
 
+      const createSubissueDragCanvasPreview = ({ rowRect, rowStyles, title }) => {
+        const width = Math.max(1, Math.round(rowRect.width));
+        const height = Math.max(36, Math.round(rowRect.height));
+        const dpr = Math.max(1, Number(window.devicePixelRatio || 1));
+        const previewBackgroundColor = resolveCssCustomProp(rowStyles, "--bbg", resolveCssCustomProp(rowStyles, "--bg", "#0d1117"));
+        const previewBorderColor = resolveCssCustomProp(rowStyles, "--border", "rgba(139,148,158,.35)");
+        const previewTextColor = resolveCssCustomProp(rowStyles, "--text", "#e6edf3");
+        const previewRadius = Number.parseFloat(resolveCssCustomProp(rowStyles, "--radius", "6")) || 6;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(width * dpr));
+        canvas.height = Math.max(1, Math.round(height * dpr));
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.scale(dpr, dpr);
+
+        const drawRoundedRectPath = (x, y, w, h, r) => {
+          const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+          ctx.beginPath();
+          ctx.moveTo(x + radius, y);
+          ctx.arcTo(x + w, y, x + w, y + h, radius);
+          ctx.arcTo(x + w, y + h, x, y + h, radius);
+          ctx.arcTo(x, y + h, x, y, radius);
+          ctx.arcTo(x, y, x + w, y, radius);
+          ctx.closePath();
+        };
+
+        drawRoundedRectPath(0.5, 0.5, width - 1, height - 1, previewRadius);
+        ctx.fillStyle = previewBackgroundColor;
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = previewBorderColor;
+        ctx.stroke();
+        ctx.fillStyle = previewTextColor;
+        ctx.font = `500 13px ${String(rowStyles.fontFamily || "system-ui, sans-serif")}`;
+        ctx.textBaseline = "middle";
+        const safeTitle = String(title || "").trim() || "Sous-sujet";
+        const textX = 12;
+        const textY = Math.round(height / 2);
+        ctx.fillText(safeTitle, textX, textY, Math.max(0, width - textX - 12));
+        return canvas;
+      };
+
       const animateSubissueRowReflow = (container, mutateDom) => {
         if (!container || typeof mutateDom !== "function") return;
         const rowsBefore = Array.from(container.querySelectorAll("[data-subissue-sortable-row='true']"));
@@ -775,12 +819,23 @@ export function createProjectSubjectsEvents(config) {
             issuesCols,
             childSubjectId
           });
+          const canvasDragPreview = createSubissueDragCanvasPreview({
+            rowRect,
+            rowStyles,
+            title: dragPreviewNode?.textContent || ""
+          });
           if (event.dataTransfer) {
             const offsetX = Math.max(0, Math.round(event.clientX - rowRect.left));
             const offsetY = Math.max(0, Math.round(event.clientY - rowRect.top));
             if (dragPreviewNode) dragPreviewNode.getBoundingClientRect();
-            event.dataTransfer.setDragImage(dragPreviewNode || row, offsetX, offsetY);
-            debugSubissuesDnd("dragstart-setDragImage", { offsetX, offsetY, hasNativePreview: !!dragPreviewNode });
+            const dragImageNode = canvasDragPreview || dragPreviewNode || row;
+            event.dataTransfer.setDragImage(dragImageNode, offsetX, offsetY);
+            debugSubissuesDnd("dragstart-setDragImage", {
+              offsetX,
+              offsetY,
+              hasNativePreview: !!dragPreviewNode,
+              dragImageKind: canvasDragPreview ? "canvas" : (dragPreviewNode ? "dom" : "row")
+            });
           }
           row.classList.add("is-subissue-dragging", "is-subissue-drag-gap");
         });

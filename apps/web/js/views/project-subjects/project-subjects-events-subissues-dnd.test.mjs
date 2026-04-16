@@ -35,6 +35,7 @@ test("le dragstart est armé par pointerdown sur le handle et utilise un drag pr
   assert.match(eventsSource, /if \(!dragFromHandle\) \{/);
   assert.match(eventsSource, /const getNativeSubissueDragPreviewNodes = \(\) => \{/);
   assert.match(eventsSource, /const mountSubissueDragPreview = \(\{ row, rowRect, rowStyles, issuesCols, childSubjectId \}\) => \{/);
+  assert.match(eventsSource, /const createSubissueDragCanvasPreview = \(\{ rowRect, rowStyles, title \}\) => \{/);
   assert.match(eventsSource, /const previewRoot = document\.getElementById\("nativeDragPreviewRoot"\);/);
   assert.match(eventsSource, /const previewCard = document\.getElementById\("nativeDragPreviewCard"\);/);
   assert.match(eventsSource, /previewRoot\.classList\.add\("is-active"\);/);
@@ -58,8 +59,11 @@ test("le dragstart est armé par pointerdown sur le handle et utilise un drag pr
   assert.match(eventsSource, /boxShadow: previewCard\.style\.boxShadow,/);
   assert.match(eventsSource, /const previewPaintRect = previewCard\.getBoundingClientRect\(\);/);
   assert.match(eventsSource, /previewPaintRect: \{/);
+  assert.match(eventsSource, /const canvasDragPreview = createSubissueDragCanvasPreview\(\{/);
+  assert.match(eventsSource, /const dragImageNode = canvasDragPreview \|\| dragPreviewNode \|\| row;/);
+  assert.match(eventsSource, /dragImageKind: canvasDragPreview \? "canvas" : \(dragPreviewNode \? "dom" : "row"\)/);
   assert.match(eventsSource, /if \(dragPreviewNode\) dragPreviewNode\.getBoundingClientRect\(\);/);
-  assert.match(eventsSource, /event\.dataTransfer\.setDragImage\(dragPreviewNode \|\| row, offsetX, offsetY\);/);
+  assert.match(eventsSource, /event\.dataTransfer\.setDragImage\(dragImageNode, offsetX, offsetY\);/);
   assert.match(eventsSource, /previewCard\.removeAttribute\("style"\);/);
   assert.match(eventsSource, /row\.classList\.add\("is-subissue-dragging", "is-subissue-drag-gap"\);/);
 });
