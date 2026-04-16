@@ -2776,6 +2776,13 @@ body.is-resizing{
   align-items:center;
   justify-content:center;
 }
+.subissues-assignees-placeholder .gh-user-menu__item-icon{
+  width: 20px;
+  height: 20px;
+  border: solid 1px var(--muted);
+  border-radius: 100px;
+  padding: 2px;
+}
 .cell-subissue-actions{
   position:relative;
   display:flex;
