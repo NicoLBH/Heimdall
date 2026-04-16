@@ -689,11 +689,16 @@ export function createProjectSubjectsEvents(config) {
         previewCard.style.borderColor = previewBorderColor;
         previewCard.style.borderRadius = previewBorderRadius;
         previewCard.style.boxShadow = "0 14px 36px rgba(1,4,9,.55), 0 0 0 1px rgba(1,4,9,.35)";
+        const previewPaintRect = previewCard.getBoundingClientRect();
 
         debugSubissuesDnd("dragstart-preview", {
           rowRect: {
             width: rowRect.width,
             height: rowRect.height
+          },
+          previewPaintRect: {
+            width: previewPaintRect.width,
+            height: previewPaintRect.height
           },
           issuesCols,
           rowGridTemplateColumns: rowStyles.gridTemplateColumns,
@@ -773,6 +778,7 @@ export function createProjectSubjectsEvents(config) {
           if (event.dataTransfer) {
             const offsetX = Math.max(0, Math.round(event.clientX - rowRect.left));
             const offsetY = Math.max(0, Math.round(event.clientY - rowRect.top));
+            if (dragPreviewNode) dragPreviewNode.getBoundingClientRect();
             event.dataTransfer.setDragImage(dragPreviewNode || row, offsetX, offsetY);
             debugSubissuesDnd("dragstart-setDragImage", { offsetX, offsetY, hasNativePreview: !!dragPreviewNode });
           }

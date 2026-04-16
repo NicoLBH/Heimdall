@@ -56,6 +56,9 @@ test("le dragstart est armé par pointerdown sur le handle et utilise un drag pr
   assert.match(eventsSource, /borderWidth: previewCard\.style\.borderWidth,/);
   assert.match(eventsSource, /borderColor: previewCard\.style\.borderColor,/);
   assert.match(eventsSource, /boxShadow: previewCard\.style\.boxShadow,/);
+  assert.match(eventsSource, /const previewPaintRect = previewCard\.getBoundingClientRect\(\);/);
+  assert.match(eventsSource, /previewPaintRect: \{/);
+  assert.match(eventsSource, /if \(dragPreviewNode\) dragPreviewNode\.getBoundingClientRect\(\);/);
   assert.match(eventsSource, /event\.dataTransfer\.setDragImage\(dragPreviewNode \|\| row, offsetX, offsetY\);/);
   assert.match(eventsSource, /previewCard\.removeAttribute\("style"\);/);
   assert.match(eventsSource, /row\.classList\.add\("is-subissue-dragging", "is-subissue-drag-gap"\);/);
@@ -69,7 +72,8 @@ test("le handle n'est visible qu'au survol/focus et le gap de drag affiche les t
   assert.match(styleSource, /\.subissues-sortable-row\.is-subissue-drag-gap::before\{top:0;\}/);
   assert.match(styleSource, /\.subissues-sortable-row\.is-subissue-drag-gap::after\{bottom:0;\}/);
   assert.match(styleSource, /#nativeDragPreviewRoot\{[\s\S]*position:fixed;[\s\S]*pointer-events:none;/);
-  assert.match(styleSource, /#nativeDragPreviewRoot\.is-active\{[\s\S]*display:block;/);
+  assert.match(styleSource, /#nativeDragPreviewRoot\{[\s\S]*visibility:hidden;[\s\S]*opacity:0;/);
+  assert.match(styleSource, /#nativeDragPreviewRoot\.is-active\{[\s\S]*visibility:visible;[\s\S]*opacity:1;/);
   assert.match(styleSource, /#nativeDragPreviewCard\{[\s\S]*text-overflow:ellipsis;[\s\S]*opacity:1;/);
 });
 

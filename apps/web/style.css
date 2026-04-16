@@ -2735,12 +2735,14 @@ body.is-resizing{
   position:fixed;
   top:0;
   left:0;
-  z-index:-1;
-  display:none;
+  z-index:2147483647;
+  visibility:hidden;
+  opacity:0;
   pointer-events:none;
 }
 #nativeDragPreviewRoot.is-active{
-  display:block;
+  visibility:visible;
+  opacity:1;
 }
 #nativeDragPreviewCard{
   color:var(--text);
