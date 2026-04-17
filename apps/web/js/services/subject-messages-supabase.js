@@ -383,7 +383,7 @@ export function createSubjectMessagesSupabaseRepository() {
         .storage
         .from(SUBJECT_ATTACHMENTS_BUCKET)
         .upload(storagePath, file, {
-          upsert: false,
+          upsert: true,
           contentType: String(file?.type || payload.mimeType || "application/octet-stream")
         });
       if (uploadError) {
