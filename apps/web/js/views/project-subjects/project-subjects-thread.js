@@ -697,7 +697,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
         const isEditable = !e?.meta?.is_frozen && !e?.meta?.is_deleted;
         const repliesHtml = childReplies.length
           ? `
-            <div class="thread-comment-replies">
+            <div class="thread-comment-replies thread-comment-replies--github">
               ${childReplies.map((reply, replyIdx) => renderNestedReplyComment(reply, idx + replyIdx + 1)).join("")}
             </div>
           `

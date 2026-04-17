@@ -2490,9 +2490,10 @@ body.is-resizing{
   line-height: 21px;
   color:var(--text);
   letter-spacing:.02em;
+  padding-right:8px;
 }
 .gh-comment-body{
-  padding:12px 0;
+  padding:0px;
   white-space:inherit;
   font-size:13px;
 }
@@ -2579,16 +2580,17 @@ body.is-resizing{
   margin:4px 0;
 }
 .thread-comment-content-capsule{
-  padding:0 12px;
+  padding:12px 12px 0px;
 }
 .thread-comment-footer{
   display:flex;
   justify-content:flex-end;
   margin-top:8px;
   margin-bottom:8px;
+  padding:0px 12px;
 }
 .thread-comment-reply-box{
-  border-top:1px solid var(--border2);
+  border-top:none;
   padding-top:10px;
 }
 .thread-inline-reply-editor{
@@ -2620,14 +2622,27 @@ body.is-resizing{
   padding-top:8px;
   background-color:var(--bgAssistPanel);
 }
+.thread-comment-replies--github .gh-comment-box{
+  border:none;
+  box-shadow:none;
+  background:transparent;
+}
+.thread-comment-replies--github .gh-comment-header{
+  background:transparent;
+  border-bottom:none;
+  padding:0px 12px;
+}
+.thread-comment-replies--github .gh-comment-body{
+  padding:0px;
+}
 .message-thread__comment--reply-item{
-  margin-left:24px;
-  width:calc(100% - 24px);
+  margin-left:12px;
+  width:calc(100% - 12px);
   box-sizing:border-box;
 }
 .message-thread__comment--reply-item .thread-wrapper{
-  border-left:1px solid var(--border2);
-  padding-left:8px;
+  border-left:2px solid var(--border2);
+  padding-left:16px;
   width:100%;
   box-sizing:border-box;
 }
@@ -2635,6 +2650,9 @@ body.is-resizing{
   width:100%;
   max-width:100%;
   box-sizing:border-box;
+}
+.thread-comment-replies--github .message-thread__comment--reply-item .gh-avatar{
+  margin-left:-22px;
 }
 
 /* ===== Right panel: Sub-issues table (below description) ===== */
