@@ -2100,6 +2100,9 @@ body.modal-open {
   grid-column:3;
   grid-row:2;
   min-width:0;
+  height:20px;
+  display:flex;
+  align-items:center;
 }
 .issue-row-meta-text{
   width:100%;
