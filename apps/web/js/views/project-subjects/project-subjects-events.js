@@ -1276,11 +1276,12 @@ export function createProjectSubjectsEvents(config) {
         const replyUi = typeof getInlineReplyUiState === "function" ? getInlineReplyUiState() : null;
         if (!replyUi) return;
         replyUi.menuMessageId = "";
-        replyUi.expandedMessageId = messageId;
+        replyUi.visibleMessageId = messageId;
+        replyUi.expandedMessageId = "";
         if (typeof replyUi.draftsByMessageId?.[messageId] !== "string") replyUi.draftsByMessageId[messageId] = "";
         rerenderScope(root);
         requestAnimationFrame(() => {
-          root.querySelector(`[data-thread-reply-draft="${selectorValue(messageId)}"]`)?.focus();
+          root.querySelector(`[data-action="thread-reply-expand"][data-message-id="${selectorValue(messageId)}"]`)?.focus();
         });
       };
     });
@@ -1291,6 +1292,7 @@ export function createProjectSubjectsEvents(config) {
         if (!messageId) return;
         const replyUi = typeof getInlineReplyUiState === "function" ? getInlineReplyUiState() : null;
         if (!replyUi) return;
+        replyUi.visibleMessageId = messageId;
         replyUi.expandedMessageId = messageId;
         rerenderScope(root);
         requestAnimationFrame(() => {
@@ -1315,6 +1317,7 @@ export function createProjectSubjectsEvents(config) {
         const replyUi = typeof getInlineReplyUiState === "function" ? getInlineReplyUiState() : null;
         if (!replyUi) return;
         if (messageId) replyUi.draftsByMessageId[messageId] = "";
+        replyUi.visibleMessageId = "";
         replyUi.expandedMessageId = "";
         replyUi.menuMessageId = "";
         rerenderScope(root);
@@ -1337,6 +1340,7 @@ export function createProjectSubjectsEvents(config) {
           parentMessageId
         });
         replyUi.draftsByMessageId[parentMessageId] = "";
+        replyUi.visibleMessageId = "";
         replyUi.expandedMessageId = "";
         replyUi.menuMessageId = "";
         rerenderScope(root);

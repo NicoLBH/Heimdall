@@ -2551,13 +2551,28 @@ body.is-resizing{
 .thread-comment-menu__trigger .octicon{width:16px;height:16px;}
 .thread-comment-menu__dropdown{
   position:absolute;
-  top:calc(100% + 4px);
+  top:calc(100% + 6px);
   right:0;
   min-width:180px;
   display:none;
-  z-index:5;
+  z-index:220;
+  background:rgb(1, 4, 9);
+  box-shadow: rgb(61, 68, 77) 0px 0px 0px 1px, rgba(1, 4, 9, 0.4) 0px 6px 12px -3px, rgba(1, 4, 9, 0.4) 0px 6px 18px 0px;
+  border-radius:8px;
+  padding:4px;
 }
-.thread-comment-menu__dropdown.gh-menu--open{display:block;}
+.thread-comment-menu__dropdown.is-open{display:block;}
+.thread-comment-menu__dropdown .gh-menu__item{
+  width:100%;
+  text-align:left;
+  border:none;
+  background:transparent;
+  color:var(--text);
+  border-radius:6px;
+}
+.thread-comment-menu__dropdown .gh-menu__item:hover{
+  background:rgba(56,139,253,.14);
+}
 .thread-comment-footer{
   display:flex;
   justify-content:flex-end;

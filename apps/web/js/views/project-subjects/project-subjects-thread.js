@@ -135,11 +135,13 @@ export function createProjectSubjectsThread(config = {}) {
     if (!state.inlineReplyUi || typeof state.inlineReplyUi !== "object") {
       state.inlineReplyUi = {
         menuMessageId: "",
+        visibleMessageId: "",
         expandedMessageId: "",
         draftsByMessageId: {}
       };
     }
     if (typeof state.inlineReplyUi.menuMessageId !== "string") state.inlineReplyUi.menuMessageId = "";
+    if (typeof state.inlineReplyUi.visibleMessageId !== "string") state.inlineReplyUi.visibleMessageId = "";
     if (typeof state.inlineReplyUi.expandedMessageId !== "string") state.inlineReplyUi.expandedMessageId = "";
     if (!state.inlineReplyUi.draftsByMessageId || typeof state.inlineReplyUi.draftsByMessageId !== "object") {
       state.inlineReplyUi.draftsByMessageId = {};
@@ -557,8 +559,9 @@ priority=${firstNonEmpty(subject.priority, "")}`
     return { commentsById, childrenByParentId };
   }
 
-  function renderInlineReplyComposer({ commentId, isExpanded, draft }) {
+  function renderInlineReplyComposer({ commentId, isVisible, isExpanded, draft }) {
     if (!commentId) return "";
+    if (!isVisible) return "";
     if (!isExpanded) {
       return `
         <button
@@ -647,6 +650,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
         const tsHtml = e?.ts ? `<div class="mono-small">${escapeHtml(fmtTs(e.ts))}</div>` : "";
         const childReplies = childrenByParentId.get(commentId) || [];
         const isMenuOpen = replyUi.menuMessageId === commentId;
+        const isVisible = replyUi.visibleMessageId === commentId;
         const isExpanded = replyUi.expandedMessageId === commentId;
         const draft = String(replyUi.draftsByMessageId?.[commentId] || "");
         const repliesHtml = childReplies.length
@@ -672,7 +676,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
               >
                 ${svgIcon("kebab-horizontal")}
               </button>
-              <div class="thread-comment-menu__dropdown gh-menu ${isMenuOpen ? "gh-menu--open" : ""}">
+              <div class="thread-comment-menu__dropdown ${isMenuOpen ? "is-open" : ""}">
                 <button class="gh-menu__item" type="button" data-action="thread-reply-open" data-message-id="${escapeHtml(commentId)}">Répondre au message</button>
               </div>
             </div>
@@ -690,6 +694,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
             <div class="thread-comment-reply-box">
               ${renderInlineReplyComposer({
                 commentId,
+                isVisible,
                 isExpanded,
                 draft
               })}
