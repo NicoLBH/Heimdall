@@ -22,6 +22,7 @@ export function createProjectSubjectsDetailsRenderer(config) {
     renderCommentBox,
     renderDetailedMetaForSelection,
     renderSubjectMetaControls,
+    priorityBadge,
     renderDocumentRefsCard
   } = config;
 
@@ -32,9 +33,14 @@ export function createProjectSubjectsDetailsRenderer(config) {
         const item = currentSelection.item;
         const entityType = getSelectionEntityType(currentSelection.type);
         const titleSeenClass = getReviewTitleStateClass(entityType, item.id);
-        return `<span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Détail"))}</span>`;
+        const titleHtml = `<span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Détail"))}</span>`;
+        if (currentSelection.type === "sujet") {
+          return `${titleHtml} <span class="details-title-inline-ref mono">${entityDisplayLinkHtml(currentSelection.type, item.id)}</span>`;
+        }
+        return titleHtml;
       },
       buildIdHtml(currentSelection) {
+        if (currentSelection.type === "sujet") return "";
         return entityDisplayLinkHtml(currentSelection.type, currentSelection.item.id);
       },
       buildExpandedBottomHtml(currentSelection) {
@@ -127,8 +133,17 @@ export function createProjectSubjectsDetailsRenderer(config) {
       : renderSubIssuesForSituation(item, options.subissuesOptions || {});
     const threadHtml = renderThreadBlock();
     const commentBoxHtml = renderCommentBox(selection);
-    const metaHtml = renderDetailedMetaForSelection(selection);
     const subjectMetaControlsHtml = selection.type === "sujet" ? renderSubjectMetaControls(item) : "";
+    const subjectPriorityHtml = selection.type === "sujet"
+      ? `
+        <div class="subject-sidebar-priority">
+          <span class="subject-sidebar-priority__label">Priority</span>
+          <span class="subject-sidebar-priority__value">${priorityBadge(firstNonEmpty(item.priority, item.raw?.priority, "medium"))}</span>
+        </div>
+      `
+      : "";
+    const metaHtml = selection.type === "sujet" ? "" : renderDetailedMetaForSelection(selection);
+    const metaTitleHtml = selection.type === "sujet" ? "" : `<div class="meta-title">Metadata</div>`;
 
     return `
       <div class="details-grid">
@@ -143,7 +158,8 @@ export function createProjectSubjectsDetailsRenderer(config) {
         </div>
         <aside class="details-meta-col">
           ${subjectMetaControlsHtml}
-          <div class="meta-title">Metadata</div>
+          ${subjectPriorityHtml}
+          ${metaTitleHtml}
           ${metaHtml}
         </aside>
       </div>
