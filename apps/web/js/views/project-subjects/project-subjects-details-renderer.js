@@ -33,9 +33,14 @@ export function createProjectSubjectsDetailsRenderer(config) {
         const item = currentSelection.item;
         const entityType = getSelectionEntityType(currentSelection.type);
         const titleSeenClass = getReviewTitleStateClass(entityType, item.id);
-        return `<span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Détail"))}</span>`;
+        const titleHtml = `<span class="details-title-text ${titleSeenClass}">${escapeHtml(firstNonEmpty(item.title, item.id, "Détail"))}</span>`;
+        if (currentSelection.type === "sujet") {
+          return `${titleHtml} <span class="details-title-inline-ref mono">${entityDisplayLinkHtml(currentSelection.type, item.id)}</span>`;
+        }
+        return titleHtml;
       },
       buildIdHtml(currentSelection) {
+        if (currentSelection.type === "sujet") return "";
         return entityDisplayLinkHtml(currentSelection.type, currentSelection.item.id);
       },
       buildExpandedBottomHtml(currentSelection) {
