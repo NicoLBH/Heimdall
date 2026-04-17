@@ -1353,14 +1353,29 @@ function getSubjectLastActivityTimestamp(subject = {}) {
   return Number.isFinite(ts) ? ts : 0;
 }
 
+function collectDescendantSubjectIds(subjectId, visited = new Set()) {
+  const rootId = String(subjectId || "");
+  if (!rootId || visited.has(rootId)) return visited;
+  visited.add(rootId);
+
+  const children = Array.isArray(getChildSubjects(rootId)) ? getChildSubjects(rootId) : [];
+  for (const child of children) {
+    const childId = String(child?.id || "");
+    if (!childId || visited.has(childId)) continue;
+    collectDescendantSubjectIds(childId, visited);
+  }
+  return visited;
+}
+
 function getRelationParentSuggestions(subject, query = "") {
   const currentSubjectId = String(subject?.id || "");
   const normalizedQuery = String(query || "").trim().toLowerCase();
+  const forbiddenParentIds = collectDescendantSubjectIds(currentSubjectId);
   const map = store.projectSubjectsView?.rawSubjectsResult?.subjectsById || {};
   const candidates = Object.values(map)
     .filter((item) => {
       const itemId = String(item?.id || "");
-      if (!itemId || itemId === currentSubjectId) return false;
+      if (!itemId || forbiddenParentIds.has(itemId)) return false;
       return matchSearch([item?.title, item?.id], normalizedQuery);
     })
     .sort((left, right) => {
