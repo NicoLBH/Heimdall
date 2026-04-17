@@ -63,19 +63,6 @@ async function resolveCurrentPersonId() {
   return normalizeId(await resolveCurrentUserDirectoryPersonId().catch(() => ""));
 }
 
-async function fetchMessageById(messageId) {
-  const normalizedMessageId = normalizeId(messageId);
-  if (!normalizedMessageId) return null;
-
-  const params = new URLSearchParams();
-  params.set("select", "id,project_id,subject_id,author_person_id");
-  params.set("id", `eq.${normalizedMessageId}`);
-  params.set("limit", "1");
-
-  const rows = await restFetch("/rest/v1/subject_messages", params);
-  return (Array.isArray(rows) ? rows[0] : rows) || null;
-}
-
 export function createSubjectMessagesSupabaseRepository() {
   return {
     async listMessages({ subjectId }) {
@@ -152,29 +139,8 @@ export function createSubjectMessagesSupabaseRepository() {
 
     async markMessageRead({ messageId, subjectId = "", projectId = "" } = {}) {
       const normalizedMessageId = normalizeId(messageId);
-      const personId = await resolveCurrentPersonId();
       if (!normalizedMessageId) throw new Error("messageId is required");
-      if (!personId) throw new Error("current person is required");
-
-      const message = await fetchMessageById(normalizedMessageId);
-      if (!message?.id) throw new Error("message not found");
-
-      const rows = await restFetch("/rest/v1/subject_message_reads", null, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=representation"
-        },
-        body: JSON.stringify({
-          message_id: normalizedMessageId,
-          subject_id: normalizeId(subjectId) || normalizeId(message.subject_id),
-          project_id: await resolveProjectId(projectId || message.project_id),
-          reader_person_id: personId,
-          reader_user_id: normalizeId(store?.user?.id || "") || null
-        })
-      });
-
-      return (Array.isArray(rows) ? rows[0] : rows) || null;
+      return rpcCall("mark_subject_message_read", { p_message_id: normalizedMessageId });
     },
 
     async canEditMessage({ messageId }) {
