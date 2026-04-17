@@ -40,12 +40,20 @@ export function createProjectSubjectsThread(config = {}) {
 
   const subjectTimelineCache = new Map();
   const subjectTimelineState = new Map();
+  const subjectReadMarkState = new Map();
 
   function normalizeId(value) {
     return String(value || "").trim();
   }
 
   function mapMessageRowToThreadComment(row = {}) {
+    const isDeleted = !!row.deleted_at;
+    const isFrozen = !!row.is_frozen;
+    const stateLabel = isDeleted
+      ? "supprimé"
+      : isFrozen
+        ? "figé (vu par un tiers)"
+        : "modifiable";
     return {
       ts: firstNonEmpty(row.created_at, nowIso()),
       entity_type: "sujet",
@@ -60,9 +68,52 @@ export function createProjectSubjectsThread(config = {}) {
         source: "supabase",
         id: normalizeId(row.id),
         parent_message_id: normalizeId(row.parent_message_id),
-        is_frozen: !!row.is_frozen
-      }
+        is_frozen: isFrozen,
+        is_deleted: isDeleted,
+        state_label: stateLabel
+      },
+      stateLabel
     };
+  }
+
+  function queueSubjectMessageReadMarking(subjectId, messages = []) {
+    const normalizedSubjectId = normalizeId(subjectId);
+    if (!normalizedSubjectId || !subjectMessagesService) return;
+    const state = subjectReadMarkState.get(normalizedSubjectId) || { pending: false, markedIds: new Set() };
+    if (state.pending) return;
+
+    const toMark = (Array.isArray(messages) ? messages : [])
+      .filter((message) => !message?.deleted_at)
+      .map((message) => normalizeId(message?.id))
+      .filter((messageId, idx, list) => !!messageId && list.indexOf(messageId) === idx && !state.markedIds.has(messageId));
+    if (!toMark.length) return;
+
+    state.pending = true;
+    subjectReadMarkState.set(normalizedSubjectId, state);
+
+    (async () => {
+      let shouldRefresh = false;
+      for (const messageId of toMark) {
+        try {
+          await subjectMessagesService.markMessageRead(messageId, { subjectId: normalizedSubjectId });
+          state.markedIds.add(messageId);
+          shouldRefresh = true;
+        } catch (error) {
+          console.warn("[subject-messages] mark read failed", { subjectId: normalizedSubjectId, messageId, error });
+        }
+      }
+
+      if (shouldRefresh) {
+        ensureSubjectTimelineLoaded(normalizedSubjectId, { force: true });
+      }
+    })()
+      .finally(() => {
+        const latestState = subjectReadMarkState.get(normalizedSubjectId);
+        if (latestState) {
+          latestState.pending = false;
+          subjectReadMarkState.set(normalizedSubjectId, latestState);
+        }
+      });
   }
 
   function mapEventRowToThreadActivity(row = {}) {
@@ -127,6 +178,7 @@ export function createProjectSubjectsThread(config = {}) {
           activities: events.map((row) => mapEventRowToThreadActivity(row)),
           conversation: timeline?.conversation || null
         });
+        queueSubjectMessageReadMarking(normalizedSubjectId, messages);
         requestScopeRerender();
       })
       .catch((error) => {
@@ -369,7 +421,10 @@ priority=${firstNonEmpty(subject.priority, "")}`
           idx,
           author: identity.displayName,
           tsHtml,
-          bodyHtml: mdToHtml(e?.message || ""),
+          bodyHtml: `
+            <div class="mono-small color-fg-muted">${escapeHtml(String(e?.stateLabel || "modifiable"))}</div>
+            ${mdToHtml(e?.message || "")}
+          `,
           avatarType: identity.avatarType,
           avatarHtml: identity.avatarHtml,
           avatarInitial: identity.avatarInitial
