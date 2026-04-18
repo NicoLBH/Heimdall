@@ -71,6 +71,42 @@ function buildAuthenticatedStorageObjectUrl(bucket = SUBJECT_ATTACHMENTS_BUCKET,
   return `${SUPABASE_URL}/storage/v1/object/authenticated/${encodeURIComponent(String(bucket || SUBJECT_ATTACHMENTS_BUCKET))}/${encodeStoragePath(normalizedPath)}`;
 }
 
+async function uploadStorageObject({
+  bucket = SUBJECT_ATTACHMENTS_BUCKET,
+  storagePath = "",
+  file,
+  mimeType = "",
+  upsert = true
+} = {}) {
+  const normalizedBucket = String(bucket || SUBJECT_ATTACHMENTS_BUCKET).trim();
+  const normalizedPath = String(storagePath || "").trim();
+  if (!normalizedBucket) throw new Error("bucket is required");
+  if (!normalizedPath) throw new Error("storagePath is required");
+  if (!(file instanceof Blob)) throw new Error("file must be a Blob");
+
+  const url = `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(normalizedBucket)}/${encodeStoragePath(normalizedPath)}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: await getAuthHeaders({
+      "x-upsert": upsert ? "true" : "false",
+      "Content-Type": String(mimeType || file.type || "application/octet-stream")
+    }),
+    body: file
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => "");
+    const message = bodyText || response.statusText || "storage upload failed";
+    const error = new Error(`storage upload failed (${response.status}): ${message}`);
+    error.status = response.status;
+    error.statusCode = String(response.status);
+    error.responseBody = bodyText;
+    throw error;
+  }
+
+  return true;
+}
+
 async function getAuthHeaders(extra = {}) {
   return buildSupabaseAuthHeaders(extra);
 }
@@ -533,11 +569,15 @@ export function createSubjectMessagesSupabaseRepository() {
         sizeBytes: Number(file?.size || payload.sizeBytes || 0)
       });
 
-      const { error: uploadError } = await supabase
-        .storage
-        .from(SUBJECT_ATTACHMENTS_BUCKET)
-        .upload(storagePath, file, uploadOptions);
-      if (uploadError) {
+      try {
+        await uploadStorageObject({
+          bucket: SUBJECT_ATTACHMENTS_BUCKET,
+          storagePath,
+          file,
+          mimeType: uploadOptions.contentType || resolvedMimeType || file?.type || "",
+          upsert: Boolean(uploadOptions.upsert)
+        });
+      } catch (uploadError) {
         const runtimeDiagnostics = await gatherAttachmentUploadDiagnostics({
           projectId,
           subjectId,
@@ -564,6 +604,7 @@ export function createSubjectMessagesSupabaseRepository() {
           statusCode: uploadError?.statusCode || uploadError?.status || "unknown",
           message: String(uploadError?.message || uploadError || ""),
           error: uploadError,
+          responseBody: String(uploadError?.responseBody || ""),
           runtimeDiagnostics
         };
         console.error("[subject-attachments] upload failed", diagnostic);
