@@ -772,8 +772,7 @@ export function createProjectSubjectsEvents(config) {
             pending.object_url = String(uploaded?.object_url || "");
             pending.uploading = false;
             pending.error = "";
-            if (pending.isImage && pending.object_url) {
-              revokeObjectUrl(localPreview);
+            if (pending.isImage && !pending.previewUrl && pending.object_url) {
               pending.previewUrl = pending.object_url;
             }
           } catch (error) {
