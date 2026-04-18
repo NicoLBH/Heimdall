@@ -44,6 +44,20 @@ function randomToken() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function inferMimeTypeFromFileName(fileName = "") {
+  const normalized = String(fileName || "").trim().toLowerCase();
+  if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) return "image/jpeg";
+  if (normalized.endsWith(".png")) return "image/png";
+  if (normalized.endsWith(".gif")) return "image/gif";
+  if (normalized.endsWith(".webp")) return "image/webp";
+  if (normalized.endsWith(".svg")) return "image/svg+xml";
+  if (normalized.endsWith(".pdf")) return "application/pdf";
+  if (normalized.endsWith(".txt")) return "text/plain";
+  if (normalized.endsWith(".csv")) return "text/csv";
+  if (normalized.endsWith(".json")) return "application/json";
+  return "";
+}
+
 function encodeStoragePath(path = "") {
   return String(path || "")
     .split("/")
@@ -378,16 +392,21 @@ export function createSubjectMessagesSupabaseRepository() {
           || `${projectId}/${subjectId}/temporary/${uploadSessionId}/${Date.now()}-${randomToken()}-${normalizeFileName(fileName) || "attachment"}`
       ).trim();
       if (!storagePath) throw new Error("storagePath is required");
+      const resolvedMimeType = String(file?.type || payload.mimeType || inferMimeTypeFromFileName(fileName) || "").trim();
+      const uploadOptions = {
+        upsert: true,
+        cacheControl: "3600"
+      };
+      if (resolvedMimeType) uploadOptions.contentType = resolvedMimeType;
 
       const { error: uploadError } = await supabase
         .storage
         .from(SUBJECT_ATTACHMENTS_BUCKET)
-        .upload(storagePath, file, {
-          upsert: true,
-          contentType: String(file?.type || payload.mimeType || "application/octet-stream")
-        });
+        .upload(storagePath, file, uploadOptions);
       if (uploadError) {
-        throw new Error(`Attachment upload failed: ${String(uploadError?.message || uploadError)}`);
+        throw new Error(
+          `Attachment upload failed (${String(uploadError?.statusCode || uploadError?.status || "unknown")}): ${String(uploadError?.message || uploadError)}`
+        );
       }
 
       const attachment = await this.uploadTemporaryAttachment({
@@ -397,7 +416,7 @@ export function createSubjectMessagesSupabaseRepository() {
         storagePath,
         storageBucket: SUBJECT_ATTACHMENTS_BUCKET,
         fileName,
-        mimeType: String(file?.type || payload.mimeType || ""),
+        mimeType: resolvedMimeType,
         sizeBytes: Number(file?.size || payload.sizeBytes || 0),
         width: payload.width,
         height: payload.height,
