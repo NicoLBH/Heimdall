@@ -404,22 +404,6 @@ export function createSubjectMessagesSupabaseRepository() {
       const storageBucket = normalizeAttachmentBucket(row?.storage_bucket, SUBJECT_ATTACHMENTS_BUCKET);
       const rawStoragePath = String(row?.storage_path ?? "");
       const canonicalStoragePath = normalizeSubjectAttachmentStoragePath(rawStoragePath, storageBucket);
-      if (rawStoragePath !== canonicalStoragePath) {
-        console.info("[subject-attachments] storage path normalized on read", {
-          attachmentId: normalizeId(row?.id),
-          messageId,
-          bucket: storageBucket,
-          storagePathRaw: rawStoragePath,
-          storagePathCanonical: canonicalStoragePath
-        });
-      }
-      console.info("[subject-attachments] storage path read for signed url", {
-        attachmentId: normalizeId(row?.id),
-        messageId,
-        bucket: storageBucket,
-        storagePathRaw: rawStoragePath,
-        storagePathCanonical: canonicalStoragePath
-      });
       const list = grouped.get(messageId) || [];
       list.push({
         ...row,
@@ -716,19 +700,6 @@ export function createSubjectMessagesSupabaseRepository() {
         cacheControl: "3600"
       };
       if (resolvedMimeType) uploadOptions.contentType = resolvedMimeType;
-      console.info("[subject-attachments] upload start", {
-        bucket: SUBJECT_ATTACHMENTS_BUCKET,
-        subjectId,
-        projectId,
-        requestedProjectId,
-        subjectProjectId,
-        uploadSessionId,
-        storagePath,
-        fileName,
-        mimeType: resolvedMimeType,
-        sizeBytes: Number(file?.size || payload.sizeBytes || 0)
-      });
-
       try {
         await uploadStorageObject({
           bucket: SUBJECT_ATTACHMENTS_BUCKET,
@@ -858,14 +829,6 @@ export function createSubjectMessagesSupabaseRepository() {
       if (currentAttachment?.storage_path) {
         const normalizedBucket = normalizeAttachmentBucket(currentAttachment.storage_bucket, SUBJECT_ATTACHMENTS_BUCKET);
         const normalizedStoragePath = normalizeSubjectAttachmentStoragePath(currentAttachment.storage_path, normalizedBucket);
-        if (normalizedStoragePath !== String(currentAttachment.storage_path ?? "")) {
-          console.info("[subject-attachments] storage path normalized before delete", {
-            attachmentId: normalizedAttachmentId,
-            bucket: normalizedBucket,
-            storagePathRaw: String(currentAttachment.storage_path ?? ""),
-            storagePathCanonical: normalizedStoragePath
-          });
-        }
         await fetch(
           `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(normalizedBucket)}/${encodeStoragePath(normalizedStoragePath)}`,
           {
