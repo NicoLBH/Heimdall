@@ -2674,9 +2674,19 @@ body.is-resizing{
   overflow:hidden;
   text-overflow:ellipsis;
 }
+.subject-attachment__file-link--name{
+  text-decoration:none;
+}
+.subject-attachment__file-link--name:hover{
+  text-decoration:underline;
+}
 .subject-attachment__file-meta{color:var(--muted);}
 .subject-attachment__file-link{font-size:12px;}
 .subject-attachment__state{padding:0 8px 8px;color:var(--muted);}
+.subject-attachment__progress{
+  margin:0 8px 8px;
+  height:6px;
+}
 .md-render p{margin:0 0 10px;}
 .md-render p:last-child{margin-bottom:0;}
 .md-render ul,.md-render ol{margin:0 0 10px 20px;padding:0;}
@@ -6161,6 +6171,14 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   border-radius:999px;
   background:rgb(46, 160, 67);
   transition:width .12s linear;
+}
+.documents-upload-progress__bar-fill.is-indeterminate{
+  position:relative;
+  animation:documents-upload-progress-indeterminate 1.1s ease-in-out infinite;
+}
+@keyframes documents-upload-progress-indeterminate{
+  0%{transform:translateX(-120%);}
+  100%{transform:translateX(260%);}
 }
 
 .documents-uploaded-file{

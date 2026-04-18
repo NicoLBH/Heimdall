@@ -1,4 +1,5 @@
 import { getAuthorIdentity } from "../ui/author-identity.js";
+import { renderUploadProgressBar } from "../ui/upload-progress.js";
 export function createProjectSubjectsThread(config = {}) {
   const {
     store,
@@ -387,7 +388,8 @@ export function createProjectSubjectsThread(config = {}) {
     const normalizedEntityType = String(entityType || "").toLowerCase();
     const normalizedEntityId = normalizeId(entityId);
     const normalizedMessage = String(message || "").trim();
-    if (!normalizedMessage) return null;
+    const normalizedUploadSessionId = normalizeId(options.uploadSessionId);
+    if (!normalizedMessage && !normalizedUploadSessionId) return null;
 
     if (normalizedEntityType === "sujet" && normalizedEntityId && subjectMessagesService) {
       const created = options.parentMessageId
@@ -395,20 +397,21 @@ export function createProjectSubjectsThread(config = {}) {
             subjectId: normalizedEntityId,
             parentMessageId: options.parentMessageId,
             bodyMarkdown: normalizedMessage,
+            uploadSessionId: normalizedUploadSessionId || undefined,
             mentions: Array.isArray(options.mentions) ? options.mentions : []
           })
         : await subjectMessagesService.createMessage({
             subjectId: normalizedEntityId,
             bodyMarkdown: normalizedMessage,
+            uploadSessionId: normalizedUploadSessionId || undefined,
             mentions: Array.isArray(options.mentions) ? options.mentions : []
           });
 
-      const uploadSessionId = normalizeId(options.uploadSessionId);
-      if (uploadSessionId && created?.id) {
+      if (normalizedUploadSessionId && created?.id) {
         await subjectMessagesService.linkAttachmentsToMessage({
           subjectId: normalizedEntityId,
           messageId: created.id,
-          uploadSessionId
+          uploadSessionId: normalizedUploadSessionId
         });
       }
 
@@ -700,6 +703,9 @@ priority=${firstNonEmpty(subject.priority, "")}`
           <div class="mono-small color-fg-muted">${escapeHtml(String(entry?.stateLabel || "modifiable"))}</div>
           ${mdToHtml(entry?.message || "")}
         </div>
+        ${(Array.isArray(entry?.meta?.attachments) && entry.meta.attachments.length)
+          ? `<div class="subject-attachment-grid">${entry.meta.attachments.map((attachment) => renderAttachmentTile(attachment)).join("")}</div>`
+          : ""}
       `,
       avatarType: identity.avatarType,
       avatarHtml: identity.avatarHtml,
@@ -711,11 +717,31 @@ priority=${firstNonEmpty(subject.priority, "")}`
   function renderAttachmentTile(attachment = {}, options = {}) {
     const fileName = String(attachment?.file_name || attachment?.fileName || "Pièce jointe");
     const mimeType = String(attachment?.mime_type || attachment?.mimeType || "").toLowerCase();
+    const extension = String(fileName.split(".").pop() || "").toLowerCase();
     const previewUrl = String(attachment?.localPreviewUrl || attachment?.previewUrl || attachment?.object_url || "");
     const objectUrl = String(attachment?.remoteObjectUrl || attachment?.object_url || previewUrl || "");
     const isImage = options.forceImage || mimeType.startsWith("image/");
-    const isPdf = mimeType === "application/pdf";
     const uploadState = String(options.uploadState || "").trim();
+    const isUploading = String(attachment?.uploadStatus || "").trim() === "uploading";
+    const isReady = String(attachment?.uploadStatus || "").trim() === "ready";
+    const typeIcon = mimeType === "application/pdf" || extension === "pdf"
+      ? "file-pdf"
+      : mimeType.includes("javascript") || extension === "js" || extension === "ts"
+        ? "file-js"
+        : extension === "dwg" || mimeType.includes("autocad") || mimeType.includes("dwg")
+          ? "file-dwg"
+          : "file-generic";
+    const progressHtml = uploadState
+      ? `
+        <div class="subject-attachment__state mono-small">${escapeHtml(uploadState)}</div>
+        ${renderUploadProgressBar({
+          progressPercent: isReady ? 100 : 45,
+          indeterminate: isUploading,
+          className: "subject-attachment__progress",
+          label: `Progression de l’envoi de ${fileName}`
+        })}
+      `
+      : "";
     const metaLine = [
       mimeType || "fichier",
       Number.isFinite(Number(attachment?.size_bytes || attachment?.sizeBytes))
@@ -730,22 +756,22 @@ priority=${firstNonEmpty(subject.priority, "")}`
             <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(fileName)}" loading="lazy" />
           </a>
           <div class="subject-attachment__caption mono-small">${escapeHtml(fileName)}</div>
-          ${uploadState ? `<div class="subject-attachment__state mono-small">${escapeHtml(uploadState)}</div>` : ""}
+          ${progressHtml}
         </div>
       `;
     }
 
     return `
       <div class="subject-attachment subject-attachment--file">
-        <div class="subject-attachment__file-icon" aria-hidden="true">${svgIcon(isPdf ? "file" : "paperclip")}</div>
+        <div class="subject-attachment__file-icon" aria-hidden="true">${svgIcon(typeIcon)}</div>
         <div class="subject-attachment__file-body">
-          <div class="subject-attachment__file-name mono-small">${escapeHtml(fileName)}</div>
+          ${objectUrl
+            ? `<a class="subject-attachment__file-name mono-small subject-attachment__file-link--name" href="${escapeHtml(objectUrl)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(fileName)}">${escapeHtml(fileName)}</a>`
+            : `<div class="subject-attachment__file-name mono-small">${escapeHtml(fileName)}</div>`}
           <div class="subject-attachment__file-meta mono-small">${escapeHtml(metaLine || "fichier")}</div>
+          ${progressHtml}
         </div>
-        ${objectUrl
-          ? `<a class="subject-attachment__file-link" href="${escapeHtml(objectUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir</a>`
-          : ""}
-        ${uploadState ? `<div class="subject-attachment__state mono-small">${escapeHtml(uploadState)}</div>` : ""}
+        ${objectUrl ? `<a class="subject-attachment__file-link" href="${escapeHtml(objectUrl)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(fileName)}">Télécharger</a>` : ""}
       </div>
     `;
   }
@@ -1101,20 +1127,25 @@ priority=${firstNonEmpty(subject.priority, "")}`
       </button>
     `).join("");
 
-    const actionsHtml = `
-      <button class="gh-btn gh-btn--help-mode ${helpMode ? "is-on" : ""}" data-action="toggle-help" type="button">Help</button>
-
-      ${issueStatusActionHtml}
-
-      <button class="gh-btn gh-btn--comment" data-action="add-comment" type="button">Comment</button>
-    `;
-
     const mentionUi = getMentionUiState();
     const attachmentState = getComposerAttachmentsState();
     const normalizedSubjectId = type === "sujet" ? normalizeId(item.id) : "";
     const pendingAttachments = normalizedSubjectId && normalizeId(attachmentState.subjectId) === normalizedSubjectId
       ? attachmentState.items
       : [];
+    const hasReadyAttachment = pendingAttachments.some((attachment) => String(attachment?.uploadStatus || "").trim() === "ready" && !attachment?.error);
+    const normalizedDraftMessage = String(store?.situationsView?.commentDraft || "").trim();
+    const canSubmitComment = !!normalizedDraftMessage || hasReadyAttachment;
+    const commentButtonClassName = canSubmitComment
+      ? "gh-btn gh-btn--comment gh-btn--primary"
+      : "gh-btn gh-btn--comment";
+    const actionsHtml = `
+      <button class="gh-btn gh-btn--help-mode ${helpMode ? "is-on" : ""}" data-action="toggle-help" type="button">Help</button>
+
+      ${issueStatusActionHtml}
+
+      <button class="${commentButtonClassName}" data-action="add-comment" type="button" ${canSubmitComment ? "" : "disabled"}>Comment</button>
+    `;
     const mentionPopupHtml = mentionUi.open
       ? `
         <div class="subject-mention-popup" role="listbox" aria-label="Suggestions de mention">

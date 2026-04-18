@@ -11,6 +11,7 @@ import {
 } from "./ui/project-table-toolbar.js";
 import { renderGhInput } from "./ui/gh-input.js";
 import { renderStateDot } from "./ui/status-badges.js";
+import { renderUploadProgressBar } from "./ui/upload-progress.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderDataTableShell, renderDataTableHead, renderDataTableEmptyState } from "./ui/data-table-shell.js";
 import { escapeHtml } from "../utils/escape-html.js";
@@ -1548,9 +1549,7 @@ function renderUploadProgress() {
         <div class="documents-upload-progress__meta">
           Chargement du fichier... ${docsViewState.uploadProgress}%
         </div>
-        <div class="documents-upload-progress__bar">
-          <div class="documents-upload-progress__bar-fill" style="width:${docsViewState.uploadProgress}%"></div>
-        </div>
+        ${renderUploadProgressBar({ progressPercent: docsViewState.uploadProgress })}
       </div>
     `;
   }
