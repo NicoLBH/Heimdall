@@ -671,7 +671,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       .map(([key, value]) => `data-${escapeHtml(key)}="${escapeHtml(String(value || ""))}"`)
       .join(" ");
 
-    return toolbarButtons.map((button) => `
+    const renderedButtons = toolbarButtons.map((button) => `
       <button
         class="comment-toolbar-btn"
         type="button"
@@ -684,6 +684,24 @@ priority=${firstNonEmpty(subject.priority, "")}`
         ${svgIcon(button.icon)}
       </button>
     `).join("");
+
+    if (buttonAction !== "composer-format") return renderedButtons;
+    const attachmentButton = `
+      <button
+        class="comment-toolbar-btn"
+        type="button"
+        data-action="composer-attachments-pick"
+        title="Pièce jointe"
+        aria-label="Pièce jointe"
+      >
+        ${svgIcon("paperclip")}
+      </button>
+    `;
+
+    return renderedButtons.replace(
+      /(<button[\s\S]*?data-format="mention"[\s\S]*?<\/button>)/,
+      `${attachmentButton}$1`
+    );
   }
 
   function renderInlineReplyComposer({ commentId, isExpanded, draft, previewMode }) {
@@ -1144,18 +1162,12 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const pendingAttachments = normalizedSubjectId && normalizeId(attachmentState.subjectId) === normalizedSubjectId
       ? attachmentState.items
       : [];
-    const hasReadyAttachment = pendingAttachments.some((attachment) => String(attachment?.uploadStatus || "").trim() === "ready" && !attachment?.error);
-    const normalizedDraftMessage = String(store?.situationsView?.commentDraft || "").trim();
-    const canSubmitComment = !!normalizedDraftMessage || hasReadyAttachment;
-    const commentButtonClassName = canSubmitComment
-      ? "gh-btn gh-btn--comment gh-btn--primary"
-      : "gh-btn gh-btn--comment";
     const actionsHtml = `
       <button class="gh-btn gh-btn--help-mode ${helpMode ? "is-on" : ""}" data-action="toggle-help" type="button">Help</button>
 
       ${issueStatusActionHtml}
 
-      <button class="${commentButtonClassName}" data-action="add-comment" type="button" ${canSubmitComment ? "" : "disabled"}>Comment</button>
+      <button class="gh-btn gh-action__main gh-btn--primary gh-btn--md" data-action="add-comment" type="button">Commenter</button>
     `;
     const mentionPopupHtml = mentionUi.open
       ? `
@@ -1223,9 +1235,12 @@ priority=${firstNonEmpty(subject.priority, "")}`
         >
           <input id="subjectComposerAttachmentInput" type="file" class="subject-composer-file-input" data-role="subject-composer-file-input" multiple />
           <div class="subject-composer-dropzone__label mono-small">
-            Dépose des images, PDF ou autres fichiers ici — ou
-            <button class="gh-btn gh-btn--sm" type="button" data-action="composer-attachments-pick">ajouter un fichier</button>
+            Dépose des images, PDF ou autres fichiers ici
           </div>
+          <button class="subject-composer-attachments-pick-btn" type="button" data-action="composer-attachments-pick">
+            <span class="subject-composer-attachments-pick-btn__icon" aria-hidden="true">${svgIcon("image")}</span>
+            <span>Ajouter un fichier</span>
+          </button>
           ${pendingAttachmentsHtml}
         </div>
       `
