@@ -2558,11 +2558,21 @@ body.is-resizing{
   display:flex;
   align-items:center;
   gap:2px;
+  position:relative;
 }
 .comment-toolbar-layout__group + .comment-toolbar-layout__group{
-  border-left:1px solid var(--border2);
   margin-left:8px;
   padding-left:8px;
+}
+.comment-toolbar-layout__group + .comment-toolbar-layout__group::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:50%;
+  width:1px;
+  height:18px;
+  transform:translateY(-50%);
+  background:var(--border2);
 }
 .comment-toolbar-btn{
   display:inline-flex;

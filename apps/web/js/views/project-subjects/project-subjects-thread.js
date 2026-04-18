@@ -684,7 +684,8 @@ priority=${firstNonEmpty(subject.priority, "")}`
       </button>
     `;
 
-    if (buttonAction !== "composer-format") {
+    const shouldUseComposerLayout = buttonAction === "composer-format" || buttonAction === "thread-reply-format";
+    if (!shouldUseComposerLayout) {
       return toolbarButtons.map((button) => renderToolbarButton(button)).join("");
     }
 
@@ -1251,10 +1252,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
           <div class="subject-composer-dropzone__label mono-small">
             Dépose des images, PDF ou autres fichiers ici
           </div>
-          <button class="subject-composer-attachments-pick-btn" type="button" data-action="composer-attachments-pick">
-            <span class="subject-composer-attachments-pick-btn__icon" aria-hidden="true">${svgIcon("image")}</span>
-            <span>Ajouter un fichier</span>
-          </button>
           ${pendingAttachmentsHtml}
         </div>
         <button class="subject-composer-attachments-pick-btn" type="button" data-action="composer-attachments-pick">
