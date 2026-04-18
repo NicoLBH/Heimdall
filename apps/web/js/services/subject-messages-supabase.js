@@ -1,6 +1,13 @@
 import { store } from "../store.js";
 import { buildSupabaseAuthHeaders, getSupabaseUrl, supabase } from "../../assets/js/auth.js";
 import { resolveCurrentBackendProjectId, resolveCurrentUserDirectoryPersonId } from "./project-supabase-sync.js";
+import {
+  EDGE_UPLOAD_MODE,
+  logSubjectAttachmentUploadTransport,
+  resolveSubjectAttachmentUploadTransportMode,
+  shouldFallbackToDirectUploadFromEdgeHttpFailure,
+  shouldFallbackToDirectUploadFromEdgeNetworkFailure
+} from "./subject-message-attachments-transport.js";
 
 const SUPABASE_URL = getSupabaseUrl();
 const SUBJECT_ATTACHMENTS_BUCKET = "subject-message-attachments";
@@ -125,55 +132,36 @@ async function uploadStorageObject({
 
   const functionHeaders = await getAuthHeaders();
   delete functionHeaders["Content-Type"];
+  const transportMode = resolveSubjectAttachmentUploadTransportMode();
+  const allowDirectFallback = transportMode === EDGE_UPLOAD_MODE.EDGE_WITH_DIRECT_FALLBACK;
+  logSubjectAttachmentUploadTransport(transportMode, { host: String(window?.location?.hostname || "") });
 
-  const canUseEdgeUpload = (() => {
-    try {
-      const host = String(window?.location?.hostname || "").toLowerCase();
-      if (host.endsWith("github.io")) return false;
-      if (window?.MDALL_CONFIG && Object.prototype.hasOwnProperty.call(window.MDALL_CONFIG, "enableEdgeAttachmentUpload")) {
-        return Boolean(window.MDALL_CONFIG.enableEdgeAttachmentUpload);
-      }
-      return true;
-    } catch {
-      return true;
+  try {
+    const functionResponse = await fetch(functionUrl, {
+      method: "POST",
+      headers: functionHeaders,
+      body: formData
+    });
+    if (functionResponse.ok) return true;
+
+    const functionBody = await functionResponse.text().catch(() => "");
+    const fallbackEligible = shouldFallbackToDirectUploadFromEdgeHttpFailure(functionResponse.status, functionBody);
+    if (!(allowDirectFallback && fallbackEligible)) {
+      const error = new Error(`storage upload failed (${functionResponse.status}): ${functionBody || functionResponse.statusText || "edge function failed"}`);
+      error.status = functionResponse.status;
+      error.statusCode = String(functionResponse.status);
+      error.responseBody = functionBody;
+      throw error;
     }
-  })();
-
-  if (canUseEdgeUpload) {
-    try {
-      const functionResponse = await fetch(functionUrl, {
-        method: "POST",
-        headers: functionHeaders,
-        body: formData
-      });
-      if (functionResponse.ok) return true;
-
-      const functionBody = await functionResponse.text().catch(() => "");
-      const shouldFallbackToStorage =
-        functionResponse.status === 404
-        || functionResponse.status === 405
-        || functionResponse.status >= 500
-        || /cors|preflight|failed to fetch/i.test(functionBody);
-      if (!shouldFallbackToStorage) {
-        const error = new Error(`storage upload failed (${functionResponse.status}): ${functionBody || functionResponse.statusText || "edge function failed"}`);
-        error.status = functionResponse.status;
-        error.statusCode = String(functionResponse.status);
-        error.responseBody = functionBody;
-        throw error;
-      }
-      console.warn("[subject-attachments] edge upload unavailable, fallback to direct storage", {
-        status: functionResponse.status,
-        body: functionBody
-      });
-    } catch (functionError) {
-      const message = String(functionError?.message || functionError || "");
-      const isNetworkFailure = /failed to fetch|networkerror|cors|preflight/i.test(message);
-      if (!isNetworkFailure) throw functionError;
-      console.warn("[subject-attachments] edge upload network failure, fallback to direct storage", { message });
-    }
-  } else {
-    console.info("[subject-attachments] edge upload disabled for this origin; using direct storage upload", {
-      host: String(window?.location?.hostname || "")
+    console.warn("[subject-attachments] edge upload unavailable, fallback to direct storage", {
+      status: functionResponse.status,
+      body: functionBody
+    });
+  } catch (functionError) {
+    const fallbackEligible = shouldFallbackToDirectUploadFromEdgeNetworkFailure(functionError);
+    if (!(allowDirectFallback && fallbackEligible)) throw functionError;
+    console.warn("[subject-attachments] edge upload network failure, fallback to direct storage", {
+      message: String(functionError?.message || functionError || "")
     });
   }
 
