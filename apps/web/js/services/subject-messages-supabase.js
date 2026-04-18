@@ -84,14 +84,21 @@ async function uploadStorageObject({
   if (!normalizedPath) throw new Error("storagePath is required");
   if (!(file instanceof Blob)) throw new Error("file must be a Blob");
 
-  const url = `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(normalizedBucket)}/${encodeStoragePath(normalizedPath)}`;
+  const url = `${SUPABASE_URL}/functions/v1/upload-subject-message-attachment`;
+  const formData = new FormData();
+  formData.set("bucket", normalizedBucket);
+  formData.set("storagePath", normalizedPath);
+  formData.set("upsert", upsert ? "true" : "false");
+  formData.set("contentType", String(mimeType || file.type || "application/octet-stream"));
+  formData.set("file", file, String(file?.name || "attachment.bin"));
+
+  const headers = await getAuthHeaders();
+  delete headers["Content-Type"];
+
   const response = await fetch(url, {
     method: "POST",
-    headers: await getAuthHeaders({
-      "x-upsert": upsert ? "true" : "false",
-      "Content-Type": String(mimeType || file.type || "application/octet-stream")
-    }),
-    body: file
+    headers,
+    body: formData
   });
 
   if (!response.ok) {
