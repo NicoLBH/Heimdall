@@ -9,6 +9,7 @@ import {
   resolveEmojiTriggerContext,
   searchEmojiSuggestions
 } from "../../utils/emoji-autocomplete.js";
+import { computeTextareaCaretRect } from "../../utils/textarea-caret-position.js";
 
 export function createProjectSubjectsEvents(config) {
   const EMOJI_GRID_COLUMNS = 6;
@@ -730,42 +731,17 @@ export function createProjectSubjectsEvents(config) {
       return "";
     };
 
-    const computeTextareaCaretRect = (textarea, caretIndex = 0) => {
-      if (!textarea || !textarea.isConnected) return null;
-      const computed = window.getComputedStyle(textarea);
-      const mirror = document.createElement("div");
-      const mirrorStyle = mirror.style;
-      mirrorStyle.position = "fixed";
-      mirrorStyle.top = "0";
-      mirrorStyle.left = "-9999px";
-      mirrorStyle.whiteSpace = "pre-wrap";
-      mirrorStyle.wordWrap = "break-word";
-      mirrorStyle.visibility = "hidden";
-      mirrorStyle.overflow = "hidden";
-      [
-        "fontFamily", "fontSize", "fontWeight", "fontStyle", "letterSpacing", "lineHeight",
-        "textTransform", "textIndent", "textDecoration", "paddingTop", "paddingRight",
-        "paddingBottom", "paddingLeft", "borderTopWidth", "borderRightWidth",
-        "borderBottomWidth", "borderLeftWidth", "boxSizing"
-      ].forEach((key) => {
-        mirrorStyle[key] = computed[key];
-      });
-      mirrorStyle.width = `${textarea.clientWidth}px`;
-      mirror.textContent = String(textarea.value || "").slice(0, Math.max(0, Number(caretIndex || 0)));
-      const marker = document.createElement("span");
-      marker.textContent = "\u200b";
-      mirror.appendChild(marker);
-      document.body.appendChild(mirror);
-      const markerRect = marker.getBoundingClientRect();
-      const textareaRect = textarea.getBoundingClientRect();
-      const top = textareaRect.top + (markerRect.top - mirror.getBoundingClientRect().top) - textarea.scrollTop;
-      const left = textareaRect.left + (markerRect.left - mirror.getBoundingClientRect().left) - textarea.scrollLeft;
-      document.body.removeChild(mirror);
-      return {
-        top,
-        left,
-        bottom: top + Math.max(16, parseFloat(computed.lineHeight) || 20)
-      };
+    const splitComposerKey = (composerKey = "") => {
+      const normalized = String(composerKey || "").trim();
+      if (!normalized || normalized === "main") return { mode: "main", messageId: "" };
+      const [mode = "", messageId = ""] = normalized.split(":");
+      return { mode, messageId };
+    };
+
+    const getTextareaForComposerKey = (composerKey = "") => {
+      const { mode, messageId } = splitComposerKey(composerKey);
+      const selector = getTextareaSelector({ composerKey: mode, messageId });
+      return selector ? root.querySelector(selector) : null;
     };
 
     const positionAutocompletePopup = (textarea, popup) => {
@@ -827,6 +803,172 @@ export function createProjectSubjectsEvents(config) {
       requestAnimationFrame(() => {
         window.scrollTo(scrollX, scrollY);
         restoreComposerViewport({ selector, shouldFocus, caretStart, caretEnd });
+      });
+    };
+
+    let mentionCollaborators = [];
+    let mentionCollaboratorsLoaded = false;
+    let mentionLoadPromise = null;
+
+    const getMentionState = () => {
+      if (typeof getMentionUiState === "function") return getMentionUiState();
+      if (!store.situationsView.mentionUi || typeof store.situationsView.mentionUi !== "object") {
+        store.situationsView.mentionUi = {
+          open: false,
+          query: "",
+          activeIndex: 0,
+          triggerStart: -1,
+          triggerEnd: -1,
+          suggestions: [],
+          composerKey: ""
+        };
+      }
+      if (typeof store.situationsView.mentionUi.composerKey !== "string") {
+        store.situationsView.mentionUi.composerKey = "";
+      }
+      return store.situationsView.mentionUi;
+    };
+
+    const closeMentionPopup = ({ rerender = true, selector = "#humanCommentBox", shouldFocus = false, caretStart = 0, caretEnd = 0 } = {}) => {
+      const mentionState = getMentionState();
+      mentionState.open = false;
+      mentionState.query = "";
+      mentionState.activeIndex = 0;
+      mentionState.triggerStart = -1;
+      mentionState.triggerEnd = -1;
+      mentionState.suggestions = [];
+      mentionState.composerKey = "";
+      if (rerender) rerenderAutocompleteUi({ selector, shouldFocus, caretStart, caretEnd });
+    };
+
+    const ensureMentionCollaboratorsLoaded = async () => {
+      if (mentionCollaboratorsLoaded) return mentionCollaborators;
+      if (mentionLoadPromise) return mentionLoadPromise;
+      const selection = getScopedSelection(root);
+      if (!selection?.item?.project_id || typeof listCollaboratorsForMentions !== "function") {
+        mentionCollaborators = [];
+        mentionCollaboratorsLoaded = true;
+        return mentionCollaborators;
+      }
+      mentionLoadPromise = listCollaboratorsForMentions(selection.item.project_id)
+        .then((rows) => {
+          mentionCollaborators = Array.isArray(rows) ? rows : [];
+          mentionCollaboratorsLoaded = true;
+          return mentionCollaborators;
+        })
+        .catch((error) => {
+          console.warn("[subject-mentions] collaborators load failed", error);
+          mentionCollaborators = [];
+          mentionCollaboratorsLoaded = true;
+          return mentionCollaborators;
+        })
+        .finally(() => {
+          mentionLoadPromise = null;
+        });
+      return mentionLoadPromise;
+    };
+
+    const syncMentionPopupForTextarea = async (textarea, composerKey, { forceOpen = false } = {}) => {
+      if (!textarea) return;
+      const mentionState = getMentionState();
+      const context = resolveMentionTriggerContext(textarea.value || "", textarea.selectionStart || 0);
+      if (!context && !forceOpen) {
+        if (mentionState.open && String(mentionState.composerKey || "") === composerKey) {
+          const { mode, messageId } = splitComposerKey(composerKey);
+          closeMentionPopup({
+            selector: getTextareaSelector({ composerKey: mode, messageId }),
+            shouldFocus: true,
+            caretStart: Number(textarea.selectionStart || 0),
+            caretEnd: Number(textarea.selectionEnd || 0)
+          });
+        }
+        return;
+      }
+      const query = String(context?.query || "").trim().toLowerCase();
+      const { mode, messageId } = splitComposerKey(composerKey);
+      const selector = getTextareaSelector({ composerKey: mode, messageId });
+      if (!mentionCollaboratorsLoaded) {
+        mentionState.triggerStart = Number(context?.triggerStart ?? -1);
+        mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
+        mentionState.query = query;
+        mentionState.suggestions = [];
+        mentionState.open = true;
+        mentionState.activeIndex = 0;
+        mentionState.composerKey = composerKey;
+        rerenderAutocompleteUi({
+          selector,
+          shouldFocus: true,
+          caretStart: Number(textarea.selectionStart || 0),
+          caretEnd: Number(textarea.selectionEnd || 0)
+        });
+        void ensureMentionCollaboratorsLoaded().then(() => {
+          const activeTextarea = getTextareaForComposerKey(composerKey);
+          if (activeTextarea) void syncMentionPopupForTextarea(activeTextarea, composerKey, { forceOpen: true });
+        });
+        return;
+      }
+
+      const suggestions = mentionCollaborators
+        .filter((entry) => {
+          if (!query) return true;
+          return [
+            String(entry?.label || "").toLowerCase(),
+            String(entry?.email || "").toLowerCase()
+          ].some((field) => field.includes(query));
+        })
+        .slice(0, 8);
+
+      mentionState.triggerStart = Number(context?.triggerStart ?? -1);
+      mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
+      mentionState.query = query;
+      mentionState.suggestions = suggestions;
+      mentionState.open = !!context || forceOpen;
+      mentionState.activeIndex = Math.max(0, Math.min(Number(mentionState.activeIndex || 0), Math.max(0, suggestions.length - 1)));
+      mentionState.composerKey = composerKey;
+      rerenderAutocompleteUi({
+        selector,
+        shouldFocus: true,
+        caretStart: Number(textarea.selectionStart || 0),
+        caretEnd: Number(textarea.selectionEnd || 0)
+      });
+    };
+
+    const pickMentionSuggestion = (suggestion, composerKey = "main") => {
+      const textarea = getTextareaForComposerKey(composerKey);
+      if (!textarea) return;
+      const mentionState = getMentionState();
+      const context = {
+        triggerStart: mentionState.triggerStart,
+        triggerEnd: Number(textarea.selectionStart || mentionState.triggerEnd || 0)
+      };
+      const result = applyMentionSuggestion(textarea.value || "", context, suggestion);
+      textarea.value = result.nextText;
+      const { mode, messageId = "" } = splitComposerKey(composerKey);
+      if (mode === "main") {
+        store.situationsView.commentDraft = String(result.nextText || "");
+      } else {
+        const replyUi = resolveInlineReplyUiState();
+        if (mode === "reply") {
+          replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
+          syncInlineReplySubmitButton(messageId);
+        } else if (mode === "edit") {
+          replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
+          syncInlineEditSubmitButton(messageId);
+        }
+        syncInlineReplyTextareaHeight(textarea);
+      }
+      textarea.focus();
+      textarea.selectionStart = result.nextCursorIndex;
+      textarea.selectionEnd = result.nextCursorIndex;
+      closeMentionPopup({ rerender: false });
+      closeEmojiPopup({ rerender: false });
+      if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
+      const selector = getTextareaSelector({ composerKey: mode, messageId });
+      rerenderAutocompleteUi({
+        selector,
+        shouldFocus: true,
+        caretStart: result.nextCursorIndex,
+        caretEnd: result.nextCursorIndex
       });
     };
 
@@ -981,42 +1123,6 @@ export function createProjectSubjectsEvents(config) {
         }
       };
 
-      let mentionCollaborators = [];
-      let mentionCollaboratorsLoaded = false;
-      let mentionLoadPromise = null;
-
-      const getMentionState = () => {
-        if (typeof getMentionUiState === "function") return getMentionUiState();
-        if (!store.situationsView.mentionUi || typeof store.situationsView.mentionUi !== "object") {
-          store.situationsView.mentionUi = {
-            open: false,
-            query: "",
-            activeIndex: 0,
-            triggerStart: -1,
-            triggerEnd: -1,
-            suggestions: []
-          };
-        }
-        return store.situationsView.mentionUi;
-      };
-
-      const closeMentionPopup = ({ rerender = true } = {}) => {
-        const mentionState = getMentionState();
-        mentionState.open = false;
-        mentionState.query = "";
-        mentionState.activeIndex = 0;
-        mentionState.triggerStart = -1;
-        mentionState.triggerEnd = -1;
-        mentionState.suggestions = [];
-        if (rerender) {
-          rerenderAutocompleteUi({
-            selector: "#humanCommentBox",
-            shouldFocus: document.activeElement === commentTextarea,
-            caretStart: Number(commentTextarea.selectionStart || 0),
-            caretEnd: Number(commentTextarea.selectionEnd || 0)
-          });
-        }
-      };
       const syncMainEmojiPopup = ({ composerKey = "main" } = {}) => {
         const emojiState = getEmojiState();
         const context = resolveEmojiTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
@@ -1041,105 +1147,8 @@ export function createProjectSubjectsEvents(config) {
         });
       };
 
-      const ensureMentionCollaboratorsLoaded = async () => {
-        if (mentionCollaboratorsLoaded) return mentionCollaborators;
-        if (mentionLoadPromise) return mentionLoadPromise;
-        const selection = getScopedSelection(root);
-        if (!selection?.item?.project_id || typeof listCollaboratorsForMentions !== "function") {
-          mentionCollaborators = [];
-          mentionCollaboratorsLoaded = true;
-          return mentionCollaborators;
-        }
-        mentionLoadPromise = listCollaboratorsForMentions(selection.item.project_id)
-          .then((rows) => {
-            mentionCollaborators = Array.isArray(rows) ? rows : [];
-            mentionCollaboratorsLoaded = true;
-            return mentionCollaborators;
-          })
-          .catch((error) => {
-            console.warn("[subject-mentions] collaborators load failed", error);
-            mentionCollaborators = [];
-            mentionCollaboratorsLoaded = true;
-            return mentionCollaborators;
-          })
-          .finally(() => {
-            mentionLoadPromise = null;
-          });
-        return mentionLoadPromise;
-      };
-
       const syncMentionPopup = async ({ forceOpen = false } = {}) => {
-        const mentionState = getMentionState();
-        const context = resolveMentionTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
-        if (!context && !forceOpen) {
-          if (mentionState.open) closeMentionPopup();
-          return;
-        }
-        const query = String(context?.query || "").trim().toLowerCase();
-        if (!mentionCollaboratorsLoaded) {
-          mentionState.triggerStart = Number(context?.triggerStart ?? -1);
-          mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
-          mentionState.query = query;
-          mentionState.suggestions = [];
-          mentionState.open = true;
-          mentionState.activeIndex = 0;
-          rerenderAutocompleteUi({
-            selector: "#humanCommentBox",
-            shouldFocus: true,
-            caretStart: Number(commentTextarea.selectionStart || 0),
-            caretEnd: Number(commentTextarea.selectionEnd || 0)
-          });
-          void ensureMentionCollaboratorsLoaded().then(() => {
-            void syncMainComposerAutocomplete();
-          });
-          return;
-        }
-
-        const suggestions = mentionCollaborators
-          .filter((entry) => {
-            if (!query) return true;
-            return [
-              String(entry?.label || "").toLowerCase(),
-              String(entry?.email || "").toLowerCase()
-            ].some((field) => field.includes(query));
-          })
-          .slice(0, 8);
-
-        mentionState.triggerStart = Number(context?.triggerStart ?? -1);
-        mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
-        mentionState.query = query;
-        mentionState.suggestions = suggestions;
-        mentionState.open = !!context || forceOpen;
-        mentionState.activeIndex = Math.max(0, Math.min(Number(mentionState.activeIndex || 0), Math.max(0, suggestions.length - 1)));
-        rerenderAutocompleteUi({
-          selector: "#humanCommentBox",
-          shouldFocus: true,
-          caretStart: Number(commentTextarea.selectionStart || 0),
-          caretEnd: Number(commentTextarea.selectionEnd || 0)
-        });
-      };
-
-      const pickMentionSuggestion = (suggestion) => {
-        const mentionState = getMentionState();
-        const context = {
-          triggerStart: mentionState.triggerStart,
-          triggerEnd: Number(commentTextarea.selectionStart || mentionState.triggerEnd || 0)
-        };
-        const result = applyMentionSuggestion(commentTextarea.value || "", context, suggestion);
-        commentTextarea.value = result.nextText;
-        store.situationsView.commentDraft = String(result.nextText || "");
-        commentTextarea.focus();
-        commentTextarea.selectionStart = result.nextCursorIndex;
-        commentTextarea.selectionEnd = result.nextCursorIndex;
-        closeMentionPopup({ rerender: false });
-        closeEmojiPopup({ rerender: false });
-        if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
-        rerenderAutocompleteUi({
-          selector: "#humanCommentBox",
-          shouldFocus: true,
-          caretStart: result.nextCursorIndex,
-          caretEnd: result.nextCursorIndex
-        });
+        await syncMentionPopupForTextarea(commentTextarea, "main", { forceOpen });
       };
       const pickEmojiSuggestion = (suggestion) => {
         const emojiState = getEmojiState();
@@ -1197,6 +1206,28 @@ export function createProjectSubjectsEvents(config) {
       commentTextarea.addEventListener("keydown", (ev) => {
         const mentionState = getMentionState();
         const emojiState = getEmojiState();
+        if (ev.key === "Escape") {
+          if (mentionState.open && String(mentionState.composerKey || "") === "main") {
+            ev.preventDefault();
+            closeMentionPopup({
+              selector: "#humanCommentBox",
+              shouldFocus: true,
+              caretStart: Number(commentTextarea.selectionStart || 0),
+              caretEnd: Number(commentTextarea.selectionEnd || 0)
+            });
+            return;
+          }
+          if (emojiState.open && String(emojiState.composerKey || "") === "main") {
+            ev.preventDefault();
+            closeEmojiPopup({
+              selector: "#humanCommentBox",
+              shouldFocus: true,
+              caretStart: Number(commentTextarea.selectionStart || 0),
+              caretEnd: Number(commentTextarea.selectionEnd || 0)
+            });
+            return;
+          }
+        }
         if (mentionState.open && Array.isArray(mentionState.suggestions) && mentionState.suggestions.length) {
           if (ev.key === "ArrowDown") {
             ev.preventDefault();
@@ -1223,11 +1254,6 @@ export function createProjectSubjectsEvents(config) {
           if (ev.key === "Enter") {
             ev.preventDefault();
             pickMentionSuggestion(mentionState.suggestions[Number(mentionState.activeIndex || 0)] || mentionState.suggestions[0]);
-            return;
-          }
-          if (ev.key === "Escape") {
-            ev.preventDefault();
-            closeMentionPopup();
             return;
           }
         }
@@ -1281,21 +1307,19 @@ export function createProjectSubjectsEvents(config) {
             pickEmojiSuggestion(emojiState.suggestions[Number(emojiState.activeIndex || 0)] || emojiState.suggestions[0]);
             return;
           }
-          if (ev.key === "Escape") {
-            ev.preventDefault();
-            closeEmojiPopup({
-              selector: "#humanCommentBox",
-              shouldFocus: true,
-              caretStart: Number(commentTextarea.selectionStart || 0),
-              caretEnd: Number(commentTextarea.selectionEnd || 0)
-            });
-            return;
-          }
         }
         if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
           ev.preventDefault();
           applyCommentAction(root);
         }
+      });
+      const syncMainAutocompleteFromCaret = () => {
+        void syncMainComposerAutocomplete();
+      };
+      commentTextarea.addEventListener("click", syncMainAutocompleteFromCaret);
+      commentTextarea.addEventListener("keyup", syncMainAutocompleteFromCaret);
+      commentTextarea.addEventListener("scroll", () => {
+        positionAllAutocompletePopups();
       });
 
       root.querySelectorAll("[data-action='composer-format'][data-format]").forEach((btn) => {
@@ -1320,7 +1344,7 @@ export function createProjectSubjectsEvents(config) {
           pickMentionSuggestion({
             personId: String(btn.dataset.personId || "").trim(),
             label: String(btn.dataset.label || "").trim()
-          });
+          }, String(btn.dataset.composerKey || "main"));
         };
       });
       root.querySelectorAll("[data-action='emoji-pick'][data-composer-key='main']").forEach((btn) => {
@@ -1381,7 +1405,14 @@ export function createProjectSubjectsEvents(config) {
         document.addEventListener("click", (event) => {
           const target = event?.target;
           if (!target || !(target instanceof Element)) return;
-          if (target.closest(".subject-mention-popup") || target.closest("#humanCommentBox")) return;
+          if (
+            target.closest(".subject-mention-popup")
+            || target.closest("#humanCommentBox")
+            || target.closest("[data-thread-reply-draft]")
+            || target.closest("[data-thread-edit-draft]")
+          ) {
+            return;
+          }
           const mentionState = getMentionState();
           if (!mentionState.open) return;
           closeMentionPopup();
@@ -2378,7 +2409,7 @@ export function createProjectSubjectsEvents(config) {
       };
     });
 
-      const syncInlineEmojiPopup = (textarea, composerKey) => {
+    const syncInlineEmojiPopup = (textarea, composerKey) => {
       const emojiState = getEmojiState();
       const mentionContext = resolveMentionTriggerContext(textarea.value || "", textarea.selectionStart || 0);
       if (mentionContext) {
@@ -2399,7 +2430,7 @@ export function createProjectSubjectsEvents(config) {
       emojiState.triggerEnd = Number(context?.triggerEnd ?? -1);
       emojiState.suggestions = suggestions;
       emojiState.composerKey = composerKey;
-      const [mode, messageId = ""] = String(composerKey || "").split(":");
+      const { mode, messageId = "" } = splitComposerKey(composerKey);
       const selector = getTextareaSelector({ composerKey: mode, messageId });
       rerenderAutocompleteUi({
         selector,
@@ -2407,6 +2438,20 @@ export function createProjectSubjectsEvents(config) {
         caretStart: Number(textarea.selectionStart || 0),
         caretEnd: Number(textarea.selectionEnd || 0)
       });
+    };
+
+    const syncInlineAutocomplete = async (textarea, composerKey) => {
+      const mentionContext = resolveMentionTriggerContext(textarea.value || "", textarea.selectionStart || 0);
+      if (mentionContext) {
+        await syncMentionPopupForTextarea(textarea, composerKey);
+        closeEmojiPopup({ rerender: false });
+        return;
+      }
+      const mentionState = getMentionState();
+      if (mentionState.open && String(mentionState.composerKey || "") === composerKey) {
+        closeMentionPopup({ rerender: false });
+      }
+      syncInlineEmojiPopup(textarea, composerKey);
     };
 
     const applyInlineEmojiSuggestion = (textarea, suggestion = {}) => {
@@ -2433,12 +2478,54 @@ export function createProjectSubjectsEvents(config) {
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
         syncInlineReplyTextareaHeight(textarea);
         syncInlineReplySubmitButton(messageId);
-        syncInlineEmojiPopup(textarea, `reply:${messageId}`);
+        void syncInlineAutocomplete(textarea, `reply:${messageId}`);
       });
       textarea.addEventListener("keydown", (event) => {
         const messageId = String(textarea.dataset.threadReplyDraft || "").trim();
         const composerKey = `reply:${messageId}`;
+        const mentionState = getMentionState();
         const emojiState = getEmojiState();
+        if (event.key === "Escape") {
+          if (mentionState.open && String(mentionState.composerKey || "") === composerKey) {
+            event.preventDefault();
+            closeMentionPopup({
+              selector: getTextareaSelector({ composerKey: "reply", messageId }),
+              shouldFocus: true,
+              caretStart: Number(textarea.selectionStart || 0),
+              caretEnd: Number(textarea.selectionEnd || 0)
+            });
+            return;
+          }
+          if (emojiState.open && String(emojiState.composerKey || "") === composerKey) {
+            event.preventDefault();
+            closeEmojiPopup({
+              selector: getTextareaSelector({ composerKey: "reply", messageId }),
+              shouldFocus: true,
+              caretStart: Number(textarea.selectionStart || 0),
+              caretEnd: Number(textarea.selectionEnd || 0)
+            });
+            return;
+          }
+        }
+        if (mentionState.open && String(mentionState.composerKey || "") === composerKey && Array.isArray(mentionState.suggestions) && mentionState.suggestions.length) {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const delta = event.key === "ArrowDown" ? 1 : -1;
+            mentionState.activeIndex = (Number(mentionState.activeIndex || 0) + delta + mentionState.suggestions.length) % mentionState.suggestions.length;
+            rerenderAutocompleteUi({
+              selector: getTextareaSelector({ composerKey: "reply", messageId }),
+              shouldFocus: true,
+              caretStart: Number(textarea.selectionStart || 0),
+              caretEnd: Number(textarea.selectionEnd || 0)
+            });
+            return;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            pickMentionSuggestion(mentionState.suggestions[Number(mentionState.activeIndex || 0)] || mentionState.suggestions[0], composerKey);
+            return;
+          }
+        }
         if (emojiState.open && String(emojiState.composerKey || "") === composerKey && Array.isArray(emojiState.suggestions) && emojiState.suggestions.length) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -2493,16 +2580,6 @@ export function createProjectSubjectsEvents(config) {
             syncInlineReplySubmitButton(messageId);
             return;
           }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            closeEmojiPopup({
-              selector: getTextareaSelector({ composerKey: "reply", messageId }),
-              shouldFocus: true,
-              caretStart: Number(textarea.selectionStart || 0),
-              caretEnd: Number(textarea.selectionEnd || 0)
-            });
-            return;
-          }
         }
         if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
         event.preventDefault();
@@ -2510,6 +2587,10 @@ export function createProjectSubjectsEvents(config) {
         if (messageId) syncInlineReplySubmitButton(messageId);
         if (submitButton && !submitButton.disabled) submitButton.click();
       });
+      const composerKey = `reply:${String(textarea.dataset.threadReplyDraft || "").trim()}`;
+      textarea.addEventListener("click", () => { void syncInlineAutocomplete(textarea, composerKey); });
+      textarea.addEventListener("keyup", () => { void syncInlineAutocomplete(textarea, composerKey); });
+      textarea.addEventListener("scroll", () => positionAllAutocompletePopups());
     });
 
     root.querySelectorAll("[data-thread-edit-draft]").forEach((textarea) => {
@@ -2521,12 +2602,54 @@ export function createProjectSubjectsEvents(config) {
         replyUi.editDraftsByMessageId[messageId] = String(textarea.value || "");
         syncInlineReplyTextareaHeight(textarea);
         syncInlineEditSubmitButton(messageId);
-        syncInlineEmojiPopup(textarea, `edit:${messageId}`);
+        void syncInlineAutocomplete(textarea, `edit:${messageId}`);
       });
       textarea.addEventListener("keydown", (event) => {
         const messageId = String(textarea.dataset.threadEditDraft || "").trim();
         const composerKey = `edit:${messageId}`;
+        const mentionState = getMentionState();
         const emojiState = getEmojiState();
+        if (event.key === "Escape") {
+          if (mentionState.open && String(mentionState.composerKey || "") === composerKey) {
+            event.preventDefault();
+            closeMentionPopup({
+              selector: getTextareaSelector({ composerKey: "edit", messageId }),
+              shouldFocus: true,
+              caretStart: Number(textarea.selectionStart || 0),
+              caretEnd: Number(textarea.selectionEnd || 0)
+            });
+            return;
+          }
+          if (emojiState.open && String(emojiState.composerKey || "") === composerKey) {
+            event.preventDefault();
+            closeEmojiPopup({
+              selector: getTextareaSelector({ composerKey: "edit", messageId }),
+              shouldFocus: true,
+              caretStart: Number(textarea.selectionStart || 0),
+              caretEnd: Number(textarea.selectionEnd || 0)
+            });
+            return;
+          }
+        }
+        if (mentionState.open && String(mentionState.composerKey || "") === composerKey && Array.isArray(mentionState.suggestions) && mentionState.suggestions.length) {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const delta = event.key === "ArrowDown" ? 1 : -1;
+            mentionState.activeIndex = (Number(mentionState.activeIndex || 0) + delta + mentionState.suggestions.length) % mentionState.suggestions.length;
+            rerenderAutocompleteUi({
+              selector: getTextareaSelector({ composerKey: "edit", messageId }),
+              shouldFocus: true,
+              caretStart: Number(textarea.selectionStart || 0),
+              caretEnd: Number(textarea.selectionEnd || 0)
+            });
+            return;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            pickMentionSuggestion(mentionState.suggestions[Number(mentionState.activeIndex || 0)] || mentionState.suggestions[0], composerKey);
+            return;
+          }
+        }
         if (emojiState.open && String(emojiState.composerKey || "") === composerKey && Array.isArray(emojiState.suggestions) && emojiState.suggestions.length) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -2581,16 +2704,6 @@ export function createProjectSubjectsEvents(config) {
             syncInlineEditSubmitButton(messageId);
             return;
           }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            closeEmojiPopup({
-              selector: getTextareaSelector({ composerKey: "edit", messageId }),
-              shouldFocus: true,
-              caretStart: Number(textarea.selectionStart || 0),
-              caretEnd: Number(textarea.selectionEnd || 0)
-            });
-            return;
-          }
         }
         if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
         event.preventDefault();
@@ -2598,6 +2711,10 @@ export function createProjectSubjectsEvents(config) {
         if (messageId) syncInlineEditSubmitButton(messageId);
         if (submitButton && !submitButton.disabled) submitButton.click();
       });
+      const composerKey = `edit:${String(textarea.dataset.threadEditDraft || "").trim()}`;
+      textarea.addEventListener("click", () => { void syncInlineAutocomplete(textarea, composerKey); });
+      textarea.addEventListener("keyup", () => { void syncInlineAutocomplete(textarea, composerKey); });
+      textarea.addEventListener("scroll", () => positionAllAutocompletePopups());
     });
 
     root.querySelectorAll("[data-action='thread-reply-tab-write']").forEach((btn) => {
@@ -2701,6 +2818,11 @@ export function createProjectSubjectsEvents(config) {
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
         syncInlineReplyTextareaHeight(textarea);
         syncInlineReplySubmitButton(messageId);
+        if (action === "mention") void syncMentionPopupForTextarea(textarea, `reply:${messageId}`, { forceOpen: true });
+        else {
+          closeMentionPopup({ rerender: false });
+          closeEmojiPopup({ rerender: false });
+        }
         textarea.focus();
       };
     });
@@ -2718,6 +2840,11 @@ export function createProjectSubjectsEvents(config) {
         replyUi.editDraftsByMessageId[messageId] = String(textarea.value || "");
         syncInlineReplyTextareaHeight(textarea);
         syncInlineEditSubmitButton(messageId);
+        if (action === "mention") void syncMentionPopupForTextarea(textarea, `edit:${messageId}`, { forceOpen: true });
+        else {
+          closeMentionPopup({ rerender: false });
+          closeEmojiPopup({ rerender: false });
+        }
         textarea.focus();
       };
     });
@@ -2914,6 +3041,12 @@ export function createProjectSubjectsEvents(config) {
       };
       window.addEventListener("resize", syncPopupPositions);
       window.addEventListener("scroll", syncPopupPositions);
+      document.addEventListener("selectionchange", () => {
+        const activeElement = document.activeElement;
+        if (!(activeElement instanceof HTMLTextAreaElement)) return;
+        if (!root.contains(activeElement)) return;
+        positionAllAutocompletePopups();
+      });
       root.dataset.subjectAutocompletePositionBound = "true";
     }
     requestAnimationFrame(() => positionAllAutocompletePopups());
