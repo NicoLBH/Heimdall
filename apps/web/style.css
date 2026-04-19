@@ -2570,9 +2570,10 @@ body.is-resizing{
 .comment-composer__tabs--main{}
 .comment-composer__tabs--thread-reply{}
 
-.comment-composer--thread-reply-editor .comment-editor{
+.comment-composer--thread-reply-editor .gh-comment-boxwrap{
   background:var(--bgAssistPanel);
 }
+.comment-composer--thread-reply-editor .comment-editor{background:var(--bgAssistPanel);}
 .comment-composer--thread-reply-editor .comment-composer__tabs.light-tabs .light-tabs__item.is-active{
   background:var(--bgAssistPanel);
 }
