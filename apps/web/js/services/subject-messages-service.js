@@ -94,6 +94,10 @@ export function createSubjectMessagesService({ repository } = {}) {
     return provider.deleteMessage({ messageId });
   }
 
+  async function toggleMessageReaction(messageId, reactionCode) {
+    return provider.toggleMessageReaction({ messageId, reactionCode });
+  }
+
   async function uploadTemporaryAttachment(payload = {}) {
     return provider.uploadTemporaryAttachment(payload);
   }
@@ -136,6 +140,7 @@ export function createSubjectMessagesService({ repository } = {}) {
     canEditMessage,
     editMessage,
     deleteMessage,
+    toggleMessageReaction,
     uploadTemporaryAttachment,
     uploadAttachmentFile,
     linkAttachmentsToMessage,

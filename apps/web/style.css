@@ -2895,10 +2895,66 @@ body.is-resizing{
 }
 .thread-comment-footer{
   display:flex;
-  justify-content:flex-end;
+  justify-content:flex-start;
+  align-items:center;
+  gap:8px;
   margin-top:8px;
   margin-bottom:8px;
   padding:0px 12px;
+}
+.thread-comment-footer__reactions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.thread-comment-reaction-chip{
+  cursor:default;
+  min-height:22px;
+  padding:0 8px;
+  gap:4px;
+}
+.thread-comment-reaction-chip img{
+  width:14px;
+  height:14px;
+}
+.thread-comment-reaction-chip.is-active{
+  border-color:rgba(47,129,247,.45);
+  background:rgba(56,139,253,.12);
+  color:var(--blueLink);
+  box-shadow:inset 0 0 0 1px rgba(47,129,247,.12);
+}
+.thread-comment-menu__reactions-label{
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.3;
+  padding:6px 8px 4px;
+}
+.thread-comment-menu__reactions-grid{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:4px;
+  padding:0 4px 4px;
+}
+.thread-comment-menu__reaction-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:30px;
+  border:1px solid transparent;
+  border-radius:6px;
+  background:transparent;
+  cursor:pointer;
+}
+.thread-comment-menu__reaction-btn img{
+  width:18px;
+  height:18px;
+}
+.thread-comment-menu__reaction-btn:hover{
+  background:rgba(56,139,253,.14);
+}
+.thread-comment-menu__reaction-btn.is-active{
+  border-color:rgba(47,129,247,.45);
+  background:rgba(56,139,253,.12);
 }
 .thread-comment-reply-box{
   border-top:none;

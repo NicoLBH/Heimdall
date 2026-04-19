@@ -36,6 +36,10 @@ function normalizeMentions(rawMentions = []) {
     });
 }
 
+function normalizeReactionCode(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^\w]+/g, "_");
+}
+
 function safeJsonParse(text) {
   try {
     return JSON.parse(text);
@@ -448,6 +452,37 @@ export function createSubjectMessagesSupabaseRepository() {
     return grouped;
   }
 
+  async function listReactionsByMessageIds(messageIds = []) {
+    const ids = (Array.isArray(messageIds) ? messageIds : [])
+      .map((value) => normalizeId(value))
+      .filter(Boolean);
+    if (!ids.length) return new Map();
+
+    const params = new URLSearchParams();
+    params.set("select", "id,project_id,subject_id,message_id,reaction_code,reactor_person_id,reactor_user_id,created_at");
+    params.set("message_id", `in.(${ids.join(",")})`);
+    params.set("order", "created_at.asc");
+    const rows = await restFetch("/rest/v1/subject_message_reactions", params);
+    const grouped = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const messageId = normalizeId(row?.message_id);
+      if (!messageId) return;
+      const reactions = grouped.get(messageId) || [];
+      reactions.push({
+        id: normalizeId(row?.id),
+        project_id: normalizeId(row?.project_id),
+        subject_id: normalizeId(row?.subject_id),
+        message_id: messageId,
+        reaction_code: normalizeReactionCode(row?.reaction_code),
+        reactor_person_id: normalizeId(row?.reactor_person_id),
+        reactor_user_id: normalizeId(row?.reactor_user_id),
+        created_at: String(row?.created_at || "")
+      });
+      grouped.set(messageId, reactions);
+    });
+    return grouped;
+  }
+
   async function insertMessageMentions({ message = null, mentions = [] } = {}) {
     const messageId = normalizeId(message?.id);
     const projectId = normalizeId(message?.project_id);
@@ -491,12 +526,14 @@ export function createSubjectMessagesSupabaseRepository() {
       const messages = Array.isArray(rows) ? rows : [];
       const mentionsByMessageId = await listMentionsByMessageIds(messages.map((message) => message?.id));
       const attachmentsByMessageId = await listAttachmentsByMessageIds(messages.map((message) => message?.id));
+      const reactionsByMessageId = await listReactionsByMessageIds(messages.map((message) => message?.id));
       return messages.map((message) => {
         const messageId = normalizeId(message?.id);
         return {
           ...message,
           mentions: mentionsByMessageId.get(messageId) || [],
-          attachments: attachmentsByMessageId.get(messageId) || []
+          attachments: attachmentsByMessageId.get(messageId) || [],
+          reactions: reactionsByMessageId.get(messageId) || []
         };
       });
     },
@@ -623,6 +660,19 @@ export function createSubjectMessagesSupabaseRepository() {
       const normalizedMessageId = normalizeId(messageId);
       if (!normalizedMessageId) throw new Error("messageId is required");
       return rpcCall("soft_delete_subject_message", { p_message_id: normalizedMessageId });
+    },
+
+    async toggleMessageReaction({ messageId, reactionCode }) {
+      const normalizedMessageId = normalizeId(messageId);
+      const normalizedReactionCode = normalizeReactionCode(reactionCode);
+      if (!normalizedMessageId) throw new Error("messageId is required");
+      if (!normalizedReactionCode) throw new Error("reactionCode is required");
+      const rows = await rpcCall("toggle_subject_message_reaction", {
+        p_message_id: normalizedMessageId,
+        p_reaction_code: normalizedReactionCode
+      });
+      const list = Array.isArray(rows) ? rows : (rows ? [rows] : []);
+      return list[0] || null;
     },
 
     async uploadTemporaryAttachment(payload = {}) {
