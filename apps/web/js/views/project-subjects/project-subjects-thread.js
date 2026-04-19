@@ -161,6 +161,23 @@ export function createProjectSubjectsThread(config = {}) {
     return state.mentionUi;
   }
 
+  function getEmojiUiState() {
+    ensureViewUiState();
+    const state = store.situationsView;
+    if (!state.emojiUi || typeof state.emojiUi !== "object") {
+      state.emojiUi = {
+        open: false,
+        query: "",
+        activeIndex: 0,
+        triggerStart: -1,
+        triggerEnd: -1,
+        suggestions: [],
+        composerKey: ""
+      };
+    }
+    return state.emojiUi;
+  }
+
   function getReplyContextState() {
     ensureViewUiState();
     const state = store.situationsView;
@@ -827,6 +844,38 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const inlineEditorClass = Number(depth || 0) > 0
       ? "thread-inline-reply-editor thread-inline-reply-editor--nested"
       : "thread-inline-reply-editor thread-inline-reply-editor--root";
+    const emojiUi = getEmojiUiState();
+    const replyComposerKey = `reply:${commentId}`;
+    const inlineReplyEmojiPopupHtml = emojiUi.open && String(emojiUi.composerKey || "") === replyComposerKey
+      ? `
+        <div class="subject-mention-popup subject-emoji-popup" role="listbox" aria-label="Suggestions d’emoji">
+          ${(Array.isArray(emojiUi.suggestions) ? emojiUi.suggestions : []).length
+            ? emojiUi.suggestions.map((suggestion, index) => {
+            const isActive = Number(emojiUi.activeIndex || 0) === index;
+            const aliases = Array.isArray(suggestion?.aliases) ? suggestion.aliases.slice(0, 2).join(", ") : "";
+            return `
+              <button
+                class="subject-mention-popup__item subject-emoji-popup__item ${isActive ? "is-active" : ""}"
+                type="button"
+                role="option"
+                aria-selected="${isActive ? "true" : "false"}"
+                data-action="emoji-pick"
+                data-composer-key="${escapeHtml(replyComposerKey)}"
+                data-emoji="${escapeHtml(String(suggestion?.emoji || ""))}"
+                data-shortcode="${escapeHtml(String(suggestion?.shortcode || ""))}"
+              >
+                <span class="subject-emoji-popup__glyph">${escapeHtml(String(suggestion?.emoji || ""))}</span>
+                <span class="subject-emoji-popup__content">
+                  <span class="subject-emoji-popup__code">:${escapeHtml(String(suggestion?.shortcode || ""))}:</span>
+                  <span class="subject-emoji-popup__meta">${escapeHtml(aliases)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")
+            : `<div class="subject-mention-popup__empty">Aucun emoji trouvé</div>`}
+        </div>
+      `
+      : "";
 
     return `
       <div class="${inlineEditorClass} ${isExpanded ? "" : "hidden"}" data-inline-reply-editor="${escapeHtml(commentId)}" ${isExpanded ? "" : "aria-hidden=\"true\""}>
@@ -855,6 +904,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
           `,
           previewEmptyHint: "Use Markdown to format your reply",
           footerHtml: `
+            ${inlineReplyEmojiPopupHtml}
             <input
               id="threadReplyAttachmentInput-${escapeHtml(commentId)}"
               type="file"
@@ -889,6 +939,38 @@ priority=${firstNonEmpty(subject.priority, "")}`
       : "comment-composer--thread-edit-root";
     const submitLabel = Number(depth || 0) > 0 ? "Mettre à jour la réponse" : "Mettre à jour le commentaire";
     const canSubmit = !!normalizedDraft.trim();
+    const emojiUi = getEmojiUiState();
+    const editComposerKey = `edit:${commentId}`;
+    const inlineEditEmojiPopupHtml = emojiUi.open && String(emojiUi.composerKey || "") === editComposerKey
+      ? `
+        <div class="subject-mention-popup subject-emoji-popup" role="listbox" aria-label="Suggestions d’emoji">
+          ${(Array.isArray(emojiUi.suggestions) ? emojiUi.suggestions : []).length
+            ? emojiUi.suggestions.map((suggestion, index) => {
+            const isActive = Number(emojiUi.activeIndex || 0) === index;
+            const aliases = Array.isArray(suggestion?.aliases) ? suggestion.aliases.slice(0, 2).join(", ") : "";
+            return `
+              <button
+                class="subject-mention-popup__item subject-emoji-popup__item ${isActive ? "is-active" : ""}"
+                type="button"
+                role="option"
+                aria-selected="${isActive ? "true" : "false"}"
+                data-action="emoji-pick"
+                data-composer-key="${escapeHtml(editComposerKey)}"
+                data-emoji="${escapeHtml(String(suggestion?.emoji || ""))}"
+                data-shortcode="${escapeHtml(String(suggestion?.shortcode || ""))}"
+              >
+                <span class="subject-emoji-popup__glyph">${escapeHtml(String(suggestion?.emoji || ""))}</span>
+                <span class="subject-emoji-popup__content">
+                  <span class="subject-emoji-popup__code">:${escapeHtml(String(suggestion?.shortcode || ""))}:</span>
+                  <span class="subject-emoji-popup__meta">${escapeHtml(aliases)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")
+            : `<div class="subject-mention-popup__empty">Aucun emoji trouvé</div>`}
+        </div>
+      `
+      : "";
     return `
       <div class="thread-inline-edit-editor ${editModeClass} ${isEditing ? "" : "hidden"}" data-inline-edit-editor="${escapeHtml(commentId)}" ${isEditing ? "" : "aria-hidden=\"true\""}>
         ${renderCommentComposer({
@@ -914,7 +996,8 @@ priority=${firstNonEmpty(subject.priority, "")}`
               <button class="gh-btn gh-btn--comment gh-btn--primary" type="button" data-action="thread-edit-submit" data-message-id="${escapeHtml(commentId)}" data-original-body="${escapeHtml(String(originalMessage || ""))}" ${canSubmit ? "" : "disabled"}>${submitLabel}</button>
             </div>
           `,
-          previewEmptyHint: "Use Markdown to format your comment"
+          previewEmptyHint: "Use Markdown to format your comment",
+          footerHtml: inlineEditEmojiPopupHtml
         })}
       </div>
     `;
@@ -1419,6 +1502,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const toolbarHtml = renderMarkdownToolbar("composer-format");
 
     const mentionUi = getMentionUiState();
+    const emojiUi = getEmojiUiState();
     const attachmentState = getComposerAttachmentsState();
     const normalizedSubjectId = type === "sujet" ? normalizeId(item.id) : "";
     const pendingAttachments = normalizedSubjectId && normalizeId(attachmentState.subjectId) === normalizedSubjectId
@@ -1454,6 +1538,36 @@ priority=${firstNonEmpty(subject.priority, "")}`
             `;
           }).join("")
             : `<div class="subject-mention-popup__empty">Aucun collaborateur trouvé</div>`}
+        </div>
+      `
+      : "";
+    const mainEmojiPopupHtml = emojiUi.open && String(emojiUi.composerKey || "") === "main"
+      ? `
+        <div class="subject-mention-popup subject-emoji-popup" role="listbox" aria-label="Suggestions d’emoji">
+          ${(Array.isArray(emojiUi.suggestions) ? emojiUi.suggestions : []).length
+            ? emojiUi.suggestions.map((suggestion, index) => {
+            const isActive = Number(emojiUi.activeIndex || 0) === index;
+            const aliases = Array.isArray(suggestion?.aliases) ? suggestion.aliases.slice(0, 2).join(", ") : "";
+            return `
+              <button
+                class="subject-mention-popup__item subject-emoji-popup__item ${isActive ? "is-active" : ""}"
+                type="button"
+                role="option"
+                aria-selected="${isActive ? "true" : "false"}"
+                data-action="emoji-pick"
+                data-composer-key="main"
+                data-emoji="${escapeHtml(String(suggestion?.emoji || ""))}"
+                data-shortcode="${escapeHtml(String(suggestion?.shortcode || ""))}"
+              >
+                <span class="subject-emoji-popup__glyph">${escapeHtml(String(suggestion?.emoji || ""))}</span>
+                <span class="subject-emoji-popup__content">
+                  <span class="subject-emoji-popup__code">:${escapeHtml(String(suggestion?.shortcode || ""))}:</span>
+                  <span class="subject-emoji-popup__meta">${escapeHtml(aliases)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")
+            : `<div class="subject-mention-popup__empty">Aucun emoji trouvé</div>`}
         </div>
       `
       : "";
@@ -1527,7 +1641,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
         ? mdToHtml(String(store.situationsView.commentDraft || ""))
         : "",
       previewEmptyHint: "Utilisez le Markdown pour formater votre commentaire",
-      footerHtml: `${mentionPopupHtml}${composerAttachmentsHtml}`
+      footerHtml: `${mentionPopupHtml}${mainEmojiPopupHtml}${composerAttachmentsHtml}`
     });
   }
 
@@ -1545,6 +1659,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     getReplyContextForSubject,
     buildReplyPreview,
     getMentionUiState,
+    getEmojiUiState,
     getComposerAttachmentsState,
     getInlineReplyUiState,
     renderThreadBlock,

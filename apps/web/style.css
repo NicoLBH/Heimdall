@@ -2658,6 +2658,36 @@ body.is-resizing{
 .subject-mention-popup__name{font-size:13px;}
 .subject-mention-popup__meta{font-size:12px;color:var(--muted);}
 .subject-mention-popup__empty{padding:10px 12px;font-size:12px;color:var(--muted);}
+.subject-emoji-popup__item{
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:10px;
+}
+.subject-emoji-popup__glyph{
+  width:26px;
+  min-width:26px;
+  text-align:center;
+  font-size:18px;
+  line-height:1.2;
+}
+.subject-emoji-popup__content{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
+.subject-emoji-popup__code{
+  font-size:13px;
+  color:var(--text);
+  white-space:nowrap;
+}
+.subject-emoji-popup__meta{
+  font-size:12px;
+  color:var(--muted);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
 .comment-composer__editor.is-dragover{
   border-color:rgba(56,139,253,.95);
 }
