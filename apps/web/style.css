@@ -1288,7 +1288,7 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 .comment-editor{padding:0px;}
 .textarea{width:100%;min-height:120px;resize:vertical;padding:0px;border-radius:var(--radius);border:none;background:var(--bg);color:var(--text);font-size:13px;outline:none;padding:10px 12px;}
 .textarea:focus{box-shadow:none;border:none;padding:10px 12px;}
-.comment-preview{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;min-height:120px;background:rgba(22,27,34,.25);}
+.comment-preview{padding:10px 12px;min-height:120px;background:rgba(22,27,34,.25);}
 .actions-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 
 .gh-btn--success{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.35);}
@@ -2564,7 +2564,7 @@ body.is-resizing{
   margin-top:-1px;
 }
 .comment-composer__tabs.light-tabs .light-tabs__item.is-active{
-  var(--bg);
+  background: var(--bg);
 }
 .comment-composer__tabs--main{}
 .comment-composer__tabs--thread-reply{}
@@ -2610,7 +2610,7 @@ body.is-resizing{
 .comment-toolbar-btn:hover{background:rgba(110,118,129,.18);color:var(--text);}
 .comment-toolbar-btn:focus-visible{outline:2px solid rgba(56,139,253,.55);outline-offset:1px;}
 .comment-toolbar-btn .ui-icon{width:16px;height:16px;}
-.comment-composer__preview{min-height:170px;padding:12px;}
+.comment-composer__preview{min-height:170px;padding:12px;background:var(--bg);}
 .comment-composer__preview-empty{color:var(--muted);font-size:14px;}
 .subject-mention-popup{
   margin:0 10px 10px;
