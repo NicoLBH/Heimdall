@@ -1138,7 +1138,7 @@ export function createProjectSubjectsEvents(config) {
           caretEnd: result.nextCursorIndex
         });
       };
-      const syncComposerAutocomplete = async () => {
+      const syncMainComposerAutocomplete = async () => {
         const mentionContext = resolveMentionTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
         if (mentionContext) {
           await syncMentionPopup();
@@ -1147,16 +1147,6 @@ export function createProjectSubjectsEvents(config) {
         }
         if (getMentionState().open) closeMentionPopup({ rerender: false });
         syncMainEmojiPopup({ composerKey: "main" });
-      };
-      const syncComposerAutocomplete = async () => {
-        const mentionContext = resolveMentionTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
-        if (mentionContext) {
-          await syncMentionPopup();
-          closeEmojiPopup({ rerender: false });
-          return;
-        }
-        if (getMentionState().open) closeMentionPopup({ rerender: false });
-        syncEmojiPopup({ composerKey: "main" });
       };
 
       const syncMainComposerTextareaHeight = () => {
@@ -1176,7 +1166,7 @@ export function createProjectSubjectsEvents(config) {
       commentTextarea.addEventListener("input", () => {
         store.situationsView.commentDraft = String(commentTextarea.value || "");
         syncMainComposerTextareaHeight();
-        void syncComposerAutocomplete();
+        void syncMainComposerAutocomplete();
         if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
       });
       commentTextarea.addEventListener("keydown", (ev) => {
