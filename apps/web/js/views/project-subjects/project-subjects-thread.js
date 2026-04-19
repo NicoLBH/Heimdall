@@ -789,7 +789,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
           textareaAttributes: {
             "data-thread-reply-draft": commentId
           },
-          placeholder: "écrire une réponse, glisser-déposer une pièce jointe...",
+          placeholder: "🖼️ Écrire une réponse, glisser-déposer une pièce jointe...",
           tabWriteAction: "thread-reply-tab-write",
           tabPreviewAction: "thread-reply-tab-preview",
           toolbarHtml: renderMarkdownToolbar("thread-reply-format", { messageId: commentId }),
@@ -1250,14 +1250,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const previewMode = !!store.situationsView.commentPreviewMode;
     const helpMode = !!store.situationsView.helpMode;
 
-    const hintHtml = type === "sujet"
-      ? `
-        <button class="subject-composer-attachments-pick-btn" type="button" data-action="composer-attachments-pick">
-          <span class="subject-composer-attachments-pick-btn__icon" aria-hidden="true">${svgIcon("image")}</span>
-          <span>Ajouter un fichier</span>
-        </button>
-      `
-      : "";
+    const hintHtml = "";
 
     const issueStatusActionHtml = renderIssueStatusAction(selection);
     const replyContext = type === "sujet" ? getReplyContextForSubject(item?.id) : null;
@@ -1373,7 +1366,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       textareaValue: String(store.situationsView.commentDraft || ""),
       placeholder: helpMode
         ? "Help (éphémère) — décrivez l’écran / l’action souhaitée."
-        : `Réponse humaine (Markdown) sur ce ${type === "sujet" ? "sujet" : "regroupement"} — mentionne @rapso pour solliciter l’agent.`,
+        : "📎 Ecrire une réponse, glisser-déposer une pièce jointe...",
       hintHtml,
       contextHtml,
       actionsHtml,
