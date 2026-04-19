@@ -1740,6 +1740,18 @@ export function createProjectSubjectsEvents(config) {
       if (!submitButton) return;
       submitButton.disabled = !canSubmitInlineReply(normalizedMessageId);
     };
+    const syncInlineReplyTextareaHeight = (textarea) => {
+      if (!textarea) return;
+      const computedStyle = window.getComputedStyle(textarea);
+      const lineHeight = Math.max(16, Math.round(parseFloat(computedStyle.lineHeight) || 20));
+      const minHeight = Math.max(110, Math.round(parseFloat(computedStyle.minHeight) || 110));
+      const comfortExtraLines = 6;
+      const extraPadding = lineHeight * comfortExtraLines;
+      textarea.style.overflowY = "hidden";
+      textarea.style.height = "auto";
+      const nextHeight = Math.max(minHeight, textarea.scrollHeight + extraPadding);
+      textarea.style.height = `${nextHeight}px`;
+    };
     const clearInlineReplyAttachmentsState = (messageId = "", { keepUploadSession = false } = {}) => {
       const normalizedMessageId = String(messageId || "").trim();
       if (!normalizedMessageId) return;
@@ -1931,11 +1943,13 @@ export function createProjectSubjectsEvents(config) {
     });
 
     root.querySelectorAll("[data-thread-reply-draft]").forEach((textarea) => {
+      syncInlineReplyTextareaHeight(textarea);
       textarea.addEventListener("input", () => {
         const messageId = String(textarea.dataset.threadReplyDraft || "").trim();
         if (!messageId) return;
         const replyUi = resolveInlineReplyUiState();
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
+        syncInlineReplyTextareaHeight(textarea);
         syncInlineReplySubmitButton(messageId);
       });
       textarea.addEventListener("keydown", (event) => {
@@ -1979,7 +1993,9 @@ export function createProjectSubjectsEvents(config) {
         if (!didApply) return;
         const replyUi = resolveInlineReplyUiState();
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
-        rerenderScope(root);
+        syncInlineReplyTextareaHeight(textarea);
+        syncInlineReplySubmitButton(messageId);
+        textarea.focus();
       };
     });
     root.querySelectorAll("[data-action='thread-reply-attachments-pick'][data-message-id]").forEach((btn) => {

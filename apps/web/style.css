@@ -2706,7 +2706,12 @@ body.is-resizing{
 .subject-attachment__caption{
   padding:6px 8px;
   color:var(--muted);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
 }
+.subject-attachment__caption-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .subject-attachment--file{
   display:flex;
   align-items:center;
@@ -2723,11 +2728,18 @@ body.is-resizing{
   color:var(--muted);
 }
 .subject-attachment__file-body{flex:1 1 auto;min-width:0;}
+.subject-attachment__file-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
 .subject-attachment__file-name{
   color:var(--text);
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
+  min-width:0;
 }
 .subject-attachment__file-link--name{
   text-decoration:none;
@@ -2739,12 +2751,12 @@ body.is-resizing{
 .subject-attachment__file-meta{color:var(--muted);}
 .subject-attachment__file-link{font-size:12px;}
 .subject-attachment__state{padding:0 8px 8px;color:var(--muted);}
-.subject-attachment__state--icon{display:flex;align-items:center;}
 .subject-attachment__upload-indicator{
   display:inline-flex;
   width:16px;
   height:16px;
   color:var(--fgColor-attention);
+  flex:0 0 auto;
 }
 .subject-attachment__spinner{width:16px;height:16px;}
 .anim-rotate{animation:thread-attachment-spin 1s linear infinite;transform-origin:center;}

@@ -964,21 +964,18 @@ priority=${firstNonEmpty(subject.priority, "")}`
           ? "file-dwg"
           : "file-generic";
     let progressHtml = "";
+    let uploadIndicatorHtml = "";
     if (uploadState === "uploading") {
-      progressHtml = `
-        <div class="subject-attachment__state mono-small subject-attachment__state--icon" aria-live="polite">
-          <span class="subject-attachment__upload-indicator is-spinning" aria-label="Envoi en cours">
-            ${svgIcon("attachment-upload-spinner", { className: "subject-attachment__spinner anim-rotate" })}
-          </span>
-        </div>
+      uploadIndicatorHtml = `
+        <span class="subject-attachment__upload-indicator is-spinning" aria-label="Envoi en cours">
+          ${svgIcon("attachment-upload-spinner", { className: "subject-attachment__spinner anim-rotate" })}
+        </span>
       `;
     } else if (uploadState === "ready") {
-      progressHtml = `
-        <div class="subject-attachment__state mono-small subject-attachment__state--icon" aria-live="polite">
-          <span class="subject-attachment__upload-indicator" aria-label="Pièce jointe prête">
-            ${svgIcon("attachment-upload-dot", { className: "subject-attachment__spinner" })}
-          </span>
-        </div>
+      uploadIndicatorHtml = `
+        <span class="subject-attachment__upload-indicator" aria-label="Pièce jointe prête">
+          ${svgIcon("attachment-upload-dot", { className: "subject-attachment__spinner" })}
+        </span>
       `;
     } else if (uploadState === "error") {
       progressHtml = `<div class="subject-attachment__state mono-small">${escapeHtml(uploadStateText || "Erreur d’upload")}</div>`;
@@ -998,7 +995,10 @@ priority=${firstNonEmpty(subject.priority, "")}`
           <a href="${escapeHtml(downloadUrl || previewUrl)}" target="_blank" rel="noopener noreferrer">
             <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(fileName)}" loading="lazy" />
           </a>
-          <div class="subject-attachment__caption mono-small">${escapeHtml(fileName)}</div>
+          <div class="subject-attachment__caption mono-small">
+            <span class="subject-attachment__caption-name">${escapeHtml(fileName)}</span>
+            ${uploadIndicatorHtml}
+          </div>
           ${progressHtml}
         </div>
       `;
@@ -1008,9 +1008,12 @@ priority=${firstNonEmpty(subject.priority, "")}`
       <div class="subject-attachment subject-attachment--file">
         <div class="subject-attachment__file-icon" aria-hidden="true">${svgIcon(typeIcon)}</div>
         <div class="subject-attachment__file-body">
-          ${downloadUrl
-            ? `<a class="subject-attachment__file-name mono-small subject-attachment__file-link--name" href="${escapeHtml(downloadUrl)}" rel="noopener noreferrer" download="${escapeHtml(fileName)}">${escapeHtml(fileName)}</a>`
-            : `<div class="subject-attachment__file-name mono-small">${escapeHtml(fileName)}</div>`}
+          <div class="subject-attachment__file-head">
+            ${downloadUrl
+              ? `<a class="subject-attachment__file-name mono-small subject-attachment__file-link--name" href="${escapeHtml(downloadUrl)}" rel="noopener noreferrer" download="${escapeHtml(fileName)}">${escapeHtml(fileName)}</a>`
+              : `<div class="subject-attachment__file-name mono-small">${escapeHtml(fileName)}</div>`}
+            ${uploadIndicatorHtml}
+          </div>
           <div class="subject-attachment__file-meta mono-small">${escapeHtml(metaLine || "fichier")}</div>
           ${progressHtml}
         </div>
