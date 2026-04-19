@@ -987,8 +987,10 @@ export function createProjectSubjectsEvents(config) {
         };
       });
 
-      const attachmentInput = root.querySelector("[data-role='subject-composer-file-input']");
-      const attachmentDropzone = root.querySelector(".comment-composer__editor");
+      const mainComposerRoot = commentTextarea.closest(".comment-composer");
+      const attachmentInput = mainComposerRoot?.querySelector("[data-role='subject-composer-file-input']")
+        || root.querySelector("[data-role='subject-composer-file-input']");
+      const attachmentDropzone = mainComposerRoot?.querySelector(".comment-composer__editor");
       root.querySelectorAll("[data-action='composer-attachments-pick']").forEach((btn) => {
         btn.onclick = () => attachmentInput?.click();
       });
@@ -1738,6 +1740,18 @@ export function createProjectSubjectsEvents(config) {
       if (!submitButton) return;
       submitButton.disabled = !canSubmitInlineReply(normalizedMessageId);
     };
+    const syncInlineReplyTextareaHeight = (textarea) => {
+      if (!textarea) return;
+      const computedStyle = window.getComputedStyle(textarea);
+      const lineHeight = Math.max(16, Math.round(parseFloat(computedStyle.lineHeight) || 20));
+      const minHeight = Math.max(110, Math.round(parseFloat(computedStyle.minHeight) || 110));
+      const comfortExtraLines = 6;
+      const extraPadding = lineHeight * comfortExtraLines;
+      textarea.style.overflowY = "hidden";
+      textarea.style.height = "auto";
+      const nextHeight = Math.max(minHeight, textarea.scrollHeight + extraPadding);
+      textarea.style.height = `${nextHeight}px`;
+    };
     const clearInlineReplyAttachmentsState = (messageId = "", { keepUploadSession = false } = {}) => {
       const normalizedMessageId = String(messageId || "").trim();
       if (!normalizedMessageId) return;
@@ -1871,6 +1885,10 @@ export function createProjectSubjectsEvents(config) {
         debugThreadReply("menu_action_reply", { messageId, parentMessageLength: parentMessageText.length });
         btn.closest(".thread-comment-menu__dropdown")?.classList.remove("is-open");
         const replyUi = resolveInlineReplyUiState();
+        const previouslyExpandedMessageId = String(replyUi.expandedMessageId || "").trim();
+        if (previouslyExpandedMessageId && previouslyExpandedMessageId !== messageId) {
+          clearInlineReplyAttachmentsState(previouslyExpandedMessageId);
+        }
         if (!String(replyUi.draftsByMessageId?.[messageId] || "").trim()) replyUi.draftsByMessageId[messageId] = "";
         replyUi.previewByMessageId[messageId] = false;
         replyUi.expandedMessageId = messageId;
@@ -1925,11 +1943,13 @@ export function createProjectSubjectsEvents(config) {
     });
 
     root.querySelectorAll("[data-thread-reply-draft]").forEach((textarea) => {
+      syncInlineReplyTextareaHeight(textarea);
       textarea.addEventListener("input", () => {
         const messageId = String(textarea.dataset.threadReplyDraft || "").trim();
         if (!messageId) return;
         const replyUi = resolveInlineReplyUiState();
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
+        syncInlineReplyTextareaHeight(textarea);
         syncInlineReplySubmitButton(messageId);
       });
       textarea.addEventListener("keydown", (event) => {
@@ -1973,7 +1993,9 @@ export function createProjectSubjectsEvents(config) {
         if (!didApply) return;
         const replyUi = resolveInlineReplyUiState();
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
-        rerenderScope(root);
+        syncInlineReplyTextareaHeight(textarea);
+        syncInlineReplySubmitButton(messageId);
+        textarea.focus();
       };
     });
     root.querySelectorAll("[data-action='thread-reply-attachments-pick'][data-message-id]").forEach((btn) => {
