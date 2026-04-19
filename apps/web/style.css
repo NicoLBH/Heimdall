@@ -1284,6 +1284,7 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
 .comment-tabs{display:flex;gap:0;border-bottom:1px solid var(--border2);background:rgba(22,27,34,.6);}
 .comment-tab{border:none;background:transparent;color:var(--muted);padding:8px 12px;cursor:pointer;font-size:13px;}
 .comment-tab[aria-selected="true"]{color:var(--text);font-weight:700;}
+
 .comment-editor{padding:0px;}
 .textarea{width:100%;min-height:120px;resize:vertical;padding:0px;border-radius:var(--radius);border:none;background:var(--bg);color:var(--text);font-size:13px;outline:none;padding:10px 12px;}
 .textarea:focus{box-shadow:none;border:none;padding:10px 12px;}
@@ -2551,7 +2552,6 @@ body.is-resizing{
 .comment-composer__tabs-left{display:flex;align-items:center;gap:0;}
 .comment-composer__tabs.light-tabs{
   margin:0;
-  border-bottom:1px solid var(--border2);
   background:rgba(22,27,34,.6);
 }
 .comment-composer__tabs.light-tabs::before{
@@ -2560,6 +2560,11 @@ body.is-resizing{
 .comment-composer__tabs.light-tabs .light-tabs__item{
   padding:8px 12px;
   font-size:13px;
+  margin-left:-1px;
+  margin-top:-1px;
+}
+.comment-composer__tabs.light-tabs .light-tabs__item.is-active{
+  var(--bg);
 }
 .comment-composer__tabs--main{}
 .comment-composer__tabs--thread-reply{}
@@ -11772,7 +11777,7 @@ body.route--project #situationsDetailsHost .detail-chrome__sticky{
   padding:10px 16px;
   border:0;
   border-bottom:1px solid transparent;
-  border-radius:8px 8px 0 0;
+  border-radius:var(--radius) var(--radius) 0 0;
   background:transparent;
   color:var(--muted);
   font:inherit;
