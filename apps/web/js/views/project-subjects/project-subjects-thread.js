@@ -74,14 +74,10 @@ export function createProjectSubjectsThread(config = {}) {
   }
 
   function mapMessageRowToThreadComment(row = {}) {
+    if (row?.deleted_at) return null;
     const authorProfile = resolveAuthorProfile(row);
-    const isDeleted = !!row.deleted_at;
     const isFrozen = !!row.is_frozen;
-    const stateLabel = isDeleted
-      ? "supprimé"
-      : isFrozen
-        ? "figé (vu par un tiers)"
-        : "modifiable";
+    const stateLabel = isFrozen ? "figé (vu par un tiers)" : "modifiable";
     return {
       ts: firstNonEmpty(row.created_at, nowIso()),
       entity_type: "sujet",
@@ -89,7 +85,7 @@ export function createProjectSubjectsThread(config = {}) {
       type: "COMMENT",
       actor: authorProfile.displayName,
       agent: "human",
-      message: String(row.deleted_at ? "[message supprimé]" : row.body_markdown || ""),
+      message: String(row.body_markdown || ""),
       pending: false,
       request_id: null,
       meta: {
@@ -102,7 +98,7 @@ export function createProjectSubjectsThread(config = {}) {
         depth: 0,
         reply_preview: "",
         is_frozen: isFrozen,
-        is_deleted: isDeleted,
+        is_deleted: false,
         state_label: stateLabel,
         mentions: Array.isArray(row?.mentions) ? row.mentions : [],
         attachments: Array.isArray(row?.attachments) ? row.attachments : []
@@ -1113,6 +1109,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
 
       if (type === "ACTIVITY") {
         const kind = String(e?.kind || "").toLowerCase();
+        if (kind === "message_deleted") return "";
         const agent = e?.agent || "system";
         const activityIdentity = getAuthorIdentity({
           author: e?.actor,
@@ -1178,10 +1175,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
         } else if (kind === "message_edited") {
           iconHtml = `<span class="tl-ico-wrap tl-ico-reopened" aria-hidden="true">${svgIcon("pencil")}</span>`;
           verb = "edited a message on";
-          targetHtml = "this conversation";
-        } else if (kind === "message_deleted") {
-          iconHtml = `<span class="tl-ico-wrap tl-ico-closed" aria-hidden="true">${svgIcon("trash")}</span>`;
-          verb = "deleted a message on";
           targetHtml = "this conversation";
         } else if (kind === "message_frozen") {
           iconHtml = `<span class="tl-ico-wrap tl-ico-closed" aria-hidden="true">${svgIcon("lock")}</span>`;
