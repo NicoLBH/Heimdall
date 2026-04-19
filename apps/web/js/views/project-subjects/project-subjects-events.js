@@ -720,6 +720,7 @@ export function createProjectSubjectsEvents(config) {
       emojiState.suggestions = [];
       emojiState.composerKey = "";
       if (rerender) rerenderAutocompleteUi();
+      else syncAutocompletePopups();
     };
 
     const getTextareaSelector = ({ composerKey = "main", messageId = "" } = {}) => {
@@ -934,6 +935,7 @@ export function createProjectSubjectsEvents(config) {
       mentionState.suggestions = [];
       mentionState.composerKey = "";
       if (rerender) rerenderAutocompleteUi();
+      else syncAutocompletePopups();
     };
 
     const ensureMentionCollaboratorsLoaded = async () => {
