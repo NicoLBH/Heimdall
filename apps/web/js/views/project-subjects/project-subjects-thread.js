@@ -43,14 +43,14 @@ export function createProjectSubjectsThread(config = {}) {
   const subjectReadMarkState = new Map();
   const MAX_REPLY_VISUAL_DEPTH = 2;
   const THREAD_REACTION_CHOICES = [
-    { code: "thumbs_up", label: "J'aime", emoji: "👍", assetPath: "/assets/images/reactions/thumbs-up.png" },
-    { code: "thumbs_down", label: "Je n'aime pas", emoji: "👎", assetPath: "/assets/images/reactions/thumbs-down.png" },
-    { code: "grinning", label: "Sourire", emoji: "😄", assetPath: "/assets/images/reactions/grinning.png" },
-    { code: "party", label: "Fête", emoji: "🎉", assetPath: "/assets/images/reactions/party.png" },
-    { code: "thinking", label: "Pensif", emoji: "😕", assetPath: "/assets/images/reactions/thinking.png" },
-    { code: "heart", label: "Cœur", emoji: "❤️", assetPath: "/assets/images/reactions/heart.png" },
-    { code: "rocket", label: "Fusée", emoji: "🚀", assetPath: "/assets/images/reactions/rocket.png" },
-    { code: "eyes", label: "Regard", emoji: "👀", assetPath: "/assets/images/reactions/eyes.png" }
+    { code: "thumbs_up", label: "J'aime", emoji: "👍", assetPath: "assets/images/reactions/thumbs-up.png" },
+    { code: "thumbs_down", label: "Je n'aime pas", emoji: "👎", assetPath: "assets/images/reactions/thumbs-down.png" },
+    { code: "grinning", label: "Sourire", emoji: "😄", assetPath: "assets/images/reactions/grinning.png" },
+    { code: "party", label: "Fête", emoji: "🎉", assetPath: "assets/images/reactions/party.png" },
+    { code: "thinking", label: "Pensif", emoji: "😕", assetPath: "assets/images/reactions/thinking.png" },
+    { code: "heart", label: "Cœur", emoji: "❤️", assetPath: "assets/images/reactions/heart.png" },
+    { code: "rocket", label: "Fusée", emoji: "🚀", assetPath: "assets/images/reactions/rocket.png" },
+    { code: "eyes", label: "Regard", emoji: "👀", assetPath: "assets/images/reactions/eyes.png" }
   ];
 
   function normalizeId(value) {
@@ -976,8 +976,13 @@ priority=${firstNonEmpty(subject.priority, "")}`
                 title="${escapeHtml(choice.label)}"
                 aria-label="${escapeHtml(choice.label)}"
               >
-                <img src="${escapeHtml(choice.assetPath)}" alt="" loading="lazy" onerror="this.remove(); this.nextElementSibling.classList.remove('hidden');" />
-                <span class="hidden" aria-hidden="true">${escapeHtml(choice.emoji)}</span>
+                <img
+                  src="${escapeHtml(choice.assetPath)}"
+                  alt=""
+                  loading="lazy"
+                  onerror="this.style.display='none'; this.parentElement?.querySelector('.thread-reaction-fallback')?.classList.remove('hidden');"
+                />
+                <span class="thread-reaction-fallback hidden" aria-hidden="true">${escapeHtml(choice.emoji)}</span>
               </button>
             `).join("")}
           </div>
@@ -1053,8 +1058,13 @@ priority=${firstNonEmpty(subject.priority, "")}`
                   <div class="thread-comment-footer__reactions">
                     ${reactionsSummaryList.map((reaction) => `
                       <span class="arkolia-identity-chip thread-comment-reaction-chip ${reaction.reactedByCurrentUser ? "is-active" : ""}">
-                        <img src="${escapeHtml(reaction.assetPath)}" alt="" loading="lazy" onerror="this.remove(); this.nextElementSibling.classList.remove('hidden');" />
-                        <span class="hidden" aria-hidden="true">${escapeHtml(reaction.emoji)}</span>
+                        <img
+                          src="${escapeHtml(reaction.assetPath)}"
+                          alt=""
+                          loading="lazy"
+                          onerror="this.style.display='none'; this.parentElement?.querySelector('.thread-reaction-fallback')?.classList.remove('hidden');"
+                        />
+                        <span class="thread-reaction-fallback hidden" aria-hidden="true">${escapeHtml(reaction.emoji)}</span>
                         <span>${reaction.count}</span>
                       </span>
                     `).join("")}

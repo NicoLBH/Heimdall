@@ -9,4 +9,4 @@ Placez ici les 8 PNG de réactions (non versionnés dans ce commit):
 - rocket.png
 - eyes.png
 
-Ces fichiers sont référencés par l'UI du thread des commentaires.
+Ces fichiers sont référencés par l'UI du thread des commentaires via des chemins relatifs `assets/images/reactions/...`.
