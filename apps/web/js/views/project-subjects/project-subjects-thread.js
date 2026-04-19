@@ -42,6 +42,16 @@ export function createProjectSubjectsThread(config = {}) {
   const subjectTimelineState = new Map();
   const subjectReadMarkState = new Map();
   const MAX_REPLY_VISUAL_DEPTH = 2;
+  const THREAD_REACTION_CHOICES = [
+    { code: "thumbs_up", label: "J'aime", emoji: "👍", assetPath: "assets/images/reactions/thumbs-up.png" },
+    { code: "thumbs_down", label: "Je n'aime pas", emoji: "👎", assetPath: "assets/images/reactions/thumbs-down.png" },
+    { code: "grinning", label: "Sourire", emoji: "😄", assetPath: "assets/images/reactions/grinning.png" },
+    { code: "party", label: "Fête", emoji: "🎉", assetPath: "assets/images/reactions/party.png" },
+    { code: "thinking", label: "Pensif", emoji: "😕", assetPath: "assets/images/reactions/thinking.png" },
+    { code: "heart", label: "Cœur", emoji: "❤️", assetPath: "assets/images/reactions/heart.png" },
+    { code: "rocket", label: "Fusée", emoji: "🚀", assetPath: "assets/images/reactions/rocket.png" },
+    { code: "eyes", label: "Regard", emoji: "👀", assetPath: "assets/images/reactions/eyes.png" }
+  ];
 
   function normalizeId(value) {
     return String(value || "").trim();
@@ -101,10 +111,38 @@ export function createProjectSubjectsThread(config = {}) {
         is_deleted: false,
         state_label: stateLabel,
         mentions: Array.isArray(row?.mentions) ? row.mentions : [],
-        attachments: Array.isArray(row?.attachments) ? row.attachments : []
+        attachments: Array.isArray(row?.attachments) ? row.attachments : [],
+        reactions: Array.isArray(row?.reactions) ? row.reactions : []
       },
       stateLabel
     };
+  }
+
+  function getCurrentUserReactionActor(row = {}) {
+    const currentUserId = normalizeId(store?.user?.id);
+    const currentPersonId = normalizeId(store?.user?.personId || store?.profile?.personId);
+    const reactorUserId = normalizeId(row?.reactor_user_id);
+    const reactorPersonId = normalizeId(row?.reactor_person_id);
+    if (currentUserId && reactorUserId && currentUserId === reactorUserId) return true;
+    if (currentPersonId && reactorPersonId && currentPersonId === reactorPersonId) return true;
+    return false;
+  }
+
+  function buildMessageReactionSummary(rows = []) {
+    const grouped = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const reactionCode = String(row?.reaction_code || "").trim();
+      if (!reactionCode) return;
+      const current = grouped.get(reactionCode) || {
+        code: reactionCode,
+        count: 0,
+        reactedByCurrentUser: false
+      };
+      current.count += 1;
+      current.reactedByCurrentUser = current.reactedByCurrentUser || getCurrentUserReactionActor(row);
+      grouped.set(reactionCode, current);
+    });
+    return grouped;
   }
 
   function getMentionUiState() {
@@ -468,6 +506,16 @@ export function createProjectSubjectsThread(config = {}) {
     const deleted = await subjectMessagesService.deleteMessage(normalizedMessageId);
     ensureSubjectTimelineLoaded(normalizedSubjectId, { force: true });
     return deleted;
+  }
+
+  async function toggleSubjectMessageReaction(subjectId, messageId, reactionCode) {
+    const normalizedSubjectId = normalizeId(subjectId);
+    const normalizedMessageId = normalizeId(messageId);
+    const normalizedReactionCode = String(reactionCode || "").trim();
+    if (!normalizedSubjectId || !normalizedMessageId || !normalizedReactionCode || !subjectMessagesService) return null;
+    const reaction = await subjectMessagesService.toggleMessageReaction(normalizedMessageId, normalizedReactionCode);
+    ensureSubjectTimelineLoaded(normalizedSubjectId, { force: true });
+    return reaction;
   }
 
   function addActivity(entityType, entityId, kind, message = "", meta = {}, options = {}) {
@@ -895,6 +943,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const commentId = normalizeId(entry?.meta?.id);
     if (!commentId) return "";
     const isEditable = !entry?.meta?.is_frozen && !entry?.meta?.is_deleted;
+    const messageReactionSummary = buildMessageReactionSummary(entry?.meta?.reactions || []);
     return `
       <div class="thread-comment-menu">
         <button
@@ -915,6 +964,28 @@ priority=${firstNonEmpty(subject.priority, "")}`
             `
             : ""}
           <button class="gh-menu__item" type="button" data-action="thread-reply-open" data-message-id="${escapeHtml(commentId)}">Répondre au message</button>
+          <div class="thread-comment-menu__reactions-label">Réagir</div>
+          <div class="thread-comment-menu__reactions-grid">
+            ${THREAD_REACTION_CHOICES.map((choice) => `
+              <button
+                class="thread-comment-menu__reaction-btn ${messageReactionSummary.get(choice.code)?.reactedByCurrentUser ? "is-active" : ""}"
+                type="button"
+                data-action="thread-message-reaction-toggle"
+                data-message-id="${escapeHtml(commentId)}"
+                data-reaction-code="${escapeHtml(choice.code)}"
+                title="${escapeHtml(choice.label)}"
+                aria-label="${escapeHtml(choice.label)}"
+              >
+                <img
+                  src="${escapeHtml(choice.assetPath)}"
+                  alt=""
+                  loading="lazy"
+                  onerror="this.style.display='none'; this.parentElement?.querySelector('.thread-reaction-fallback')?.classList.remove('hidden');"
+                />
+                <span class="thread-reaction-fallback hidden" aria-hidden="true">${escapeHtml(choice.emoji)}</span>
+              </button>
+            `).join("")}
+          </div>
         </div>
       </div>
     `;
@@ -939,6 +1010,10 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const attachments = Array.isArray(replyUi.attachmentsByMessageId?.[commentId])
       ? replyUi.attachmentsByMessageId[commentId]
       : [];
+    const messageReactionSummary = buildMessageReactionSummary(entry?.meta?.reactions || []);
+    const reactionsSummaryList = THREAD_REACTION_CHOICES
+      .map((choice) => ({ ...choice, ...(messageReactionSummary.get(choice.code) || { count: 0, reactedByCurrentUser: false }) }))
+      .filter((choice) => Number(choice.count) > 0);
     const repliesHtml = childReplies.length
       ? `
         <div class="thread-comment-replies thread-comment-replies--github">
@@ -972,10 +1047,30 @@ priority=${firstNonEmpty(subject.priority, "")}`
         ${(Array.isArray(entry?.meta?.attachments) && entry.meta.attachments.length)
           ? `<div class="subject-attachment-grid">${entry.meta.attachments.map((attachment) => renderAttachmentTile(attachment)).join("")}</div>`
           : ""}
-        ${childReplies.length
+        ${(childReplies.length || reactionsSummaryList.length)
           ? `
             <div class="thread-comment-footer">
-              <span class="mono-small color-fg-muted">${childReplies.length} réponse${childReplies.length > 1 ? "s" : ""}</span>
+              ${childReplies.length
+                ? `<span class="mono-small color-fg-muted">${childReplies.length} réponse${childReplies.length > 1 ? "s" : ""}</span>`
+                : ""}
+              ${reactionsSummaryList.length
+                ? `
+                  <div class="thread-comment-footer__reactions">
+                    ${reactionsSummaryList.map((reaction) => `
+                      <span class="arkolia-identity-chip thread-comment-reaction-chip ${reaction.reactedByCurrentUser ? "is-active" : ""}">
+                        <img
+                          src="${escapeHtml(reaction.assetPath)}"
+                          alt=""
+                          loading="lazy"
+                          onerror="this.style.display='none'; this.parentElement?.querySelector('.thread-reaction-fallback')?.classList.remove('hidden');"
+                        />
+                        <span class="thread-reaction-fallback hidden" aria-hidden="true">${escapeHtml(reaction.emoji)}</span>
+                        <span>${reaction.count}</span>
+                      </span>
+                    `).join("")}
+                  </div>
+                `
+                : ""}
             </div>
           `
           : ""}
@@ -1440,6 +1535,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     addComment,
     editSubjectMessage,
     deleteSubjectMessage,
+    toggleSubjectMessageReaction,
     addActivity,
     setDecision,
     getDecision,

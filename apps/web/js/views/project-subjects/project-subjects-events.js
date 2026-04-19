@@ -64,6 +64,7 @@ export function createProjectSubjectsEvents(config) {
     addComment,
     editSubjectMessage,
     deleteSubjectMessage,
+    toggleSubjectMessageReaction,
     getMentionUiState,
     getComposerAttachmentsState,
     mdToHtml,
@@ -2022,6 +2023,22 @@ export function createProjectSubjectsEvents(config) {
           await deleteSubjectMessage?.(selection.item.id, messageId);
         } catch (error) {
           showError(`Suppression impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+        }
+      };
+    });
+
+    root.querySelectorAll("[data-action='thread-message-reaction-toggle'][data-message-id][data-reaction-code]").forEach((btn) => {
+      btn.onclick = async () => {
+        const selection = getScopedSelection(root);
+        if (selection?.type !== "sujet") return;
+        const messageId = String(btn.dataset.messageId || "").trim();
+        const reactionCode = String(btn.dataset.reactionCode || "").trim();
+        if (!messageId || !reactionCode) return;
+        btn.closest(".thread-comment-menu__dropdown")?.classList.remove("is-open");
+        try {
+          await toggleSubjectMessageReaction?.(selection.item.id, messageId, reactionCode);
+        } catch (error) {
+          showError(`Réaction impossible : ${String(error?.message || error || "Erreur inconnue")}`);
         }
       };
     });
