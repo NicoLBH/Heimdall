@@ -742,6 +742,13 @@ export function createProjectSubjectsEvents(config) {
       return selector ? root.querySelector(selector) : null;
     };
 
+    const focusComposerTextarea = (composerKey = "") => {
+      const textarea = getTextareaForComposerKey(composerKey);
+      if (!textarea) return null;
+      textarea.focus({ preventScroll: true });
+      return textarea;
+    };
+
     const getAutocompleteLayer = () => {
       const layer = document.querySelector("#subject-autocomplete-layer");
       if (!layer) return null;
@@ -2543,6 +2550,50 @@ export function createProjectSubjectsEvents(config) {
       return result;
     };
 
+    const applyEmojiSuggestionByComposerKey = (composerKey, suggestion = {}) => {
+      const normalizedKey = String(composerKey || "").trim();
+      if (!normalizedKey) return;
+      const textarea = getTextareaForComposerKey(normalizedKey);
+      if (!textarea) return;
+      const [mode = "main", messageId = ""] = normalizedKey.split(":");
+      if (normalizedKey === "main") {
+        const emojiState = getEmojiState();
+        const context = {
+          triggerStart: emojiState.triggerStart,
+          triggerEnd: Number(textarea.selectionStart || emojiState.triggerEnd || 0)
+        };
+        const result = applyEmojiSuggestion(textarea.value || "", context, suggestion);
+        textarea.value = result.nextText;
+        store.situationsView.commentDraft = String(result.nextText || "");
+        textarea.focus();
+        textarea.selectionStart = result.nextCursorIndex;
+        textarea.selectionEnd = result.nextCursorIndex;
+        closeEmojiPopup({ rerender: false });
+        if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
+        const computedStyle = window.getComputedStyle(textarea);
+        const lineHeight = Math.max(16, Math.round(parseFloat(computedStyle.lineHeight) || 20));
+        const minHeight = Math.max(170, Math.round(parseFloat(computedStyle.minHeight) || 170));
+        const comfortExtraLines = 3;
+        const extraPadding = lineHeight * comfortExtraLines;
+        textarea.style.overflowY = "hidden";
+        textarea.style.height = "auto";
+        textarea.style.height = `${Math.max(minHeight, textarea.scrollHeight + extraPadding)}px`;
+        rerenderAutocompleteUi();
+        return;
+      }
+      const result = applyInlineEmojiSuggestion(textarea, suggestion);
+      const replyUi = resolveInlineReplyUiState();
+      if (mode === "reply") {
+        replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
+        syncInlineReplySubmitButton(messageId);
+      } else {
+        replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
+        syncInlineEditSubmitButton(messageId);
+      }
+      syncInlineReplyTextareaHeight(textarea);
+      rerenderAutocompleteUi();
+    };
+
     root.querySelectorAll("[data-thread-reply-draft]").forEach((textarea) => {
       syncInlineReplyTextareaHeight(textarea);
       textarea.addEventListener("input", () => {
@@ -3096,30 +3147,10 @@ export function createProjectSubjectsEvents(config) {
         if (!(emojiBtn instanceof HTMLElement)) return;
         const composerKey = String(emojiBtn.dataset.composerKey || "").trim();
         if (!composerKey) return;
-        const textarea = getTextareaForComposerKey(composerKey);
-        if (!textarea) return;
-        if (composerKey === "main") {
-          pickEmojiSuggestion({
-            emoji: String(emojiBtn.dataset.emoji || "").trim(),
-            shortcode: String(emojiBtn.dataset.shortcode || "").trim()
-          });
-          return;
-        }
-        const [mode, messageId] = composerKey.split(":");
-        if (!mode || !messageId) return;
-        const result = applyInlineEmojiSuggestion(textarea, {
+        applyEmojiSuggestionByComposerKey(composerKey, {
           emoji: String(emojiBtn.dataset.emoji || "").trim(),
           shortcode: String(emojiBtn.dataset.shortcode || "").trim()
         });
-        const replyUi = resolveInlineReplyUiState();
-        if (mode === "reply") {
-          replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
-          syncInlineReplySubmitButton(messageId);
-        } else {
-          replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
-          syncInlineEditSubmitButton(messageId);
-        }
-        syncInlineReplyTextareaHeight(textarea);
       });
       autocompleteLayer.layer.dataset.subjectAutocompleteBound = "true";
     }
@@ -3147,6 +3178,7 @@ export function createProjectSubjectsEvents(config) {
       };
       window.addEventListener("resize", syncPopupPositions);
       window.addEventListener("scroll", syncPopupPositions);
+      document.addEventListener("scroll", syncPopupPositions, true);
       document.addEventListener("selectionchange", () => {
         const activeElement = document.activeElement;
         if (!(activeElement instanceof HTMLTextAreaElement)) return;
@@ -3154,6 +3186,23 @@ export function createProjectSubjectsEvents(config) {
         positionAllAutocompletePopups();
       });
       root.dataset.subjectAutocompletePositionBound = "true";
+    }
+    if (root.dataset.subjectAutocompleteEscapeBound !== "true") {
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        const mentionState = getMentionState();
+        const emojiState = getEmojiState();
+        const mentionOpen = !!mentionState.open;
+        const emojiOpen = !!emojiState.open;
+        if (!mentionOpen && !emojiOpen) return;
+        event.preventDefault();
+        const fallbackComposerKey = String(mentionState.composerKey || emojiState.composerKey || "main");
+        closeMentionPopup({ rerender: false });
+        closeEmojiPopup({ rerender: false });
+        rerenderAutocompleteUi();
+        focusComposerTextarea(fallbackComposerKey);
+      });
+      root.dataset.subjectAutocompleteEscapeBound = "true";
     }
     requestAnimationFrame(() => positionAllAutocompletePopups());
 
