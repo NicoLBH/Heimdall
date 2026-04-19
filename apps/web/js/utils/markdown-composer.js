@@ -59,6 +59,9 @@ export function applyMarkdownComposerAction(textarea, action = "") {
     case "quote":
       result = prefixSelectedLines(value, start, end, "> ");
       break;
+    case "code":
+      result = applyWrap(value, start, end, "`", "`", "code");
+      break;
     case "bullet-list":
       result = prefixSelectedLines(value, start, end, "- ");
       break;

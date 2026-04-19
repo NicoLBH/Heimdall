@@ -669,6 +669,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       { action: "italic", icon: "markdown-italic", label: "Italique" },
       { action: "underline", icon: "markdown-underline", label: "Souligné" },
       { action: "quote", icon: "markdown-quote", label: "Citation" },
+      { action: "code", icon: "markdown-code", label: "Code" },
       { action: "link", icon: "markdown-link", label: "Lien" },
       { action: "ordered-list", icon: "markdown-list-ordered", label: "Liste numérotée" },
       { action: "bullet-list", icon: "markdown-list-unordered", label: "Liste à puces" },
@@ -717,7 +718,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       </button>
     `;
 
-    const groupOne = ["bold", "italic", "underline", "quote", "link"];
+    const groupOne = ["bold", "italic", "underline", "quote", "code", "link"];
     const groupTwo = ["ordered-list", "bullet-list", "checklist"];
     const mentionButton = toolbarButtons.find((button) => button.action === "mention");
     const renderGroup = (actions = []) => actions
@@ -975,7 +976,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     } else if (uploadState === "ready") {
       uploadIndicatorHtml = `
         <span class="subject-attachment__upload-indicator" aria-label="Pièce jointe prête">
-          ${svgIcon("attachment-upload-dot", { className: "subject-attachment__spinner" })}
+          ${svgIcon("check-circle-fill", { className: "subject-attachment__spinner" })}
         </span>
       `;
     } else if (uploadState === "error") {
@@ -1373,6 +1374,10 @@ priority=${firstNonEmpty(subject.priority, "")}`
       actionsHtml,
       toolbarHtml,
       tabsClassName: "comment-composer__tabs--main",
+      previewHtml: previewMode && String(store.situationsView.commentDraft || "").trim()
+        ? mdToHtml(String(store.situationsView.commentDraft || ""))
+        : "",
+      previewEmptyHint: "Utilisez le Markdown pour formater votre commentaire",
       footerHtml: `${mentionPopupHtml}${composerAttachmentsHtml}`
     });
   }
