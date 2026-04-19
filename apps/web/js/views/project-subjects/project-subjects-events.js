@@ -806,6 +806,172 @@ export function createProjectSubjectsEvents(config) {
       });
     };
 
+    let mentionCollaborators = [];
+    let mentionCollaboratorsLoaded = false;
+    let mentionLoadPromise = null;
+
+    const getMentionState = () => {
+      if (typeof getMentionUiState === "function") return getMentionUiState();
+      if (!store.situationsView.mentionUi || typeof store.situationsView.mentionUi !== "object") {
+        store.situationsView.mentionUi = {
+          open: false,
+          query: "",
+          activeIndex: 0,
+          triggerStart: -1,
+          triggerEnd: -1,
+          suggestions: [],
+          composerKey: ""
+        };
+      }
+      if (typeof store.situationsView.mentionUi.composerKey !== "string") {
+        store.situationsView.mentionUi.composerKey = "";
+      }
+      return store.situationsView.mentionUi;
+    };
+
+    const closeMentionPopup = ({ rerender = true, selector = "#humanCommentBox", shouldFocus = false, caretStart = 0, caretEnd = 0 } = {}) => {
+      const mentionState = getMentionState();
+      mentionState.open = false;
+      mentionState.query = "";
+      mentionState.activeIndex = 0;
+      mentionState.triggerStart = -1;
+      mentionState.triggerEnd = -1;
+      mentionState.suggestions = [];
+      mentionState.composerKey = "";
+      if (rerender) rerenderAutocompleteUi({ selector, shouldFocus, caretStart, caretEnd });
+    };
+
+    const ensureMentionCollaboratorsLoaded = async () => {
+      if (mentionCollaboratorsLoaded) return mentionCollaborators;
+      if (mentionLoadPromise) return mentionLoadPromise;
+      const selection = getScopedSelection(root);
+      if (!selection?.item?.project_id || typeof listCollaboratorsForMentions !== "function") {
+        mentionCollaborators = [];
+        mentionCollaboratorsLoaded = true;
+        return mentionCollaborators;
+      }
+      mentionLoadPromise = listCollaboratorsForMentions(selection.item.project_id)
+        .then((rows) => {
+          mentionCollaborators = Array.isArray(rows) ? rows : [];
+          mentionCollaboratorsLoaded = true;
+          return mentionCollaborators;
+        })
+        .catch((error) => {
+          console.warn("[subject-mentions] collaborators load failed", error);
+          mentionCollaborators = [];
+          mentionCollaboratorsLoaded = true;
+          return mentionCollaborators;
+        })
+        .finally(() => {
+          mentionLoadPromise = null;
+        });
+      return mentionLoadPromise;
+    };
+
+    const syncMentionPopupForTextarea = async (textarea, composerKey, { forceOpen = false } = {}) => {
+      if (!textarea) return;
+      const mentionState = getMentionState();
+      const context = resolveMentionTriggerContext(textarea.value || "", textarea.selectionStart || 0);
+      if (!context && !forceOpen) {
+        if (mentionState.open && String(mentionState.composerKey || "") === composerKey) {
+          const { mode, messageId } = splitComposerKey(composerKey);
+          closeMentionPopup({
+            selector: getTextareaSelector({ composerKey: mode, messageId }),
+            shouldFocus: true,
+            caretStart: Number(textarea.selectionStart || 0),
+            caretEnd: Number(textarea.selectionEnd || 0)
+          });
+        }
+        return;
+      }
+      const query = String(context?.query || "").trim().toLowerCase();
+      const { mode, messageId } = splitComposerKey(composerKey);
+      const selector = getTextareaSelector({ composerKey: mode, messageId });
+      if (!mentionCollaboratorsLoaded) {
+        mentionState.triggerStart = Number(context?.triggerStart ?? -1);
+        mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
+        mentionState.query = query;
+        mentionState.suggestions = [];
+        mentionState.open = true;
+        mentionState.activeIndex = 0;
+        mentionState.composerKey = composerKey;
+        rerenderAutocompleteUi({
+          selector,
+          shouldFocus: true,
+          caretStart: Number(textarea.selectionStart || 0),
+          caretEnd: Number(textarea.selectionEnd || 0)
+        });
+        void ensureMentionCollaboratorsLoaded().then(() => {
+          const activeTextarea = getTextareaForComposerKey(composerKey);
+          if (activeTextarea) void syncMentionPopupForTextarea(activeTextarea, composerKey, { forceOpen: true });
+        });
+        return;
+      }
+
+      const suggestions = mentionCollaborators
+        .filter((entry) => {
+          if (!query) return true;
+          return [
+            String(entry?.label || "").toLowerCase(),
+            String(entry?.email || "").toLowerCase()
+          ].some((field) => field.includes(query));
+        })
+        .slice(0, 8);
+
+      mentionState.triggerStart = Number(context?.triggerStart ?? -1);
+      mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
+      mentionState.query = query;
+      mentionState.suggestions = suggestions;
+      mentionState.open = !!context || forceOpen;
+      mentionState.activeIndex = Math.max(0, Math.min(Number(mentionState.activeIndex || 0), Math.max(0, suggestions.length - 1)));
+      mentionState.composerKey = composerKey;
+      rerenderAutocompleteUi({
+        selector,
+        shouldFocus: true,
+        caretStart: Number(textarea.selectionStart || 0),
+        caretEnd: Number(textarea.selectionEnd || 0)
+      });
+    };
+
+    const pickMentionSuggestion = (suggestion, composerKey = "main") => {
+      const textarea = getTextareaForComposerKey(composerKey);
+      if (!textarea) return;
+      const mentionState = getMentionState();
+      const context = {
+        triggerStart: mentionState.triggerStart,
+        triggerEnd: Number(textarea.selectionStart || mentionState.triggerEnd || 0)
+      };
+      const result = applyMentionSuggestion(textarea.value || "", context, suggestion);
+      textarea.value = result.nextText;
+      const { mode, messageId = "" } = splitComposerKey(composerKey);
+      if (mode === "main") {
+        store.situationsView.commentDraft = String(result.nextText || "");
+      } else {
+        const replyUi = resolveInlineReplyUiState();
+        if (mode === "reply") {
+          replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
+          syncInlineReplySubmitButton(messageId);
+        } else if (mode === "edit") {
+          replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
+          syncInlineEditSubmitButton(messageId);
+        }
+        syncInlineReplyTextareaHeight(textarea);
+      }
+      textarea.focus();
+      textarea.selectionStart = result.nextCursorIndex;
+      textarea.selectionEnd = result.nextCursorIndex;
+      closeMentionPopup({ rerender: false });
+      closeEmojiPopup({ rerender: false });
+      if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
+      const selector = getTextareaSelector({ composerKey: mode, messageId });
+      rerenderAutocompleteUi({
+        selector,
+        shouldFocus: true,
+        caretStart: result.nextCursorIndex,
+        caretEnd: result.nextCursorIndex
+      });
+    };
+
     const commentTextarea = root.querySelector("#humanCommentBox");
     if (commentTextarea) {
       const getComposerAttachments = () => {
@@ -957,42 +1123,6 @@ export function createProjectSubjectsEvents(config) {
         }
       };
 
-      let mentionCollaborators = [];
-      let mentionCollaboratorsLoaded = false;
-      let mentionLoadPromise = null;
-
-      const getMentionState = () => {
-        if (typeof getMentionUiState === "function") return getMentionUiState();
-        if (!store.situationsView.mentionUi || typeof store.situationsView.mentionUi !== "object") {
-          store.situationsView.mentionUi = {
-            open: false,
-            query: "",
-            activeIndex: 0,
-            triggerStart: -1,
-            triggerEnd: -1,
-            suggestions: [],
-            composerKey: ""
-          };
-        }
-        if (typeof store.situationsView.mentionUi.composerKey !== "string") {
-          store.situationsView.mentionUi.composerKey = "";
-        }
-        return store.situationsView.mentionUi;
-      };
-
-      const closeMentionPopup = ({ rerender = true, selector = "#humanCommentBox", shouldFocus = false, caretStart = 0, caretEnd = 0 } = {}) => {
-        const mentionState = getMentionState();
-        mentionState.open = false;
-        mentionState.query = "";
-        mentionState.activeIndex = 0;
-        mentionState.triggerStart = -1;
-        mentionState.triggerEnd = -1;
-        mentionState.suggestions = [];
-        mentionState.composerKey = "";
-        if (rerender) {
-          rerenderAutocompleteUi({ selector, shouldFocus, caretStart, caretEnd });
-        }
-      };
       const syncMainEmojiPopup = ({ composerKey = "main" } = {}) => {
         const emojiState = getEmojiState();
         const context = resolveEmojiTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
@@ -1017,139 +1147,8 @@ export function createProjectSubjectsEvents(config) {
         });
       };
 
-      const ensureMentionCollaboratorsLoaded = async () => {
-        if (mentionCollaboratorsLoaded) return mentionCollaborators;
-        if (mentionLoadPromise) return mentionLoadPromise;
-        const selection = getScopedSelection(root);
-        if (!selection?.item?.project_id || typeof listCollaboratorsForMentions !== "function") {
-          mentionCollaborators = [];
-          mentionCollaboratorsLoaded = true;
-          return mentionCollaborators;
-        }
-        mentionLoadPromise = listCollaboratorsForMentions(selection.item.project_id)
-          .then((rows) => {
-            mentionCollaborators = Array.isArray(rows) ? rows : [];
-            mentionCollaboratorsLoaded = true;
-            return mentionCollaborators;
-          })
-          .catch((error) => {
-            console.warn("[subject-mentions] collaborators load failed", error);
-            mentionCollaborators = [];
-            mentionCollaboratorsLoaded = true;
-            return mentionCollaborators;
-          })
-          .finally(() => {
-            mentionLoadPromise = null;
-          });
-        return mentionLoadPromise;
-      };
-
-      const syncMentionPopupForTextarea = async (textarea, composerKey, { forceOpen = false } = {}) => {
-        if (!textarea) return;
-        const mentionState = getMentionState();
-        const context = resolveMentionTriggerContext(textarea.value || "", textarea.selectionStart || 0);
-        if (!context && !forceOpen) {
-          if (mentionState.open && String(mentionState.composerKey || "") === composerKey) {
-            const { mode, messageId } = splitComposerKey(composerKey);
-            closeMentionPopup({
-              selector: getTextareaSelector({ composerKey: mode, messageId }),
-              shouldFocus: true,
-              caretStart: Number(textarea.selectionStart || 0),
-              caretEnd: Number(textarea.selectionEnd || 0)
-            });
-          }
-          return;
-        }
-        const query = String(context?.query || "").trim().toLowerCase();
-        const { mode, messageId } = splitComposerKey(composerKey);
-        const selector = getTextareaSelector({ composerKey: mode, messageId });
-        if (!mentionCollaboratorsLoaded) {
-          mentionState.triggerStart = Number(context?.triggerStart ?? -1);
-          mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
-          mentionState.query = query;
-          mentionState.suggestions = [];
-          mentionState.open = true;
-          mentionState.activeIndex = 0;
-          mentionState.composerKey = composerKey;
-          rerenderAutocompleteUi({
-            selector,
-            shouldFocus: true,
-            caretStart: Number(textarea.selectionStart || 0),
-            caretEnd: Number(textarea.selectionEnd || 0)
-          });
-          void ensureMentionCollaboratorsLoaded().then(() => {
-            const activeTextarea = getTextareaForComposerKey(composerKey);
-            if (activeTextarea) void syncMentionPopupForTextarea(activeTextarea, composerKey, { forceOpen: true });
-          });
-          return;
-        }
-
-        const suggestions = mentionCollaborators
-          .filter((entry) => {
-            if (!query) return true;
-            return [
-              String(entry?.label || "").toLowerCase(),
-              String(entry?.email || "").toLowerCase()
-            ].some((field) => field.includes(query));
-          })
-          .slice(0, 8);
-
-        mentionState.triggerStart = Number(context?.triggerStart ?? -1);
-        mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
-        mentionState.query = query;
-        mentionState.suggestions = suggestions;
-        mentionState.open = !!context || forceOpen;
-        mentionState.activeIndex = Math.max(0, Math.min(Number(mentionState.activeIndex || 0), Math.max(0, suggestions.length - 1)));
-        mentionState.composerKey = composerKey;
-        rerenderAutocompleteUi({
-          selector,
-          shouldFocus: true,
-          caretStart: Number(textarea.selectionStart || 0),
-          caretEnd: Number(textarea.selectionEnd || 0)
-        });
-      };
-
       const syncMentionPopup = async ({ forceOpen = false } = {}) => {
         await syncMentionPopupForTextarea(commentTextarea, "main", { forceOpen });
-      };
-
-      const pickMentionSuggestion = (suggestion, composerKey = "main") => {
-        const textarea = getTextareaForComposerKey(composerKey);
-        if (!textarea) return;
-        const mentionState = getMentionState();
-        const context = {
-          triggerStart: mentionState.triggerStart,
-          triggerEnd: Number(textarea.selectionStart || mentionState.triggerEnd || 0)
-        };
-        const result = applyMentionSuggestion(textarea.value || "", context, suggestion);
-        textarea.value = result.nextText;
-        const { mode, messageId = "" } = splitComposerKey(composerKey);
-        if (mode === "main") {
-          store.situationsView.commentDraft = String(result.nextText || "");
-        } else {
-          const replyUi = resolveInlineReplyUiState();
-          if (mode === "reply") {
-            replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
-            syncInlineReplySubmitButton(messageId);
-          } else if (mode === "edit") {
-            replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
-            syncInlineEditSubmitButton(messageId);
-          }
-          syncInlineReplyTextareaHeight(textarea);
-        }
-        textarea.focus();
-        textarea.selectionStart = result.nextCursorIndex;
-        textarea.selectionEnd = result.nextCursorIndex;
-        closeMentionPopup({ rerender: false });
-        closeEmojiPopup({ rerender: false });
-        if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
-        const selector = getTextareaSelector({ composerKey: mode, messageId });
-        rerenderAutocompleteUi({
-          selector,
-          shouldFocus: true,
-          caretStart: result.nextCursorIndex,
-          caretEnd: result.nextCursorIndex
-        });
       };
       const pickEmojiSuggestion = (suggestion) => {
         const emojiState = getEmojiState();
