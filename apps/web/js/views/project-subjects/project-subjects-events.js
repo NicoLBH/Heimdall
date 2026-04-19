@@ -4,8 +4,14 @@ import {
   extractStructuredMentions,
   resolveMentionTriggerContext
 } from "../../utils/subject-mentions.js";
+import {
+  applyEmojiSuggestion,
+  resolveEmojiTriggerContext,
+  searchEmojiSuggestions
+} from "../../utils/emoji-autocomplete.js";
 
 export function createProjectSubjectsEvents(config) {
+  const EMOJI_GRID_COLUMNS = 6;
   const {
     store,
     PROJECT_TAB_RESELECTED_EVENT,
@@ -66,6 +72,7 @@ export function createProjectSubjectsEvents(config) {
     deleteSubjectMessage,
     toggleSubjectMessageReaction,
     getMentionUiState,
+    getEmojiUiState,
     getComposerAttachmentsState,
     mdToHtml,
     listCollaboratorsForMentions,
@@ -676,6 +683,34 @@ export function createProjectSubjectsEvents(config) {
       };
     });
 
+    const getEmojiState = () => {
+      if (typeof getEmojiUiState === "function") return getEmojiUiState();
+      if (!store.situationsView.emojiUi || typeof store.situationsView.emojiUi !== "object") {
+        store.situationsView.emojiUi = {
+          open: false,
+          query: "",
+          activeIndex: 0,
+          triggerStart: -1,
+          triggerEnd: -1,
+          suggestions: [],
+          composerKey: ""
+        };
+      }
+      return store.situationsView.emojiUi;
+    };
+
+    const closeEmojiPopup = ({ rerender = true } = {}) => {
+      const emojiState = getEmojiState();
+      emojiState.open = false;
+      emojiState.query = "";
+      emojiState.activeIndex = 0;
+      emojiState.triggerStart = -1;
+      emojiState.triggerEnd = -1;
+      emojiState.suggestions = [];
+      emojiState.composerKey = "";
+      if (rerender) rerenderScope(root);
+    };
+
     const commentTextarea = root.querySelector("#humanCommentBox");
     if (commentTextarea) {
       const getComposerAttachments = () => {
@@ -856,6 +891,24 @@ export function createProjectSubjectsEvents(config) {
         mentionState.suggestions = [];
         if (rerender) rerenderScope(root);
       };
+      const syncEmojiPopup = ({ composerKey = "main" } = {}) => {
+        const emojiState = getEmojiState();
+        const context = resolveEmojiTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
+        if (!context) {
+          if (emojiState.open) closeEmojiPopup();
+          return;
+        }
+        const query = String(context?.query || "").trim().toLowerCase();
+        const suggestions = searchEmojiSuggestions(query, 200);
+        emojiState.triggerStart = Number(context?.triggerStart ?? -1);
+        emojiState.triggerEnd = Number(context?.triggerEnd ?? -1);
+        emojiState.query = query;
+        emojiState.suggestions = suggestions;
+        emojiState.composerKey = composerKey;
+        emojiState.open = true;
+        emojiState.activeIndex = Math.max(0, Math.min(Number(emojiState.activeIndex || 0), Math.max(0, suggestions.length - 1)));
+        rerenderScope(root);
+      };
 
       const ensureMentionCollaboratorsLoaded = async () => {
         if (mentionCollaboratorsLoaded) return mentionCollaborators;
@@ -926,8 +979,36 @@ export function createProjectSubjectsEvents(config) {
         commentTextarea.selectionStart = result.nextCursorIndex;
         commentTextarea.selectionEnd = result.nextCursorIndex;
         closeMentionPopup({ rerender: false });
+        closeEmojiPopup({ rerender: false });
         if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
         rerenderScope(root);
+      };
+      const pickEmojiSuggestion = (suggestion) => {
+        const emojiState = getEmojiState();
+        const context = {
+          triggerStart: emojiState.triggerStart,
+          triggerEnd: Number(commentTextarea.selectionStart || emojiState.triggerEnd || 0)
+        };
+        const result = applyEmojiSuggestion(commentTextarea.value || "", context, suggestion);
+        commentTextarea.value = result.nextText;
+        store.situationsView.commentDraft = String(result.nextText || "");
+        commentTextarea.focus();
+        commentTextarea.selectionStart = result.nextCursorIndex;
+        commentTextarea.selectionEnd = result.nextCursorIndex;
+        closeEmojiPopup({ rerender: false });
+        if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
+        syncMainComposerTextareaHeight();
+        rerenderScope(root);
+      };
+      const syncComposerAutocomplete = async () => {
+        const mentionContext = resolveMentionTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
+        if (mentionContext) {
+          await syncMentionPopup();
+          closeEmojiPopup({ rerender: false });
+          return;
+        }
+        if (getMentionState().open) closeMentionPopup({ rerender: false });
+        syncEmojiPopup({ composerKey: "main" });
       };
 
       const syncMainComposerTextareaHeight = () => {
@@ -947,11 +1028,12 @@ export function createProjectSubjectsEvents(config) {
       commentTextarea.addEventListener("input", () => {
         store.situationsView.commentDraft = String(commentTextarea.value || "");
         syncMainComposerTextareaHeight();
-        void syncMentionPopup();
+        void syncComposerAutocomplete();
         if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
       });
       commentTextarea.addEventListener("keydown", (ev) => {
         const mentionState = getMentionState();
+        const emojiState = getEmojiState();
         if (mentionState.open && Array.isArray(mentionState.suggestions) && mentionState.suggestions.length) {
           if (ev.key === "ArrowDown") {
             ev.preventDefault();
@@ -976,6 +1058,42 @@ export function createProjectSubjectsEvents(config) {
             return;
           }
         }
+        if (emojiState.open && Array.isArray(emojiState.suggestions) && emojiState.suggestions.length && String(emojiState.composerKey || "") === "main") {
+          if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) + EMOJI_GRID_COLUMNS) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) - EMOJI_GRID_COLUMNS + emojiState.suggestions.length) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (ev.key === "ArrowRight") {
+            ev.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) + 1) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (ev.key === "ArrowLeft") {
+            ev.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) - 1 + emojiState.suggestions.length) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            pickEmojiSuggestion(emojiState.suggestions[Number(emojiState.activeIndex || 0)] || emojiState.suggestions[0]);
+            return;
+          }
+          if (ev.key === "Escape") {
+            ev.preventDefault();
+            closeEmojiPopup();
+            return;
+          }
+        }
         if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
           ev.preventDefault();
           applyCommentAction(root);
@@ -989,7 +1107,10 @@ export function createProjectSubjectsEvents(config) {
           const didApply = applyMarkdownComposerAction(commentTextarea, action);
           if (!didApply) return;
           if (action === "mention") void syncMentionPopup({ forceOpen: true });
-          else closeMentionPopup({ rerender: false });
+          else {
+            closeMentionPopup({ rerender: false });
+            closeEmojiPopup({ rerender: false });
+          }
           store.situationsView.commentDraft = String(commentTextarea.value || "");
           syncMainComposerTextareaHeight();
           if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
@@ -1001,6 +1122,14 @@ export function createProjectSubjectsEvents(config) {
           pickMentionSuggestion({
             personId: String(btn.dataset.personId || "").trim(),
             label: String(btn.dataset.label || "").trim()
+          });
+        };
+      });
+      root.querySelectorAll("[data-action='emoji-pick'][data-composer-key='main']").forEach((btn) => {
+        btn.onclick = () => {
+          pickEmojiSuggestion({
+            emoji: String(btn.dataset.emoji || "").trim(),
+            shortcode: String(btn.dataset.shortcode || "").trim()
           });
         };
       });
@@ -2043,6 +2172,45 @@ export function createProjectSubjectsEvents(config) {
       };
     });
 
+    const syncInlineEmojiPopup = (textarea, composerKey) => {
+      const emojiState = getEmojiState();
+      const mentionContext = resolveMentionTriggerContext(textarea.value || "", textarea.selectionStart || 0);
+      if (mentionContext) {
+        if (emojiState.open && String(emojiState.composerKey || "") === composerKey) closeEmojiPopup();
+        return;
+      }
+      const context = resolveEmojiTriggerContext(textarea.value || "", textarea.selectionStart || 0);
+      if (!context) {
+        if (emojiState.open && String(emojiState.composerKey || "") === composerKey) closeEmojiPopup();
+        return;
+      }
+      const query = String(context?.query || "").trim().toLowerCase();
+      const suggestions = searchEmojiSuggestions(query, 200);
+      emojiState.open = true;
+      emojiState.query = query;
+      emojiState.activeIndex = Math.max(0, Math.min(Number(emojiState.activeIndex || 0), Math.max(0, suggestions.length - 1)));
+      emojiState.triggerStart = Number(context?.triggerStart ?? -1);
+      emojiState.triggerEnd = Number(context?.triggerEnd ?? -1);
+      emojiState.suggestions = suggestions;
+      emojiState.composerKey = composerKey;
+      rerenderScope(root);
+    };
+
+    const applyInlineEmojiSuggestion = (textarea, suggestion = {}) => {
+      const emojiState = getEmojiState();
+      const context = {
+        triggerStart: emojiState.triggerStart,
+        triggerEnd: Number(textarea.selectionStart || emojiState.triggerEnd || 0)
+      };
+      const result = applyEmojiSuggestion(textarea.value || "", context, suggestion);
+      textarea.value = String(result.nextText || "");
+      textarea.focus();
+      textarea.selectionStart = result.nextCursorIndex;
+      textarea.selectionEnd = result.nextCursorIndex;
+      closeEmojiPopup({ rerender: false });
+      return result;
+    };
+
     root.querySelectorAll("[data-thread-reply-draft]").forEach((textarea) => {
       syncInlineReplyTextareaHeight(textarea);
       textarea.addEventListener("input", () => {
@@ -2052,12 +2220,55 @@ export function createProjectSubjectsEvents(config) {
         replyUi.draftsByMessageId[messageId] = String(textarea.value || "");
         syncInlineReplyTextareaHeight(textarea);
         syncInlineReplySubmitButton(messageId);
+        syncInlineEmojiPopup(textarea, `reply:${messageId}`);
       });
       textarea.addEventListener("keydown", (event) => {
+        const messageId = String(textarea.dataset.threadReplyDraft || "").trim();
+        const composerKey = `reply:${messageId}`;
+        const emojiState = getEmojiState();
+        if (emojiState.open && String(emojiState.composerKey || "") === composerKey && Array.isArray(emojiState.suggestions) && emojiState.suggestions.length) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) + EMOJI_GRID_COLUMNS) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) - EMOJI_GRID_COLUMNS + emojiState.suggestions.length) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) + 1) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) - 1 + emojiState.suggestions.length) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const result = applyInlineEmojiSuggestion(textarea, emojiState.suggestions[Number(emojiState.activeIndex || 0)] || emojiState.suggestions[0]);
+            const replyUi = resolveInlineReplyUiState();
+            if (messageId) replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
+            syncInlineReplyTextareaHeight(textarea);
+            syncInlineReplySubmitButton(messageId);
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeEmojiPopup();
+            return;
+          }
+        }
         if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
         event.preventDefault();
         const submitButton = textarea.closest(".thread-inline-reply-editor")?.querySelector("[data-action='thread-reply-submit'][data-message-id]");
-        const messageId = String(textarea.dataset.threadReplyDraft || "").trim();
         if (messageId) syncInlineReplySubmitButton(messageId);
         if (submitButton && !submitButton.disabled) submitButton.click();
       });
@@ -2072,12 +2283,55 @@ export function createProjectSubjectsEvents(config) {
         replyUi.editDraftsByMessageId[messageId] = String(textarea.value || "");
         syncInlineReplyTextareaHeight(textarea);
         syncInlineEditSubmitButton(messageId);
+        syncInlineEmojiPopup(textarea, `edit:${messageId}`);
       });
       textarea.addEventListener("keydown", (event) => {
+        const messageId = String(textarea.dataset.threadEditDraft || "").trim();
+        const composerKey = `edit:${messageId}`;
+        const emojiState = getEmojiState();
+        if (emojiState.open && String(emojiState.composerKey || "") === composerKey && Array.isArray(emojiState.suggestions) && emojiState.suggestions.length) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) + EMOJI_GRID_COLUMNS) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) - EMOJI_GRID_COLUMNS + emojiState.suggestions.length) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) + 1) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            emojiState.activeIndex = (Number(emojiState.activeIndex || 0) - 1 + emojiState.suggestions.length) % emojiState.suggestions.length;
+            rerenderScope(root);
+            return;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const result = applyInlineEmojiSuggestion(textarea, emojiState.suggestions[Number(emojiState.activeIndex || 0)] || emojiState.suggestions[0]);
+            const replyUi = resolveInlineReplyUiState();
+            if (messageId) replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
+            syncInlineReplyTextareaHeight(textarea);
+            syncInlineEditSubmitButton(messageId);
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeEmojiPopup();
+            return;
+          }
+        }
         if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
         event.preventDefault();
         const submitButton = textarea.closest(".thread-inline-edit-editor")?.querySelector("[data-action='thread-edit-submit'][data-message-id]");
-        const messageId = String(textarea.dataset.threadEditDraft || "").trim();
         if (messageId) syncInlineEditSubmitButton(messageId);
         if (submitButton && !submitButton.disabled) submitButton.click();
       });
@@ -2202,6 +2456,31 @@ export function createProjectSubjectsEvents(config) {
         syncInlineReplyTextareaHeight(textarea);
         syncInlineEditSubmitButton(messageId);
         textarea.focus();
+      };
+    });
+    root.querySelectorAll("[data-action='emoji-pick'][data-composer-key]").forEach((btn) => {
+      btn.onclick = () => {
+        const composerKey = String(btn.dataset.composerKey || "").trim();
+        if (!composerKey || composerKey === "main") return;
+        const [mode, messageId] = composerKey.split(":");
+        if (!mode || !messageId) return;
+        const textarea = mode === "reply"
+          ? root.querySelector(`[data-thread-reply-draft="${selectorValue(messageId)}"]`)
+          : root.querySelector(`[data-thread-edit-draft="${selectorValue(messageId)}"]`);
+        if (!textarea) return;
+        const result = applyInlineEmojiSuggestion(textarea, {
+          emoji: String(btn.dataset.emoji || "").trim(),
+          shortcode: String(btn.dataset.shortcode || "").trim()
+        });
+        const replyUi = resolveInlineReplyUiState();
+        if (mode === "reply") {
+          replyUi.draftsByMessageId[messageId] = String(result.nextText || "");
+          syncInlineReplySubmitButton(messageId);
+        } else {
+          replyUi.editDraftsByMessageId[messageId] = String(result.nextText || "");
+          syncInlineEditSubmitButton(messageId);
+        }
+        syncInlineReplyTextareaHeight(textarea);
       };
     });
     root.querySelectorAll("[data-action='thread-reply-attachments-pick'][data-message-id]").forEach((btn) => {
@@ -2347,6 +2626,24 @@ export function createProjectSubjectsEvents(config) {
         });
       });
       root.dataset.threadReplyDropdownDocumentBound = "true";
+    }
+    if (root.dataset.subjectEmojiDocumentBound !== "true") {
+      document.addEventListener("click", (event) => {
+        const target = event?.target;
+        if (!target || !(target instanceof Element)) return;
+        if (target.closest(".subject-emoji-popup")) return;
+        if (
+          target.closest("#humanCommentBox")
+          || target.closest("[data-thread-reply-draft]")
+          || target.closest("[data-thread-edit-draft]")
+        ) {
+          return;
+        }
+        const emojiState = getEmojiState();
+        if (!emojiState.open) return;
+        closeEmojiPopup();
+      });
+      root.dataset.subjectEmojiDocumentBound = "true";
     }
 
     root.querySelectorAll("[data-subject-assign-self]").forEach((btn) => {
