@@ -38,6 +38,8 @@ function prefixSelectedLines(text, start, end, marker) {
 
 export function applyMarkdownComposerAction(textarea, action = "") {
   if (!textarea) return false;
+  const previousScrollTop = Number(textarea.scrollTop || 0);
+  const previousScrollLeft = Number(textarea.scrollLeft || 0);
   const value = String(textarea.value || "");
   const start = Number(textarea.selectionStart || 0);
   const end = Number(textarea.selectionEnd || 0);
@@ -56,6 +58,9 @@ export function applyMarkdownComposerAction(textarea, action = "") {
       break;
     case "quote":
       result = prefixSelectedLines(value, start, end, "> ");
+      break;
+    case "code":
+      result = applyWrap(value, start, end, "`", "`", "code");
       break;
     case "bullet-list":
       result = prefixSelectedLines(value, start, end, "- ");
@@ -83,6 +88,8 @@ export function applyMarkdownComposerAction(textarea, action = "") {
 
   if (!result) return false;
   textarea.value = result.next;
+  textarea.scrollTop = previousScrollTop;
+  textarea.scrollLeft = previousScrollLeft;
   setSelectionAndFocus(textarea, result.selectionStart, result.selectionEnd);
   return true;
 }
