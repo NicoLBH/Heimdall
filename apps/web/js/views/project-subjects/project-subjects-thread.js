@@ -901,7 +901,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
       headerRightHtml: renderThreadCommentActions(entry),
       bodyHtml: `
         <div class="thread-comment-content-capsule">
-          <div class="mono-small color-fg-muted">${escapeHtml(String(entry?.stateLabel || "modifiable"))}</div>
           ${mdToHtml(entry?.message || "")}
         </div>
         ${(Array.isArray(entry?.meta?.attachments) && entry.meta.attachments.length)
