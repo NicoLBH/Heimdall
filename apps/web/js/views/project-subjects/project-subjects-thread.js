@@ -792,6 +792,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
           placeholder: "Écrire une réponse, glisser-déposer une pièce jointe...",
           tabWriteAction: "thread-reply-tab-write",
           tabPreviewAction: "thread-reply-tab-preview",
+          tabsClassName: "comment-composer__tabs--thread-reply",
           toolbarHtml: renderMarkdownToolbar("thread-reply-format", { messageId: commentId }),
           previewHtml: normalizedDraft.trim() ? mdToHtml(normalizedDraft) : "",
           actionsHtml: `
@@ -1351,7 +1352,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       : "";
 
     return renderCommentComposer({
-      title: "Add a comment",
+      title: "Ajouter un commentaire",
       avatarHtml: getAuthorIdentity({
         author: store?.user?.name,
         agent: "human",
@@ -1371,6 +1372,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       contextHtml,
       actionsHtml,
       toolbarHtml,
+      tabsClassName: "comment-composer__tabs--main",
       footerHtml: `${mentionPopupHtml}${composerAttachmentsHtml}`
     });
   }

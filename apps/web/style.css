@@ -2549,6 +2549,20 @@ body.is-resizing{
 }
 .comment-composer__tabs{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-right:8px;}
 .comment-composer__tabs-left{display:flex;align-items:center;gap:0;}
+.comment-composer__tabs.light-tabs{
+  margin:0;
+  border-bottom:1px solid var(--border2);
+  background:rgba(22,27,34,.6);
+}
+.comment-composer__tabs.light-tabs::before{
+  border-bottom:1px solid var(--border2);
+}
+.comment-composer__tabs.light-tabs .light-tabs__item{
+  padding:8px 12px;
+  font-size:13px;
+}
+.comment-composer__tabs--main{}
+.comment-composer__tabs--thread-reply{}
 .comment-composer__toolbar{display:flex;align-items:center;justify-content:flex-end;}
 .comment-toolbar-layout{
   display:grid;
