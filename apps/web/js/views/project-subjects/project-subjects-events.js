@@ -770,6 +770,7 @@ export function createProjectSubjectsEvents(config) {
 
     const positionAutocompletePopup = (textarea, popup) => {
       if (!textarea || !popup || !popup.isConnected) return;
+      if (document.activeElement !== textarea) return;
       const caretRect = computeTextareaCaretRect(textarea, textarea.selectionStart || 0);
       if (!caretRect) return;
       popup.style.position = "fixed";
@@ -1075,10 +1076,27 @@ export function createProjectSubjectsEvents(config) {
           if (mentionState.open) closeMentionPopup();
           return;
         }
-
-        const collaborators = await ensureMentionCollaboratorsLoaded();
         const query = String(context?.query || "").trim().toLowerCase();
-        const suggestions = collaborators
+        if (!mentionCollaboratorsLoaded) {
+          mentionState.triggerStart = Number(context?.triggerStart ?? -1);
+          mentionState.triggerEnd = Number(context?.triggerEnd ?? -1);
+          mentionState.query = query;
+          mentionState.suggestions = [];
+          mentionState.open = true;
+          mentionState.activeIndex = 0;
+          rerenderAutocompleteUi({
+            selector: "#humanCommentBox",
+            shouldFocus: true,
+            caretStart: Number(commentTextarea.selectionStart || 0),
+            caretEnd: Number(commentTextarea.selectionEnd || 0)
+          });
+          void ensureMentionCollaboratorsLoaded().then(() => {
+            void syncMainComposerAutocomplete();
+          });
+          return;
+        }
+
+        const suggestions = mentionCollaborators
           .filter((entry) => {
             if (!query) return true;
             return [
@@ -2896,7 +2914,7 @@ export function createProjectSubjectsEvents(config) {
         requestAnimationFrame(() => positionAllAutocompletePopups());
       };
       window.addEventListener("resize", syncPopupPositions);
-      window.addEventListener("scroll", syncPopupPositions, true);
+      window.addEventListener("scroll", syncPopupPositions);
       root.dataset.subjectAutocompletePositionBound = "true";
     }
     requestAnimationFrame(() => positionAllAutocompletePopups());
