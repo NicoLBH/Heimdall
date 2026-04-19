@@ -1148,6 +1148,16 @@ export function createProjectSubjectsEvents(config) {
         if (getMentionState().open) closeMentionPopup({ rerender: false });
         syncMainEmojiPopup({ composerKey: "main" });
       };
+      const syncComposerAutocomplete = async () => {
+        const mentionContext = resolveMentionTriggerContext(commentTextarea.value || "", commentTextarea.selectionStart || 0);
+        if (mentionContext) {
+          await syncMentionPopup();
+          closeEmojiPopup({ rerender: false });
+          return;
+        }
+        if (getMentionState().open) closeMentionPopup({ rerender: false });
+        syncEmojiPopup({ composerKey: "main" });
+      };
 
       const syncMainComposerTextareaHeight = () => {
         const computedStyle = window.getComputedStyle(commentTextarea);
