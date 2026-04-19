@@ -837,10 +837,17 @@ priority=${firstNonEmpty(subject.priority, "")}`
   function renderInlineEditComposer({ commentId, depth = 0, isEditing = false, draft = "", previewMode = false, originalMessage = "" } = {}) {
     if (!commentId || !isEditing) return "";
     const normalizedDraft = String(draft || "");
+    const isNestedReplyEdit = Number(depth || 0) > 0;
+    const editModeClass = isNestedReplyEdit
+      ? "thread-inline-edit-editor--nested"
+      : "thread-inline-edit-editor--root";
+    const composerEditClass = isNestedReplyEdit
+      ? "comment-composer--thread-edit-nested"
+      : "comment-composer--thread-edit-root";
     const submitLabel = Number(depth || 0) > 0 ? "Mettre à jour la réponse" : "Mettre à jour le commentaire";
     const canSubmit = !!normalizedDraft.trim();
     return `
-      <div class="thread-inline-edit-editor" data-inline-edit-editor="${escapeHtml(commentId)}">
+      <div class="thread-inline-edit-editor ${editModeClass}" data-inline-edit-editor="${escapeHtml(commentId)}">
         ${renderCommentComposer({
           hideAvatar: true,
           hideTitle: true,
@@ -855,7 +862,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
           tabWriteAction: "thread-edit-tab-write",
           tabPreviewAction: "thread-edit-tab-preview",
           tabsClassName: "comment-composer__tabs--thread-reply",
-          composerClassName: "comment-composer--thread-reply-editor",
+          composerClassName: `comment-composer--thread-reply-editor ${composerEditClass}`,
           toolbarHtml: renderMarkdownToolbar("thread-edit-format", { messageId: commentId }),
           previewHtml: normalizedDraft.trim() ? mdToHtml(normalizedDraft) : "",
           actionsHtml: `
