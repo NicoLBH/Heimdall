@@ -745,7 +745,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
 
   function renderInlineReplyComposer({ commentId, isExpanded, draft, previewMode, attachments = [], depth = 0 }) {
     if (!commentId) return "";
-    if (!isExpanded) return "";
     const pendingAttachments = Array.isArray(attachments) ? attachments : [];
     const normalizedDraft = String(draft || "");
     const hasReadyAttachment = pendingAttachments.some((attachment) => String(attachment?.uploadStatus || "").trim() === "ready" && !attachment?.error);
@@ -786,7 +785,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       : "thread-inline-reply-editor thread-inline-reply-editor--root";
 
     return `
-      <div class="${inlineEditorClass}" data-inline-reply-editor="${escapeHtml(commentId)}">
+      <div class="${inlineEditorClass} ${isExpanded ? "" : "hidden"}" data-inline-reply-editor="${escapeHtml(commentId)}" ${isExpanded ? "" : "aria-hidden=\"true\""}>
         ${renderCommentComposer({
           hideAvatar: true,
           hideTitle: true,
@@ -835,7 +834,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
   }
 
   function renderInlineEditComposer({ commentId, depth = 0, isEditing = false, draft = "", previewMode = false, originalMessage = "" } = {}) {
-    if (!commentId || !isEditing) return "";
+    if (!commentId) return "";
     const normalizedDraft = String(draft || "");
     const isNestedReplyEdit = Number(depth || 0) > 0;
     const editModeClass = isNestedReplyEdit
@@ -847,7 +846,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const submitLabel = Number(depth || 0) > 0 ? "Mettre à jour la réponse" : "Mettre à jour le commentaire";
     const canSubmit = !!normalizedDraft.trim();
     return `
-      <div class="thread-inline-edit-editor ${editModeClass}" data-inline-edit-editor="${escapeHtml(commentId)}">
+      <div class="thread-inline-edit-editor ${editModeClass} ${isEditing ? "" : "hidden"}" data-inline-edit-editor="${escapeHtml(commentId)}" ${isEditing ? "" : "aria-hidden=\"true\""}>
         ${renderCommentComposer({
           hideAvatar: true,
           hideTitle: true,
