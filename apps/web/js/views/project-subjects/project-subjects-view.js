@@ -2338,6 +2338,11 @@ function rerenderPanels() {
 
 function rerenderScope(root) {
   const detailsHost = document.getElementById("situationsDetailsHost");
+  const detailsModalBody = document.getElementById("detailsBodyModal");
+  const shouldRerenderDetailsModal = !!detailsModalBody
+    && detailsModalBody.isConnected
+    && !!root?.closest?.("#detailsBodyModal")
+    && !!(store.projectSubjectsView?.detailsModalOpen || store.situationsView?.detailsModalOpen);
   const shouldRerenderDetailsOnly = !!detailsHost
     && detailsHost.isConnected
     && !store.situationsView.createSubjectForm?.isOpen
@@ -2346,6 +2351,12 @@ function rerenderScope(root) {
     && !!root?.closest?.("#situationsDetailsHost");
   const isThreadScopeRoot = !!root?.closest?.("[data-details-thread-host]");
   const isComposerScopeRoot = !!root?.closest?.("[data-details-composer-host]");
+
+  if (shouldRerenderDetailsModal) {
+    debugRenderScope("details-modal", { mode: "full-modal-rerender" });
+    getProjectSubjectDetail().updateDetailsModal();
+    return;
+  }
 
   if (shouldRerenderDetailsOnly) {
     if (isThreadScopeRoot || isComposerScopeRoot) {
