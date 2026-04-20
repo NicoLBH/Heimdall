@@ -937,6 +937,74 @@ export async function replaceSubjectLabels(subjectId, labelIds = []) {
   return true;
 }
 
+export async function updateSubjectDescription({ subjectId, description, uploadSessionId = "" } = {}) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  const nextDescription = String(description || "").trim();
+  const normalizedUploadSessionId = normalizeUuid(uploadSessionId);
+  if (!nextDescription && !normalizedUploadSessionId) {
+    throw new Error("description or uploadSessionId is required");
+  }
+
+  const patchResponse = await fetch(`${SUPABASE_URL}/rest/v1/subjects?id=eq.${normalizedSubjectId}`, {
+    method: "PATCH",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    }),
+    body: JSON.stringify({ description: nextDescription })
+  });
+  if (!patchResponse.ok) {
+    const txt = await patchResponse.text().catch(() => "");
+    throw new Error(`subjects description patch failed (${patchResponse.status}): ${txt}`);
+  }
+  const patchedRows = await patchResponse.json().catch(() => []);
+  const patched = (Array.isArray(patchedRows) ? patchedRows[0] : patchedRows) || {};
+
+  if (normalizedUploadSessionId) {
+    const linkResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/link_subject_description_attachments`, {
+      method: "POST",
+      headers: await getSupabaseAuthHeaders({
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        p_subject_id: normalizedSubjectId,
+        p_upload_session_id: normalizedUploadSessionId
+      })
+    });
+    if (!linkResponse.ok) {
+      const txt = await linkResponse.text().catch(() => "");
+      throw new Error(`link_subject_description_attachments failed (${linkResponse.status}): ${txt}`);
+    }
+  }
+
+  const attachmentsUrl = new URL(`${SUPABASE_URL}/rest/v1/subject_message_attachments`);
+  attachmentsUrl.searchParams.set("select", "id,project_id,subject_id,file_name,mime_type,size_bytes,storage_bucket,storage_path,sort_order,created_at,linked_at");
+  attachmentsUrl.searchParams.set("subject_id", `eq.${normalizedSubjectId}`);
+  attachmentsUrl.searchParams.set("message_id", "is.null");
+  attachmentsUrl.searchParams.set("deleted_at", "is.null");
+  attachmentsUrl.searchParams.set("linked_at", "not.is.null");
+  attachmentsUrl.searchParams.set("order", "sort_order.asc");
+  attachmentsUrl.searchParams.append("order", "created_at.asc");
+  const attachmentsResponse = await fetch(attachmentsUrl.toString(), {
+    method: "GET",
+    headers: await getSupabaseAuthHeaders({ Accept: "application/json" }),
+    cache: "no-store"
+  });
+  if (!attachmentsResponse.ok) {
+    const txt = await attachmentsResponse.text().catch(() => "");
+    throw new Error(`description attachments fetch failed (${attachmentsResponse.status}): ${txt}`);
+  }
+  const descriptionAttachments = await attachmentsResponse.json().catch(() => []);
+  return {
+    ...patched,
+    description: String(patched?.description || nextDescription),
+    description_attachments: Array.isArray(descriptionAttachments) ? descriptionAttachments : []
+  };
+}
+
 export async function loadLabelsForProject(projectId) {
   const resolvedProjectId = await getResolvedProjectId(projectId);
   if (!resolvedProjectId) {
