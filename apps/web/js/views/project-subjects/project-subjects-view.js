@@ -2424,7 +2424,7 @@ function scheduleScopedRerender(scopeKey, resolveRoot) {
 function scheduleDetailsThreadRerender() {
   scheduleScopedRerender("details-thread", () => {
     const detailsHost = document.getElementById("situationsDetailsHost");
-    return detailsHost?.querySelector?.("[data-details-thread-host]") || detailsHost || document;
+    return detailsHost?.querySelector?.("[data-details-thread-host]") || null;
   });
 }
 
@@ -2444,7 +2444,10 @@ function renderDetailsDiscussionScopes(detailsHost, options = {}) {
   if (!renderThread && !renderComposer) return;
 
   ensureTimelineLoadedForSelection();
-  const discussion = getProjectSubjectDetail().renderDetailsDiscussionHtml();
+  const discussion = getProjectSubjectDetail().renderDetailsDiscussionHtml(null, {
+    renderThread,
+    renderComposer
+  });
   if (renderThread) {
     debugRenderScope("thread", { host: "details-thread-host" });
     const threadHost = detailsHost.querySelector("[data-details-thread-host]");

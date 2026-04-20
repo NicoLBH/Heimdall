@@ -460,8 +460,9 @@ export function createProjectSubjectsThread(config = {}) {
     if (typeof requestRerender === "function") {
       const detailsHost = document.getElementById("situationsDetailsHost");
       const threadHost = detailsHost?.querySelector?.("[data-details-thread-host]");
+      if (!threadHost) return;
       debugRenderScope("thread", { source: "timeline-refresh", mode: "fallback-request-rerender" });
-      requestRerender(threadHost || detailsHost || document);
+      requestRerender(threadHost);
     }
   }
 
