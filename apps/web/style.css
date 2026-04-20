@@ -8704,6 +8704,10 @@ body.route--project #situationsDetailsHost .detail-chrome__sticky{
   border-top:1px solid var(--line);
   padding-top:12px;
 }
+#detailsBodyModal.details-body-modal--description-version{
+  max-width:860px;
+  margin-inline:auto;
+}
 .gh-comment-body--editable{
   display:flex;
   flex-direction:column;
