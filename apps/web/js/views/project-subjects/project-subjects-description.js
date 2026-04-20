@@ -641,7 +641,7 @@ export function createProjectSubjectsDescription(config = {}) {
                   ? `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayName)}">`
                   : `<span class="description-versions-dropdown__avatar-fallback">${escapeHtml(initials)}</span>`}
               </span>
-              <span class="description-versions-dropdown__item-content">
+              <span class="description-versions-dropdown__item-inline">
                 <span class="description-versions-dropdown__item-name">${escapeHtml(displayName)}</span>
                 <span class="description-versions-dropdown__item-meta">${escapeHtml(timestampLabel)}</span>
               </span>
@@ -652,7 +652,7 @@ export function createProjectSubjectsDescription(config = {}) {
 
     return `
       <div class="gh-menu issues-head-menu__dropdown description-versions-dropdown__menu ${isTarget && ui.isOpen ? "gh-menu--open" : ""}" data-role="description-versions-dropdown" role="menu">
-        <div class="gh-menu__title">Versions (${count})</div>
+        <div class="gh-menu__title description-versions-dropdown__title">versions (${count})</div>
         ${loadingHtml}
         ${errorHtml}
         <div class="description-versions-dropdown__list">${listHtml}</div>
