@@ -181,8 +181,12 @@ export function createProjectSubjectsDetailsRenderer(config) {
     };
   }
 
-  function renderDetailsDiscussionHtml(selectionOverride = null) {
+  function renderDetailsDiscussionHtml(selectionOverride = null, options = {}) {
     const selection = selectionOverride || getActiveSelection();
+    const {
+      renderThread = true,
+      renderComposer = true
+    } = options;
     if (!selection) {
       return {
         threadHtml: "",
@@ -190,8 +194,8 @@ export function createProjectSubjectsDetailsRenderer(config) {
       };
     }
     return {
-      threadHtml: renderThreadBlock(),
-      composerHtml: renderCommentBox(selection)
+      threadHtml: renderThread ? renderThreadBlock() : "",
+      composerHtml: renderComposer ? renderCommentBox(selection) : ""
     };
   }
 
