@@ -86,7 +86,7 @@ begin
     'user',
     coalesce(v_actor_label, 'Utilisateur'),
     'Description du sujet mise à jour',
-    'La description du sujet a été mise à jour depuis l\'éditeur riche.',
+    'La description du sujet a été mise à jour depuis l''éditeur riche.',
     jsonb_build_object(
       'previous_description', v_previous_description,
       'next_description', coalesce(v_subject.description, ''),
