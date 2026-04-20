@@ -42,6 +42,7 @@ export function createProjectSubjectsThread(config = {}) {
   const subjectTimelineCache = new Map();
   const subjectTimelineState = new Map();
   const subjectReadMarkState = new Map();
+  let threadRenderDepth = 0;
   const renderScopeDebugEnabled = (() => {
     try {
       const search = String(window?.location?.search || "");
@@ -470,13 +471,30 @@ export function createProjectSubjectsThread(config = {}) {
     const normalizedSubjectId = normalizeId(subjectId);
     if (!normalizedSubjectId || !subjectMessagesService) return;
 
+    if (threadRenderDepth > 0) {
+      console.warn("[subject-messages] timeline load requested during thread render and was ignored", {
+        subjectId: normalizedSubjectId
+      });
+      return;
+    }
+
     const force = !!options.force;
     const currentState = subjectTimelineState.get(normalizedSubjectId) || { loading: false, requestId: 0 };
-    if (!force && subjectTimelineCache.has(normalizedSubjectId)) return;
-    if (currentState.loading && !force) return;
+    if (!force && subjectTimelineCache.has(normalizedSubjectId)) {
+      debugRenderScope("thread-timeline-fetch", { subjectId: normalizedSubjectId, action: "skip-cache-hit" });
+      return;
+    }
+    if (currentState.loading && !force) {
+      debugRenderScope("thread-timeline-fetch", { subjectId: normalizedSubjectId, action: "skip-loading" });
+      return;
+    }
 
     const requestId = Number(currentState.requestId || 0) + 1;
     subjectTimelineState.set(normalizedSubjectId, { loading: true, requestId });
+    debugRenderScope("thread-timeline-fetch", {
+      subjectId: normalizedSubjectId,
+      action: force ? "start-force" : "start"
+    });
     subjectMessagesService.listTimeline(normalizedSubjectId)
       .then((timeline) => {
         const latestState = subjectTimelineState.get(normalizedSubjectId) || {};
@@ -507,6 +525,7 @@ export function createProjectSubjectsThread(config = {}) {
         requestScopeRerender();
       })
       .catch((error) => {
+        debugRenderScope("thread-timeline-fetch", { subjectId: normalizedSubjectId, action: "error" });
         console.warn("[subject-messages] timeline load failed", error);
       })
       .finally(() => {
@@ -1339,13 +1358,15 @@ priority=${firstNonEmpty(subject.priority, "")}`
   }
 
   function renderThreadBlock() {
-    const thread = getThreadForSelection();
-    if (!thread.length) return "";
-    const replyUi = getInlineReplyUiState();
-    const { childrenByParentId } = groupThreadReplies(thread);
-    let commentRenderIdx = 0;
+    threadRenderDepth += 1;
+    try {
+      const thread = getThreadForSelection();
+      if (!thread.length) return "";
+      const replyUi = getInlineReplyUiState();
+      const { childrenByParentId } = groupThreadReplies(thread);
+      let commentRenderIdx = 0;
 
-    const itemsHtml = thread.map((e, idx) => {
+      const itemsHtml = thread.map((e, idx) => {
       const type = String(e?.type || "").toUpperCase();
 
       if (type === "COMMENT") {
@@ -1487,12 +1508,15 @@ priority=${firstNonEmpty(subject.priority, "")}`
         `,
         bodyHtml: escapeHtml(e.message || "")
       });
-    }).join("");
+      }).join("");
 
-    return `
-      <div class="gh-timeline-title gh-timeline-title--hidden mono">Discussion</div>
-      ${renderMessageThread({ itemsHtml })}
-    `;
+      return `
+        <div class="gh-timeline-title gh-timeline-title--hidden mono">Discussion</div>
+        ${renderMessageThread({ itemsHtml })}
+      `;
+    } finally {
+      threadRenderDepth = Math.max(0, threadRenderDepth - 1);
+    }
   }
 
   function renderIssueStatusAction(selection) {

@@ -2443,7 +2443,7 @@ function renderDetailsDiscussionScopes(detailsHost, options = {}) {
   } = options;
   if (!renderThread && !renderComposer) return;
 
-  ensureTimelineLoadedForSelection();
+  if (renderThread) ensureTimelineLoadedForSelection();
   const discussion = getProjectSubjectDetail().renderDetailsDiscussionHtml(null, {
     renderThread,
     renderComposer
