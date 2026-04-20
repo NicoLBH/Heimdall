@@ -937,6 +937,45 @@ export async function replaceSubjectLabels(subjectId, labelIds = []) {
   return true;
 }
 
+export async function updateSubjectDescription({ subjectId, description, uploadSessionId = "" } = {}) {
+  const normalizedSubjectId = normalizeUuid(subjectId);
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  const nextDescription = String(description || "").trim();
+  const normalizedUploadSessionId = normalizeUuid(uploadSessionId);
+  if (!nextDescription && !normalizedUploadSessionId) {
+    throw new Error("description or uploadSessionId is required");
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_subject_description`, {
+    method: "POST",
+    headers: await getSupabaseAuthHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({
+      p_subject_id: normalizedSubjectId,
+      p_description: nextDescription,
+      p_upload_session_id: normalizedUploadSessionId || null
+    })
+  });
+  if (!response.ok) {
+    const txt = await response.text().catch(() => "");
+    throw new Error(`update_subject_description failed (${response.status}): ${txt}`);
+  }
+
+  const payload = await response.json().catch(() => null);
+  const row = Array.isArray(payload) ? payload[0] : payload;
+  const descriptionAttachments = Array.isArray(row?.description_attachments) ? row.description_attachments : [];
+  return {
+    ...(row || {}),
+    id: String(row?.id || normalizedSubjectId),
+    project_id: String(row?.project_id || ""),
+    description: String(row?.description || nextDescription),
+    updated_at: String(row?.updated_at || ""),
+    description_attachments: descriptionAttachments
+  };
+}
+
 export async function loadLabelsForProject(projectId) {
   const resolvedProjectId = await getResolvedProjectId(projectId);
   if (!resolvedProjectId) {
