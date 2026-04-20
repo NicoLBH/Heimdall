@@ -460,8 +460,9 @@ export function createProjectSubjectsThread(config = {}) {
     if (typeof requestRerender === "function") {
       const detailsHost = document.getElementById("situationsDetailsHost");
       const threadHost = detailsHost?.querySelector?.("[data-details-thread-host]");
+      if (!threadHost) return;
       debugRenderScope("thread", { source: "timeline-refresh", mode: "fallback-request-rerender" });
-      requestRerender(threadHost || detailsHost || document);
+      requestRerender(threadHost);
     }
   }
 
@@ -471,6 +472,7 @@ export function createProjectSubjectsThread(config = {}) {
 
     const force = !!options.force;
     const currentState = subjectTimelineState.get(normalizedSubjectId) || { loading: false, requestId: 0 };
+    if (!force && subjectTimelineCache.has(normalizedSubjectId)) return;
     if (currentState.loading && !force) return;
 
     const requestId = Number(currentState.requestId || 0) + 1;
@@ -512,6 +514,14 @@ export function createProjectSubjectsThread(config = {}) {
         if (Number(latestState.requestId || 0) !== requestId) return;
         subjectTimelineState.set(normalizedSubjectId, { loading: false, requestId });
       });
+  }
+
+  function ensureTimelineLoadedForSelection(selection = null, options = {}) {
+    const currentSelection = selection || getActiveSelection();
+    if (!currentSelection || String(currentSelection.type || "").toLowerCase() !== "sujet") return;
+    const subjectId = normalizeId(currentSelection?.item?.id);
+    if (!subjectId) return;
+    ensureSubjectTimelineLoaded(subjectId, options);
   }
 
   async function addComment(entityType, entityId, message, options = {}) {
@@ -716,7 +726,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const entityKey = (type, id) => `${String(type || "").toLowerCase()}:${String(id || "")}`;
 
     if (subject) {
-      ensureSubjectTimelineLoaded(subject.id);
       allowedComments.add(entityKey("sujet", subject.id));
       allowedActivities.add(entityKey("sujet", subject.id));
       if (situation) allowedActivities.add(entityKey("situation", situation.id));
@@ -1675,6 +1684,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
     getSubjectRefUiState,
     getComposerAttachmentsState,
     getInlineReplyUiState,
+    ensureTimelineLoadedForSelection,
     renderThreadBlock,
     renderIssueStatusAction,
     renderCommentBox
