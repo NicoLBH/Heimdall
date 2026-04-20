@@ -3531,6 +3531,7 @@ export function createProjectSubjectsEvents(config) {
           target.closest("#humanCommentBox")
           || target.closest("[data-thread-reply-draft]")
           || target.closest("[data-thread-edit-draft]")
+          || target.closest("[data-format='subject-ref']")
         ) {
           return;
         }
