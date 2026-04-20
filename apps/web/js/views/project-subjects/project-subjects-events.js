@@ -2664,6 +2664,13 @@ export function createProjectSubjectsEvents(config) {
       }
       return store.situationsView?.descriptionEdit || {};
     };
+    const getDescriptionEditorState = () => {
+      if (typeof getDescriptionEditState === "function") {
+        const state = getDescriptionEditState();
+        if (state && typeof state === "object") return state;
+      }
+      return store.situationsView?.descriptionEdit || {};
+    };
     const isImageFile = (file) => String(file?.type || "").toLowerCase().startsWith("image/");
     const toObjectUrl = (file) => {
       try {
