@@ -61,6 +61,12 @@ export function createProjectSubjectsDescription(config = {}) {
     return stateRefIds.get(state);
   }
 
+  function isHtmlElement(value) {
+    if (!value || typeof value !== "object") return false;
+    if (typeof HTMLElement !== "undefined" && value instanceof HTMLElement) return true;
+    return typeof value.querySelector === "function" || typeof value.getBoundingClientRect === "function";
+  }
+
   function ensureDescriptionEditState() {
     const view = getSubjectsViewStore();
     view.descriptionEdit ??= {
@@ -422,6 +428,7 @@ export function createProjectSubjectsDescription(config = {}) {
   function closeDescriptionVersionsDropdown() {
     const ui = ensureDescriptionVersionsUiState();
     ui.isOpen = false;
+    hideDescriptionVersionsDropdownHost();
   }
 
   function retryDescriptionVersionsLoad(root) {
@@ -451,6 +458,8 @@ export function createProjectSubjectsDescription(config = {}) {
     });
     if (ui.isOpen && entityType === "sujet") {
       void ensureDescriptionVersionsLoaded(root, entityType, entityId);
+    } else {
+      hideDescriptionVersionsDropdownHost();
     }
     rerenderScope(root);
   }
@@ -460,6 +469,7 @@ export function createProjectSubjectsDescription(config = {}) {
     ui.selectedVersionId = String(versionId || "");
     ui.modalOpen = false;
     ui.isOpen = false;
+    hideDescriptionVersionsDropdownHost();
     const version = Array.isArray(ui.versions)
       ? ui.versions.find((entry) => String(entry?.id || "") === ui.selectedVersionId)
       : null;
@@ -585,12 +595,14 @@ export function createProjectSubjectsDescription(config = {}) {
     const isTarget = ui.entityType === entityType && ui.entityId === entityId;
     const isOpen = isTarget && ui.isOpen;
     const count = isTarget && Array.isArray(ui.versions) ? ui.versions.length : 0;
+    const anchorKey = `${entityType}::${entityId}`;
     return `
       <div class="issues-head-menu description-versions-dropdown ${isOpen ? "is-open" : ""}">
         <button
           class="issues-head-menu__btn description-versions-dropdown__trigger"
           type="button"
           data-action="toggle-description-versions"
+          data-description-versions-anchor="${escapeHtml(anchorKey)}"
           aria-expanded="${isOpen ? "true" : "false"}"
           aria-haspopup="menu"
           title="Versions"
@@ -598,12 +610,11 @@ export function createProjectSubjectsDescription(config = {}) {
           <span>Versions${count ? ` (${count})` : ""}</span>
           <span class="description-versions-dropdown__caret">${svgIcon("chevron-down")}</span>
         </button>
-        ${renderDescriptionVersionsDropdown(entityType, entityId)}
       </div>
     `;
   }
 
-  function renderDescriptionVersionsDropdown(entityType, entityId) {
+  function renderDescriptionVersionsDropdownContent(entityType, entityId) {
     const ui = ensureDescriptionVersionsUiState();
     const isTarget = ui.entityType === entityType && ui.entityId === entityId;
     const versions = isTarget && Array.isArray(ui.versions) ? ui.versions : [];
@@ -658,6 +669,78 @@ export function createProjectSubjectsDescription(config = {}) {
         <div class="description-versions-dropdown__list">${listHtml}</div>
       </div>
     `;
+  }
+
+  function ensureDescriptionVersionsDropdownHost() {
+    let host = document.getElementById("descriptionVersionsDropdownHost");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "descriptionVersionsDropdownHost";
+      host.className = "description-versions-dropdown-host";
+      host.setAttribute("aria-hidden", "true");
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
+  function hideDescriptionVersionsDropdownHost() {
+    const host = ensureDescriptionVersionsDropdownHost();
+    host.innerHTML = "";
+    host.setAttribute("aria-hidden", "true");
+  }
+
+  function resolveDescriptionVersionsAnchor(root, entityType, entityId) {
+    const anchorKey = `${entityType}::${entityId}`;
+    const selector = `[data-description-versions-anchor="${CSS.escape(anchorKey)}"]`;
+    const inRoot = root?.querySelector?.(selector);
+    if (isHtmlElement(inRoot)) return inRoot;
+    const fallback = document.querySelector(selector);
+    return isHtmlElement(fallback) ? fallback : null;
+  }
+
+  function syncDescriptionVersionsDropdownPosition(root) {
+    const ui = ensureDescriptionVersionsUiState();
+    const host = ensureDescriptionVersionsDropdownHost();
+    if (host.getAttribute("aria-hidden") === "true") return;
+    const anchor = resolveDescriptionVersionsAnchor(root, ui.entityType, ui.entityId);
+    if (!anchor) {
+      hideDescriptionVersionsDropdownHost();
+      return;
+    }
+    const menu = host.querySelector("[data-role='description-versions-dropdown']");
+    if (!isHtmlElement(menu)) return;
+    const anchorRect = anchor.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    const margin = 12;
+    let left = anchorRect.right - menuRect.width;
+    let top = anchorRect.bottom + 6;
+    if (left < margin) left = margin;
+    if (left + menuRect.width > viewportWidth - margin) {
+      left = Math.max(margin, viewportWidth - menuRect.width - margin);
+    }
+    if (top + menuRect.height > viewportHeight - margin) {
+      top = Math.max(margin, anchorRect.top - menuRect.height - 6);
+    }
+    host.style.position = "fixed";
+    host.style.left = `${Math.round(left)}px`;
+    host.style.top = `${Math.round(top)}px`;
+  }
+
+  function renderDescriptionVersionsDropdownHost(root) {
+    const ui = ensureDescriptionVersionsUiState();
+    const host = ensureDescriptionVersionsDropdownHost();
+    const entityType = String(ui.entityType || "");
+    const entityId = String(ui.entityId || "");
+    if (!ui.isOpen || !entityType || !entityId) {
+      hideDescriptionVersionsDropdownHost();
+      return host;
+    }
+    host.innerHTML = renderDescriptionVersionsDropdownContent(entityType, entityId);
+    host.setAttribute("aria-hidden", "false");
+    syncDescriptionVersionsDropdownPosition(root);
+    return host;
   }
 
   function renderDescriptionCard(selection) {
@@ -898,6 +981,8 @@ export function createProjectSubjectsDescription(config = {}) {
     openDescriptionVersionModal,
     closeDescriptionVersionModal,
     retryDescriptionVersionsLoad,
+    renderDescriptionVersionsDropdownHost,
+    syncDescriptionVersionsDropdownPosition,
     applyDescriptionSave,
     startDescriptionEdit,
     renderDescriptionCard
