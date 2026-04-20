@@ -763,7 +763,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
       { action: "ordered-list", icon: "markdown-list-ordered", label: "Liste numérotée" },
       { action: "bullet-list", icon: "markdown-list-unordered", label: "Liste à puces" },
       { action: "checklist", icon: "markdown-tasklist", label: "Checklist" },
-      { action: "heading", icon: "markdown-heading", label: "Titre (H3)" },
       { action: "mention", icon: "markdown-mention", label: "Mention" },
       { action: "subject-ref", icon: "cross-reference", label: "Référence sujet" }
     ];
@@ -788,12 +787,14 @@ priority=${firstNonEmpty(subject.priority, "")}`
       </button>
     `;
 
-    const shouldUseComposerLayout = buttonAction === "composer-format" || buttonAction === "thread-reply-format";
+    const shouldUseComposerLayout = buttonAction === "composer-format"
+      || buttonAction === "thread-reply-format"
+      || buttonAction === "thread-edit-format";
     if (!shouldUseComposerLayout) {
       return toolbarButtons.map((button) => renderToolbarButton(button)).join("");
     }
 
-    const attachmentAction = buttonAction === "thread-reply-format"
+    const attachmentAction = buttonAction === "thread-reply-format" || buttonAction === "thread-edit-format"
       ? "thread-reply-attachments-pick"
       : "composer-attachments-pick";
     const attachmentButton = `
