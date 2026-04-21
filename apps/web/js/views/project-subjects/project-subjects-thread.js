@@ -443,6 +443,36 @@ export function createProjectSubjectsThread(config = {}) {
     };
   }
 
+  function mapBusinessEventRowToThreadActivity(row = {}) {
+    const eventType = String(row.event_type || "");
+    const eventPayload = row.event_payload && typeof row.event_payload === "object" ? row.event_payload : {};
+    const resultLabel = firstNonEmpty(
+      eventPayload?.display?.result_label,
+      eventPayload?.result_label,
+      row?.timeline_description,
+      row?.description,
+      row?.timeline_title,
+      row?.title,
+      "a effectué une action métier"
+    );
+    return {
+      ts: firstNonEmpty(row.created_at, nowIso()),
+      entity_type: "sujet",
+      entity_id: normalizeId(row.subject_id),
+      type: "ACTIVITY",
+      kind: String(eventType || "").toLowerCase(),
+      actor: firstNonEmpty(row.actor_label, "Utilisateur"),
+      agent: "human",
+      message: String(resultLabel || ""),
+      meta: {
+        source: "subject_history",
+        id: normalizeId(row.id),
+        event_type: eventType,
+        event_payload: eventPayload
+      }
+    };
+  }
+
   function mapTimelineRowToThreadEntry(row = {}) {
     const kind = String(row?.kind || "").toLowerCase();
     if (kind === "message") {
@@ -450,6 +480,9 @@ export function createProjectSubjectsThread(config = {}) {
     }
     if (kind === "event") {
       return mapEventRowToThreadActivity(row.event || {});
+    }
+    if (kind === "business_event") {
+      return mapBusinessEventRowToThreadActivity(row.event || {});
     }
     return null;
   }
@@ -504,6 +537,7 @@ export function createProjectSubjectsThread(config = {}) {
 
         const messages = Array.isArray(timeline?.messages) ? timeline.messages : [];
         const events = Array.isArray(timeline?.events) ? timeline.events : [];
+        const businessEvents = Array.isArray(timeline?.businessEvents) ? timeline.businessEvents : [];
         const rows = Array.isArray(timeline?.rows) ? timeline.rows : [];
         const mappedRows = rows.map((row) => mapTimelineRowToThreadEntry(row)).filter(Boolean);
         const mappedComments = mappedRows.filter((entry) => String(entry?.type || "").toUpperCase() === "COMMENT");
@@ -517,6 +551,7 @@ export function createProjectSubjectsThread(config = {}) {
           }),
           comments: nestedComments,
           activities: events.map((row) => mapEventRowToThreadActivity(row)),
+          businessActivities: businessEvents.map((row) => mapBusinessEventRowToThreadActivity(row)),
           conversation: timeline?.conversation || null
         });
         debugRenderScope("thread-timeline-refresh", {
@@ -1204,6 +1239,29 @@ priority=${firstNonEmpty(subject.priority, "")}`
     });
   }
 
+  function getBusinessActivityAppearance(eventType = "") {
+    const normalized = String(eventType || "").toLowerCase();
+    const map = {
+      subject_title_updated: { icon: "pencil", tone: "business-edit", verb: "a modifié" },
+      subject_description_updated: { icon: "note", tone: "business-edit", verb: "a modifié" },
+      subject_assignees_changed: { icon: "person-add", tone: "business-people", verb: "a mis à jour" },
+      subject_labels_changed: { icon: "tag", tone: "business-labels", verb: "a mis à jour" },
+      subject_situations_changed: { icon: "project", tone: "business-rel", verb: "a mis à jour" },
+      subject_objectives_changed: { icon: "goal", tone: "business-rel", verb: "a mis à jour" },
+      subject_parent_added: { icon: "arrow-up", tone: "business-rel", verb: "a mis à jour" },
+      subject_parent_removed: { icon: "arrow-up", tone: "business-rel", verb: "a mis à jour" },
+      subject_child_added: { icon: "arrow-down", tone: "business-rel", verb: "a mis à jour" },
+      subject_child_removed: { icon: "arrow-down", tone: "business-rel", verb: "a mis à jour" },
+      subject_blocked_by_added: { icon: "blocked", tone: "business-alert", verb: "a mis à jour" },
+      subject_blocked_by_removed: { icon: "blocked", tone: "business-alert", verb: "a mis à jour" },
+      subject_blocking_for_added: { icon: "blocked", tone: "business-alert", verb: "a mis à jour" },
+      subject_blocking_for_removed: { icon: "blocked", tone: "business-alert", verb: "a mis à jour" },
+      subject_closed: { icon: "check-circle", tone: "business-alert", verb: "a modifié" },
+      subject_reopened: { icon: "issue-reopened", tone: "business-open", verb: "a modifié" }
+    };
+    return map[normalized] || { icon: "history", tone: "business-neutral", verb: "a mis à jour" };
+  }
+
   function renderThreadBlock() {
     threadRenderDepth += 1;
     try {
@@ -1232,6 +1290,35 @@ priority=${firstNonEmpty(subject.priority, "")}`
       if (type === "ACTIVITY") {
         const kind = String(e?.kind || "").toLowerCase();
         if (kind === "message_deleted") return "";
+        if (String(e?.meta?.source || "") === "subject_history") {
+          const activityIdentity = getAuthorIdentity({
+            author: e?.actor,
+            agent: "human",
+            currentUserAvatar: store?.user?.avatar,
+            humanAvatarHtml: SVG_AVATAR_HUMAN,
+            fallbackName: "Utilisateur"
+          });
+          const appearance = getBusinessActivityAppearance(e?.meta?.event_type || kind);
+          const fieldLabel = String(e?.meta?.event_payload?.field || "").trim();
+          const ts = fmtTs(e?.ts || "");
+          const note = String(e?.message || "").trim();
+          const noteHtml = note ? `<div class="tl-note">${escapeHtml(note)}</div>` : "";
+
+          return renderMessageThreadActivity({
+            idx,
+            className: `thread-item--business thread-item--${appearance.tone}`,
+            iconHtml: `<span class="tl-ico tl-ico--business tl-ico--${appearance.tone}" aria-hidden="true">${svgIcon(appearance.icon)}</span>`,
+            authorIconHtml: activityIdentity.avatarHtml
+              ? `<span class="tl-author tl-author--custom" aria-hidden="true">${activityIdentity.avatarHtml}</span>`
+              : miniAuthorIconHtml("human"),
+            textHtml: `
+              <span class="tl-author-name">${escapeHtml(activityIdentity.displayName)}</span>
+              <span class="mono-small"> ${escapeHtml(appearance.verb)} ${fieldLabel ? `« ${escapeHtml(fieldLabel)} »` : "le sujet"} </span>
+              <span class="mono-small">· ${escapeHtml(ts)}</span>
+            `,
+            noteHtml
+          });
+        }
         const agent = e?.agent || "system";
         const activityIdentity = getAuthorIdentity({
           author: e?.actor,
