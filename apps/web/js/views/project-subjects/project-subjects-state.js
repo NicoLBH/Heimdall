@@ -17,6 +17,12 @@ export function createProjectSubjectsState({ store }) {
     if (typeof view.loaded !== "boolean") {
       view.loaded = false;
     }
+    if (!Number.isFinite(Number(view.selectionRevision))) {
+      view.selectionRevision = 0;
+    }
+    if (!Number.isFinite(Number(view.lastLoadRequestId))) {
+      view.lastLoadRequestId = 0;
+    }
     return view;
   }
 

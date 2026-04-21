@@ -29,6 +29,8 @@ function createProjectSubjectsViewState() {
   selectedSituationId: null,
   selectedSujetId: null,
   selectedSubjectId: null,
+  selectionRevision: 0,
+  lastLoadRequestId: 0,
   selectedRelationContext: null,
 
   filters: {

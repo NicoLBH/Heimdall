@@ -2479,7 +2479,7 @@ export function createProjectSubjectsEvents(config) {
     root.querySelectorAll(".js-sub-right-select-sujet").forEach((btn) => {
       btn.onclick = () => {
         const sujetId = String(btn.dataset.sujetId || "");
-        if (sujetId) selectSujet(sujetId);
+        if (sujetId) selectSubject(sujetId);
       };
     });
 
@@ -4876,7 +4876,7 @@ export function createProjectSubjectsEvents(config) {
         const entityType = String(titleTrigger.dataset.rowEntityType || "");
         const entityId = String(titleTrigger.dataset.rowEntityId || "");
         if (entityType === "sujet") {
-          (selectSubject || selectSujet)(entityId);
+          selectSubject(entityId);
           return;
         }
         if (entityType === "situation") {
