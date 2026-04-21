@@ -2527,6 +2527,8 @@ body.is-resizing{
 }
 .gh-comment-author-meta{
   color:var(--muted);
+  font-size:13px;
+  font-weight:400;
 }
 .gh-comment-body{
   padding:0px;
