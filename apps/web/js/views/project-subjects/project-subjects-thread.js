@@ -1464,9 +1464,12 @@ priority=${firstNonEmpty(subject.priority, "")}`
           const secondLineInlineHtml = shouldRenderInlineBelow && inlineDetailHtml
             ? `<span class="tl-note-inline tl-note-inline--parent-added">${inlineDetailHtml}</span>`
             : "";
+          const inlineClassName = isSubjectTitleUpdated
+            ? "tl-note-inline tl-note-inline--title-updated"
+            : "tl-note-inline";
           const defaultInlineHtml = eventType === "subject_parent_added"
             ? ""
-            : (inlineDetailHtml ? `<span class="tl-note-inline">${inlineDetailHtml}</span>` : "");
+            : (inlineDetailHtml ? `<span class="${inlineClassName}">${inlineDetailHtml}</span>` : "");
           const inlineBeforeTimestampHtml = shouldRenderInlineBeforeTimestamp ? defaultInlineHtml : "";
           const inlineAfterTimestampHtml = shouldRenderInlineBeforeTimestamp || shouldRenderInlineBelow ? "" : defaultInlineHtml;
 
