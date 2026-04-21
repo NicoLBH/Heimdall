@@ -538,7 +538,11 @@ function createSubjectFromDraft() {
 
   setSubjectObjectiveIds(subjectId, nextMeta.objectiveIds);
   store.situationsView.selectedSujetId = subjectId;
+  store.situationsView.selectedSubjectId = subjectId;
   store.situationsView.selectedSituationId = nextMeta.situationIds[0] || store.situationsView.selectedSituationId || null;
+  store.projectSubjectsView.selectedSujetId = subjectId;
+  store.projectSubjectsView.selectedSubjectId = subjectId;
+  store.projectSubjectsView.selectedSituationId = nextMeta.situationIds[0] || store.projectSubjectsView.selectedSituationId || null;
   store.situationsView.createSubjectForm.validationError = "";
   return { ok: true, subjectId };
 }

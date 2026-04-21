@@ -8,6 +8,41 @@ export function createProjectSubjectsSelection({
   rerenderPanels,
   markEntitySeen
 }) {
+  const SUBJECTS_SELECTION_DEBUG_FLAG = "__MDALL_DEBUG_SUBJECTS_SELECTION__";
+
+  function isSelectionDebugEnabled() {
+    return typeof window !== "undefined" && window?.[SUBJECTS_SELECTION_DEBUG_FLAG] === true;
+  }
+
+  function debugSelection(eventName, payload = {}) {
+    if (!isSelectionDebugEnabled()) return;
+    console.info(`[subjects-selection] ${eventName}`, payload);
+  }
+
+  function markUserSelectionRevision(reason, selection = {}) {
+    ensureViewUiState();
+    const viewState = store.projectSubjectsView || {};
+    const beforeRevision = Number(viewState.selectionRevision || 0);
+    const nextRevision = beforeRevision + 1;
+    viewState.selectionRevision = nextRevision;
+    debugSelection("user select", {
+      projectId: String(store.currentProjectId || "").trim() || null,
+      requestId: Number(viewState.lastLoadRequestId || 0),
+      selectionRevision: nextRevision,
+      selectedSubjectIdBefore: normalizeSelectionSubjectId({
+        selectedSubjectId: viewState.selectedSubjectId,
+        selectedSujetId: viewState.selectedSujetId
+      }),
+      selectedSubjectIdAfter: normalizeSelectionSubjectId(selection),
+      reason
+    });
+    return nextRevision;
+  }
+
+  function normalizeSelectionSubjectId(selection = {}) {
+    return selection?.selectedSubjectId || selection?.selectedSujetId || null;
+  }
+
   function syncLegacySituationsView(selection = {}) {
     if (!(store.situationsView && typeof store.situationsView === "object")) return;
     if (Object.prototype.hasOwnProperty.call(selection, "selectedSituationId")) {
@@ -81,6 +116,7 @@ export function createProjectSubjectsSelection({
     const situation = getNestedSituation(situationId);
     if (!situation) return null;
     setActiveSelection({ selectedSituationId: situation.id, selectedSubjectId: null });
+    markUserSelectionRevision("select-situation", { selectedSubjectId: null });
     getViewState().showTableOnly = true;
     viewState.detailsModalOpen = false;
     syncLegacySituationsView({
@@ -107,6 +143,7 @@ export function createProjectSubjectsSelection({
       viewState.tableScrollRestoreY = getDocumentScrollTop();
     }
     setActiveSelection({ selectedSituationId: situation?.id || null, selectedSubjectId: sujet.id });
+    markUserSelectionRevision("select-subject", { selectedSubjectId: sujet.id });
     if (situation?.id) viewState.expandedSituations.add(situation.id);
     viewState.rightSubissuesOpen = true;
     viewState.showTableOnly = false;

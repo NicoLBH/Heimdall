@@ -7,6 +7,10 @@ import { invalidateSubjectRefIndex } from "../utils/subject-ref-index.js";
 import { normalizeAssigneeIds } from "./subject-assignees-service.js";
 import { hydratePersistedSubjectAttachmentsObjectUrls } from "./subject-attachments-object-url.js";
 import {
+  resolveSelectionAfterSubjectsLoad,
+  shouldIgnoreSubjectsLoadApply
+} from "./project-subjects-selection-concurrency.js";
+import {
   normalizeAttachmentBucket,
   normalizeSubjectAttachmentStoragePath
 } from "./subject-attachments-storage-path.js";
@@ -15,6 +19,7 @@ const SUPABASE_URL = getSupabaseUrl();
 const FRONT_PROJECT_MAP_STORAGE_KEY = "mdall.supabaseProjectMap.v1";
 const SUBJECT_DESCRIPTION_DEBUG_FLAG = "__MDALL_DEBUG_SUBJECT_DESCRIPTION__";
 const PROJECT_SUBJECTS_DEBUG_FLAG = "__MDALL_DEBUG_PROJECT_SUBJECTS__";
+const SUBJECTS_SELECTION_DEBUG_FLAG = "__MDALL_DEBUG_SUBJECTS_SELECTION__";
 
 
 
@@ -59,6 +64,26 @@ function isSubjectDescriptionDebugEnabled() {
 function isProjectSubjectsDebugEnabled() {
   return typeof window !== "undefined" && window?.[PROJECT_SUBJECTS_DEBUG_FLAG] === true;
 }
+
+function isSubjectsSelectionDebugEnabled() {
+  return typeof window !== "undefined" && window?.[SUBJECTS_SELECTION_DEBUG_FLAG] === true;
+}
+
+function debugSubjectsSelection(eventName, payload = {}) {
+  if (!isSubjectsSelectionDebugEnabled()) return;
+  console.info(`[subjects-selection] ${eventName}`, payload);
+}
+
+function ensureProjectSubjectsSelectionConcurrencyState() {
+  if (!(store.projectSubjectsView && typeof store.projectSubjectsView === "object")) return;
+  if (!Number.isFinite(Number(store.projectSubjectsView.selectionRevision))) {
+    store.projectSubjectsView.selectionRevision = 0;
+  }
+  if (!Number.isFinite(Number(store.projectSubjectsView.lastLoadRequestId))) {
+    store.projectSubjectsView.lastLoadRequestId = 0;
+  }
+}
+
 
 function truncateDescriptionPreview(value = "", maxLength = 160) {
   const raw = String(value || "");
@@ -1527,12 +1552,16 @@ function buildProjectFlatSubjectsResult(subjectRows = [], subjectLinks = [], opt
 }
 
 export async function loadFlatSubjectsForCurrentProject(options = {}) {
+  ensureProjectSubjectsSelectionConcurrencyState();
   const force = !!options.force;
   const currentProjectScopeId = String(store.currentProjectId || "").trim() || null;
   const existing = Array.isArray(store.projectSubjectsView?.subjectsData) ? store.projectSubjectsView.subjectsData : [];
   if (!force && existing.length && store.projectSubjectsView?.projectScopeId === currentProjectScopeId) {
     return existing;
   }
+
+  const loadRequestId = Number(store.projectSubjectsView.lastLoadRequestId || 0) + 1;
+  store.projectSubjectsView.lastLoadRequestId = loadRequestId;
 
   if (store.projectSubjectsView && typeof store.projectSubjectsView === "object") {
     store.projectSubjectsView.loading = true;
@@ -1550,15 +1579,36 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
   try {
     const mappedBackendProjectId = normalizeUuid(getMappedBackendProjectId());
     const backendProjectId = await getResolvedProjectId();
+    const loadStartSelectionRevision = Number(store.projectSubjectsView?.selectionRevision || 0);
     const previousSelectedSubjectId = normalizeUuid(
       store.projectSubjectsView?.selectedSubjectId
       || store.projectSubjectsView?.selectedSujetId
     );
-    const previousSelectedSituationId = normalizeUuid(
-      store.projectSubjectsView?.selectedSituationId
-    );
+    debugSubjectsSelection("load start", {
+      projectId: backendProjectId || currentProjectScopeId || null,
+      requestId: loadRequestId,
+      selectionRevision: loadStartSelectionRevision,
+      selectedSubjectIdBefore: previousSelectedSubjectId || null
+    });
 
     if (!backendProjectId) {
+      const staleDecision = shouldIgnoreSubjectsLoadApply({
+        loadRequestId,
+        latestLoadRequestId: Number(store.projectSubjectsView?.lastLoadRequestId || 0),
+        loadProjectScopeId: currentProjectScopeId,
+        currentProjectScopeId: String(store.currentProjectId || "").trim() || null
+      });
+      if (staleDecision.ignore) {
+        debugSubjectsSelection("stale load ignored", {
+          projectId: currentProjectScopeId,
+          requestId: loadRequestId,
+          selectionRevision: Number(store.projectSubjectsView?.selectionRevision || 0),
+          selectedSubjectIdBefore: previousSelectedSubjectId || null,
+          selectedSubjectIdAfter: normalizeUuid(store.projectSubjectsView?.selectedSubjectId || store.projectSubjectsView?.selectedSujetId) || null,
+          reason: staleDecision.reason
+        });
+        return store.projectSubjectsView.subjectsData || [];
+      }
       store.projectSubjectsView.subjectsData = [];
       store.projectSubjectsView.projectScopeId = currentProjectScopeId;
       store.projectSubjectsView.rawSubjectsResult = {
@@ -1706,6 +1756,34 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
       ...result.situationsById
     };
 
+    const currentProjectScopeIdAtApplyTime = String(store.currentProjectId || "").trim() || null;
+    const staleDecision = shouldIgnoreSubjectsLoadApply({
+      loadRequestId,
+      latestLoadRequestId: Number(store.projectSubjectsView?.lastLoadRequestId || 0),
+      loadProjectScopeId: currentProjectScopeId,
+      currentProjectScopeId: currentProjectScopeIdAtApplyTime
+    });
+    if (staleDecision.ignore) {
+      debugSubjectsSelection("stale load ignored", {
+        projectId: backendProjectId || currentProjectScopeId || null,
+        requestId: loadRequestId,
+        selectionRevision: Number(store.projectSubjectsView?.selectionRevision || 0),
+        selectedSubjectIdBefore: previousSelectedSubjectId || null,
+        selectedSubjectIdAfter: normalizeUuid(store.projectSubjectsView?.selectedSubjectId || store.projectSubjectsView?.selectedSujetId) || null,
+        reason: staleDecision.reason
+      });
+      return store.projectSubjectsView.subjectsData || [];
+    }
+
+    debugSubjectsSelection("load resolved", {
+      projectId: backendProjectId || currentProjectScopeId || null,
+      requestId: loadRequestId,
+      selectionRevision: Number(store.projectSubjectsView?.selectionRevision || 0),
+      selectedSubjectIdBefore: normalizeUuid(store.projectSubjectsView?.selectedSubjectId || store.projectSubjectsView?.selectedSujetId) || null,
+      selectedSubjectIdAfter: normalizeUuid(store.projectSubjectsView?.selectedSubjectId || store.projectSubjectsView?.selectedSujetId) || null,
+      reason: "apply-load-result"
+    });
+
     store.projectSubjectsView.subjectsData = result.subjects;
     store.projectSubjectsView.rawSubjectsResult = result;
     store.projectSubjectsView.rawResult = result;
@@ -1726,19 +1804,63 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
       previousExpandedSubjectIds.filter((subjectId) => !!result.subjectsById?.[subjectId])
     );
     store.projectSubjectsView.expandedSujets = store.projectSubjectsView.expandedSubjectIds;
-    const nextSelectedSubjectId = previousSelectedSubjectId && result.subjectsById?.[previousSelectedSubjectId]
-      ? previousSelectedSubjectId
-      : (result.subjects[0]?.id || null);
-    const nextSelectedSituationId = previousSelectedSituationId && result.situationsById?.[previousSelectedSituationId]
-      ? previousSelectedSituationId
-      : (store.projectSubjectsView.selectedSituationId || null);
+    const currentSelectedSubjectIdAtApplyTime = normalizeUuid(
+      store.projectSubjectsView?.selectedSubjectId
+      || store.projectSubjectsView?.selectedSujetId
+    );
+    const currentSelectionRevision = Number(store.projectSubjectsView?.selectionRevision || 0);
+    const {
+      selectedSubjectId: nextSelectedSubjectId,
+      selectedSituationId: nextSelectedSituationId,
+      hasNewerUserSelection,
+      selectionReason
+    } = resolveSelectionAfterSubjectsLoad({
+      result,
+      currentSelectedSubjectId: currentSelectedSubjectIdAtApplyTime,
+      currentSelectionRevision,
+      loadStartSelectionRevision,
+      snapshotSelectedSubjectId: previousSelectedSubjectId
+    });
+    if (hasNewerUserSelection) {
+      debugSubjectsSelection("preserve newer user selection", {
+        projectId: backendProjectId || currentProjectScopeId || null,
+        requestId: loadRequestId,
+        selectionRevision: currentSelectionRevision,
+        selectedSubjectIdBefore: previousSelectedSubjectId || null,
+        selectedSubjectIdAfter: nextSelectedSubjectId || null,
+        reason: selectionReason
+      });
+    }
+    if (selectionReason === "fallback-first-subject") {
+      debugSubjectsSelection("fallback to first subject", {
+        projectId: backendProjectId || currentProjectScopeId || null,
+        requestId: loadRequestId,
+        selectionRevision: currentSelectionRevision,
+        selectedSubjectIdBefore: currentSelectedSubjectIdAtApplyTime || null,
+        selectedSubjectIdAfter: nextSelectedSubjectId || null,
+        reason: selectionReason
+      });
+    }
 
     store.projectSubjectsView.selectedSubjectId = nextSelectedSubjectId;
     store.projectSubjectsView.selectedSujetId = nextSelectedSubjectId;
     store.projectSubjectsView.selectedSituationId = nextSelectedSituationId;
     store.projectSubjectsView.subjectsSelectedNodeId = nextSelectedSubjectId || "";
+    if (store.situationsView && typeof store.situationsView === "object") {
+      store.situationsView.selectedSubjectId = nextSelectedSubjectId;
+      store.situationsView.selectedSujetId = nextSelectedSubjectId;
+      store.situationsView.selectedSituationId = nextSelectedSituationId;
+    }
     store.projectSubjectsView.loading = false;
     store.projectSubjectsView.loaded = true;
+    debugSubjectsSelection("apply result", {
+      projectId: backendProjectId || currentProjectScopeId || null,
+      requestId: loadRequestId,
+      selectionRevision: currentSelectionRevision,
+      selectedSubjectIdBefore: currentSelectedSubjectIdAtApplyTime || null,
+      selectedSubjectIdAfter: nextSelectedSubjectId || null,
+      reason: selectionReason
+    });
 
 
     return result.subjects;
@@ -1751,6 +1873,7 @@ export async function loadFlatSubjectsForCurrentProject(options = {}) {
 }
 
 export function resetFlatSubjectsForCurrentProject() {
+  ensureProjectSubjectsSelectionConcurrencyState();
   store.projectSubjectsView.subjectsData = [];
   store.projectSubjectsView.rawSubjectsResult = null;
   store.projectSubjectsView.rawResult = null;
@@ -1765,4 +1888,5 @@ export function resetFlatSubjectsForCurrentProject() {
   store.projectSubjectsView.subjectsSelectedNodeId = "";
   store.projectSubjectsView.search = "";
   store.projectSubjectsView.page = 1;
+  store.projectSubjectsView.lastLoadRequestId = Number(store.projectSubjectsView.lastLoadRequestId || 0);
 }
