@@ -663,13 +663,6 @@ export function createProjectSubjectsThread(config = {}) {
     });
   }
 
-  function decisionStatus(decision) {
-    const d = String(decision || "").toUpperCase();
-    if (d === "CLOSED") return "closed";
-    if (d === "REOPENED" || d === "OPEN") return "open";
-    return null;
-  }
-
   function setDecision(entityType, entityId, decision, note = "", options = {}) {
     const actor = options.actor || "Human";
     const agent = options.agent || "human";
@@ -679,31 +672,15 @@ export function createProjectSubjectsThread(config = {}) {
 
     persistRunBucket((bucket) => {
       bucket.decisions[entityType] = bucket.decisions[entityType] || {};
-      const prev = bucket.decisions[entityType][entityId] || null;
       bucket.decisions[entityType][entityId] = {
         ts,
         actor,
         decision: nextDecision,
         note: nextNote
       };
-
-      const prevStatus = decisionStatus(prev?.decision);
-      const nextStatus = decisionStatus(nextDecision);
-      if ((entityType === "sujet" || entityType === "situation") && nextStatus && nextStatus !== prevStatus) {
-        const parentSituation = entityType === "sujet" ? getSituationBySujetId(entityId) : null;
-        const targetId = entityType === "sujet" ? (parentSituation?.id || entityId) : entityId;
-        bucket.activities.push({
-          ts,
-          entity_type: "situation",
-          entity_id: targetId,
-          type: "ACTIVITY",
-          kind: nextStatus === "closed" ? "issue_closed" : "issue_reopened",
-          actor,
-          agent,
-          message: nextNote,
-          meta: entityType === "sujet" ? { problem_id: entityId } : { situation_id: entityId }
-        });
-      }
+      // Legacy local timeline activities (issue_closed / issue_reopened) were
+      // intentionally removed; status changes are now rendered from
+      // subject_history business events (subject_closed / subject_reopened).
     });
   }
 
@@ -1423,7 +1400,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
 
       if (type === "ACTIVITY") {
         const kind = String(e?.kind || "").toLowerCase();
-        if (kind === "message_deleted") return "";
+        if (kind === "message_deleted" || kind === "issue_closed" || kind === "issue_reopened") return "";
         if (String(e?.meta?.source || "") === "subject_history") {
           const activityIdentity = getAuthorIdentity({
             author: e?.actor,
@@ -1458,10 +1435,11 @@ priority=${firstNonEmpty(subject.priority, "")}`
             fallbackMessage: e?.message,
             firstNonEmpty
           });
+          const shouldSuppressInlineText = eventType === "subject_closed" || eventType === "subject_reopened";
           const richNoteHtml = buildBusinessRichNoteHtml(e);
           const inlineDetailHtml = richNoteHtml
             ? richNoteHtml
-            : (note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : "");
+            : (!shouldSuppressInlineText && note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : "");
           const shouldRenderInlineBeforeTimestamp = (
             (eventType === "subject_labels_changed" || eventType === "subject_objectives_changed" || eventType === "subject_situations_changed")
             && (action === "added" || action === "removed")
@@ -1490,7 +1468,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
               <span class="tl-author-name">${escapeHtml(activityIdentity.displayName)}</span>
               <span class="mono-small"> ${escapeHtml(resolvedVerb)} </span>
               ${inlineBeforeTimestampHtml}
-              <span class="mono-small">· ${escapeHtml(ts)}</span>
+              <span class="mono-small tl-time-inline"><span aria-hidden="true">·</span><span>${escapeHtml(ts)}</span></span>
               ${inlineAfterTimestampHtml}
               ${secondLineInlineHtml}
             `,

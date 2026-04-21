@@ -3936,6 +3936,7 @@ body.drilldown-open .drilldown__inner,
 .tl-note-inline-link{display:inline-flex;align-items:center;gap:6px;}
 .tl-note-inline-subject-status{display:inline-flex;align-items:center;}
 .tl-note-inline-text{display:inline;}
+.tl-time-inline{display:inline-flex;align-items:center;gap:6px;}
 .subject-meta-assignee-row--inline{display:inline-flex;margin-left:0;vertical-align:middle;}
 .subject-meta-assignee-row--inline .subject-meta-assignee-row__content{display:inline-flex;flex-direction:row;align-items:center;gap:6px;line-height:18px;height:18px;;}
 .subject-meta-assignee-row--inline .subject-meta-assignee-row__name,
