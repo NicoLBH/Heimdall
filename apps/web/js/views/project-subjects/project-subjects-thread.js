@@ -1294,7 +1294,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
       const fullName = firstNonEmpty(collaborator?.displayName, collaborator?.name, assignee?.label, "Collaborateur");
       const role = firstNonEmpty(collaborator?.role, collaborator?.roleGroupLabel, "Collaborateur");
       return `
-        <span class="tl-note-inline">a ajouté un assigné</span>
         <span class="subject-meta-assignee-row subject-meta-assignee-row--inline">
           <span class="subject-meta-assignee-row__avatar subject-meta-assignee-avatar-inline">${renderCollaboratorAvatarInline(collaborator, fullName)}</span>
           <span class="subject-meta-assignee-row__content">
@@ -1307,24 +1306,17 @@ priority=${firstNonEmpty(subject.priority, "")}`
 
     if (eventType === "subject_labels_changed" && String(payload?.action || "").toLowerCase() === "added" && added.length === 1) {
       const label = added[0] || {};
-      return `
-        <span class="tl-note-inline">a ajouté un label</span>
-        ${renderSubjectLabelBadgeInline(label?.id, label?.label)}
-      `;
+      return `${renderSubjectLabelBadgeInline(label?.id, label?.label)}`;
     }
 
     if (eventType === "subject_objectives_changed" && String(payload?.action || "").toLowerCase() === "added" && added.length === 1) {
       const objective = added[0] || {};
-      return `
-        <span class="tl-note-inline">a ajouté un objectif</span>
-        ${renderObjectiveInline(objective?.id, objective?.label)}
-      `;
+      return `${renderObjectiveInline(objective?.id, objective?.label)}`;
     }
 
     if (eventType === "subject_blocked_by_added" && counterpartId) {
       const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
       return `
-        <span class="tl-note-inline">a indiqué que le sujet est bloqué par</span>
         <span class="tl-note-inline-link">${counterpartTitle ? `${escapeHtml(counterpartTitle)} ` : ""}${linkedSubject}</span>
       `;
     }
@@ -1332,7 +1324,6 @@ priority=${firstNonEmpty(subject.priority, "")}`
     if (eventType === "subject_blocking_for_added" && counterpartId) {
       const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
       return `
-        <span class="tl-note-inline">a indiqué que le sujet est bloquant pour</span>
         <span class="tl-note-inline-link">${counterpartTitle ? `${escapeHtml(counterpartTitle)} ` : ""}${linkedSubject}</span>
       `;
     }
@@ -1386,9 +1377,9 @@ priority=${firstNonEmpty(subject.priority, "")}`
             firstNonEmpty
           });
           const richNoteHtml = buildBusinessRichNoteHtml(e);
-          const noteHtml = richNoteHtml
-            ? `<div class="tl-note">${richNoteHtml}</div>`
-            : (note ? `<div class="tl-note">${escapeHtml(note)}</div>` : "");
+          const inlineDetailHtml = richNoteHtml
+            ? richNoteHtml
+            : (note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : "");
 
           return renderMessageThreadActivity({
             idx,
@@ -1400,9 +1391,10 @@ priority=${firstNonEmpty(subject.priority, "")}`
             textHtml: `
               <span class="tl-author-name">${escapeHtml(activityIdentity.displayName)}</span>
               <span class="mono-small"> ${escapeHtml(appearance.verb)} </span>
+              ${inlineDetailHtml ? `<span class="tl-note-inline">${inlineDetailHtml}</span>` : ""}
               <span class="mono-small">· ${escapeHtml(ts)}</span>
             `,
-            noteHtml
+            noteHtml: ""
           });
         }
         const agent = e?.agent || "system";
