@@ -1435,11 +1435,25 @@ priority=${firstNonEmpty(subject.priority, "")}`
             fallbackMessage: e?.message,
             firstNonEmpty
           });
-          const shouldSuppressInlineText = eventType === "subject_closed" || eventType === "subject_reopened";
+          const previousTitle = firstNonEmpty(payload?.before?.title);
+          const nextTitle = firstNonEmpty(payload?.after?.title);
+          const isSubjectTitleUpdated = eventType === "subject_title_updated";
+          const shouldSuppressInlineText = (
+            eventType === "subject_closed"
+            || eventType === "subject_reopened"
+            || eventType === "subject_description_updated"
+            || isSubjectTitleUpdated
+          );
           const richNoteHtml = buildBusinessRichNoteHtml(e);
+          const titleUpdateInlineHtml = isSubjectTitleUpdated && nextTitle
+            ? `<span class="tl-note-inline-text">"</span>
+                ${previousTitle ? `<span class="tl-note-inline-text tl-note-inline-text--strikethrough">${escapeHtml(previousTitle)}</span>` : ""}
+                ${previousTitle ? `<span class="tl-note-inline-text">" en </span>` : ""}
+                <span class="tl-note-inline-text">"${escapeHtml(nextTitle)}"</span>`
+            : "";
           const inlineDetailHtml = richNoteHtml
             ? richNoteHtml
-            : (!shouldSuppressInlineText && note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : "");
+            : (titleUpdateInlineHtml || (!shouldSuppressInlineText && note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : ""));
           const shouldRenderInlineBeforeTimestamp = (
             (eventType === "subject_labels_changed" || eventType === "subject_objectives_changed" || eventType === "subject_situations_changed")
             && (action === "added" || action === "removed")
