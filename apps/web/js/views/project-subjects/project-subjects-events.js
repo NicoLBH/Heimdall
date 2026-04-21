@@ -3294,6 +3294,7 @@ export function createProjectSubjectsEvents(config) {
       };
       const result = applyEmojiSuggestion(textarea.value || "", context, suggestion);
       textarea.value = String(result.nextText || "");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
       textarea.focus();
       textarea.selectionStart = result.nextCursorIndex;
       textarea.selectionEnd = result.nextCursorIndex;
@@ -3315,6 +3316,7 @@ export function createProjectSubjectsEvents(config) {
         };
         const result = applyEmojiSuggestion(textarea.value || "", context, suggestion);
         textarea.value = result.nextText;
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
         store.situationsView.commentDraft = String(result.nextText || "");
         textarea.focus();
         textarea.selectionStart = result.nextCursorIndex;
