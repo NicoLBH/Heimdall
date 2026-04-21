@@ -847,12 +847,12 @@ export function createProjectSubjectsDescription(config = {}) {
     });
     const authorHtml = waitingForCurrentAuthor
       ? `
-        <div class="gh-comment-author mono">
+        <div class="gh-comment-author">
           <span class="anim-rotate" aria-hidden="true">${svgIcon("attachment-upload-spinner", { className: "subject-attachment__spinner" })}</span>
           <span>Chargement auteur…</span>
         </div>
       `
-      : `<div class="gh-comment-author mono">${escapeHtml(identity.displayName)}</div>`;
+      : `<div class="gh-comment-author">${escapeHtml(identity.displayName)}</div>`;
     const versionsTriggerHtml = entityType === "sujet" ? renderDescriptionVersionsTrigger(null, entityType, entityId) : "";
     const editButtonHtml = `
       <button class="icon-btn icon-btn--sm gh-comment-edit-btn" data-action="edit-description" type="button" aria-label="Modifier la description" title="Modifier la description">
