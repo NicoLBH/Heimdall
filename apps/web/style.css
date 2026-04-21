@@ -3930,6 +3930,14 @@ body.drilldown-open .drilldown__inner,
 .thread-item--business-alert .tl-activity{background:rgba(207, 34, 46, .08);}
 .thread-item--business-open .tl-activity{background:rgba(31, 136, 61, .08);}
 .thread-item--business-neutral .tl-activity{background:rgba(110,118,129,.08);}
+.thread-item--event-subject_closed .tl-activity{border:1px solid rgba(207, 34, 46, .3);}
+.thread-item--event-subject_reopened .tl-activity{border:1px solid rgba(31, 136, 61, .3);}
+.thread-item--event-subject_parent_added .tl-activity,
+.thread-item--event-subject_child_added .tl-activity,
+.thread-item--event-subject_blocked_by_added .tl-activity,
+.thread-item--event-subject_blocking_for_added .tl-activity{
+  box-shadow:inset 0 0 0 1px rgba(31, 35, 40, .12);
+}
 
 
 
