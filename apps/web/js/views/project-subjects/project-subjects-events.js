@@ -824,6 +824,12 @@ export function createProjectSubjectsEvents(config) {
       else syncAutocompletePopups();
     };
 
+    const AUTOCOMPLETE_LOG_PREFIX = "[subject-autocomplete]";
+
+    const logAutocompleteEvent = (eventName, payload = {}) => {
+      console.log(`${AUTOCOMPLETE_LOG_PREFIX} ${eventName}`, payload);
+    };
+
     const getTextareaSelector = ({ composerKey = "main", messageId = "" } = {}) => {
       if (composerKey === "main") return "#humanCommentBox";
       if (composerKey === "reply" && messageId) return `[data-thread-reply-draft="${selectorValue(messageId)}"]`;
@@ -839,10 +845,33 @@ export function createProjectSubjectsEvents(config) {
       return { mode, messageId };
     };
 
-    const getTextareaForComposerKey = (composerKey = "") => {
+    const findComposerTextareaByKey = (composerKey = "", scopeRoot = null) => {
       const { mode, messageId } = splitComposerKey(composerKey);
       const selector = getTextareaSelector({ composerKey: mode, messageId });
-      return selector ? root.querySelector(selector) : null;
+      if (!selector) {
+        logAutocompleteEvent("resolve textarea", {
+          composerKey,
+          selector,
+          found: false
+        });
+        return null;
+      }
+      const scopedRoot = scopeRoot && scopeRoot.isConnected ? scopeRoot : null;
+      const scopedTextarea = scopedRoot?.querySelector?.(selector) || null;
+      const textarea = scopedTextarea || document.querySelector(selector);
+      logAutocompleteEvent("resolve textarea", {
+        composerKey,
+        selector,
+        scopeProvided: !!scopeRoot,
+        scopeConnected: !!scopedRoot,
+        found: !!textarea
+      });
+      return textarea;
+    };
+
+    const getTextareaForComposerKey = (composerKey = "") => {
+      const currentRoot = typeof config.getSubjectsCurrentRoot === "function" ? config.getSubjectsCurrentRoot() : root;
+      return findComposerTextareaByKey(composerKey, currentRoot);
     };
 
     const focusComposerTextarea = (composerKey = "") => {
@@ -1208,12 +1237,17 @@ export function createProjectSubjectsEvents(config) {
 
     const pickMentionSuggestion = (suggestion, composerKey = "main") => {
       const textarea = getTextareaForComposerKey(composerKey);
-      if (!textarea) return;
+      if (!textarea) {
+        logAutocompleteEvent("missing textarea", { composerKey, action: "mention-pick" });
+        return;
+      }
       const mentionState = getMentionState();
       const context = {
         triggerStart: mentionState.triggerStart,
         triggerEnd: Number(textarea.selectionStart || mentionState.triggerEnd || 0)
       };
+      const cursorBefore = Number(textarea.selectionStart || 0);
+      const lengthBefore = String(textarea.value || "").length;
       const result = applyMentionSuggestion(textarea.value || "", context, suggestion);
       textarea.value = result.nextText;
       const { mode, messageId = "" } = splitComposerKey(composerKey);
@@ -1236,6 +1270,13 @@ export function createProjectSubjectsEvents(config) {
       textarea.focus();
       textarea.selectionStart = result.nextCursorIndex;
       textarea.selectionEnd = result.nextCursorIndex;
+      logAutocompleteEvent("apply mention", {
+        composerKey,
+        lengthBefore,
+        lengthAfter: String(result.nextText || "").length,
+        cursorBefore,
+        cursorAfter: result.nextCursorIndex
+      });
       closeMentionPopup({ rerender: false });
       closeEmojiPopup({ rerender: false });
       if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
@@ -1310,12 +1351,17 @@ export function createProjectSubjectsEvents(config) {
 
     const pickSubjectRefSuggestion = (suggestion = {}, composerKey = "main") => {
       const textarea = getTextareaForComposerKey(composerKey);
-      if (!textarea) return;
+      if (!textarea) {
+        logAutocompleteEvent("missing textarea", { composerKey, action: "subject-ref-pick" });
+        return;
+      }
       const subjectRefState = getSubjectRefState();
       const context = {
         triggerStart: subjectRefState.triggerStart,
         triggerEnd: Number(textarea.selectionStart || subjectRefState.triggerEnd || 0)
       };
+      const cursorBefore = Number(textarea.selectionStart || 0);
+      const lengthBefore = String(textarea.value || "").length;
       const result = applySubjectRefSuggestion(textarea.value || "", context, suggestion);
       textarea.value = String(result.nextText || "");
       const { mode, messageId = "" } = splitComposerKey(composerKey);
@@ -1338,6 +1384,13 @@ export function createProjectSubjectsEvents(config) {
       textarea.focus();
       textarea.selectionStart = result.nextCursorIndex;
       textarea.selectionEnd = result.nextCursorIndex;
+      logAutocompleteEvent("apply subject-ref", {
+        composerKey,
+        lengthBefore,
+        lengthAfter: String(result.nextText || "").length,
+        cursorBefore,
+        cursorAfter: result.nextCursorIndex
+      });
       closeSubjectRefPopup({ rerender: false });
       closeMentionPopup({ rerender: false });
       closeEmojiPopup({ rerender: false });
@@ -3306,7 +3359,12 @@ export function createProjectSubjectsEvents(config) {
       const normalizedKey = String(composerKey || "").trim();
       if (!normalizedKey) return;
       const textarea = getTextareaForComposerKey(normalizedKey);
-      if (!textarea) return;
+      if (!textarea) {
+        logAutocompleteEvent("missing textarea", { composerKey: normalizedKey, action: "emoji-pick" });
+        return;
+      }
+      const cursorBefore = Number(textarea.selectionStart || 0);
+      const lengthBefore = String(textarea.value || "").length;
       const [mode = "main", messageId = ""] = normalizedKey.split(":");
       if (normalizedKey === "main") {
         const emojiState = getEmojiState();
@@ -3321,6 +3379,13 @@ export function createProjectSubjectsEvents(config) {
         textarea.focus();
         textarea.selectionStart = result.nextCursorIndex;
         textarea.selectionEnd = result.nextCursorIndex;
+        logAutocompleteEvent("apply emoji", {
+          composerKey: normalizedKey,
+          lengthBefore,
+          lengthAfter: String(result.nextText || "").length,
+          cursorBefore,
+          cursorAfter: result.nextCursorIndex
+        });
         closeEmojiPopup({ rerender: false });
         if (store.situationsView.commentPreviewMode) syncCommentPreview(root);
         const computedStyle = window.getComputedStyle(textarea);
@@ -3335,6 +3400,13 @@ export function createProjectSubjectsEvents(config) {
         return;
       }
       const result = applyInlineEmojiSuggestion(textarea, suggestion);
+      logAutocompleteEvent("apply emoji", {
+        composerKey: normalizedKey,
+        lengthBefore,
+        lengthAfter: String(result.nextText || "").length,
+        cursorBefore,
+        cursorAfter: result.nextCursorIndex
+      });
       if (mode === "description") {
         const descriptionState = resolveDescriptionEditorState();
         descriptionState.draft = String(result.nextText || "");
@@ -4126,6 +4198,10 @@ export function createProjectSubjectsEvents(config) {
         if (!(target instanceof Element)) return;
         const mentionBtn = target.closest("[data-action='mention-pick'][data-person-id]");
         if (mentionBtn instanceof HTMLElement) {
+          logAutocompleteEvent("click pick", {
+            action: "mention-pick",
+            composerKey: String(mentionBtn.dataset.composerKey || "main")
+          });
           pickMentionSuggestion({
             personId: String(mentionBtn.dataset.personId || "").trim(),
             label: String(mentionBtn.dataset.label || "").trim()
@@ -4136,6 +4212,10 @@ export function createProjectSubjectsEvents(config) {
         if (emojiBtn instanceof HTMLElement) {
           const composerKey = String(emojiBtn.dataset.composerKey || "").trim();
           if (!composerKey) return;
+          logAutocompleteEvent("click pick", {
+            action: "emoji-pick",
+            composerKey
+          });
           applyEmojiSuggestionByComposerKey(composerKey, {
             emoji: String(emojiBtn.dataset.emoji || "").trim(),
             shortcode: String(emojiBtn.dataset.shortcode || "").trim()
@@ -4144,6 +4224,10 @@ export function createProjectSubjectsEvents(config) {
         }
         const subjectRefBtn = target.closest("[data-action='subject-ref-pick'][data-subject-id][data-subject-number]");
         if (!(subjectRefBtn instanceof HTMLElement)) return;
+        logAutocompleteEvent("click pick", {
+          action: "subject-ref-pick",
+          composerKey: String(subjectRefBtn.dataset.composerKey || "main")
+        });
         pickSubjectRefSuggestion({
           subjectId: String(subjectRefBtn.dataset.subjectId || "").trim(),
           subjectNumber: Number(subjectRefBtn.dataset.subjectNumber || 0)
