@@ -674,7 +674,8 @@ const projectSubjectsActions = createProjectSubjectsActions({
   }),
   deleteBlockedByRelationInSupabase: (subjectId, blockedBySubjectId) => deleteBlockedByRelationInSupabaseService({
     subjectId,
-    blockedBySubjectId
+    blockedBySubjectId,
+    rawSubjectsResult: store.projectSubjectsView?.rawSubjectsResult || null
   }),
   reorderSubjectChildrenInSupabase: (parentSubjectId, orderedChildIds) => reorderSubjectChildrenInSupabaseService({
     parentSubjectId,
