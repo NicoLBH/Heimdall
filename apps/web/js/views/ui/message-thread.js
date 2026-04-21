@@ -40,7 +40,7 @@ export function renderMessageCard({
       <div class="gh-comment-box ${boxClassName}">
         <div class="gh-comment-header ${headerClassName}">
           <div class="gh-comment-header-main">
-            <div class="gh-comment-author mono">${escapeHtml(author)}</div>
+            <div class="gh-comment-author">${escapeHtml(author)}</div>
             ${tsHtml || ""}
           </div>
           ${headerRightHtml || ""}

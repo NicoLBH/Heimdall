@@ -39,7 +39,7 @@ export function renderCommentComposer({
       ${hideAvatar ? "" : `<div class="gh-avatar gh-avatar--human comment-composer__avatar" aria-hidden="true">${avatarHtml}</div>`}
 
       <div class="comment-general-block comment-composer__main">
-        ${hideTitle ? "" : `<div class="gh-timeline-title mono comment-composer__title">${escapeHtml(title)}</div>`}
+        ${hideTitle ? "" : `<div class="gh-timeline-title comment-composer__title">${escapeHtml(title)}</div>`}
 
         <div class="comment-box gh-comment-boxwrap comment-composer__box ${helpMode ? "gh-comment-box--help" : ""}">
           ${contextHtml || ""}
