@@ -1268,14 +1268,26 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const objectivesList = Array.isArray(raw?.objectives) ? raw.objectives : [];
     const objective = objectivesById[objectiveId] || objectivesList.find((item) => normalizeId(item?.id) === normalizeId(objectiveId)) || null;
     const title = firstNonEmpty(objective?.title, fallbackLabel, "Objectif");
-    const dueDate = firstNonEmpty(objective?.dueDate, objective?.due_date, "");
-    const dueLabel = dueDate ? fmtTs(dueDate) : "Pas de date";
-    const linkedCount = Array.isArray(objective?.subjectIds) ? objective.subjectIds.length : Number(objective?.subjectsCount || 0);
     return `
       <span class="subject-meta-objective-card subject-meta-objective-card--inline">
-        <span class="subject-meta-objective-card__count">${escapeHtml(String(linkedCount || 0))}</span>
         <span class="subject-meta-objective-card__title">${escapeHtml(title)}</span>
-        <span class="subject-meta-objective-card__date">${escapeHtml(dueLabel)}</span>
+      </span>
+    `;
+  }
+
+  function renderLinkedSubjectInline(counterpartId = "", fallbackTitle = "") {
+    const subject = counterpartId ? getNestedSujet(counterpartId) : null;
+    const status = String(getEffectiveSujetStatus(counterpartId) || subject?.status || "open").toLowerCase();
+    const isClosed = status === "closed";
+    const iconSvg = isClosed
+      ? svgIcon("check-circle", { style: "color: var(--fgColor-done)" })
+      : svgIcon("issue-opened", { style: "color: var(--fgColor-open)" });
+    const title = firstNonEmpty(subject?.title, fallbackTitle, "");
+    const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
+    return `
+      <span class="tl-note-inline-link">
+        <span class="tl-note-inline-subject-status" aria-hidden="true">${iconSvg}</span>
+        ${title ? `${escapeHtml(title)} ` : ""}${linkedSubject}
       </span>
     `;
   }
@@ -1343,24 +1355,15 @@ priority=${firstNonEmpty(subject.priority, "")}`
     }
 
     if (eventType === "subject_blocked_by_added" && counterpartId) {
-      const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
-      return `
-        <span class="tl-note-inline-link">${counterpartTitle ? `${escapeHtml(counterpartTitle)} ` : ""}${linkedSubject}</span>
-      `;
+      return renderLinkedSubjectInline(counterpartId, counterpartTitle);
     }
 
     if (eventType === "subject_blocking_for_added" && counterpartId) {
-      const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
-      return `
-        <span class="tl-note-inline-link">${counterpartTitle ? `${escapeHtml(counterpartTitle)} ` : ""}${linkedSubject}</span>
-      `;
+      return renderLinkedSubjectInline(counterpartId, counterpartTitle);
     }
 
     if (eventType === "subject_parent_added" && counterpartId) {
-      const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
-      return `
-        <span class="tl-note-inline-link">${counterpartTitle ? `${escapeHtml(counterpartTitle)} ` : ""}${linkedSubject}</span>
-      `;
+      return renderLinkedSubjectInline(counterpartId, counterpartTitle);
     }
 
     return "";
@@ -1432,14 +1435,18 @@ priority=${firstNonEmpty(subject.priority, "")}`
             (eventType === "subject_labels_changed" || eventType === "subject_objectives_changed")
             && (action === "added" || action === "removed")
           );
-          const parentAddedLineHtml = eventType === "subject_parent_added" && inlineDetailHtml
+          const shouldRenderInlineBelow = (
+            (eventType === "subject_parent_added")
+            || (eventType === "subject_assignees_changed" && (action === "added" || action === "removed"))
+          );
+          const secondLineInlineHtml = shouldRenderInlineBelow && inlineDetailHtml
             ? `<span class="tl-note-inline tl-note-inline--parent-added">${inlineDetailHtml}</span>`
             : "";
           const defaultInlineHtml = eventType === "subject_parent_added"
             ? ""
             : (inlineDetailHtml ? `<span class="tl-note-inline">${inlineDetailHtml}</span>` : "");
           const inlineBeforeTimestampHtml = shouldRenderInlineBeforeTimestamp ? defaultInlineHtml : "";
-          const inlineAfterTimestampHtml = shouldRenderInlineBeforeTimestamp ? "" : defaultInlineHtml;
+          const inlineAfterTimestampHtml = shouldRenderInlineBeforeTimestamp || shouldRenderInlineBelow ? "" : defaultInlineHtml;
 
           return renderMessageThreadActivity({
             idx,
@@ -1454,7 +1461,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
               ${inlineBeforeTimestampHtml}
               <span class="mono-small">· ${escapeHtml(ts)}</span>
               ${inlineAfterTimestampHtml}
-              ${parentAddedLineHtml}
+              ${secondLineInlineHtml}
             `,
             noteHtml: ""
           });
