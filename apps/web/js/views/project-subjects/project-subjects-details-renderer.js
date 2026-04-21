@@ -63,7 +63,7 @@ export function createProjectSubjectsDetailsRenderer(config) {
         <div class="subject-title-edit__row">
           <div class="subject-title-edit__input-wrap">
             <input
-              class="subject-title-edit__input"
+              class="subject-title-edit__input objective-edit-form__input"
               type="text"
               value="${escapeHtml(draftValue)}"
               data-subject-title-draft
@@ -71,7 +71,6 @@ export function createProjectSubjectsDetailsRenderer(config) {
               ${isSaving ? "disabled" : ""}
             />
           </div>
-          <span class="details-title-inline-ref">${entityDisplayLinkHtml(currentSelection.type, item.id)}</span>
           <div class="subject-title-edit__actions">
             <button class="gh-btn gh-btn--sm subject-title-edit__action" type="button" data-action="cancel-subject-title-edit" ${isSaving ? "disabled" : ""}>Annuler</button>
             <button class="gh-btn gh-btn--primary gh-btn--sm subject-title-edit__action" type="button" data-action="save-subject-title-edit" ${canSave ? "" : "disabled"}>Enregistrer</button>

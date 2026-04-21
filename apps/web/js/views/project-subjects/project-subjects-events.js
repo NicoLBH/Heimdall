@@ -806,6 +806,21 @@ export function createProjectSubjectsEvents(config) {
       }) || inputs[0] || null;
     };
 
+    const syncSubjectTitleDraftUi = () => {
+      const state = getSubjectTitleEditState?.() || {};
+      const trimmedDraft = String(state.draft || "").trim();
+      const trimmedInitial = String(state.initialTitle || "").trim();
+      const canSave = !state.isSaving && !!trimmedDraft && trimmedDraft !== trimmedInitial;
+      titleBindingRoots.forEach((scopeRoot) => {
+        scopeRoot?.querySelectorAll?.("[data-action='save-subject-title-edit']").forEach((btn) => {
+          btn.disabled = !canSave;
+        });
+        scopeRoot?.querySelectorAll?.(".subject-title-edit__error").forEach((errorNode) => {
+          errorNode.remove?.();
+        });
+      });
+    };
+
     titleBindingRoots.forEach((scopeRoot) => {
       if (!(scopeRoot instanceof HTMLElement || scopeRoot === document)) return;
       const titleActionRoot = scopeRoot?.closest?.("#detailsTitleModal")
@@ -842,7 +857,7 @@ export function createProjectSubjectsEvents(config) {
       scopeRoot.querySelectorAll("[data-subject-title-draft]").forEach((input) => {
         input.oninput = () => {
           syncSubjectTitleDraft?.(scopeRoot);
-          rerenderScope(titleActionRoot);
+          syncSubjectTitleDraftUi();
         };
         input.onkeydown = async (event) => {
           if (event.key !== "Enter") return;
