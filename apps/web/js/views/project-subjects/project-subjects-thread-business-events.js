@@ -52,7 +52,7 @@ function summarizeObjectiveChange(payload = {}, firstNonEmpty = defaultFirstNonE
 
 export const BUSINESS_ACTIVITY_CONFIG = {
   subject_title_updated: { icon: "pencil", tone: "business-edit", verb: "a modifié le titre" },
-  subject_description_updated: { icon: "note", tone: "business-edit", verb: "a modifié la description" },
+  subject_description_updated: { icon: "pencil", tone: "business-edit", verb: "a modifié la description" },
   subject_assignees_changed: {
     icon: "person",
     tone: "business-people",
@@ -85,7 +85,7 @@ export const BUSINESS_ACTIVITY_CONFIG = {
   subject_blocked_by_removed: { icon: "blocked", tone: "business-alert", verb: "a retiré un blocage entrant" },
   subject_blocking_for_added: { icon: "blocked", tone: "business-alert", verb: "a ajouté un blocage sortant" },
   subject_blocking_for_removed: { icon: "blocked", tone: "business-alert", verb: "a retiré un blocage sortant" },
-  subject_closed: { icon: "check-circle", tone: "business-alert", verb: "a fermé le sujet" },
+  subject_closed: { icon: "check-circle", tone: "business-closed", verb: "a fermé le sujet" },
   subject_reopened: { icon: "issue-reopened", tone: "business-open", verb: "a rouvert le sujet" }
 };
 
