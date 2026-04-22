@@ -500,6 +500,8 @@ const projectSubjectsDetailsRenderer = createProjectSubjectsDetailsRenderer({
   escapeHtml,
   statePill: (...args) => projectSubjectsView.statePill(...args),
   renderDescriptionCard,
+  getChildSubjectList: (...args) => projectSubjectsView.getChildSubjectList(...args),
+  renderAddSubissueActionButton: (...args) => projectSubjectsView.renderAddSubissueActionButton(...args),
   renderSubIssuesForSujet: (...args) => projectSubjectsView.renderSubIssuesForSujet(...args),
   renderSubIssuesForSituation: (...args) => projectSubjectsView.renderSubIssuesForSituation(...args),
   renderThreadBlock,
@@ -863,6 +865,7 @@ const projectSubjectsView = createProjectSubjectsView({
   replaceSubjectSituationsInSupabase: (...args) => replaceSubjectSituationsInSupabase(...args),
   replaceSubjectObjectivesInSupabase: (...args) => replaceSubjectObjectivesInSupabase(...args),
   updateSubjectDescriptionInSupabase: (...args) => updateSubjectDescriptionInSupabase(...args),
+  loadSubjectDescriptionVersionsInSupabase: (...args) => loadSubjectDescriptionVersionsInSupabase(...args),
   uploadAttachmentFile: (...args) => subjectMessagesService.uploadAttachmentFile(...args)
 });
 
