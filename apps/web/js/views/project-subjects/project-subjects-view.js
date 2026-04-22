@@ -596,6 +596,18 @@ async function createSubjectFromDraft() {
     store.projectSubjectsView.selectedSubjectId = subjectId;
     store.projectSubjectsView.selectedSituationId = selectedSituationId;
 
+    persistRunBucket((bucket) => {
+      bucket.subjectMeta = bucket.subjectMeta && typeof bucket.subjectMeta === "object" ? bucket.subjectMeta : {};
+      bucket.subjectMeta.sujet = bucket.subjectMeta.sujet && typeof bucket.subjectMeta.sujet === "object" ? bucket.subjectMeta.sujet : {};
+      bucket.subjectMeta.sujet[subjectId] = {
+        ...(bucket.subjectMeta.sujet[subjectId] || {}),
+        assignees: nextMeta.assignees,
+        labels: nextMeta.labels,
+        objectiveIds: nextMeta.objectiveIds,
+        situationIds: nextMeta.situationIds
+      };
+    });
+
     return { ok: true, subjectId };
   } catch (error) {
     const message = String(error?.message || error || "Erreur inconnue");
@@ -728,12 +740,14 @@ function getSubjectSidebarMeta(subjectId) {
   const labelsById = rawResult?.labelsById && typeof rawResult.labelsById === "object"
     ? rawResult.labelsById
     : {};
+  const storedLabels = normalizeSubjectLabels(subjectMeta.labels);
   const derivedLabels = normalizeSubjectLabels(
     (Array.isArray(labelIdsBySubjectId[normalizedSubjectId]) ? labelIdsBySubjectId[normalizedSubjectId] : [])
       .map((labelId) => labelsById[String(labelId || "")])
       .filter(Boolean)
       .map((labelDef) => String(labelDef?.name || labelDef?.label || labelDef?.label_key || labelDef?.key || "").trim())
   );
+  const resolvedLabels = derivedLabels.length ? derivedLabels : storedLabels;
   const assigneePersonIdsBySubjectId = rawResult?.assigneePersonIdsBySubjectId && typeof rawResult.assigneePersonIdsBySubjectId === "object"
     ? rawResult.assigneePersonIdsBySubjectId
     : {};
@@ -746,7 +760,7 @@ function getSubjectSidebarMeta(subjectId) {
 
   return {
     assignees: normalizeAssigneeIds(derivedAssignees),
-    labels: derivedLabels,
+    labels: resolvedLabels,
     objectiveIds,
     situationIds: derivedSituationIds,
     relations: Array.isArray(subjectMeta.relations) ? subjectMeta.relations.map((value) => String(value || "")).filter(Boolean) : []
