@@ -2942,51 +2942,55 @@ function renderCreateSubjectFormHtml() {
   const previewHtml = mdToHtml(String(form.description || "").trim());
   return `
     <section class="subject-create-shell" data-create-subject-form>
+      <div class="subject-create-header">
+        <div class="subject-create-header__title">Créer un nouveau sujet</div>
+      </div>
       <div class="subject-create-layout">
         <div class="subject-create-main">
-          <div class="subject-create-header">
-            <img src="${escapeHtml(avatar)}" alt="Auteur" class="subject-create-header__avatar">
-            <div class="subject-create-header__title">Créer un nouveau sujet</div>
-          </div>
+          <div class="subject-create-content">
+            <img src="${escapeHtml(avatar)}" alt="Auteur" class="subject-create-content__avatar">
+            <div class="subject-create-content__fields">
+              <label class="subject-create-field">
+                <span class="subject-create-field__label">Ajouter un titre<span class="subject-create-field__required">*</span></span>
+                <input type="text" class="subject-create-input" data-create-subject-title value="${escapeHtml(String(form.title || ""))}" placeholder="Titre du sujet" autocomplete="off">
+              </label>
 
-          <label class="subject-create-field">
-            <span class="subject-create-field__label">Ajouter un titre<span class="subject-create-field__required">*</span></span>
-            <input type="text" class="subject-create-input" data-create-subject-title value="${escapeHtml(String(form.title || ""))}" placeholder="Titre du sujet" autocomplete="off">
-          </label>
-
-          <div class="subject-create-field subject-create-field--editor">
-            <div class="subject-create-field__label">Ajouter une description</div>
-            ${renderCommentComposer({
-              hideAvatar: true,
-              hideTitle: true,
-              previewMode: !!form.previewMode,
-              textareaId: "createSubjectDescriptionBox",
-              previewId: "createSubjectDescriptionPreview",
-              textareaValue: String(form.description || ""),
-              textareaAttributes: {
-                "data-create-subject-description": "true"
-              },
-              placeholder: "Décrivez le sujet...",
-              tabWriteAction: "create-subject-tab-write",
-              tabPreviewAction: "create-subject-tab-preview",
-              tabsClassName: "comment-composer__tabs--thread-reply",
-              composerClassName: "comment-composer--thread-reply-editor",
-              toolbarHtml: renderSubjectMarkdownToolbar({ buttonAction: "create-subject-format", svgIcon }),
-              previewHtml: previewHtml || "",
-              previewEmptyHint: "Utilisez Markdown pour formater votre description",
-              footerHtml: `
-                <input type="file" class="subject-composer-file-input" data-role="create-subject-file-input" multiple />
-                <div class="subject-composer-attachments-preview ${(Array.isArray(form.attachments) && form.attachments.length) ? "" : "hidden"}" data-role="create-subject-attachments-preview" aria-live="polite">
-                  ${renderSubjectAttachmentsPreviewList({
-                    attachments: normalizeCreateSubjectDraftAttachments(form.attachments),
-                    removeAction: "create-subject-attachment-remove",
-                    escapeHtml,
-                    svgIcon
-                  })}
-                </div>
-              `
-            })}
-            ${form.validationError ? `<div class="subject-create-form__error">${escapeHtml(form.validationError)}</div>` : ""}
+              <div class="subject-create-field subject-create-field--editor">
+                <div class="subject-create-field__label">Ajouter une description</div>
+                ${renderCommentComposer({
+                  hideAvatar: true,
+                  hideTitle: true,
+                  hideActions: true,
+                  previewMode: !!form.previewMode,
+                  textareaId: "createSubjectDescriptionBox",
+                  previewId: "createSubjectDescriptionPreview",
+                  textareaValue: String(form.description || ""),
+                  textareaAttributes: {
+                    "data-create-subject-description": "true"
+                  },
+                  placeholder: "Décrivez le sujet...",
+                  tabWriteAction: "create-subject-tab-write",
+                  tabPreviewAction: "create-subject-tab-preview",
+                  tabsClassName: "comment-composer__tabs--thread-reply",
+                  composerClassName: "comment-composer--thread-reply-editor comment-composer--create-subject",
+                  toolbarHtml: renderSubjectMarkdownToolbar({ buttonAction: "create-subject-format", svgIcon }),
+                  previewHtml: previewHtml || "",
+                  previewEmptyHint: "Utilisez Markdown pour formater votre description",
+                  footerHtml: `
+                    <input type="file" class="subject-composer-file-input" data-role="create-subject-file-input" multiple />
+                    <div class="subject-composer-attachments-preview ${(Array.isArray(form.attachments) && form.attachments.length) ? "" : "hidden"}" data-role="create-subject-attachments-preview" aria-live="polite">
+                      ${renderSubjectAttachmentsPreviewList({
+                        attachments: normalizeCreateSubjectDraftAttachments(form.attachments),
+                        removeAction: "create-subject-attachment-remove",
+                        escapeHtml,
+                        svgIcon
+                      })}
+                    </div>
+                  `
+                })}
+                ${form.validationError ? `<div class="subject-create-form__error">${escapeHtml(form.validationError)}</div>` : ""}
+              </div>
+            </div>
           </div>
 
           <div class="subject-create-footer">
