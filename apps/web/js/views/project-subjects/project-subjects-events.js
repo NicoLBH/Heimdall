@@ -763,6 +763,127 @@ export function createProjectSubjectsEvents(config) {
     });
   }
 
+  function handleCloseSubissueCreateModal() {
+    if (!store.situationsView.createSubjectForm?.isOpen) return false;
+    const formContext = store.situationsView.createSubjectForm || {};
+    const isSubissueMode = String(formContext.mode || "").trim().toLowerCase() === "subissue";
+    if (!isSubissueMode) return false;
+    resetCreateSubjectForm({ keepCreateMore: true });
+    rerenderPanels();
+    return true;
+  }
+
+  function handleCreateSubjectCancel() {
+    if (!store.situationsView.createSubjectForm?.isOpen) return false;
+    const formContext = store.situationsView.createSubjectForm || {};
+    const isSubissueMode = String(formContext.mode || "").trim().toLowerCase() === "subissue";
+    const formOrigin = String(formContext.origin || "").trim().toLowerCase() === "detail" ? "detail" : "table";
+    const sourceSubjectId = String(formContext.sourceSubjectId || "").trim();
+    dropdownController().closeMeta();
+    const mentionUi = typeof getMentionUiState === "function" ? getMentionUiState() : store?.situationsView?.mentionUi;
+    if (mentionUi && typeof mentionUi === "object") {
+      mentionUi.open = false;
+      mentionUi.query = "";
+      mentionUi.activeIndex = 0;
+      mentionUi.triggerStart = -1;
+      mentionUi.triggerEnd = -1;
+      mentionUi.suggestions = [];
+      mentionUi.composerKey = "";
+    }
+    const emojiUi = typeof getEmojiUiState === "function" ? getEmojiUiState() : store?.situationsView?.emojiUi;
+    if (emojiUi && typeof emojiUi === "object") {
+      emojiUi.open = false;
+      emojiUi.query = "";
+      emojiUi.activeIndex = 0;
+      emojiUi.triggerStart = -1;
+      emojiUi.triggerEnd = -1;
+      emojiUi.suggestions = [];
+      emojiUi.composerKey = "";
+    }
+    const subjectRefUi = typeof getSubjectRefUiState === "function" ? getSubjectRefUiState() : store?.situationsView?.subjectRefUi;
+    if (subjectRefUi && typeof subjectRefUi === "object") {
+      subjectRefUi.open = false;
+      subjectRefUi.query = "";
+      subjectRefUi.activeIndex = 0;
+      subjectRefUi.triggerStart = -1;
+      subjectRefUi.triggerEnd = -1;
+      subjectRefUi.suggestions = [];
+      subjectRefUi.composerKey = "";
+    }
+    resetCreateSubjectForm({ keepCreateMore: true });
+    if (isSubissueMode) {
+      rerenderPanels();
+      return true;
+    }
+    if (formOrigin === "detail" && sourceSubjectId && getNestedSujet(sourceSubjectId)) {
+      selectSubject(sourceSubjectId) || selectSujet(sourceSubjectId);
+      store.situationsView.showTableOnly = false;
+      store.projectSubjectsView.showTableOnly = false;
+      return true;
+    }
+    rerenderPanels();
+    return true;
+  }
+
+  function handleCreateSubjectSubmit(interactionRoot) {
+    if (!store.situationsView.createSubjectForm?.isOpen) return false;
+    if (store.situationsView.createSubjectForm?.isSubmitting) return true;
+    const formContext = store.situationsView.createSubjectForm || {};
+    const formMode = String(formContext.mode || "").trim().toLowerCase() === "subissue" ? "subissue" : "standard";
+    const keepCreateMore = !!formContext.createMore;
+    const formOrigin = String(formContext.origin || "").trim().toLowerCase() === "detail" ? "detail" : "table";
+    const sourceSubjectId = String(formContext.sourceSubjectId || "").trim() || null;
+    const parentSubjectId = String(formContext.parentSubjectId || "").trim() || null;
+    const scopeHost = String(formContext.scopeHost || "").trim().toLowerCase() === "drilldown" ? "drilldown" : "main";
+    const setSubjectParent = getSetSubjectParent?.();
+
+    (async () => {
+      const submitPromise = createSubjectFromDraft();
+      rerenderPanels();
+      const result = await submitPromise;
+      if (!result.ok) {
+        rerenderPanels();
+        return;
+      }
+
+      if (formMode === "subissue") {
+        if (parentSubjectId && typeof setSubjectParent === "function") {
+          const linked = await setSubjectParent(result.subjectId, parentSubjectId, { root: interactionRoot, skipRerender: true });
+          if (!linked) {
+            rerenderPanels();
+            return;
+          }
+        }
+        resetCreateSubjectForm({ keepCreateMore: true });
+        if (scopeHost === "drilldown") {
+          (openDrilldownFromSubjectPanel || openDrilldownFromSujetPanel)(result.subjectId);
+        } else {
+          selectSubject(result.subjectId) || selectSujet(result.subjectId);
+        }
+        rerenderPanels();
+        return;
+      }
+
+      if (keepCreateMore) {
+        openCreateSubjectForm({
+          origin: formOrigin,
+          sourceSubjectId
+        });
+      } else {
+        resetCreateSubjectForm({ keepCreateMore: true });
+        if (formOrigin === "detail") {
+          store.situationsView.showTableOnly = false;
+          store.projectSubjectsView.showTableOnly = false;
+        }
+      }
+      rerenderPanels();
+    })().catch((error) => {
+      showError(`Création du sujet impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+      rerenderPanels();
+    });
+    return true;
+  }
+
 
   function wireDetailsInteractive(root) {
     if (!root) return;
@@ -951,6 +1072,57 @@ export function createProjectSubjectsEvents(config) {
 
     root.querySelectorAll(".subject-meta-field").forEach((fieldRoot) => {
       bindSubjectSituationFieldInteractions(root, fieldRoot);
+    });
+
+    root.querySelectorAll("[data-close-subissue-create-modal]").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        handleCloseSubissueCreateModal();
+      };
+    });
+    root.querySelectorAll("[data-create-subject-cancel]").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        handleCreateSubjectCancel();
+      };
+    });
+    root.querySelectorAll("[data-create-subject-submit]").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        handleCreateSubjectSubmit(root);
+      };
+    });
+    root.querySelectorAll("[data-create-subject-tab], [data-action='create-subject-tab-write'], [data-action='create-subject-tab-preview']").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = String(btn.dataset.action || "").trim();
+        const explicitTab = String(btn.dataset.createSubjectTab || "").trim();
+        const isPreview = explicitTab === "preview" || action === "create-subject-tab-preview";
+        store.situationsView.createSubjectForm.previewMode = isPreview;
+        rerenderPanels();
+      };
+    });
+    root.querySelectorAll("[data-create-subject-title]").forEach((input) => {
+      input.oninput = () => {
+        store.situationsView.createSubjectForm.title = String(input.value || "");
+        store.situationsView.createSubjectForm.validationError = "";
+      };
+    });
+    root.querySelectorAll("[data-create-subject-description]").forEach((textarea) => {
+      textarea.oninput = () => {
+        store.situationsView.createSubjectForm.description = String(textarea.value || "");
+        runAutosize(textarea, "create-subject-input");
+        if (store.situationsView.createSubjectForm.previewMode) rerenderPanels();
+      };
+    });
+    root.querySelectorAll("[data-create-subject-create-more]").forEach((checkbox) => {
+      checkbox.oninput = () => {
+        store.situationsView.createSubjectForm.createMore = !!checkbox.checked;
+      };
     });
 
     bindDropdownHostInteractiveElements(root, dropdownHost);
@@ -5331,64 +5503,14 @@ export function createProjectSubjectsEvents(config) {
       const closeSubissueCreateModalTrigger = event.target.closest("[data-close-subissue-create-modal]");
       if (closeSubissueCreateModalTrigger && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        const formContext = store.situationsView.createSubjectForm || {};
-        const isSubissueMode = String(formContext.mode || "").trim().toLowerCase() === "subissue";
-        if (!isSubissueMode) return;
-        resetCreateSubjectForm({ keepCreateMore: true });
-        rerenderPanels();
+        handleCloseSubissueCreateModal();
         return;
       }
 
       const createSubjectCancelButton = event.target.closest("[data-create-subject-cancel]");
       if (createSubjectCancelButton && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        const formContext = store.situationsView.createSubjectForm || {};
-        const isSubissueMode = String(formContext.mode || "").trim().toLowerCase() === "subissue";
-        const formOrigin = String(formContext.origin || "").trim().toLowerCase() === "detail" ? "detail" : "table";
-        const sourceSubjectId = String(formContext.sourceSubjectId || "").trim();
-        dropdownController().closeMeta();
-        const mentionUi = typeof getMentionUiState === "function" ? getMentionUiState() : store?.situationsView?.mentionUi;
-        if (mentionUi && typeof mentionUi === "object") {
-          mentionUi.open = false;
-          mentionUi.query = "";
-          mentionUi.activeIndex = 0;
-          mentionUi.triggerStart = -1;
-          mentionUi.triggerEnd = -1;
-          mentionUi.suggestions = [];
-          mentionUi.composerKey = "";
-        }
-        const emojiUi = typeof getEmojiUiState === "function" ? getEmojiUiState() : store?.situationsView?.emojiUi;
-        if (emojiUi && typeof emojiUi === "object") {
-          emojiUi.open = false;
-          emojiUi.query = "";
-          emojiUi.activeIndex = 0;
-          emojiUi.triggerStart = -1;
-          emojiUi.triggerEnd = -1;
-          emojiUi.suggestions = [];
-          emojiUi.composerKey = "";
-        }
-        const subjectRefUi = typeof getSubjectRefUiState === "function" ? getSubjectRefUiState() : store?.situationsView?.subjectRefUi;
-        if (subjectRefUi && typeof subjectRefUi === "object") {
-          subjectRefUi.open = false;
-          subjectRefUi.query = "";
-          subjectRefUi.activeIndex = 0;
-          subjectRefUi.triggerStart = -1;
-          subjectRefUi.triggerEnd = -1;
-          subjectRefUi.suggestions = [];
-          subjectRefUi.composerKey = "";
-        }
-        resetCreateSubjectForm({ keepCreateMore: true });
-        if (isSubissueMode) {
-          rerenderPanels();
-          return;
-        }
-        if (formOrigin === "detail" && sourceSubjectId && getNestedSujet(sourceSubjectId)) {
-          selectSubject(sourceSubjectId) || selectSujet(sourceSubjectId);
-          store.situationsView.showTableOnly = false;
-          store.projectSubjectsView.showTableOnly = false;
-          return;
-        }
-        rerenderPanels();
+        handleCreateSubjectCancel();
         return;
       }
 
@@ -5411,63 +5533,7 @@ export function createProjectSubjectsEvents(config) {
       const createSubjectSubmitButton = event.target.closest("[data-create-subject-submit]");
       if (createSubjectSubmitButton && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        if (store.situationsView.createSubjectForm?.isSubmitting) {
-          return;
-        }
-
-        const formContext = store.situationsView.createSubjectForm || {};
-        const formMode = String(formContext.mode || "").trim().toLowerCase() === "subissue" ? "subissue" : "standard";
-        const keepCreateMore = !!formContext.createMore;
-        const formOrigin = String(formContext.origin || "").trim().toLowerCase() === "detail" ? "detail" : "table";
-        const sourceSubjectId = String(formContext.sourceSubjectId || "").trim() || null;
-        const parentSubjectId = String(formContext.parentSubjectId || "").trim() || null;
-        const scopeHost = String(formContext.scopeHost || "").trim().toLowerCase() === "drilldown" ? "drilldown" : "main";
-        const setSubjectParent = getSetSubjectParent?.();
-
-        (async () => {
-          const submitPromise = createSubjectFromDraft();
-          rerenderPanels();
-          const result = await submitPromise;
-          if (!result.ok) {
-            rerenderPanels();
-            return;
-          }
-
-          if (formMode === "subissue") {
-            if (parentSubjectId && typeof setSubjectParent === "function") {
-              const linked = await setSubjectParent(result.subjectId, parentSubjectId, { root, skipRerender: true });
-              if (!linked) {
-                rerenderPanels();
-                return;
-              }
-            }
-            resetCreateSubjectForm({ keepCreateMore: true });
-            if (scopeHost === "drilldown") {
-              (openDrilldownFromSubjectPanel || openDrilldownFromSujetPanel)(result.subjectId);
-            } else {
-              selectSubject(result.subjectId) || selectSujet(result.subjectId);
-            }
-            rerenderPanels();
-            return;
-          }
-
-          if (keepCreateMore) {
-            openCreateSubjectForm({
-              origin: formOrigin,
-              sourceSubjectId
-            });
-          } else {
-            resetCreateSubjectForm({ keepCreateMore: true });
-            if (formOrigin === "detail") {
-              store.situationsView.showTableOnly = false;
-              store.projectSubjectsView.showTableOnly = false;
-            }
-          }
-          rerenderPanels();
-        })().catch((error) => {
-          showError(`Création du sujet impossible : ${String(error?.message || error || "Erreur inconnue")}`);
-          rerenderPanels();
-        });
+        handleCreateSubjectSubmit(root);
         return;
       }
 
