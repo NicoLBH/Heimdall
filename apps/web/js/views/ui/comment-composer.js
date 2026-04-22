@@ -22,7 +22,8 @@ export function renderCommentComposer({
   tabWriteAction = "tab-write",
   tabPreviewAction = "tab-preview",
   previewHtml = "",
-  previewEmptyHint = "Use Markdown to format your comment"
+  previewEmptyHint = "Use Markdown to format your comment",
+  hideActions = false
 } = {}) {
   const textareaAttributesHtml = Object.entries(
     textareaAttributes && typeof textareaAttributes === "object" ? textareaAttributes : {}
@@ -66,12 +67,14 @@ export function renderCommentComposer({
           ${footerHtml || ""}
         </div>
 
-        <div class="actions-row actions-row--details comment-composer__actions" style="margin-top:10px;">
-          ${hintHtml || ""}
-          <div class="actions-row__right comment-composer__actions-right" style="display:flex; align-items:center; gap:8px; justify-content:flex-end; flex:0 0 auto;">
-            ${actionsHtml || ""}
+        ${hideActions ? "" : `
+          <div class="actions-row actions-row--details comment-composer__actions" style="margin-top:10px;">
+            ${hintHtml || ""}
+            <div class="actions-row__right comment-composer__actions-right" style="display:flex; align-items:center; gap:8px; justify-content:flex-end; flex:0 0 auto;">
+              ${actionsHtml || ""}
+            </div>
           </div>
-        </div>
+        `}
       </div>
     </div>
   `;
