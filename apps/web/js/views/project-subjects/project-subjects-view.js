@@ -3220,7 +3220,7 @@ function renderCreateSubjectFormHtml() {
 function renderCreateSubissueModalHtml() {
   return renderSettingsModal({
     modalId: "subjectCreateSubissueModal",
-    title: "Create new sub-issue",
+    title: "Créer un sous-sujet",
     closeDataAttribute: "data-close-subissue-create-modal",
     bodyHtml: renderCreateSubjectFormHtml(),
     variant: "wide",
