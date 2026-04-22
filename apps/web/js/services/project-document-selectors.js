@@ -17,21 +17,38 @@ function getRawSubjectsResult() {
 function normalizeEntityDocumentRefs(entity = {}) {
   const directRefs = Array.isArray(entity?.document_ref_ids) ? entity.document_ref_ids : [];
   const rawRefs = Array.isArray(entity?.raw?.document_ref_ids) ? entity.raw.document_ref_ids : [];
-  const singleDocumentIds = [entity?.document_id, entity?.raw?.document_id].filter(Boolean);
-  return [...new Set([...directRefs, ...rawRefs, ...singleDocumentIds].map((value) => String(value || "")).filter(Boolean))];
+  return [...new Set([...directRefs, ...rawRefs].map((value) => String(value || "")).filter(Boolean))];
 }
 
-function buildDocumentRefFallback(documentId = "") {
-  const id = String(documentId || "").trim();
-  if (!id) return null;
-  return {
-    id,
-    name: id,
-    title: id,
-    phaseCode: "",
-    phaseLabel: "",
-    __unresolved: true
-  };
+function normalizeEntityTechnicalDocumentIds(entity = {}) {
+  return [...new Set([entity?.document_id, entity?.raw?.document_id]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))];
+}
+
+function isDebugDocumentRefsEnabled() {
+  if (typeof window === "undefined") return false;
+  try {
+    const search = String(window?.location?.search || "");
+    if (search.includes("debugDocumentRefs=1")) return true;
+    const localValue = String(window?.localStorage?.getItem?.("mdall:debug-document-refs") || "").trim().toLowerCase();
+    const sessionValue = String(window?.sessionStorage?.getItem?.("mdall:debug-document-refs") || "").trim().toLowerCase();
+    const globalValue = String(window?.__MDALL_DEBUG_DOCUMENT_REFS__ || "").trim().toLowerCase();
+    return ["1", "true", "yes", "on"].includes(localValue)
+      || ["1", "true", "yes", "on"].includes(sessionValue)
+      || ["1", "true", "yes", "on"].includes(globalValue);
+  } catch {
+    return false;
+  }
+}
+
+function debugDocumentRefs(eventName, payload = {}) {
+  if (!isDebugDocumentRefsEnabled()) return;
+  console.debug("[document-refs]", String(eventName || "event"), payload);
+}
+
+function isSystemTechnicalDocument(document = {}) {
+  return String(document?.documentKind || document?.note || "").toLowerCase() === "manual_subjects_system";
 }
 
 function isEntityCounted(entity = {}) {
@@ -123,15 +140,27 @@ function getBlockedByCount(subjectId) {
 export function getSelectionDocumentRefs(selection) {
   const item = selection?.item || null;
   if (!item) return [];
-  const normalizedRefIds = normalizeEntityDocumentRefs(item);
+  const explicitRefIds = normalizeEntityDocumentRefs(item);
+  const technicalDocumentIds = normalizeEntityTechnicalDocumentIds(item);
 
-  const resolvedDocs = resolveDocumentRefs(normalizedRefIds);
+  const resolvedDocs = resolveDocumentRefs(explicitRefIds)
+    .filter((doc) => !isSystemTechnicalDocument(doc));
   const resolvedById = new Map(resolvedDocs.map((doc) => [String(doc?.id || ""), doc]));
-  const renderable = normalizedRefIds
-    .map((documentId) => resolvedById.get(String(documentId || "")) || buildDocumentRefFallback(documentId))
+  const renderable = explicitRefIds
+    .map((documentId) => resolvedById.get(String(documentId || "")))
     .filter(Boolean)
     .map(decorateDocumentWithPhase)
     .filter(Boolean);
+
+  const filteredRefIds = explicitRefIds.filter((documentId) => !resolvedById.has(String(documentId || "")));
+  debugDocumentRefs("selection", {
+    entityId: String(item?.id || ""),
+    explicitRefIds,
+    retainedRefIds: renderable.map((doc) => String(doc?.id || "")),
+    filteredRefIds,
+    technicalDocumentIds
+  });
+
   return renderable;
 }
 

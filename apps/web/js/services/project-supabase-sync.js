@@ -718,6 +718,7 @@ function buildStoragePublicUrl(bucket, path) {
 function mapDocumentRowToViewModel(row = {}) {
   const displayName = safeString(row.original_filename || row.filename || "Document");
   const mimeType = safeString(row.mime_type || "");
+  const documentKind = safeString(row.document_kind || "");
 
   return {
     id: safeString(row.id),
@@ -737,7 +738,8 @@ function mapDocumentRowToViewModel(row = {}) {
     extension: displayName.includes(".") ? displayName.split(".").pop().toLowerCase() : "",
     storageBucket: safeString(row.storage_bucket),
     storagePath: safeString(row.storage_path),
-    uploadStatus: safeString(row.upload_status)
+    uploadStatus: safeString(row.upload_status),
+    documentKind
   };
 }
 
