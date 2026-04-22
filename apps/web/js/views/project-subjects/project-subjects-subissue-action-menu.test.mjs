@@ -21,6 +21,7 @@ test("rend le bouton Ajouter sous-sujet dans la description quand il n'y a aucun
   assert.match(detailsRendererSource, /shouldRenderDescriptionAddSubissueAction = selection\.type === "sujet" && childSubjects\.length === 0/);
   assert.match(detailsRendererSource, /renderDescriptionCard\(selection, \{/);
   assert.match(detailsRendererSource, /footerActionsHtml:[\s\S]*renderAddSubissueActionButton\(item\.id, \{ placement: "description" \}\)/);
+  assert.match(detailsRendererSource, /const descriptionAddSubissueActionHtml = "";/);
 });
 
 test("rend le bouton Ajouter sous-sujet en bas du panneau des sous-sujets quand il y a des enfants", () => {

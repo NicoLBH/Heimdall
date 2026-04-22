@@ -229,6 +229,7 @@ export function createProjectSubjectsDetailsRenderer(config) {
         ? renderAddSubissueActionButton(item.id, { placement: "description" })
         : ""
     });
+    const descriptionAddSubissueActionHtml = "";
     const subIssuesHtml = selection.type === "sujet"
       ? renderSubIssuesForSujet(item, options.subissuesOptions || {})
       : renderSubIssuesForSituation(item, options.subissuesOptions || {});
