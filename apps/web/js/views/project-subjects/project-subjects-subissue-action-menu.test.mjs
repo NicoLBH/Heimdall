@@ -19,7 +19,8 @@ const styleSource = fs.readFileSync(stylePath, "utf8");
 
 test("rend le bouton Ajouter sous-sujet dans la description quand il n'y a aucun sous-sujet", () => {
   assert.match(detailsRendererSource, /shouldRenderDescriptionAddSubissueAction = selection\.type === "sujet" && childSubjects\.length === 0/);
-  assert.match(detailsRendererSource, /renderAddSubissueActionButton\(item\.id, \{ placement: "description" \}\)/);
+  assert.match(detailsRendererSource, /renderDescriptionCard\(selection, \{/);
+  assert.match(detailsRendererSource, /footerActionsHtml:[\s\S]*renderAddSubissueActionButton\(item\.id, \{ placement: "description" \}\)/);
 });
 
 test("rend le bouton Ajouter sous-sujet en bas du panneau des sous-sujets quand il y a des enfants", () => {

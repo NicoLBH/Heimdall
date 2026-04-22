@@ -224,10 +224,11 @@ export function createProjectSubjectsDetailsRenderer(config) {
     const item = selection.item;
     const childSubjects = selection.type === "sujet" ? getChildSubjectList(item) : [];
     const shouldRenderDescriptionAddSubissueAction = selection.type === "sujet" && childSubjects.length === 0;
-    const descCard = renderDescriptionCard(selection);
-    const descriptionAddSubissueActionHtml = shouldRenderDescriptionAddSubissueAction
-      ? renderAddSubissueActionButton(item.id, { placement: "description" })
-      : "";
+    const descCard = renderDescriptionCard(selection, {
+      footerActionsHtml: shouldRenderDescriptionAddSubissueAction
+        ? renderAddSubissueActionButton(item.id, { placement: "description" })
+        : ""
+    });
     const subIssuesHtml = selection.type === "sujet"
       ? renderSubIssuesForSujet(item, options.subissuesOptions || {})
       : renderSubIssuesForSituation(item, options.subissuesOptions || {});
