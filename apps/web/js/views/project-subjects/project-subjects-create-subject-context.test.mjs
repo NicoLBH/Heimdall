@@ -67,6 +67,7 @@ test("Créer un sous-sujet ouvre le create form en mode subissue (modale)", () =
   assert.match(eventsSource, /openCreateSubjectForm\(\{\s*mode: "subissue",[\s\S]*parentSubjectId,[\s\S]*scopeHost:/);
   assert.match(viewSource, /function renderCreateSubissueModalHtml\(\)/);
   assert.match(viewSource, /subjectCreateSubissueModal/);
+  assert.match(styleSource, /\.settings-modal__dialog\.subject-create-subissue-modal__dialog\{[\s\S]*width:800px;[\s\S]*height:673px;/);
   assert.match(stateSource, /mode: "standard"/);
   assert.match(stateSource, /parentSubjectId: null/);
 });
