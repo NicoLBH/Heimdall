@@ -30,6 +30,9 @@ test("rend le bouton Ajouter sous-sujet en bas du panneau des sous-sujets quand 
 
 test("le dropdown Ajouter sous-sujet expose exactement les deux actions attendues", () => {
   assert.match(viewSource, /if \(field === "subissue-actions"\)/);
+  assert.match(viewSource, /subissueActionsView === "existing-subissue"/);
+  assert.match(viewSource, /data-action="subissue-actions-back"/);
+  assert.match(viewSource, /subject-subissue-existing-entry/);
   assert.match(viewSource, /data-action="open-create-subissue"/);
   assert.match(viewSource, /Créer un sous-sujet/);
   assert.match(viewSource, /data-action="open-link-existing-subissue"/);
@@ -40,13 +43,28 @@ test("l'événement d'ouverture du menu sous-sujet utilise le dropdown mutualis�
   assert.match(eventsSource, /\[data-action='open-subissue-action-menu'\]/);
   assert.match(eventsSource, /dropdownController\(\)\.openMeta\(\{ field: "subissue-actions" \}\)/);
   assert.match(eventsSource, /dropdownController\(\)\.closeKanban\(\);/);
+  assert.match(eventsSource, /dropdown\.subissueActionsView = "menu";/);
   assert.match(eventsSource, /const syncSubissueActionTriggerUi = \(\) => \{/);
   assert.match(eventsSource, /refreshSubjectMetaDropdownUi\(root, \{ preserveScroll: true, preserveFocus: false \}\);/);
+});
+
+test("l'action Ajouter un sujet existant ouvre une sous-vue latérale sans fermer le dropdown", () => {
+  assert.match(eventsSource, /\[data-action='open-link-existing-subissue'\]/);
+  assert.match(eventsSource, /dropdown\.subissueActionsView = "existing-subissue";/);
+  assert.match(eventsSource, /dropdownController\(\)\.focusSearch\(\{ field: "subissue-actions" \}\);/);
+  assert.match(eventsSource, /\[data-action='open-link-existing-subissue'\][\s\S]{0,600}refreshSubjectMetaDropdownUi\(root, \{ preserveScroll: true, preserveFocus: false \}\);/);
+});
+
+test("la sélection d'un sujet existant utilise setSubjectParent puis referme le dropdown", () => {
+  assert.match(eventsSource, /\[data-subject-subissue-existing-entry\]/);
+  assert.match(eventsSource, /await setSubjectParent\(childSubjectId, parentSubjectId, \{ root, skipRerender: true \}\);/);
+  assert.match(eventsSource, /dropdownController\(\)\.closeMeta\(\);/);
 });
 
 test("les data attributes et l'état UI dédié sont présents", () => {
   assert.match(viewSource, /data-action="open-subissue-action-menu"/);
   assert.match(stateSource, /subissueActionSubjectId: ""/);
+  assert.match(stateSource, /subissueActionsView: "menu"/);
   assert.match(stateSource, /subissueActionScopeHost: "main"/);
   assert.match(stateSource, /subissueActionIntent: ""/);
 });

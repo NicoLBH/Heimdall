@@ -1669,6 +1669,31 @@ function getRelationSubjectSuggestions(subject, query = "", options = {}) {
   return candidates.slice(0, 20);
 }
 
+function getExistingSubissueSuggestions(subject, query = "") {
+  const currentSubjectId = String(subject?.id || "");
+  if (!currentSubjectId) return [];
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const forbiddenIds = collectDescendantSubjectIds(currentSubjectId);
+  const currentProjectId = String(firstNonEmpty(subject?.project_id, subject?.raw?.project_id, "")).trim();
+  const map = store.projectSubjectsView?.rawSubjectsResult?.subjectsById || {};
+  const candidates = Object.values(map)
+    .filter((item) => {
+      const candidateId = String(item?.id || "");
+      if (!candidateId || forbiddenIds.has(candidateId)) return false;
+      const candidateParentId = String(firstNonEmpty(item?.parent_subject_id, item?.parentSubjectId, item?.raw?.parent_subject_id, "")).trim();
+      if (candidateParentId === currentSubjectId) return false;
+      const candidateProjectId = String(firstNonEmpty(item?.project_id, item?.raw?.project_id, "")).trim();
+      if (currentProjectId && candidateProjectId && candidateProjectId !== currentProjectId) return false;
+      return matchSearch([item?.title, item?.id], normalizedQuery);
+    })
+    .sort((left, right) => {
+      const tsDiff = getSubjectLastActivityTimestamp(right) - getSubjectLastActivityTimestamp(left);
+      if (tsDiff !== 0) return tsDiff;
+      return String(firstNonEmpty(left?.title, left?.id, "")).localeCompare(String(firstNonEmpty(right?.title, right?.id, "")), "fr");
+    });
+  return candidates.slice(0, 20);
+}
+
 function buildRelationSelectItem(candidate, { dropdownState, isSelected = false, dataAttr }) {
   const candidateId = String(candidate?.id || "");
   return {
@@ -1880,6 +1905,22 @@ function buildSubjectMetaMenuItems(subject, field) {
     }
   }
 
+  if (field === "subissue-actions") {
+    const subissueActionsView = String(dropdownState.subissueActionsView || "menu");
+    if (subissueActionsView === "existing-subissue") {
+      const items = getExistingSubissueSuggestions(subject, query).map((candidate) => buildRelationSelectItem(candidate, {
+        dropdownState,
+        isSelected: false,
+        dataAttr: "subject-subissue-existing-entry"
+      }));
+      return {
+        items,
+        emptyHint: query ? "Aucun résultat pour cette recherche." : "Aucun sujet disponible."
+      };
+    }
+    return { items: [], emptyHint: "Aucune action." };
+  }
+
   const emptyHintMap = {
     assignees: "Aucun assigné pour le moment.",
     labels: "Aucun label pour le moment.",
@@ -1994,6 +2035,30 @@ function renderSubjectMetaDropdown(subject, field) {
   }
 
   if (field === "subissue-actions") {
+    const subissueActionsView = String(dropdownState.subissueActionsView || "menu");
+    if (subissueActionsView === "existing-subissue") {
+      const { items, emptyHint } = buildSubjectMetaMenuItems(subject, field);
+      return `
+        <div class="subject-meta-dropdown gh-menu gh-menu--open" role="dialog">
+          <button type="button" class="subject-meta-relations-back" data-action="subissue-actions-back">
+            <span class="subject-meta-relations-back__icon">${svgIcon("arrow-left", { className: "octicon octicon-arrow-left" })}</span>
+            <span class="subject-meta-relations-back__label">Ajouter un sujet existant</span>
+          </button>
+          <div class="subject-meta-dropdown__search">
+            <span class="subject-meta-dropdown__search-icon" aria-hidden="true">${svgIcon("search", { className: "octicon octicon-search" })}</span>
+            <input type="search" class="subject-meta-dropdown__search-input" data-subject-meta-search="${escapeHtml(field)}" value="${escapeHtml(query)}" placeholder="Rechercher un sujet" autocomplete="off">
+          </div>
+          <div class="subject-meta-dropdown__body">
+            ${renderSelectMenuSection({
+    items,
+    emptyTitle: "Aucun sujet",
+    emptyHint
+  })}
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="subject-meta-dropdown gh-menu gh-menu--open" role="menu">
         <div class="subject-meta-dropdown__body">

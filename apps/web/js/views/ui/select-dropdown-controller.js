@@ -115,6 +115,7 @@ export function closeMetaSelectDropdown(getViewState) {
   dropdown.query = "";
   dropdown.activeKey = "";
   dropdown.relationsView = "menu";
+  dropdown.subissueActionsView = "menu";
   dropdown.subissueActionSubjectId = "";
   dropdown.subissueActionScopeHost = "main";
   dropdown.subissueActionIntent = "";

@@ -199,6 +199,7 @@ export function createProjectSubjectsState({ store }) {
         activeKey: "",
         showClosedSituations: false,
         relationsView: "menu",
+        subissueActionsView: "menu",
         subissueActionSubjectId: "",
         subissueActionScopeHost: "main",
         subissueActionIntent: ""
@@ -206,6 +207,7 @@ export function createProjectSubjectsState({ store }) {
     }
     if (typeof v.subjectMetaDropdown.showClosedSituations !== "boolean") v.subjectMetaDropdown.showClosedSituations = false;
     if (typeof v.subjectMetaDropdown.relationsView !== "string") v.subjectMetaDropdown.relationsView = "menu";
+    if (typeof v.subjectMetaDropdown.subissueActionsView !== "string") v.subjectMetaDropdown.subissueActionsView = "menu";
     if (typeof v.subjectMetaDropdown.subissueActionSubjectId !== "string") v.subjectMetaDropdown.subissueActionSubjectId = "";
     if (typeof v.subjectMetaDropdown.subissueActionScopeHost !== "string") v.subjectMetaDropdown.subissueActionScopeHost = "main";
     if (typeof v.subjectMetaDropdown.subissueActionIntent !== "string") v.subjectMetaDropdown.subissueActionIntent = "";
