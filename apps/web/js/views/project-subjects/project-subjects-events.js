@@ -4817,10 +4817,11 @@ export function createProjectSubjectsEvents(config) {
         }
 
         const keepCreateMore = !!store.situationsView.createSubjectForm?.createMore;
-        rerenderPanels();
 
         (async () => {
-          const result = await createSubjectFromDraft();
+          const submitPromise = createSubjectFromDraft();
+          rerenderPanels();
+          const result = await submitPromise;
           if (!result.ok) {
             rerenderPanels();
             return;

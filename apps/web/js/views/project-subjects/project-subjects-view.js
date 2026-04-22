@@ -507,6 +507,20 @@ async function createSubjectFromDraft() {
     return { ok: false, reason: "in-flight" };
   }
 
+  const titleInput = document.querySelector("[data-create-subject-title]");
+  const descriptionInput = document.querySelector("[data-create-subject-description]");
+  const liveTitle = String(titleInput?.value || "");
+  const liveDescription = String(descriptionInput?.value || "");
+
+  if (liveTitle && liveTitle !== String(formState.title || "")) {
+    formState.title = liveTitle;
+    store.situationsView.createSubjectForm.title = liveTitle;
+  }
+  if (liveDescription && liveDescription !== String(formState.description || "")) {
+    formState.description = liveDescription;
+    store.situationsView.createSubjectForm.description = liveDescription;
+  }
+
   const title = String(formState.title || "").trim();
   if (!title) {
     store.situationsView.createSubjectForm.validationError = "Le titre du sujet est obligatoire.";
