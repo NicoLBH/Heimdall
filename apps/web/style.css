@@ -3784,6 +3784,9 @@ body.is-resizing{
   border-left:1px solid var(--border);
   border-top-left-radius: 12px;
   border-bottom-left-radius: 12px;
+  border-top: solid 1px var(--border);
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
   transform:translateX(100%);
   transition:transform 180ms ease;
   background:var(--bg);
