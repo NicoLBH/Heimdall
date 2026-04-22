@@ -10724,14 +10724,16 @@ body.route--project #situationsDetailsHost .detail-chrome__sticky{
   width:auto;
   margin:0;
 }
-.subject-create-subissue-modal__dialog{
-  width:min(980px, calc(100vw - 48px));
+.settings-modal__dialog.subject-create-subissue-modal__dialog{
+  width:800px;
+  height:673px;
+  max-width:calc(100vw - 48px);
+  max-height:calc(100vh - 48px);
   position:absolute !important;
   top:50% !important;
   left:50% !important;
   margin:0 !important;
   transform:translate(-50%, -50%) !important;
-  max-height:calc(100vh - 48px);
 }
 .subject-create-subissue-modal__body{
   padding:0;
