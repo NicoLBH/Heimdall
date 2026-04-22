@@ -838,6 +838,8 @@ const projectSubjectsView = createProjectSubjectsView({
   getProjectSubjectLabels: () => projectSubjectLabels,
   getProjectSubjectDetail: () => projectSubjectDetail,
   getProjectSubjectDrilldown: () => projectSubjectDrilldown,
+  ensureProjectCollaboratorsLoaded: (...args) => ensureSubjectsCollaboratorsLoaded(...args),
+  resetObjectiveEditState,
   loadExistingSubjectsForCurrentProject: loadFlatSubjectsForCurrentProject,
   getSubjectsCurrentRoot: () => subjectsCurrentRoot,
   getFilteredSituations: (...args) => getFilteredSituations(...args),
