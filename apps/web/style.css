@@ -10772,6 +10772,53 @@ body.route--project #situationsDetailsHost .detail-chrome__sticky{
   font-size:12px;
   color:var(--muted);
 }
+.subject-create-layout--subissue .subject-assignee-avatar{
+  width:14px;
+  height:14px;
+  min-width:14px;
+  min-height:14px;
+}
+.subject-create-layout--subissue .subject-assignee-avatar__img{
+  width:14px;
+  height:14px;
+}
+.subject-create-subissue-inline-values{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  flex-wrap:wrap;
+}
+.subject-create-subissue-inline-person{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+}
+.subject-create-subissue-inline-person__name{
+  color:var(--text);
+  font-size:12px;
+  font-weight:600;
+}
+.subject-create-subissue-inline-label{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+}
+.subject-create-subissue-inline-label__dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  display:inline-block;
+}
+.subject-create-subissue-inline-label__name{
+  color:var(--text);
+  font-size:12px;
+  font-weight:600;
+}
+.subject-create-subissue-inline-text{
+  color:var(--text);
+  font-size:12px;
+  font-weight:600;
+}
 .settings-modal__dialog.subject-create-subissue-modal__dialog{
   width:800px;
   height:673px;
