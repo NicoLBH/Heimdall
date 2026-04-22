@@ -86,6 +86,7 @@ export function createProjectSubjectsView(deps) {
     currentDecisionTarget,
     addComment,
     getSelectionForScope,
+    getScopedSelection,
     ensureTimelineLoadedForSelection
   } = deps;
 

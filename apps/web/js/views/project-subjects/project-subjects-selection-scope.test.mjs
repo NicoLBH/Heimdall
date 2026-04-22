@@ -89,4 +89,6 @@ test("project-subjects-view utilise getSelectionForScope pour la discussion dril
 
   assert.match(source, /selectionOverride: getSelectionForScope\("drilldown"\)/);
   assert.match(source, /const scopedSelection = selectionOverride \|\| getSelectionForScope\(scopeHost\);/);
+  assert.match(source, /getSelectionForScope,\s*getScopedSelection,\s*ensureTimelineLoadedForSelection/);
+  assert.match(source, /renderSelectDropdownHost\(\{\s*[\s\S]*getScopedSelection,/);
 });
