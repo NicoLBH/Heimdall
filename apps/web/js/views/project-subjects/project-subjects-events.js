@@ -4812,18 +4812,31 @@ export function createProjectSubjectsEvents(config) {
       const createSubjectSubmitButton = event.target.closest("[data-create-subject-submit]");
       if (createSubjectSubmitButton && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        const result = createSubjectFromDraft();
-        if (!result.ok) {
-          rerenderPanels();
+        if (store.situationsView.createSubjectForm?.isSubmitting) {
           return;
         }
+
         const keepCreateMore = !!store.situationsView.createSubjectForm?.createMore;
-        if (keepCreateMore) {
-          openCreateSubjectForm();
-        } else {
-          resetCreateSubjectForm({ keepCreateMore: true });
-        }
-        rerenderPanels();
+
+        (async () => {
+          const submitPromise = createSubjectFromDraft();
+          rerenderPanels();
+          const result = await submitPromise;
+          if (!result.ok) {
+            rerenderPanels();
+            return;
+          }
+
+          if (keepCreateMore) {
+            openCreateSubjectForm();
+          } else {
+            resetCreateSubjectForm({ keepCreateMore: true });
+          }
+          rerenderPanels();
+        })().catch((error) => {
+          showError(`Création du sujet impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+          rerenderPanels();
+        });
         return;
       }
 
