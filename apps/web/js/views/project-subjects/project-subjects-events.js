@@ -4123,6 +4123,36 @@ export function createProjectSubjectsEvents(config) {
         textarea.focus();
       };
     });
+    root.querySelectorAll("[data-action='create-subject-format'][data-format]").forEach((btn) => {
+      btn.onclick = () => {
+        if (!store.situationsView.createSubjectForm?.isOpen) return;
+        const action = String(btn.dataset.format || "").trim();
+        const composerRoot = btn.closest(".comment-composer");
+        const textarea = composerRoot?.querySelector("[data-create-subject-description]");
+        if (!action || !textarea) return;
+        if (action === "subject-ref") {
+          ensureSubjectRefTriggerInTextarea(textarea);
+          store.situationsView.createSubjectForm.description = String(textarea.value || "");
+          closeMentionPopup({ rerender: false });
+          closeEmojiPopup({ rerender: false });
+          scheduleAutosizeAfterRender(textarea, "create-subject-toolbar-subject-ref");
+          void syncSubjectRefPopupForTextarea(textarea, "create-subject");
+          textarea.focus();
+          return;
+        }
+        const didApply = applyMarkdownComposerAction(textarea, action);
+        if (!didApply) return;
+        store.situationsView.createSubjectForm.description = String(textarea.value || "");
+        scheduleAutosizeAfterRender(textarea, "create-subject-toolbar");
+        if (action === "mention") {
+          void syncMentionPopupForTextarea(textarea, "create-subject", { forceOpen: true });
+        } else {
+          closeMentionPopup({ rerender: false });
+          closeEmojiPopup({ rerender: false });
+        }
+        textarea.focus();
+      };
+    });
     root.querySelectorAll("[data-action='description-attachments-pick']").forEach((btn) => {
       btn.onclick = () => {
         const input = root.querySelector("[data-role='description-file-input']");
@@ -4792,10 +4822,13 @@ export function createProjectSubjectsEvents(config) {
         return;
       }
 
-      const createSubjectTabButton = event.target.closest("[data-create-subject-tab]");
+      const createSubjectTabButton = event.target.closest("[data-create-subject-tab], [data-action='create-subject-tab-write'], [data-action='create-subject-tab-preview']");
       if (createSubjectTabButton && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        store.situationsView.createSubjectForm.previewMode = String(createSubjectTabButton.dataset.createSubjectTab || "write") === "preview";
+        const action = String(createSubjectTabButton.dataset.action || "").trim();
+        const explicitTab = String(createSubjectTabButton.dataset.createSubjectTab || "").trim();
+        const isPreview = explicitTab === "preview" || action === "create-subject-tab-preview";
+        store.situationsView.createSubjectForm.previewMode = isPreview;
         rerenderPanels();
         return;
       }
@@ -4812,18 +4845,31 @@ export function createProjectSubjectsEvents(config) {
       const createSubjectSubmitButton = event.target.closest("[data-create-subject-submit]");
       if (createSubjectSubmitButton && store.situationsView.createSubjectForm?.isOpen) {
         event.preventDefault();
-        const result = createSubjectFromDraft();
-        if (!result.ok) {
-          rerenderPanels();
+        if (store.situationsView.createSubjectForm?.isSubmitting) {
           return;
         }
+
         const keepCreateMore = !!store.situationsView.createSubjectForm?.createMore;
-        if (keepCreateMore) {
-          openCreateSubjectForm();
-        } else {
-          resetCreateSubjectForm({ keepCreateMore: true });
-        }
-        rerenderPanels();
+
+        (async () => {
+          const submitPromise = createSubjectFromDraft();
+          rerenderPanels();
+          const result = await submitPromise;
+          if (!result.ok) {
+            rerenderPanels();
+            return;
+          }
+
+          if (keepCreateMore) {
+            openCreateSubjectForm();
+          } else {
+            resetCreateSubjectForm({ keepCreateMore: true });
+          }
+          rerenderPanels();
+        })().catch((error) => {
+          showError(`Création du sujet impossible : ${String(error?.message || error || "Erreur inconnue")}`);
+          rerenderPanels();
+        });
         return;
       }
 
