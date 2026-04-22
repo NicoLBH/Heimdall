@@ -457,7 +457,9 @@ function resetCreateSubjectForm(options = {}) {
     createMore: keepCreateMore ? !!previous.createMore : false,
     meta: buildDefaultDraftSubjectMeta(),
     validationError: "",
-    isSubmitting: false
+    isSubmitting: false,
+    attachments: [],
+    attachments: []
   };
 }
 
@@ -504,7 +506,7 @@ function resolveDraftLabelIds(labels = []) {
 
 async function createSubjectFromDraft() {
   ensureViewUiState();
-  const formState = getSubjectsViewState().createSubjectForm || {};
+  const formState = store.situationsView.createSubjectForm || {};
   if (formState.isSubmitting) {
     return { ok: false, reason: "in-flight" };
   }
@@ -529,12 +531,13 @@ async function createSubjectFromDraft() {
     return { ok: false, reason: "missing-title" };
   }
 
+  const draftMeta = getSubjectSidebarMeta(DRAFT_SUBJECT_ID);
   const nextMeta = {
-    assignees: Array.isArray(formState.meta?.assignees) ? formState.meta.assignees.map((value) => String(value || "").trim()).filter(Boolean) : [],
-    labels: normalizeSubjectLabels(formState.meta?.labels),
-    objectiveIds: normalizeSubjectObjectiveIds(formState.meta?.objectiveIds),
-    situationIds: normalizeSubjectSituationIds(formState.meta?.situationIds),
-    relations: Array.isArray(formState.meta?.relations) ? formState.meta.relations.map((value) => String(value || "").trim()).filter(Boolean) : []
+    assignees: Array.isArray(draftMeta?.assignees) ? draftMeta.assignees.map((value) => String(value || "").trim()).filter(Boolean) : [],
+    labels: normalizeSubjectLabels(draftMeta?.labels),
+    objectiveIds: normalizeSubjectObjectiveIds(draftMeta?.objectiveIds),
+    situationIds: normalizeSubjectSituationIds(draftMeta?.situationIds),
+    relations: Array.isArray(draftMeta?.relations) ? draftMeta.relations.map((value) => String(value || "").trim()).filter(Boolean) : []
   };
 
   const description = String(formState.description || "").trim();
@@ -2907,7 +2910,13 @@ function renderCreateSubjectFormHtml() {
               composerClassName: "comment-composer--thread-reply-editor",
               toolbarHtml: renderSubjectMarkdownToolbar({ buttonAction: "create-subject-format", svgIcon }),
               previewHtml: previewHtml || "",
-              previewEmptyHint: "Use Markdown to format your comment"
+              previewEmptyHint: "Use Markdown to format your comment",
+              footerHtml: `
+                <input type="file" class="subject-composer-file-input" data-role="create-subject-file-input" multiple />
+                <div class="subject-composer-attachments-preview ${(Array.isArray(form.attachments) && form.attachments.length) ? "" : "hidden"}" data-role="create-subject-attachments-preview" aria-live="polite">
+                  ${Array.isArray(form.attachments) ? form.attachments.map((attachment) => `<div class="subject-attachment-tile"><span class="subject-attachment__name">${escapeHtml(String(attachment?.name || "Pièce jointe"))}</span></div>`).join("") : ""}
+                </div>
+              `
             })}
             ${form.validationError ? `<div class="subject-create-form__error">${escapeHtml(form.validationError)}</div>` : ""}
           </div>

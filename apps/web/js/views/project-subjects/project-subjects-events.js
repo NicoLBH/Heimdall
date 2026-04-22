@@ -4153,6 +4153,52 @@ export function createProjectSubjectsEvents(config) {
         textarea.focus();
       };
     });
+    root.querySelectorAll("[data-action='create-subject-attachments-pick']").forEach((btn) => {
+      btn.onclick = () => {
+        if (!store.situationsView.createSubjectForm?.isOpen) return;
+        const composerRoot = btn.closest(".comment-composer");
+        const input = composerRoot?.querySelector("[data-role='create-subject-file-input']") || root.querySelector("[data-role='create-subject-file-input']");
+        input?.click();
+      };
+    });
+    root.querySelectorAll("[data-role='create-subject-file-input']").forEach((input) => {
+      const appendFiles = (files = []) => {
+        if (!store.situationsView.createSubjectForm?.isOpen) return;
+        const existing = Array.isArray(store.situationsView.createSubjectForm.attachments) ? store.situationsView.createSubjectForm.attachments : [];
+        const next = files.map((file) => ({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: String(file?.name || "Pièce jointe")
+        }));
+        store.situationsView.createSubjectForm.attachments = [...existing, ...next];
+        rerenderPanels();
+      };
+      input.addEventListener("change", (event) => {
+        const files = Array.from(event?.target?.files || []);
+        if (files.length) appendFiles(files);
+        input.value = "";
+      });
+      const composerRoot = input.closest(".comment-composer") || root;
+      const dropzone = composerRoot?.querySelector(".comment-composer__editor");
+      if (!dropzone) return;
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropzone.classList.add("is-dragover");
+        });
+      });
+      ["dragleave", "dragend", "drop"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropzone.classList.remove("is-dragover");
+        });
+      });
+      dropzone.addEventListener("drop", (event) => {
+        const files = Array.from(event?.dataTransfer?.files || []);
+        if (files.length) appendFiles(files);
+      });
+    });
     root.querySelectorAll("[data-action='description-attachments-pick']").forEach((btn) => {
       btn.onclick = () => {
         const input = root.querySelector("[data-role='description-file-input']");
