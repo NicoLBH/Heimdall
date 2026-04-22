@@ -257,6 +257,7 @@ function getDocumentDisplayName(document = {}) {
 
 function renderDocumentRefsCard(selection) {
   const refs = getSelectionDocumentRefs(selection);
+  // Strict UI contract: only explicit, resolved business references are rendered.
   if (!refs.length) return "";
 
   return `

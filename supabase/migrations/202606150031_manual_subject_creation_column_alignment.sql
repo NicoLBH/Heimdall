@@ -144,6 +144,7 @@ begin
   )
   values (
     v_project.id,
+    -- Technical provenance only (system manual-subject document); never a UI proof reference.
     v_manual_document.id,
     v_manual_analysis_run.id,
     v_subject_type,
@@ -156,6 +157,9 @@ begin
     v_person_id
   )
   returning * into v_subject;
+
+  -- Intentionally does not set document_ref_ids:
+  -- business/UI references must be explicitly associated later.
 
   select coalesce(
     nullif(trim(concat_ws(' ', coalesce(dp.first_name, ''), coalesce(dp.last_name, ''))), ''),
