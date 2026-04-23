@@ -1043,7 +1043,7 @@ export function createProjectSubjectsEvents(config) {
           dropdownController().closeMeta();
         } else {
           dropdownController().closeKanban();
-          dropdownController().openMeta({ field, showClosedSituations: false });
+          dropdownController().openMeta({ field, showClosedSituations: false, anchor: btn });
           dropdown.relationsView = field === "relations" ? "menu" : "";
           const entries = scopedSelection?.type === "sujet" ? getSubjectMetaMenuEntries(scopedSelection.item, field) : [];
           const selectedObjectiveKey = field === "objectives" && scopedSelection?.type === "sujet"

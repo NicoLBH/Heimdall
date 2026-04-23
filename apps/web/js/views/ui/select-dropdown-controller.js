@@ -122,6 +122,8 @@ export function closeMetaSelectDropdown(getViewState) {
   dropdown.subissueActionSubjectId = "";
   dropdown.subissueActionScopeHost = "main";
   dropdown.subissueActionIntent = "";
+  dropdown.anchorElement = null;
+  dropdown.anchorField = "";
 }
 
 export function closeKanbanSelectDropdown(getViewState) {
@@ -134,7 +136,7 @@ export function closeKanbanSelectDropdown(getViewState) {
   dropdown.activeKey = "";
 }
 
-export function openMetaSelectDropdown(getViewState, { field = "", activeKey = "", query = "", showClosedSituations = false } = {}) {
+export function openMetaSelectDropdown(getViewState, { field = "", activeKey = "", query = "", showClosedSituations = false, anchor = null } = {}) {
   const viewState = getViewStateFromGetter(getViewState);
   const dropdown = viewState?.subjectMetaDropdown;
   if (!dropdown) return;
@@ -143,6 +145,8 @@ export function openMetaSelectDropdown(getViewState, { field = "", activeKey = "
   dropdown.activeKey = String(activeKey || "");
   dropdown.showClosedSituations = !!showClosedSituations;
   dropdown.relationsView = field === "relations" ? "menu" : "";
+  dropdown.anchorElement = anchor instanceof Element ? anchor : null;
+  dropdown.anchorField = dropdown.anchorElement ? String(field || "") : "";
 }
 
 export function openKanbanSelectDropdown(getViewState, { subjectId = "", situationId = "", activeKey = "", query = "" } = {}) {
@@ -277,7 +281,15 @@ export function syncSelectDropdownPosition({
       document.querySelector("[data-create-subject-form]"),
       document.getElementById("situationsDetailsHost")
     ].filter(Boolean);
-    const anchor = roots
+    const stateAnchor = viewState?.subjectMetaDropdown?.anchorElement;
+    const stateAnchorField = String(viewState?.subjectMetaDropdown?.anchorField || "");
+    const anchorFromState = stateAnchor
+      && stateAnchorField === field
+      && stateAnchor.isConnected
+      && stateAnchor.matches?.(anchorSelector)
+      ? stateAnchor
+      : null;
+    const anchor = anchorFromState || roots
       .map((candidateRoot) => candidateRoot?.querySelector?.(anchorSelector))
       .find(Boolean);
     if (!anchor || !dropdown) {
