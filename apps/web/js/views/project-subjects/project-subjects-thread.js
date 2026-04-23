@@ -1393,6 +1393,16 @@ priority=${firstNonEmpty(subject.priority, "")}`
       return `${renderObjectiveInline(objective?.id, objective?.label)}`;
     }
 
+    if (eventType === "subject_objectives_changed" && added.length === 1 && removed.length === 1) {
+      const previousObjective = removed[0] || {};
+      const nextObjective = added[0] || {};
+      const previousLabel = firstNonEmpty(previousObjective?.label, "Objectif");
+      const nextLabel = firstNonEmpty(nextObjective?.label, "Objectif");
+      return `${previousLabel
+        ? `<span class="mono-small">"</span><span class="mono-small tl-note-inline-text tl-note-inline-text--strikethrough">${escapeHtml(previousLabel)}</span><span class="mono-small">" en </span>`
+        : ""}<span class="tl-note-inline-link"><span class="tl-note-inline-subject-status" aria-hidden="true">${svgIcon("milestone")}</span><span class="tl-note-inline-text">${escapeHtml(nextLabel)}</span></span>`;
+    }
+
     if (eventType === "subject_situations_changed" && String(payload?.action || "").toLowerCase() === "added" && added.length === 1) {
       const situation = added[0] || {};
       return `${renderSituationInline(situation?.id, situation?.label)}`;
@@ -1470,16 +1480,23 @@ priority=${firstNonEmpty(subject.priority, "")}`
           const ts = fmtTs(e?.ts || "");
           const eventType = String(e?.meta?.event_type || "").toLowerCase();
           const action = String(payload?.action || "").toLowerCase();
+          const objectiveDeltaAdded = Array.isArray(payload?.delta?.added) ? payload.delta.added : [];
+          const objectiveDeltaRemoved = Array.isArray(payload?.delta?.removed) ? payload.delta.removed : [];
+          const isSingleObjectiveReplace = eventType === "subject_objectives_changed"
+            && objectiveDeltaAdded.length === 1
+            && objectiveDeltaRemoved.length === 1;
           const resolvedVerb = eventType === "subject_assignees_changed" && action === "removed"
             ? "a retiré un assigné"
             : eventType === "subject_labels_changed" && action === "removed"
               ? "a retiré le label"
                 : eventType === "subject_labels_changed" && action === "added"
                 ? "a ajouté le label"
-                : eventType === "subject_objectives_changed" && action === "removed"
-                  ? "a retiré l'objectif"
-                  : eventType === "subject_objectives_changed" && action === "added"
-                    ? "a ajouté l'objectif"
+                  : eventType === "subject_objectives_changed" && action === "removed"
+                    ? "a retiré l'objectif"
+                    : eventType === "subject_objectives_changed" && action === "added"
+                      ? "a ajouté l'objectif"
+                    : isSingleObjectiveReplace
+                      ? "a modifié l'objectif"
                   : eventType === "subject_situations_changed" && action === "removed"
                     ? "a supprimé le sujet de la situation"
                   : eventType === "subject_situations_changed" && action === "added"
@@ -1511,7 +1528,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
             : (titleUpdateInlineHtml || (!shouldSuppressInlineText && note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : ""));
           const shouldRenderInlineBeforeTimestamp = (
             (eventType === "subject_labels_changed" || eventType === "subject_objectives_changed" || eventType === "subject_situations_changed")
-            && (action === "added" || action === "removed")
+            && (action === "added" || action === "removed" || isSingleObjectiveReplace)
           ) || isSubjectTitleUpdated;
           const shouldRenderInlineBelow = (
             (
