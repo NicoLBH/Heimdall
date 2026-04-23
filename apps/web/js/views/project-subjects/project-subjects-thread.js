@@ -1298,6 +1298,16 @@ priority=${firstNonEmpty(subject.priority, "")}`
     `;
   }
 
+  function getSituationKanbanStatusLabel(statusKey = "") {
+    const normalized = String(statusKey || "").trim().toLowerCase();
+    if (normalized === "non_active") return "Non activé";
+    if (normalized === "to_activate") return "À activer";
+    if (normalized === "in_progress") return "En cours";
+    if (normalized === "in_arbitration") return "En arbitrage";
+    if (normalized === "resolved") return "Résolu";
+    return "—";
+  }
+
   function renderLinkedSubjectInline(counterpartId = "", fallbackTitle = "") {
     const subject = counterpartId ? getNestedSujet(counterpartId) : null;
     const status = String(getEffectiveSujetStatus(counterpartId) || subject?.status || "open").toLowerCase();
@@ -1383,6 +1393,16 @@ priority=${firstNonEmpty(subject.priority, "")}`
       return `${renderObjectiveInline(objective?.id, objective?.label)}`;
     }
 
+    if (eventType === "subject_objectives_changed" && added.length === 1 && removed.length === 1) {
+      const previousObjective = removed[0] || {};
+      const nextObjective = added[0] || {};
+      const previousLabel = firstNonEmpty(previousObjective?.label, "Objectif");
+      const nextLabel = firstNonEmpty(nextObjective?.label, "Objectif");
+      return `${previousLabel
+        ? `<span class="mono-small">"</span><span class="mono-small tl-note-inline-text tl-note-inline-text--strikethrough">${escapeHtml(previousLabel)}</span><span class="mono-small">" en </span>`
+        : ""}<span class="tl-note-inline-link"><span class="tl-note-inline-subject-status" aria-hidden="true">${svgIcon("milestone")}</span><span class="tl-note-inline-text">${escapeHtml(nextLabel)}</span></span>`;
+    }
+
     if (eventType === "subject_situations_changed" && String(payload?.action || "").toLowerCase() === "added" && added.length === 1) {
       const situation = added[0] || {};
       return `${renderSituationInline(situation?.id, situation?.label)}`;
@@ -1446,7 +1466,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
 
       if (type === "ACTIVITY") {
         const kind = String(e?.kind || "").toLowerCase();
-        if (kind === "message_deleted" || kind === "issue_closed" || kind === "issue_reopened") return "";
+        if (kind === "message_deleted" || kind === "issue_closed" || kind === "issue_reopened" || kind === "message_frozen") return "";
         if (String(e?.meta?.source || "") === "subject_history") {
           const activityIdentity = getAuthorIdentity({
             author: e?.actor,
@@ -1460,16 +1480,23 @@ priority=${firstNonEmpty(subject.priority, "")}`
           const ts = fmtTs(e?.ts || "");
           const eventType = String(e?.meta?.event_type || "").toLowerCase();
           const action = String(payload?.action || "").toLowerCase();
+          const objectiveDeltaAdded = Array.isArray(payload?.delta?.added) ? payload.delta.added : [];
+          const objectiveDeltaRemoved = Array.isArray(payload?.delta?.removed) ? payload.delta.removed : [];
+          const isSingleObjectiveReplace = eventType === "subject_objectives_changed"
+            && objectiveDeltaAdded.length === 1
+            && objectiveDeltaRemoved.length === 1;
           const resolvedVerb = eventType === "subject_assignees_changed" && action === "removed"
             ? "a retiré un assigné"
             : eventType === "subject_labels_changed" && action === "removed"
               ? "a retiré le label"
                 : eventType === "subject_labels_changed" && action === "added"
                 ? "a ajouté le label"
-                : eventType === "subject_objectives_changed" && action === "removed"
-                  ? "a retiré l'objectif"
-                  : eventType === "subject_objectives_changed" && action === "added"
-                    ? "a ajouté l'objectif"
+                  : eventType === "subject_objectives_changed" && action === "removed"
+                    ? "a retiré l'objectif"
+                    : eventType === "subject_objectives_changed" && action === "added"
+                      ? "a ajouté l'objectif"
+                    : isSingleObjectiveReplace
+                      ? "a modifié l'objectif"
                   : eventType === "subject_situations_changed" && action === "removed"
                     ? "a supprimé le sujet de la situation"
                   : eventType === "subject_situations_changed" && action === "added"
@@ -1501,7 +1528,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
             : (titleUpdateInlineHtml || (!shouldSuppressInlineText && note ? `<span class="tl-note-inline-text">${escapeHtml(note)}</span>` : ""));
           const shouldRenderInlineBeforeTimestamp = (
             (eventType === "subject_labels_changed" || eventType === "subject_objectives_changed" || eventType === "subject_situations_changed")
-            && (action === "added" || action === "removed")
+            && (action === "added" || action === "removed" || isSingleObjectiveReplace)
           ) || isSubjectTitleUpdated;
           const shouldRenderInlineBelow = (
             (
@@ -1557,6 +1584,27 @@ priority=${firstNonEmpty(subject.priority, "")}`
         });
         const displayName = activityIdentity.displayName;
         const ts = fmtTs(e?.ts || "");
+        if (kind === "sujet_kanban_status_changed") {
+          const fromStatus = getSituationKanbanStatusLabel(e?.meta?.from);
+          const toStatus = getSituationKanbanStatusLabel(e?.meta?.to);
+          const situationId = normalizeId(e?.meta?.situation_id || e?.entity_id);
+          const inlineSituationHtml = renderSituationInline(situationId, "Situation");
+          return renderMessageThreadActivity({
+            idx,
+            className: "thread-item--business thread-item--business-rel thread-item--event-subject-situation-status-changed",
+            iconHtml: `<span class="tl-ico tl-ico--business tl-ico--business-rel" aria-hidden="true">${svgIcon("table")}</span>`,
+            authorIconHtml: activityIdentity.avatarHtml
+              ? `<span class="tl-author tl-author--custom" aria-hidden="true">${activityIdentity.avatarHtml}</span>`
+              : miniAuthorIconHtml("human"),
+            textHtml: `
+              <span class="tl-author-name">${escapeHtml(displayName)}</span>
+              <span class="mono-small"> a modifié de l'état </span>
+              <span class="tl-note-inline"><span class="tl-note-inline-text">${escapeHtml(fromStatus)}</span><span class="mono-small"> à </span><span class="tl-note-inline-text">${escapeHtml(toStatus)}</span><span class="mono-small"> dans la situation </span>${inlineSituationHtml}</span>
+              <span class="mono-small tl-time-inline"><span aria-hidden="true">·</span><span>${escapeHtml(ts)}</span></span>
+            `,
+            noteHtml: ""
+          });
+        }
         let iconHtml = `<span class="tl-ico tl-ico--muted" aria-hidden="true"></span>`;
         let verb = "updated";
         let targetHtml = "";
@@ -1648,7 +1696,29 @@ priority=${firstNonEmpty(subject.priority, "")}`
         }
 
         const note = String(e?.message || "").trim();
+        const hasKnownLegacyKind = [
+          "review_validated",
+          "review_rejected",
+          "review_dismissed",
+          "review_restored",
+          "description_version_initial",
+          "description_version_saved",
+          "subject_description_updated",
+          "message_posted",
+          "message_edited",
+          "message_frozen",
+          "conversation_locked",
+          "conversation_unlocked",
+          "attachments_linked"
+        ].includes(kind);
+        const isLegacyHistoryFallback = !hasKnownLegacyKind;
+        const historySource = firstNonEmpty(e?.meta?.source, e?.kind, "legacy");
+        const resolvedTargetHtml = isLegacyHistoryFallback ? "#history" : (targetHtml || "");
+        const legacyReason = isLegacyHistoryFallback
+          ? `Activité #history générée quand un événement historique n'est pas encore mappé (source: ${historySource}).`
+          : "";
         const noteHtml = note ? `<div class="tl-note">${mdToHtml(note)}</div>` : "";
+        const fallbackNoteHtml = !note && legacyReason ? `<div class="tl-note">${escapeHtml(legacyReason)}</div>` : "";
 
         return renderMessageThreadActivity({
           idx,
@@ -1658,10 +1728,10 @@ priority=${firstNonEmpty(subject.priority, "")}`
             : miniAuthorIconHtml(agent),
           textHtml: `
             <span class="tl-author-name">${escapeHtml(displayName)}</span>
-            <span class="mono-small"> ${escapeHtml(verb)} ${targetHtml || ""} </span>
+            <span class="mono-small"> ${escapeHtml(verb)} ${resolvedTargetHtml} </span>
             <span class="mono-small">at ${escapeHtml(ts)}</span>
           `,
-          noteHtml
+          noteHtml: noteHtml || fallbackNoteHtml
         });
       }
 

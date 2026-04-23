@@ -47,6 +47,18 @@ export function createProjectSubjectsActions(config) {
     rerenderPanels
   } = config;
 
+  function resolveDefaultHumanActorLabel() {
+    const user = store?.user && typeof store.user === "object" ? store.user : {};
+    const firstName = String(user.firstName || "").trim();
+    const lastName = String(user.lastName || "").trim();
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName
+      || String(user.fullName || "").trim()
+      || String(user.name || "").trim()
+      || String(user.email || "").trim()
+      || "Human";
+  }
+
   function setSujetKanbanStatus(sujetId, nextStatus, options = {}) {
     const normalized = normalizeSujetKanbanStatus(nextStatus);
     const situationId = String(options.situationId || "");
@@ -67,7 +79,7 @@ export function createProjectSubjectsActions(config) {
         entity_id: situationId,
         type: "ACTIVITY",
         kind: "sujet_kanban_status_changed",
-        actor: options.actor || "Human",
+        actor: options.actor || resolveDefaultHumanActorLabel(),
         agent: options.agent || "human",
         message: "",
         meta: {
