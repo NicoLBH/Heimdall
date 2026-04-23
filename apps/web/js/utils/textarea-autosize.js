@@ -72,12 +72,20 @@ export function autosizeTextarea(textarea, options = {}) {
     };
   }
   const baseFloor = Math.max(minHeight, manualFloor);
-  const isFirstMountPass = !!preferMinHeightOnFirstMount
-    && String(cause || "").startsWith("mount")
-    && !previousAutosizeHeight
+  const causeLabel = String(cause || "");
+  const isMountLikeCause = causeLabel.startsWith("mount");
+  const isEmptyValue = !String(textarea?.value || "").trim();
+  const wasUserInteracted = textarea?.dataset?.autosizeUserInteracted === "1";
+  const shouldMarkUserInteracted = !isMountLikeCause || !isEmptyValue || manualFloor > 0;
+  if (textarea?.dataset && shouldMarkUserInteracted) {
+    textarea.dataset.autosizeUserInteracted = "1";
+  }
+  const keepMinHeightDuringMount = !!preferMinHeightOnFirstMount
+    && isMountLikeCause
     && !manualFloor
-    && !String(textarea?.value || "").trim();
-  const targetHeight = isFirstMountPass
+    && isEmptyValue
+    && !wasUserInteracted;
+  const targetHeight = keepMinHeightDuringMount
     ? baseFloor
     : Math.max(baseFloor, Math.round(measuredScrollHeight + comfortHeight));
   textarea.style.height = `${targetHeight}px`;
