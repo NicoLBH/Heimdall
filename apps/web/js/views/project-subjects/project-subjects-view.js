@@ -2108,6 +2108,7 @@ function renderSubjectMetaDropdown(subject, field) {
           <div class="select-menu__section">
             <button type="button" class="select-menu__item subject-meta-relations-menu__item" role="menuitem" data-action="open-create-subissue">
               <span class="select-menu__item-mainrow">
+                <span class="select-menu__item-icon subject-subissue-actions-menu__icon" aria-hidden="true">${svgIcon("plus-circle", { className: "octicon octicon-plus-circle" })}</span>
                 <span class="select-menu__item-content">
                   <span class="select-menu__item-title">Créer un sous-sujet</span>
                 </span>
@@ -2115,6 +2116,7 @@ function renderSubjectMetaDropdown(subject, field) {
             </button>
             <button type="button" class="select-menu__item subject-meta-relations-menu__item" role="menuitem" data-action="open-link-existing-subissue">
               <span class="select-menu__item-mainrow">
+                <span class="select-menu__item-icon subject-subissue-actions-menu__icon" aria-hidden="true">${svgIcon("issue-opened", { className: "octicon octicon-issue-opened" })}</span>
                 <span class="select-menu__item-content">
                   <span class="select-menu__item-title">Ajouter un sujet existant</span>
                 </span>
