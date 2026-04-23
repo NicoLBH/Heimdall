@@ -3962,6 +3962,24 @@ body.drilldown-open .drilldown__inner,
 .tl-note-inline--title-updated{display:inline;}
 .tl-note-inline--parent-added{display:flex;margin-top:4px;margin-right:0;}
 .tl-note-inline-link{display:inline-flex;align-items:center;gap:6px;}
+.tl-note-inline-subject-link{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:#fff;
+  text-decoration:underline;
+  text-decoration-color:#fff;
+  text-decoration-thickness:1px;
+}
+.tl-note-inline-subject-link:hover,
+.tl-note-inline-subject-link:focus-visible{
+  color:#fff;
+  text-decoration:underline;
+  text-decoration-color:#fff;
+  outline:none;
+}
+.tl-note-inline-subject-title{color:#fff;}
+.tl-note-inline-subject-ref{color:var(--muted);}
 .tl-note-inline-subject-status{display:inline-flex;align-items:center;}
 .tl-note-inline-text{display:inline;}
 .tl-note-inline-text--quote{padding-inline:1px;}
