@@ -10745,6 +10745,33 @@ body.route--project #situationsDetailsHost .detail-chrome__sticky{
   align-items:center;
   gap:6px;
 }
+.subject-create-layout--subissue .subject-meta-field__trigger--empty{
+  background-color:rgb(33, 40, 48);
+  color:rgb(145, 152, 161);
+  border-style:dashed;
+  border-color:rgb(61, 68, 77);
+  border-width:1px;
+}
+.subject-create-layout--subissue .subject-meta-field__empty-content{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.subject-create-layout--subissue .subject-meta-field__empty-icon{
+  display:inline-flex;
+  width:14px;
+  height:14px;
+  color:inherit;
+}
+.subject-create-layout--subissue .subject-meta-field__empty-icon .octicon{
+  width:14px;
+  height:14px;
+}
+.subject-create-layout--subissue .subject-meta-field__empty-text{
+  font-size:12px;
+  font-weight:500;
+  color:inherit;
+}
 .subject-create-layout--subissue .subject-meta-field__label-row{
   display:inline-flex;
   align-items:center;
