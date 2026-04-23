@@ -3963,11 +3963,10 @@ body.drilldown-open .drilldown__inner,
 .tl-note-inline--parent-added{display:flex;margin-top:4px;margin-right:0;}
 .tl-note-inline-link{display:inline-flex;align-items:center;gap:6px;}
 .tl-note-inline-subject-link{
-  display:inline-flex;
+  display:inline-block;
   align-items:center;
-  gap:6px;
   color:#fff;
-  text-decoration:underline;
+  text-decoration:none;
   text-decoration-color:#fff;
   text-decoration-thickness:1px;
 }
