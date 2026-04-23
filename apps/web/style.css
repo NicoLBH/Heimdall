@@ -752,6 +752,11 @@ body.sidebar-collapsed #sidebar{overflow:hidden;width:0;min-width:0;padding:0;ma
   width:100%;
 }
 
+.subject-subissue-actions-menu__icon{
+  color:rgb(145, 152, 161);
+  fill:rgb(145, 152, 161);
+}
+
 .subject-meta-relations-back{
   width:100%;
   display:flex;
