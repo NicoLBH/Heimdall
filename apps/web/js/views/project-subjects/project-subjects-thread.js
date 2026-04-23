@@ -1306,11 +1306,17 @@ priority=${firstNonEmpty(subject.priority, "")}`
       ? svgIcon("check-circle", { style: "color: var(--fgColor-done)" })
       : svgIcon("issue-opened", { style: "color: var(--fgColor-open)" });
     const title = firstNonEmpty(subject?.title, fallbackTitle, "");
-    const linkedSubject = entityDisplayLinkHtml("sujet", counterpartId);
+    const linkedSubjectRef = entityDisplayLinkHtml("sujet", counterpartId);
+    const linkedSubjectRefLabel = firstNonEmpty(String(linkedSubjectRef).match(/>([^<]*)<\/a>/)?.[1], "#?");
+    const safeType = escapeHtml("sujet");
+    const safeId = escapeHtml(counterpartId);
     return `
       <span class="tl-note-inline-link">
         <span class="tl-note-inline-subject-status" aria-hidden="true">${iconSvg}</span>
-        ${title ? `${escapeHtml(title)} ` : ""}${linkedSubject}
+        <a href="#" class="entity-link tl-note-inline-subject-link" data-nav-type="${safeType}" data-nav-id="${safeId}">
+          ${title ? `<span class="tl-note-inline-subject-title">${escapeHtml(title)}</span>` : ""}
+          <span class="tl-note-inline-subject-ref">${escapeHtml(linkedSubjectRefLabel)}</span>
+        </a>
       </span>
     `;
   }
@@ -1559,16 +1565,28 @@ priority=${firstNonEmpty(subject.priority, "")}`
           iconHtml = `<span class="tl-ico-wrap tl-ico-closed" aria-hidden="true">${SVG_TL_CLOSED}</span>`;
           const sujetId = e?.meta?.problem_id;
           const sujet = sujetId ? getNestedSujet(sujetId) : null;
-          const sujetTitle = sujet?.title ? `${escapeHtml(sujet.title)} ` : "";
+          const sujetTitle = firstNonEmpty(sujet?.title, "");
+          const safeSujetId = escapeHtml(sujetId || "");
+          const safeSujetTitle = escapeHtml(sujetTitle);
+          const sujetRefLink = entityDisplayLinkHtml("sujet", sujetId);
+          const sujetRefLabel = firstNonEmpty(String(sujetRefLink).match(/>([^<]*)<\/a>/)?.[1], "#?");
           verb = "closed";
-          targetHtml = sujetId ? `sujet ${sujetTitle}${entityDisplayLinkHtml("sujet", sujetId)}` : "this";
+          targetHtml = sujetId
+            ? `sujet <a href="#" class="entity-link tl-note-inline-subject-link" data-nav-type="sujet" data-nav-id="${safeSujetId}">${safeSujetTitle ? `<span class="tl-note-inline-subject-title">${safeSujetTitle}</span>` : ""}<span class="tl-note-inline-subject-ref">${escapeHtml(sujetRefLabel)}</span></a>`
+            : "this";
         } else if (kind === "issue_reopened") {
           iconHtml = `<span class="tl-ico-wrap tl-ico-reopened" aria-hidden="true">${SVG_TL_REOPENED}</span>`;
           const sujetId = e?.meta?.problem_id;
           const sujet = sujetId ? getNestedSujet(sujetId) : null;
-          const sujetTitle = sujet?.title ? `${escapeHtml(sujet.title)} ` : "";
+          const sujetTitle = firstNonEmpty(sujet?.title, "");
+          const safeSujetId = escapeHtml(sujetId || "");
+          const safeSujetTitle = escapeHtml(sujetTitle);
+          const sujetRefLink = entityDisplayLinkHtml("sujet", sujetId);
+          const sujetRefLabel = firstNonEmpty(String(sujetRefLink).match(/>([^<]*)<\/a>/)?.[1], "#?");
           verb = "reopened";
-          targetHtml = sujetId ? `sujet ${sujetTitle}${entityDisplayLinkHtml("sujet", sujetId)}` : "this";
+          targetHtml = sujetId
+            ? `sujet <a href="#" class="entity-link tl-note-inline-subject-link" data-nav-type="sujet" data-nav-id="${safeSujetId}">${safeSujetTitle ? `<span class="tl-note-inline-subject-title">${safeSujetTitle}</span>` : ""}<span class="tl-note-inline-subject-ref">${escapeHtml(sujetRefLabel)}</span></a>`
+            : "this";
         } else if (kind === "review_validated" || kind === "review_rejected" || kind === "review_dismissed" || kind === "review_restored") {
           const entityType = String(e?.entity_type || "").toLowerCase();
           const entityId = String(e?.entity_id || "");
