@@ -767,6 +767,7 @@ export function createProjectSubjectsEvents(config) {
 
   function refreshSubjectMetaDropdownUi(root, { field = "", preserveScroll = false, preserveFocus = false, focusArgs = null } = {}) {
     if (!root) return null;
+    const dropdown = getSubjectsViewState().subjectMetaDropdown || {};
     const subject = getDropdownContextSubject(root, { selection: getScopedSelection(root) });
     if (subject?.id && field && typeof renderSubjectMetaFieldValue === "function") {
       const anchorKey = String(dropdown.anchorKey || "");

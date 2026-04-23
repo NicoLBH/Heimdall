@@ -39,3 +39,7 @@ test("fermeture dropdown nettoie la session d'ancre", () => {
   assert.match(controllerSource, /dropdown\.instanceKey = "";/);
   assert.match(controllerSource, /dropdown\.openedFrom = "";/);
 });
+
+test("le refresh de dropdown lit explicitement l'état dropdown courant", () => {
+  assert.match(eventsSource, /function refreshSubjectMetaDropdownUi\(root, \{ field = "", preserveScroll = false, preserveFocus = false, focusArgs = null \} = \{\}\) \{\s*if \(!root\) return null;\s*const dropdown = getSubjectsViewState\(\)\.subjectMetaDropdown \|\| \{\};/s);
+});
