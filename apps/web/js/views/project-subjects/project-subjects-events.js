@@ -138,16 +138,18 @@ export function createProjectSubjectsEvents(config) {
         : 110;
     const comfortLines = type === "create-subject" && !isSubissueCreateMode ? 0 : 3;
     const lockOverflowY = !isSubissueCreateMode;
-    return { type, minHeightFallback, comfortLines, lockOverflowY };
+    const preferMinHeightOnFirstMount = !!isSubissueCreateMode;
+    return { type, minHeightFallback, comfortLines, lockOverflowY, preferMinHeightOnFirstMount };
   }
 
   function runAutosize(textarea, cause = "manual") {
     if (!textarea) return null;
-    const { type, minHeightFallback, comfortLines, lockOverflowY } = getTextareaAutosizeMeta(textarea);
+    const { type, minHeightFallback, comfortLines, lockOverflowY, preferMinHeightOnFirstMount } = getTextareaAutosizeMeta(textarea);
     return autosizeTextarea(textarea, {
       minHeightFallback,
       comfortLines,
       lockOverflowY,
+      preferMinHeightOnFirstMount,
       log: true,
       logPrefix: "[textarea-autosize]",
       cause,

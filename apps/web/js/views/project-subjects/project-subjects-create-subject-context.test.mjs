@@ -97,7 +97,9 @@ test("Créer un sous-sujet ouvre le create form en mode subissue (modale)", () =
   assert.match(eventsSource, /const isSubissueCreateMode = type === "create-subject"/);
   assert.match(eventsSource, /const minHeightFallback = isSubissueCreateMode[\s\S]*\? 326/);
   assert.match(eventsSource, /const lockOverflowY = !isSubissueCreateMode;/);
+  assert.match(eventsSource, /const preferMinHeightOnFirstMount = !!isSubissueCreateMode;/);
   assert.match(eventsSource, /lockOverflowY,/);
+  assert.match(eventsSource, /preferMinHeightOnFirstMount,/);
   assert.doesNotMatch(eventsSource, /if \(isSubissueCreateTextarea\) \{[\s\S]*textarea\.style\.height = ""[\s\S]*return null;/);
   assert.match(stateSource, /mode: "standard"/);
   assert.match(stateSource, /parentSubjectId: null/);

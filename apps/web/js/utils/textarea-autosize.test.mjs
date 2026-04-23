@@ -111,6 +111,34 @@ test("autosizeTextarea peut éviter overflow-y:hidden quand lockOverflowY=false"
   assert.equal(textarea.style.overflowY, "");
 });
 
+test("autosizeTextarea peut forcer la hauteur minimale au premier mount", () => {
+  global.window = {
+    getComputedStyle() {
+      return { lineHeight: "20px", minHeight: "0px" };
+    }
+  };
+
+  const textarea = {
+    isConnected: true,
+    value: "",
+    style: { height: "", overflowY: "auto" },
+    dataset: {},
+    scrollHeight: 420,
+    offsetHeight: 0,
+    offsetParent: {}
+  };
+
+  const result = autosizeTextarea(textarea, {
+    minHeightFallback: 326,
+    comfortLines: 3,
+    cause: "mount",
+    preferMinHeightOnFirstMount: true
+  });
+
+  assert.equal(result?.nextHeight, 326);
+  assert.equal(textarea.style.height, "326px");
+});
+
 test("autosizeTextarea retourne null si textarea invalide (sans style)", () => {
   const textarea = { isConnected: false };
   const result = autosizeTextarea(textarea);

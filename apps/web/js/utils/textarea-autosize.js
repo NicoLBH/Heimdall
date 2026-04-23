@@ -6,6 +6,7 @@ export function autosizeTextarea(textarea, options = {}) {
     minHeightFallback = 110,
     comfortLines = 3,
     lockOverflowY = true,
+    preferMinHeightOnFirstMount = false,
     log = false,
     logPrefix = "[textarea-autosize]",
     cause = "manual",
@@ -71,7 +72,14 @@ export function autosizeTextarea(textarea, options = {}) {
     };
   }
   const baseFloor = Math.max(minHeight, manualFloor);
-  const targetHeight = Math.max(baseFloor, Math.round(measuredScrollHeight + comfortHeight));
+  const isFirstMountPass = !!preferMinHeightOnFirstMount
+    && String(cause || "").startsWith("mount")
+    && !previousAutosizeHeight
+    && !manualFloor
+    && !String(textarea?.value || "").trim();
+  const targetHeight = isFirstMountPass
+    ? baseFloor
+    : Math.max(baseFloor, Math.round(measuredScrollHeight + comfortHeight));
   textarea.style.height = `${targetHeight}px`;
   if (textarea?.dataset) {
     textarea.dataset.autosizeLastHeight = String(targetHeight);
