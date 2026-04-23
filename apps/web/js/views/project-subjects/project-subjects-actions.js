@@ -133,6 +133,10 @@ export function createProjectSubjectsActions(config) {
     return normalizeAssigneeIds(assigneeIds);
   }
 
+  function isDraftMetaTarget(subjectId) {
+    return String(subjectId || "") === DRAFT_SUBJECT_ID;
+  }
+
   function setSubjectAssigneeIds(subjectId, assigneeIds) {
     const subjectKey = String(subjectId || "");
     const nextIds = normalizeSubjectAssigneeIds(assigneeIds);
@@ -181,15 +185,18 @@ export function createProjectSubjectsActions(config) {
       ? currentIds.filter((id) => id !== assigneeKey)
       : [...currentIds, assigneeKey];
     setSubjectAssigneeIds(subjectKey, nextIds);
+    if (isDraftMetaTarget(subjectKey)) {
+      if (!options.skipRerender) {
+        if (options.root) rerenderScope(options.root);
+        else rerenderPanels();
+      }
+      return true;
+    }
     syncSubjectAssigneeMap(subjectKey, nextIds);
 
     if (!options.skipRerender) {
       if (options.root) rerenderScope(options.root);
       else rerenderPanels();
-    }
-
-    if (subjectKey === DRAFT_SUBJECT_ID) {
-      return true;
     }
 
     try {
@@ -451,13 +458,15 @@ export function createProjectSubjectsActions(config) {
       : [...meta.situationIds, situationKey];
 
     setSubjectSituationIds(subjectKey, nextIds);
-    syncSubjectSituationMaps(subjectKey, situationKey, !wasLinked);
+    if (!isDraftMetaTarget(subjectKey)) {
+      syncSubjectSituationMaps(subjectKey, situationKey, !wasLinked);
+    }
 
     if (!options.skipRerender) {
       if (options.root) rerenderScope(options.root);
     }
 
-    if (subjectKey === DRAFT_SUBJECT_ID) {
+    if (isDraftMetaTarget(subjectKey)) {
       return true;
     }
 
@@ -661,15 +670,17 @@ export function createProjectSubjectsActions(config) {
     const addedObjectiveIds = nextIds.filter((id) => !previousIds.includes(id));
 
     setSubjectObjectiveIds(subjectKey, nextIds);
-    removedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, false));
-    addedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, true));
+    if (!isDraftMetaTarget(subjectKey)) {
+      removedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, false));
+      addedObjectiveIds.forEach((id) => syncSubjectObjectiveMaps(subjectKey, id, true));
+    }
 
     if (!options.skipRerender) {
       if (options.root) rerenderScope(options.root);
       else rerenderPanels();
     }
 
-    if (subjectKey === DRAFT_SUBJECT_ID) {
+    if (isDraftMetaTarget(subjectKey)) {
       return true;
     }
 
