@@ -1200,22 +1200,30 @@ function summarizeSubjectMetaValue(items, emptyLabel = "Aucun") {
   return `${items[0]} +${items.length - 1}`;
 }
 
-function renderSubjectMetaField({ field, label, valueHtml }) {
+function renderSubjectMetaField({ field, label, valueHtml, emptyState = null }) {
   const dropdown = getSubjectsViewState().subjectMetaDropdown || {};
   const isOpen = dropdown.field === field;
+  const isEmpty = !!(emptyState && emptyState.isEmpty);
   return `
     <section class="subject-meta-field ${isOpen ? "is-open" : ""}">
       <button
         type="button"
-        class="subject-meta-field__trigger"
+        class="subject-meta-field__trigger ${isEmpty ? "subject-meta-field__trigger--empty" : ""}"
         data-subject-meta-trigger="${escapeHtml(field)}"
         data-subject-meta-anchor="${escapeHtml(field)}"
         aria-expanded="${isOpen ? "true" : "false"}"
       >
-        <span class="subject-meta-field__label-row">
-          <span class="subject-meta-field__label">${escapeHtml(label)}</span>
-          <span class="subject-meta-field__gear" aria-hidden="true">${svgIcon("gear", { className: "octicon octicon-gear" })}</span>
-        </span>
+        ${isEmpty ? `
+          <span class="subject-meta-field__empty-content">
+            <span class="subject-meta-field__empty-icon" aria-hidden="true">${svgIcon(emptyState.icon || "dot", { className: `octicon octicon-${escapeHtml(emptyState.icon || "dot")}` })}</span>
+            <span class="subject-meta-field__empty-text">${escapeHtml(emptyState.text || label)}</span>
+          </span>
+        ` : `
+          <span class="subject-meta-field__label-row">
+            <span class="subject-meta-field__label">${escapeHtml(label)}</span>
+            <span class="subject-meta-field__gear" aria-hidden="true">${svgIcon("gear", { className: "octicon octicon-gear" })}</span>
+          </span>
+        `}
       </button>
       <div class="subject-meta-field__value">${valueHtml}</div>
     </section>
@@ -3160,33 +3168,43 @@ function renderCreateSubjectMetaControls() {
   const meta = getSubjectSidebarMeta(subject.id);
   const objective = meta.objectiveIds.map((objectiveId) => getObjectiveById(objectiveId)).filter(Boolean)[0] || null;
   const isSubissueMode = String(store.situationsView.createSubjectForm?.mode || "").trim().toLowerCase() === "subissue";
+  const assigneesValueHtml = isSubissueMode ? renderCreateSubissueAssigneesValue(subject.id) : renderSubjectAssigneesValue(subject.id);
+  const labelsValueHtml = isSubissueMode ? renderCreateSubissueLabelsValue(subject.id) : renderSubjectLabelsValue(subject.id);
+  const situationsValueHtml = isSubissueMode ? renderCreateSubissueSituationValue(subject.id) : renderSubjectSituationsValue(subject.id);
+  const objectivesValueHtml = isSubissueMode
+    ? renderCreateSubissueObjectiveValue(subject.id)
+    : (objective ? renderSubjectObjectivesValue(subject.id) : renderSubjectMetaButtonValue("Aucun objectif"));
+
   return `
     <div class="subject-meta-controls subject-meta-controls--create">
       ${renderSubjectMetaField({
         field: "assignees",
         label: "Assignee",
-        valueHtml: isSubissueMode ? renderCreateSubissueAssigneesValue(subject.id) : renderSubjectAssigneesValue(subject.id)
+        valueHtml: assigneesValueHtml,
+        emptyState: isSubissueMode ? { isEmpty: !assigneesValueHtml, icon: "people", text: "Assigné à" } : null
       })}
       ${renderSubjectMetaField({
         field: "labels",
         label: "Labels",
-        valueHtml: isSubissueMode ? renderCreateSubissueLabelsValue(subject.id) : renderSubjectLabelsValue(subject.id)
+        valueHtml: labelsValueHtml,
+        emptyState: isSubissueMode ? { isEmpty: !labelsValueHtml, icon: "tag", text: "Label" } : null
       })}
       ${renderSubjectMetaField({
         field: "situations",
         label: "Project",
-        valueHtml: isSubissueMode ? renderCreateSubissueSituationValue(subject.id) : renderSubjectSituationsValue(subject.id)
+        valueHtml: situationsValueHtml,
+        emptyState: isSubissueMode ? { isEmpty: !situationsValueHtml, icon: "table", text: "Situation" } : null
       })}
       ${renderSubjectMetaField({
         field: "objectives",
         label: "Milestone",
-        valueHtml: isSubissueMode
-          ? renderCreateSubissueObjectiveValue(subject.id)
-          : (objective ? renderSubjectObjectivesValue(subject.id) : renderSubjectMetaButtonValue("Aucun objectif"))
+        valueHtml: objectivesValueHtml,
+        emptyState: isSubissueMode ? { isEmpty: !objectivesValueHtml, icon: "milestone", text: "Objectif" } : null
       })}
     </div>
   `;
 }
+
 
 function renderCreateSubjectFormHtml() {
   ensureViewUiState();
