@@ -1387,7 +1387,7 @@ priority=${firstNonEmpty(subject.priority, "")}`
       return `${renderSituationInline(situation?.id, situation?.label)}`;
     }
 
-    if (eventType === "subject_blocked_by_added" && counterpartId) {
+    if ((eventType === "subject_blocked_by_added" || eventType === "subject_blocked_by_removed") && counterpartId) {
       return renderLinkedSubjectInline(counterpartId, counterpartTitle);
     }
 
@@ -1498,7 +1498,12 @@ priority=${firstNonEmpty(subject.priority, "")}`
             && (action === "added" || action === "removed")
           ) || isSubjectTitleUpdated;
           const shouldRenderInlineBelow = (
-            (eventType === "subject_parent_added" || eventType === "subject_child_added")
+            (
+              eventType === "subject_parent_added"
+              || eventType === "subject_child_added"
+              || eventType === "subject_blocked_by_added"
+              || eventType === "subject_blocked_by_removed"
+            )
             || (eventType === "subject_assignees_changed" && (action === "added" || action === "removed"))
           );
           const secondLineInlineHtml = shouldRenderInlineBelow && inlineDetailHtml
@@ -1507,7 +1512,12 @@ priority=${firstNonEmpty(subject.priority, "")}`
           const inlineClassName = isSubjectTitleUpdated
             ? "tl-note-inline tl-note-inline--title-updated"
             : "tl-note-inline";
-          const defaultInlineHtml = (eventType === "subject_parent_added" || eventType === "subject_child_added")
+          const defaultInlineHtml = (
+            eventType === "subject_parent_added"
+            || eventType === "subject_child_added"
+            || eventType === "subject_blocked_by_added"
+            || eventType === "subject_blocked_by_removed"
+          )
             ? ""
             : (inlineDetailHtml ? `<span class="${inlineClassName}">${inlineDetailHtml}</span>` : "");
           const inlineBeforeTimestampHtml = shouldRenderInlineBeforeTimestamp ? defaultInlineHtml : "";
