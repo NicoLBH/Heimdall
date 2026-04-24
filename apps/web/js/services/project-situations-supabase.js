@@ -371,8 +371,31 @@ function buildSituationBurnupChartData(subjects = [], range = "2w") {
     yTicks: buildEvenTicks(yMax, 5),
     yMax,
     series: [
-      { label: "Fermés", points: closedSeries },
-      { label: "Ouverts", points: openedSeries }
+      {
+        label: "Completed",
+        points: closedSeries,
+        fill: true,
+        color: "#8957e5",
+        areaColor: "#271052",
+        areaOpacity: 0.5,
+        lineDasharray: "6 2",
+        lineWidth: 2,
+        legendMarker: "circle",
+        curve: "smooth"
+      },
+      {
+        label: "Open",
+        points: openedSeries,
+        fill: true,
+        color: "#238636",
+        areaColor: "#04260f",
+        areaOpacity: 0.5,
+        areaBaselinePoints: closedSeries,
+        lineDasharray: "none",
+        lineWidth: 2,
+        legendMarker: "circle",
+        curve: "smooth"
+      }
     ]
   };
 }
@@ -437,6 +460,7 @@ function buildSituationObjectiveDistribution(subjects = [], projectSubjectsState
   const objectivesById = raw?.objectivesById && typeof raw.objectivesById === "object" ? raw.objectivesById : {};
   const objectiveIdsBySubjectId = raw?.objectiveIdsBySubjectId && typeof raw.objectiveIdsBySubjectId === "object" ? raw.objectiveIdsBySubjectId : {};
   const countsByObjective = new Map();
+  const dueDateByObjective = new Map();
 
   safeArray(subjects).forEach((subject) => {
     const subjectId = normalizeUuid(subject?.id);
@@ -449,6 +473,7 @@ function buildSituationObjectiveDistribution(subjects = [], projectSubjectsState
         const objectiveTitle = firstNonEmpty(objective?.title, objective?.name, objective?.id, objectiveId);
         if (!objectiveTitle) return;
         countsByObjective.set(objectiveTitle, (countsByObjective.get(objectiveTitle) || 0) + 1);
+        dueDateByObjective.set(objectiveTitle, firstNonEmpty(objective?.dueDate, objective?.due_date, ""));
       });
       return;
     }
@@ -460,12 +485,18 @@ function buildSituationObjectiveDistribution(subjects = [], projectSubjectsState
       const objectiveTitle = firstNonEmpty(objective?.title, objective?.name, objective?.id, objectiveId);
       if (!objectiveTitle) return;
       countsByObjective.set(objectiveTitle, (countsByObjective.get(objectiveTitle) || 0) + 1);
+      dueDateByObjective.set(objectiveTitle, firstNonEmpty(objective?.dueDate, objective?.due_date, ""));
     });
   });
 
   const sorted = [...countsByObjective.entries()]
     .sort((left, right) => {
-      if (right[1] !== left[1]) return right[1] - left[1];
+      const leftDueTs = Date.parse(dueDateByObjective.get(String(left[0])) || "");
+      const rightDueTs = Date.parse(dueDateByObjective.get(String(right[0])) || "");
+      const leftHasDue = Number.isFinite(leftDueTs);
+      const rightHasDue = Number.isFinite(rightDueTs);
+      if (leftHasDue && rightHasDue && leftDueTs !== rightDueTs) return leftDueTs - rightDueTs;
+      if (leftHasDue !== rightHasDue) return leftHasDue ? -1 : 1;
       return String(left[0]).localeCompare(String(right[0]), "fr");
     });
 
