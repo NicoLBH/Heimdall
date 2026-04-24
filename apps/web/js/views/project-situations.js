@@ -3,6 +3,8 @@ import { PROJECT_TAB_RESELECTED_EVENT } from "./project-header.js";
 import {
   PROJECT_SHELL_COMPACT_CHANGE_EVENT,
   setProjectCompactEnabled,
+  refreshProjectShellChrome,
+  refreshProjectShellCompactState,
   registerProjectScrollSources,
   setProjectActiveScrollSource,
   setProjectViewHeader
@@ -275,8 +277,9 @@ function rerender(root) {
   cleanupSituationsListeners = null;
   const hasSelectedSituation = !!String(store.situationsView?.selectedSituationId || "").trim();
   root.className = `project-shell__content${hasSelectedSituation ? " project-shell__content--situation-kanban" : ""}`;
-  syncProjectHeader(root);
   renderGlobalHeader();
+  syncProjectHeader(root);
+  refreshProjectShellChrome();
   root.innerHTML = renderPage();
   bindSituationsSyncEvents(root);
   syncSituationsAvailableHeight(root);
@@ -296,7 +299,7 @@ function rerender(root) {
     };
     const onColumnScroll = () => {
       setProjectCompactEnabled(true);
-      setProjectActiveScrollSource(column);
+      refreshProjectShellCompactState();
       syncSituationsAvailableHeight(root);
     };
     column.addEventListener("mouseenter", activateColumn);
