@@ -155,10 +155,15 @@ export function renderSvgLineChart({
             const showFill = item?.fill === true;
             const showPoints = item?.pointsVisible === true;
             const validPoints = getValidPoints(item?.points || []);
+            const seriesColor = typeof item?.color === "string" ? item.color : "";
+            const lineDasharray = typeof item?.lineDasharray === "string" ? item.lineDasharray : "";
+            const lineWidth = Number.isFinite(Number(item?.lineWidth)) ? Math.max(1, Number(item.lineWidth)) : null;
+            const areaColor = typeof item?.areaColor === "string" ? item.areaColor : "";
+            const areaOpacity = Number.isFinite(Number(item?.areaOpacity)) ? Math.max(0, Math.min(1, Number(item.areaOpacity))) : null;
             return `
-              <g class="${className}">
-                ${showFill && areaPath ? `<path class="svg-line-chart__area" d="${areaPath}"></path>` : ""}
-                ${showStroke && linePath ? `<path class="svg-line-chart__line" d="${linePath}"></path>` : ""}
+              <g class="${className}"${seriesColor ? ` style="color:${escapeHtml(seriesColor)};"` : ""}>
+                ${showFill && areaPath ? `<path class="svg-line-chart__area" d="${areaPath}"${areaColor || areaOpacity !== null ? ` style="${areaColor ? `fill:${escapeHtml(areaColor)};` : ""}${areaOpacity !== null ? `opacity:${areaOpacity};` : ""}"` : ""}></path>` : ""}
+                ${showStroke && linePath ? `<path class="svg-line-chart__line" d="${linePath}"${lineDasharray || lineWidth ? ` style="${lineDasharray ? `stroke-dasharray:${escapeHtml(lineDasharray)};` : ""}${lineWidth ? `stroke-width:${lineWidth};` : ""}"` : ""}></path>` : ""}
                 ${showPoints ? validPoints.map((point) => `<circle class="svg-line-chart__point" cx="${xScale(point.x).toFixed(3)}" cy="${yScale(point.y).toFixed(3)}" r="3.5"></circle>`).join("") : ""}
               </g>
             `;
@@ -176,7 +181,12 @@ export function renderSvgLineChart({
           ${subtitle ? `<div class="svg-line-chart__subtitle">${escapeHtml(subtitle)}</div>` : ""}
           ${series.some((item) => item?.label) ? `
             <div class="svg-line-chart__legend">
-              ${series.map((item, index) => item?.label ? `<div class="svg-line-chart__legend-item"><span class="svg-line-chart__legend-swatch svg-line-chart__legend-swatch--${index + 1}"></span><span>${escapeHtml(item.label)}</span></div>` : "").join("")}
+              ${series.map((item, index) => {
+                if (!item?.label) return "";
+                const markerClass = item?.legendMarker === "circle" ? "svg-line-chart__legend-swatch--circle" : "";
+                const markerStyle = item?.color ? ` style="color:${escapeHtml(String(item.color))};"` : "";
+                return `<div class="svg-line-chart__legend-item"><span class="svg-line-chart__legend-swatch svg-line-chart__legend-swatch--${index + 1} ${markerClass}"${markerStyle}></span><span>${escapeHtml(item.label)}</span></div>`;
+              }).join("")}
             </div>
           ` : ""}
         </div>
