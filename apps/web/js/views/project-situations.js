@@ -196,6 +196,7 @@ function syncProjectHeader(root) {
   setProjectViewHeader({
     contextLabel: "Situations",
     variant: "situations",
+    hideBar: true,
     compactLabel: "Situations",
     compactLabelSuffix: selectedSituation ? String(selectedSituation.title || "Situation") : "",
     onCompactLabelClick: selectedSituation
@@ -256,6 +257,9 @@ function rerender(root) {
     column.addEventListener("mouseenter", () => {
       setProjectActiveScrollSource(column);
     });
+    column.addEventListener("scroll", () => {
+      setProjectActiveScrollSource(column);
+    }, { passive: true });
     column.addEventListener("wheel", () => {
       setProjectActiveScrollSource(column);
     }, { passive: true });

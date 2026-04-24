@@ -4563,6 +4563,10 @@ body.route--project .project-simple-scroll{
   overflow:hidden;
   padding:0 12px;
 }
+
+.project-shell__body--situations{
+  padding:0;
+}
 .project-view-header-host{
   flex:0 0 auto;
 }
