@@ -1,6 +1,6 @@
 import { store } from "../store.js";
 import { PROJECT_TAB_RESELECTED_EVENT } from "./project-header.js";
-import { registerProjectScrollSources, setProjectViewHeader } from "./project-shell-chrome.js";
+import { registerProjectScrollSources, setProjectActiveScrollSource, setProjectViewHeader } from "./project-shell-chrome.js";
 import { renderProjectSituationsRunbar, bindProjectSituationsRunbar } from "./project-situations-runbar.js";
 import { loadFlatSubjectsForCurrentProject } from "../services/project-subjects-supabase.js";
 import {
@@ -196,6 +196,7 @@ function syncProjectHeader(root) {
   setProjectViewHeader({
     contextLabel: "Situations",
     variant: "situations",
+    hideBar: true,
     compactLabel: "Situations",
     compactLabelSuffix: selectedSituation ? String(selectedSituation.title || "Situation") : "",
     onCompactLabelClick: selectedSituation
@@ -252,6 +253,20 @@ function rerender(root) {
   const tableScrollBody = root.querySelector(".issues-table .data-table-shell__body");
   const kanbanColumnBodies = [...root.querySelectorAll(".situation-kanban__cards")];
   registerProjectScrollSources(primaryScrollRoot, tableScrollBody, kanbanColumnBodies);
+  root.querySelectorAll(".situation-kanban__col").forEach((column) => {
+    column.addEventListener("mouseenter", () => {
+      setProjectActiveScrollSource(column);
+    });
+    column.addEventListener("scroll", () => {
+      setProjectActiveScrollSource(column);
+    }, { passive: true });
+    column.addEventListener("wheel", () => {
+      setProjectActiveScrollSource(column);
+    }, { passive: true });
+    column.addEventListener("touchstart", () => {
+      setProjectActiveScrollSource(column);
+    }, { passive: true });
+  });
   bindEvents(root);
   bindViewEvents(root);
   kanbanView.bindKanbanEvents(root);

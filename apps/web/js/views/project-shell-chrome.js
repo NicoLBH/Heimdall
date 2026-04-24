@@ -152,7 +152,8 @@ function renderProjectViewHeader({
   subtitle = "",
   metaHtml = "",
   toolbarHtml = "",
-  variant = "default"
+  variant = "default",
+  hideBar = false
 } = {}) {
   const safeVariant = String(variant || "default").replace(/[^a-zA-Z0-9_-]/g, "");
   const safeContextLabel = escapeHtml(contextLabel || getTabLabel(shellState.tab));
@@ -165,19 +166,21 @@ function renderProjectViewHeader({
 
   return `
     <section class="project-view-header project-view-header--${safeVariant}">
-      <div class="project-view-header__bar">
-        <div class="project-view-header__context">
-          <div class="project-view-header__eyebrow mono">${safeContextLabel}</div>
-          ${hasTitles ? `
-            <div class="project-view-header__titles">
-              ${safeTitle ? `<div class="project-view-header__title">${safeTitle}</div>` : ""}
-              ${safeSubtitle ? `<div class="project-view-header__subtitle">${safeSubtitle}</div>` : ""}
-            </div>
-          ` : ""}
-        </div>
+      ${hideBar ? "" : `
+        <div class="project-view-header__bar">
+          <div class="project-view-header__context">
+            <div class="project-view-header__eyebrow mono">${safeContextLabel}</div>
+            ${hasTitles ? `
+              <div class="project-view-header__titles">
+                ${safeTitle ? `<div class="project-view-header__title">${safeTitle}</div>` : ""}
+                ${safeSubtitle ? `<div class="project-view-header__subtitle">${safeSubtitle}</div>` : ""}
+              </div>
+            ` : ""}
+          </div>
 
-        ${hasMeta ? `<div class="project-view-header__meta">${metaHtml}</div>` : ""}
-      </div>
+          ${hasMeta ? `<div class="project-view-header__meta">${metaHtml}</div>` : ""}
+        </div>
+      `}
 
       ${hasToolbar ? `<div class="project-view-header__toolbar">${toolbarHtml}</div>` : ""}
     </section>
@@ -234,7 +237,8 @@ export function setProjectViewHeader(config = {}) {
     subtitle: config.subtitle || "",
     metaHtml: config.metaHtml || "",
     toolbarHtml: config.toolbarHtml || "",
-    variant: config.variant || shellState.tab || "default"
+    variant: config.variant || shellState.tab || "default",
+    hideBar: config.hideBar === true
   });
 
   getViewHeaderEl()?.classList.toggle("project-view-header--compact", shellState.isCompact);
