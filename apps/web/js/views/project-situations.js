@@ -315,12 +315,12 @@ function rerender(root) {
     ? [...new Set([...kanbanColumns, ...kanbanCardLists].filter(Boolean))]
     : [];
 
-  const resolveAndActivateKanbanScrollableSource = (target, eventType = null) => {
+  const resolveAndActivateKanbanScrollableSource = (target, eventType = null, { syncImmediately = false } = {}) => {
     const sourceEl = resolveKanbanScrollableSource(target);
     if (!sourceEl) return;
 
     setProjectCompactEnabled(true);
-    setProjectActiveScrollSource(sourceEl);
+    setProjectActiveScrollSource(sourceEl, { syncImmediately });
 
     const scrollTop = Number(sourceEl.scrollTop || 0);
     const nextCompact = scrollTop > 12;
@@ -331,13 +331,27 @@ function rerender(root) {
       sourceClass: sourceEl.className || null,
       scrollTop,
       nextCompact,
-      didChange
+      didChange,
+      syncImmediately
     });
   };
 
   kanbanScrollElements.forEach((source) => {
-    const activateColumn = (event) => {
-      resolveAndActivateKanbanScrollableSource(event?.target || source, event?.type || null);
+    const onKanbanMouseEnter = (event) => {
+      const sourceEl = resolveKanbanScrollableSource(event?.target || source);
+      if (!sourceEl) return;
+      debugKanbanScroll("[situations:kanban-hover-ignored]", {
+        eventType: event?.type || null,
+        sourceTag: sourceEl.tagName || null,
+        sourceClass: sourceEl.className || null,
+        scrollTop: Number(sourceEl.scrollTop || 0),
+        ignoredHover: true
+      });
+    };
+    const prepareScrollSource = (event) => {
+      resolveAndActivateKanbanScrollableSource(event?.target || source, event?.type || null, {
+        syncImmediately: false
+      });
     };
     const onKanbanScroll = (event) => {
       const sourceEl = event?.currentTarget;
@@ -357,14 +371,14 @@ function rerender(root) {
       });
       syncSituationsAvailableHeight(root);
     };
-    source.addEventListener("mouseenter", activateColumn);
-    source.addEventListener("wheel", activateColumn, { passive: true });
-    source.addEventListener("touchstart", activateColumn, { passive: true });
+    source.addEventListener("mouseenter", onKanbanMouseEnter);
+    source.addEventListener("wheel", prepareScrollSource, { passive: true });
+    source.addEventListener("touchstart", prepareScrollSource, { passive: true });
     source.addEventListener("scroll", onKanbanScroll, { passive: true });
     unbindColumnHandlers.push(() => {
-      source.removeEventListener("mouseenter", activateColumn);
-      source.removeEventListener("wheel", activateColumn);
-      source.removeEventListener("touchstart", activateColumn);
+      source.removeEventListener("mouseenter", onKanbanMouseEnter);
+      source.removeEventListener("wheel", prepareScrollSource);
+      source.removeEventListener("touchstart", prepareScrollSource);
       source.removeEventListener("scroll", onKanbanScroll);
     });
   });
