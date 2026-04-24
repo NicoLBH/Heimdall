@@ -4,7 +4,7 @@ import {
   PROJECT_SHELL_COMPACT_CHANGE_EVENT,
   setProjectCompactEnabled,
   refreshProjectShellChrome,
-  refreshProjectShellCompactState,
+  syncProjectShellCompactFromScrollSource,
   registerProjectScrollSources,
   setProjectActiveScrollSource,
   setProjectViewHeader
@@ -289,28 +289,41 @@ function rerender(root) {
   const gridScrollBody = root.querySelector(".project-situation-alt-view--grid");
   const roadmapScrollBody = root.querySelector(".project-situation-alt-view--roadmap");
   const kanbanColumns = [...root.querySelectorAll(".situation-kanban__col")];
-  registerProjectScrollSources(primaryScrollRoot, tableScrollBody, gridScrollBody, roadmapScrollBody, kanbanColumns);
+  const kanbanCardLists = [...root.querySelectorAll(".situation-kanban__cards")];
+  if (kanbanColumns.length) {
+    registerProjectScrollSources(kanbanColumns, kanbanCardLists, primaryScrollRoot);
+  } else {
+    registerProjectScrollSources(primaryScrollRoot, tableScrollBody, gridScrollBody, roadmapScrollBody);
+  }
 
   const unbindColumnHandlers = [];
-  kanbanColumns.forEach((column) => {
+  const kanbanScrollElements = kanbanColumns.length
+    ? [...new Set([...kanbanColumns, ...kanbanCardLists, primaryScrollRoot].filter(Boolean))]
+    : [];
+  kanbanScrollElements.forEach((source) => {
+    const ownerColumn = source.classList.contains("situation-kanban__col")
+      ? source
+      : source.closest(".situation-kanban__col");
     const activateColumn = () => {
+      if (!ownerColumn) return;
       setProjectCompactEnabled(true);
-      setProjectActiveScrollSource(column);
+      setProjectActiveScrollSource(ownerColumn);
     };
-    const onColumnScroll = () => {
-      setProjectCompactEnabled(true);
-      refreshProjectShellCompactState();
+    const onKanbanScroll = (event) => {
+      const sourceEl = event?.currentTarget;
+      if (!sourceEl) return;
+      syncProjectShellCompactFromScrollSource(sourceEl);
       syncSituationsAvailableHeight(root);
     };
-    column.addEventListener("mouseenter", activateColumn);
-    column.addEventListener("wheel", activateColumn, { passive: true });
-    column.addEventListener("touchstart", activateColumn, { passive: true });
-    column.addEventListener("scroll", onColumnScroll, { passive: true });
+    source.addEventListener("mouseenter", activateColumn);
+    source.addEventListener("wheel", activateColumn, { passive: true });
+    source.addEventListener("touchstart", activateColumn, { passive: true });
+    source.addEventListener("scroll", onKanbanScroll, { passive: true });
     unbindColumnHandlers.push(() => {
-      column.removeEventListener("mouseenter", activateColumn);
-      column.removeEventListener("wheel", activateColumn);
-      column.removeEventListener("touchstart", activateColumn);
-      column.removeEventListener("scroll", onColumnScroll);
+      source.removeEventListener("mouseenter", activateColumn);
+      source.removeEventListener("wheel", activateColumn);
+      source.removeEventListener("touchstart", activateColumn);
+      source.removeEventListener("scroll", onKanbanScroll);
     });
   });
   cleanupSituationsListeners = () => {
