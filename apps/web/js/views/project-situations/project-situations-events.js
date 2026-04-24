@@ -83,6 +83,7 @@ export function createProjectSituationsEvents({
     const selectedSituation = getSituationById(situationId || store.situationsView?.selectedSituationId);
     if (!selectedSituation) return;
     uiState.editPanelOpen = true;
+    uiState.insightsPanelOpen = false;
     uiState.editSubmitting = false;
     uiState.editError = "";
     uiState.editForm = getSituationEditForm(selectedSituation);
@@ -93,6 +94,17 @@ export function createProjectSituationsEvents({
     uiState.editPanelOpen = false;
     uiState.editSubmitting = false;
     uiState.editError = "";
+    rerender(root);
+  }
+
+  function openInsightsPanel(root) {
+    uiState.insightsPanelOpen = true;
+    uiState.editPanelOpen = false;
+    rerender(root);
+  }
+
+  function closeInsightsPanel(root) {
+    uiState.insightsPanelOpen = false;
     rerender(root);
   }
 
@@ -218,6 +230,23 @@ export function createProjectSituationsEvents({
       node.addEventListener("click", () => closeEditPanel(root));
     });
 
+    root.querySelectorAll("[data-open-situation-insights]").forEach((node) => {
+      node.addEventListener("click", () => openInsightsPanel(root));
+    });
+
+    root.querySelectorAll("[data-close-situation-insights]").forEach((node) => {
+      node.addEventListener("click", () => closeInsightsPanel(root));
+    });
+
+    root.querySelectorAll("[data-situation-insights-range]").forEach((node) => {
+      node.addEventListener("click", () => {
+        const nextRange = String(node.getAttribute("data-situation-insights-range") || "").trim().toLowerCase();
+        if (!nextRange || uiState.insightsRange === nextRange) return;
+        uiState.insightsRange = nextRange;
+        rerender(root);
+      });
+    });
+
     root.querySelectorAll("[data-situation-edit-field]").forEach((field) => {
       field.addEventListener("input", (event) => {
         const key = String(event.currentTarget?.getAttribute("data-situation-edit-field") || "").trim();
@@ -293,6 +322,7 @@ export function createProjectSituationsEvents({
         if (!situationId) return;
         setSelectedSituationId(situationId);
         uiState.editPanelOpen = false;
+        uiState.insightsPanelOpen = false;
         const loadingPromise = loadSituationSelection(situationId);
         rerender(root);
         await loadingPromise;
