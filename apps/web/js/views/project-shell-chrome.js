@@ -38,6 +38,19 @@ function debugSituationKanbanScroll(label, payload) {
   console.info(label, payload);
 }
 
+function isSituationKanbanScrollDebugEnabled() {
+  try {
+    return window.localStorage?.getItem("debug:situation-kanban-scroll") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function debugSituationKanbanScroll(label, payload) {
+  if (!isSituationKanbanScrollDebugEnabled()) return;
+  console.info(label, payload);
+}
+
 function getStickyChromeHostEl() {
   return document.getElementById("projectStickyChromeHost");
 }
