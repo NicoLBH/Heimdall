@@ -331,7 +331,7 @@ export function registerProjectPrimaryScrollSource(el) {
   registerProjectScrollSources(el);
 }
 
-export function setProjectActiveScrollSource(el, { resolve = null } = {}) {
+export function setProjectActiveScrollSource(el, { resolve = null, syncImmediately = true } = {}) {
   shellState.cleanupActiveScrollSource?.();
   shellState.cleanupActiveScrollSource = null;
   shellState.activeScrollSourceEl = el || null;
@@ -349,7 +349,9 @@ export function setProjectActiveScrollSource(el, { resolve = null } = {}) {
     };
   }
 
-  syncCompactState();
+  if (syncImmediately !== false) {
+    syncCompactState();
+  }
 }
 
 export function useProjectScrollSource(el) {
