@@ -290,8 +290,12 @@ function rerender(root) {
 
   const unbindColumnHandlers = [];
   kanbanColumns.forEach((column) => {
-    const activateColumn = () => setProjectActiveScrollSource(column);
+    const activateColumn = () => {
+      setProjectCompactEnabled(true);
+      setProjectActiveScrollSource(column);
+    };
     const onColumnScroll = () => {
+      setProjectCompactEnabled(true);
       setProjectActiveScrollSource(column);
       syncSituationsAvailableHeight(root);
     };
