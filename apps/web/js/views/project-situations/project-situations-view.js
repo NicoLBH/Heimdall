@@ -4,6 +4,7 @@ import { renderSettingsModal } from "../ui/settings-modal.js";
 import { renderStatusBadge } from "../ui/status-badges.js";
 import { renderSideNavGroup, renderSideNavItem } from "../ui/side-nav-layout.js";
 import { renderLightTabs } from "../ui/light-tabs.js";
+import { renderSvgLineChart } from "../../utils/svg-line-chart.js";
 import { renderSituationForm } from "./project-situations-form.js";
 import { renderSituationGridView } from "./project-situations-view-grid.js";
 import { renderSituationRoadmapView } from "./project-situations-view-roadmap.js";
@@ -46,6 +47,79 @@ export function createProjectSituationsView({
       return renderSituationGridView(selectedSituation, uiState.selectedSituationSubjects);
     }
     return renderSituationRoadmapView(selectedSituation, uiState.selectedSituationSubjects);
+  }
+
+  function renderSituationInsightsPanel() {
+    const selectedSituationId = String(store.situationsView?.selectedSituationId || "").trim();
+    const selectedSituation = getSituationById(selectedSituationId);
+    if (!selectedSituation) return renderSelectedSituationDetails();
+
+    const navHtml = renderSideNavGroup({
+      className: "settings-nav__group settings-nav__group--project",
+      items: [renderSideNavItem({
+        label: "Graphique burndown",
+        targetId: "situation-insights-panel",
+        iconHtml: svgIcon("situation-insights"),
+        isActive: true,
+        isPrimary: true
+      })]
+    });
+
+    const activeRange = String(uiState.insightsRange || "2w");
+    const chartHtml = renderSvgLineChart({
+      width: 964,
+      height: 478,
+      xLabel: "",
+      yLabel: "",
+      xDomain: [0, 13],
+      yDomain: [0, 10],
+      xTicks: [0, 2, 4, 6, 8, 10, 12],
+      yTicks: [0, 2, 4, 6, 8, 10],
+      xTickFormatter: () => "",
+      series: [
+        { label: "Terminés", points: [] },
+        { label: "Ouverts", points: [] }
+      ]
+    });
+
+    return `
+      <div class="settings-shell settings-shell--parametres settings-shell--situation-edit settings-shell--situation-insights">
+        <div class="project-situation-edit project-situation-insights">
+          <div class="project-situation-edit__header">
+            <button type="button" class="project-situation-edit__back" data-close-situation-insights>
+              <span class="project-situation-edit__back-icon">${svgIcon("arrow-left", { className: "octicon octicon-arrow-left route-title-module__Octicon__vxu4r", width: 24, height: 24 })}</span>
+            </button>
+            <h1 class="project-situation-edit__title">Indicateurs</h1>
+          </div>
+          <div class="project-situation-edit__main">
+            <aside class="project-situation-edit__aside settings-nav settings-nav--parametres settings-nav--situation-edit">
+              ${navHtml}
+            </aside>
+            <div class="project-situation-edit__content settings-content settings-content--parametres settings-content--situation-edit" data-side-nav-panel="situation-insights-panel">
+              <section class="gh-panel gh-panel--details project-situation-edit__panel project-situation-insights__panel">
+                <div class="gh-panel__head gh-panel__head--tight">
+                  <div>
+                    <div class="details-title">Burn up</div>
+                    <div class="issue-row-meta-text" style="margin-top:6px;">Visualise l’évolution des sujets ouverts et terminés pour cette situation.</div>
+                  </div>
+                </div>
+                <div class="details-body project-situation-insights__body">
+                  <div class="project-situation-insights__ranges" role="tablist" aria-label="Plage temporelle des indicateurs">
+                    <button type="button" class="project-situation-insights__range ${activeRange === "2w" ? "is-active" : ""}" data-situation-insights-range="2w">2 semaines</button>
+                    <button type="button" class="project-situation-insights__range ${activeRange === "1m" ? "is-active" : ""}" data-situation-insights-range="1m">1 mois</button>
+                    <button type="button" class="project-situation-insights__range ${activeRange === "3m" ? "is-active" : ""}" data-situation-insights-range="3m">3 mois</button>
+                    <button type="button" class="project-situation-insights__range ${activeRange === "max" ? "is-active" : ""}" data-situation-insights-range="max">Max</button>
+                  </div>
+                  <div class="project-situation-insights__chart-shell">
+                    ${chartHtml}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function renderCreateSituationModal() {
@@ -112,7 +186,7 @@ export function createProjectSituationsView({
                 <div class="project-situation-title-row__right">
                   <div class="project-situation-detail-head__meta">${statusBadge}${modeBadge}<span class="mono-small">${uiState.selectedSituationSubjects.length} sujet(s)</span></div>
                   <div class="project-situation-title-row__actions">
-                    <button type="button" class="gh-btn gh-action__main gh-btn--default gh-btn--md">
+                    <button type="button" class="gh-btn gh-action__main gh-btn--default gh-btn--md" data-open-situation-insights>
                       ${svgIcon("graph", { className: "octicon octicon-graph" })}<span>Indicateurs</span>
                     </button>
                     <button
@@ -169,6 +243,11 @@ export function createProjectSituationsView({
               <span class="project-situation-edit__back-icon">${svgIcon("arrow-left", { className: "octicon octicon-arrow-left route-title-module__Octicon__vxu4r", width: 24, height: 24 })}</span>
             </button>
             <h1 class="project-situation-edit__title">Paramètres</h1>
+            <div class="project-situation-edit__header-actions">
+              <button type="button" class="gh-btn gh-action__main gh-btn--default gh-btn--md" data-open-situation-insights>
+                ${svgIcon("graph", { className: "octicon octicon-graph" })}<span>Indicateurs</span>
+              </button>
+            </div>
           </div>
           <div class="project-situation-edit__main">
             <aside class="project-situation-edit__aside settings-nav settings-nav--parametres settings-nav--situation-edit">
@@ -179,7 +258,6 @@ export function createProjectSituationsView({
                 <div class="gh-panel__head gh-panel__head--tight">
                   <div>
                     <div class="details-title">Paramètres de la situation</div>
-                    <div class="issue-row-meta-text" style="margin-top:6px;">Mets à jour les informations de la situation sans changer son mode.</div>
                   </div>
                 </div>
                 <div class="details-body project-situation-edit__body">
@@ -214,7 +292,7 @@ export function createProjectSituationsView({
         <div class="project-simple-scroll${hasSelectedSituation ? ` project-simple-scroll--situation-view project-simple-scroll--situation-${layoutClassSuffix}` : ""}" id="projectSituationsScroll">
           <div class="settings-content project-page-shell project-page-shell--content${hasSelectedSituation ? ` project-page-shell--situation-view project-page-shell--situation-${layoutClassSuffix}` : ""}">
             ${hasSelectedSituation
-              ? `${uiState.editPanelOpen ? renderEditSituationPanel() : renderSelectedSituationDetails()}`
+              ? `${uiState.insightsPanelOpen ? renderSituationInsightsPanel() : (uiState.editPanelOpen ? renderEditSituationPanel() : renderSelectedSituationDetails())}`
               : `
                 <div style="display:flex;justify-content:flex-end;align-items:center;margin:0 0 16px;">
                   <button type="button" class="gh-btn gh-btn--primary" id="openCreateSituationButton">Nouvelle situation</button>

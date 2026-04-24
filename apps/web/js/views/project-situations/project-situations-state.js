@@ -64,7 +64,9 @@ export function createProjectSituationsState({ store }) {
     editPanelOpen: false,
     editSubmitting: false,
     editError: "",
-    editForm: getDefaultSituationForm()
+    editForm: getDefaultSituationForm(),
+    insightsPanelOpen: false,
+    insightsRange: "2w"
   };
 
   function ensureSituationsViewState() {
@@ -129,6 +131,7 @@ export function createProjectSituationsState({ store }) {
 
   function resetEditState() {
     uiState.editPanelOpen = false;
+    uiState.insightsPanelOpen = false;
     uiState.editSubmitting = false;
     uiState.editError = "";
     uiState.editForm = getDefaultSituationForm();
