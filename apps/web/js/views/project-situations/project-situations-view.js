@@ -115,7 +115,13 @@ export function createProjectSituationsView({
                     <button type="button" class="gh-btn gh-action__main gh-btn--default gh-btn--md">
                       ${svgIcon("graph", { className: "octicon octicon-graph" })}<span>Indicateurs</span>
                     </button>
-                    <button type="button" class="gh-btn gh-action__main gh-btn--default gh-btn--md" aria-label="Étendre la barre latérale" title="Étendre la barre latérale">
+                    <button
+                      type="button"
+                      class="gh-btn gh-action__main gh-btn--default gh-btn--md"
+                      data-open-situation-drilldown
+                      aria-label="Étendre la barre latérale"
+                      title="Étendre la barre latérale"
+                    >
                       ${svgIcon("sidebar-expand", { className: "octicon octicon-sidebar-expand" })}
                     </button>
                   </div>

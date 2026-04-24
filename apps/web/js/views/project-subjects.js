@@ -947,6 +947,10 @@ export function openSubjectDrilldownFromSituation(...args) {
   return projectSubjectDrilldown.openDrilldownFromSubject(...args);
 }
 
+export function openSituationDrilldownFromSelection(...args) {
+  return projectSubjectDrilldown.openDrilldownFromSituation(...args);
+}
+
 let collaboratorsHydrationInFlight = null;
 
 function ensureSubjectsCollaboratorsLoaded() {

@@ -36,7 +36,8 @@ export { getEffectiveSujetStatus, getEffectiveSituationStatus } from "./project-
 import {
   getSujetKanbanStatusForSituation,
   setSujetKanbanStatusForSituation,
-  openSubjectDrilldownFromSituation
+  openSubjectDrilldownFromSituation,
+  openSituationDrilldownFromSelection
 } from "./project-subjects.js";
 
 const { uiState, ensureSituationsViewState } = createProjectSituationsState({ store });
@@ -419,8 +420,8 @@ const { bindEvents } = createProjectSituationsEvents({
   updateSituationRecord,
   setSelectedSituationId,
   getSituationById,
-  getSituationEditForm,
-  loadSituationSelection
+  loadSituationSelection,
+  openSituationDrilldownFromSelection
 });
 
 export function renderProjectSituations(root) {
