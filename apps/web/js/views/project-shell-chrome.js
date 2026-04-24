@@ -359,6 +359,19 @@ export function refreshProjectShellCompactState() {
   syncCompactState();
 }
 
+export function syncProjectShellCompactFromScrollSource(el) {
+  if (!el) return;
+
+  refreshProjectShellChromeRefs();
+
+  shellState.compactEnabled = true;
+  shellState.activeScrollSourceEl = el;
+  shellState.activeScrollSourceResolver = null;
+
+  const scrollTop = Number(el.scrollTop || 0);
+  applyCompactState(scrollTop > 12);
+}
+
 export function unmountProjectShellChrome() {
   clearProjectStickyChrome();
 
