@@ -70,7 +70,8 @@ export function createProjectSituationsState({ store }) {
     insightsLoading: false,
     insightsError: "",
     insightsActiveChart: "burnup",
-    insightsData: null
+    insightsData: null,
+    insightsSituationId: ""
   };
 
   function ensureSituationsViewState() {
