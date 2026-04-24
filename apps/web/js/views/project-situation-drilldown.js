@@ -33,7 +33,7 @@ export function renderProjectSituationDrilldown(situation, options = {}) {
       <div class="project-situation-drilldown__section">
         <div class="project-situation-drilldown__section-head">
           <span class="project-situation-drilldown__section-title">
-            <svg class="icon" aria-hidden="true" focusable="false">
+            <svg class="icon project-situation-drilldown__section-icon" aria-hidden="true" focusable="false">
               <use href="assets/icons.svg#situation-description" xlink:href="assets/icons.svg#situation-description"></use>
             </svg>
             ${escapeHtml(shortDescriptionLabel)}
@@ -44,7 +44,7 @@ export function renderProjectSituationDrilldown(situation, options = {}) {
             aria-label="${escapeHtml(editActionLabel)}"
             title="${escapeHtml(editActionLabel)}"
           >
-            <svg class="icon" aria-hidden="true" focusable="false">
+            <svg class="icon project-situation-drilldown__action-icon" aria-hidden="true" focusable="false">
               <use href="assets/icons.svg#pencil" xlink:href="assets/icons.svg#pencil"></use>
             </svg>
           </button>
