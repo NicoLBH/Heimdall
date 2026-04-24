@@ -1001,7 +1001,7 @@ export function renderProjectSubjects(root) {
   store.situationsView.showTableOnly = true;
   store.situationsView.displayDepth = "sujets";
 
-  root.className = "project-shell__content";
+  root.className = "project-shell__content project-shell__content--subjects-document-scroll";
 
   setProjectViewHeader({
     contextLabel: "Sujets",
@@ -1029,10 +1029,12 @@ export function renderProjectSubjects(root) {
 
   root.innerHTML = `
     <section class="project-simple-page project-simple-page--settings">
-      <div class="settings-content project-page-shell project-page-shell--content">
-        <section class="gh-panel gh-panel--results" aria-label="Results">
-          <div id="situationsPanelHost"></div>
-        </section>
+      <div class="project-simple-scroll project-simple-scroll--subjects-document">
+        <div class="settings-content project-page-shell project-page-shell--content">
+          <section class="gh-panel gh-panel--results" aria-label="Results">
+            <div id="situationsPanelHost"></div>
+          </section>
+        </div>
       </div>
     </section>
   `;
