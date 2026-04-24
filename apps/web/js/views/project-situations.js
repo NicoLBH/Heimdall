@@ -7,6 +7,7 @@ import {
   syncProjectShellCompactFromScrollSource,
   registerProjectScrollSources,
   setProjectActiveScrollSource,
+  useProjectScrollSource,
   setProjectViewHeader
 } from "./project-shell-chrome.js";
 import { renderProjectSituationsRunbar, bindProjectSituationsRunbar } from "./project-situations-runbar.js";
@@ -220,6 +221,7 @@ let situationsTabResetBound = false;
 let currentSituationsRoot = null;
 let cleanupSituationsListeners = null;
 let cleanupSituationsSyncEvents = null;
+const DEBUG_SITUATION_KANBAN_SCROLL = window.localStorage?.getItem("debug:situation-kanban-scroll") === "1";
 
 function isSituationKanbanScrollDebugEnabled() {
   try {
