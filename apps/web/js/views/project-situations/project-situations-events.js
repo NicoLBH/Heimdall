@@ -1,4 +1,5 @@
 import { bindLightTabs } from "../ui/light-tabs.js";
+import { renderProjectSituationDrilldown } from "../project-situation-drilldown.js";
 
 function syncSubmitButtonState(button, { submitting = false, title = "" } = {}) {
   if (!button) return;
@@ -25,7 +26,8 @@ export function createProjectSituationsEvents({
   updateSituationRecord,
   setSelectedSituationId,
   getSituationById,
-  loadSituationSelection
+  loadSituationSelection,
+  openSituationDrilldownFromSelection
 }) {
   function buildEditSituationPayload() {
     const form = uiState.editForm || getDefaultCreateForm();
@@ -255,6 +257,35 @@ export function createProjectSituationsEvents({
     if (openButton) {
       openButton.onclick = () => openCreateModal(root);
     }
+
+    root.querySelectorAll("[data-open-situation-drilldown]").forEach((node) => {
+      node.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const selectedSituationId = String(store.situationsView?.selectedSituationId || "").trim();
+        if (!selectedSituationId) return;
+        const selectedSituation = getSituationById(selectedSituationId);
+        if (!selectedSituation) return;
+
+        if (typeof openSituationDrilldownFromSelection === "function") {
+          openSituationDrilldownFromSelection(selectedSituationId, { context: "situation", variant: "situation-kanban" });
+        }
+
+        const drilldownBody = document.getElementById("drilldownBody");
+        if (!drilldownBody) return;
+        drilldownBody.innerHTML = renderProjectSituationDrilldown(selectedSituation, {
+          closeButtonId: "projectSituationDrilldownClose"
+        });
+
+        drilldownBody.querySelector("#projectSituationDrilldownClose")?.addEventListener("click", () => {
+          document.getElementById("drilldownClose")?.click();
+        });
+
+        drilldownBody.querySelector(".project-situation-drilldown__section-action")?.addEventListener("click", () => {
+          openEditPanel(root, selectedSituationId);
+        });
+      });
+    });
 
     root.querySelectorAll("button[data-open-situation]").forEach((node) => {
       node.addEventListener("click", async () => {
