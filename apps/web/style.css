@@ -9906,7 +9906,9 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-kanb
 }
 
 .gh-panel--details-situation-kanban > .gh-panel__head{
-  padding-inline:16px;
+  padding: 8px 0px 0px 0px;
+  border-bottom: none;
+  background: var(--bgAssistPanel);
 }
 
 .gh-panel--details-situation-kanban > .details-body{
@@ -13181,6 +13183,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   align-items:flex-start;
   gap:12px;
   flex-wrap:wrap;
+  padding-left: 12px;
 }
 
 .project-situation-title-row__group{
@@ -13238,7 +13241,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .project-situation-layout-tabs{
   margin:6px 0 0;
 }
-
+.project-situation-layout-tabs .light-tabs__item is-active {background:var(--bg);}
 .project-situations-table__title-inline{
   min-width:0;
   display:inline-flex;
