@@ -64,6 +64,31 @@ function readComputedLayout(selector) {
   };
 }
 
+function readAppLayout() {
+  const appEl = document.getElementById("app");
+  if (!appEl) {
+    return {
+      found: false
+    };
+  }
+
+  const style = window.getComputedStyle(appEl);
+  return {
+    found: true,
+    className: appEl.className || "",
+    position: style.position,
+    top: style.top,
+    bottom: style.bottom,
+    height: style.height,
+    minHeight: style.minHeight,
+    overflow: style.overflow,
+    paddingTop: style.paddingTop,
+    scrollTop: Number(appEl.scrollTop || 0),
+    scrollHeight: Number(appEl.scrollHeight || 0),
+    clientHeight: Number(appEl.clientHeight || 0)
+  };
+}
+
 export function debugProjectScrollPolicy(label, extra = {}) {
   if (!isProjectScrollPolicyDebugEnabled()) return;
 
@@ -74,11 +99,14 @@ export function debugProjectScrollPolicy(label, extra = {}) {
   console.info("[project-scroll-policy]", {
     label,
     tab: shellState.tab || null,
+    bodyClassName: document.body?.className || "",
     scrollSource: activeScrollSourceEl ? "local-element" : "document/window",
     scrollSourceClass: activeScrollSourceEl?.className || null,
+    scrollingElementTag: scrollingElement?.tagName || null,
     documentScrollHeight: Number(scrollingElement?.scrollHeight || 0),
     documentClientHeight: Number(scrollingElement?.clientHeight || 0),
     windowScrollY: Number(window.scrollY || 0),
+    appLayout: readAppLayout(),
     projectContentClass: projectContent?.className || null,
     projectShell: readComputedLayout(".project-shell"),
     projectShellBody: readComputedLayout(".project-shell__body"),
@@ -201,29 +229,38 @@ function syncCompactTabLabel() {
   syncCompactPrimaryAction();
 }
 
+function ensureProjectRouteClass() {
+  document.body.classList.add("route--project");
+  document.body.classList.remove("route--projects-list");
+}
+
+function syncProjectShellStructuralClasses() {
+  document.body.classList.toggle("project-shell-compact", shellState.isCompact);
+  shellState.globalHeaderEl?.classList.toggle("gh-header--compact", shellState.isCompact);
+  shellState.projectTabsEl?.classList.toggle("project-tabs--hidden", shellState.isCompact);
+  getViewHeaderEl()?.classList.toggle("project-view-header--compact", shellState.isCompact);
+}
+
 function applyCompactState(isCompact) {
   refreshProjectShellChromeRefs();
+  ensureProjectRouteClass();
   const nextCompact = !!(shellState.compactEnabled && isCompact);
   const didChange = shellState.isCompact !== nextCompact;
+  shellState.isCompact = nextCompact;
+  syncProjectShellStructuralClasses();
+
   if (!didChange) {
     debugProjectShellKanbanScroll("[project-shell:apply-compact-state]", {
       requested: isCompact,
       applied: nextCompact,
       compactEnabled: shellState.compactEnabled,
       didChange,
+      routeProject: document.body.classList.contains("route--project"),
       skipped: true
     });
+    syncCompactTabLabel();
     return;
   }
-
-  shellState.isCompact = nextCompact;
-
-  document.body.classList.add("route--project");
-  document.body.classList.toggle("project-shell-compact", shellState.isCompact);
-
-  shellState.globalHeaderEl?.classList.toggle("gh-header--compact", shellState.isCompact);
-  shellState.projectTabsEl?.classList.toggle("project-tabs--hidden", shellState.isCompact);
-  getViewHeaderEl()?.classList.toggle("project-view-header--compact", shellState.isCompact);
 
   debugProjectShellKanbanScroll("[project-shell:apply-compact-state]", {
     requested: isCompact,
@@ -299,6 +336,7 @@ export function mountProjectShellChrome({ projectId, tab }) {
   shellState.projectId = projectId || null;
   shellState.tab = tab || "dashboard";
   refreshProjectShellChromeRefs();
+  ensureProjectRouteClass();
 
   if (shellState.viewHeaderHostEl) {
     shellState.viewHeaderHostEl.innerHTML = "";
