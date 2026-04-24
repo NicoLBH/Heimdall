@@ -31,3 +31,7 @@ test("la vue Situations conserve le overflow hidden ciblé pour le kanban", () =
 test("la vue Situations conserve le overflow hidden ciblé pour project-simple-scroll--situation-view", () => {
   assert.match(styleSource, /\.project-simple-scroll(?:\.project-simple-scroll--situation-view|--situation-view)\s*\{[\s\S]*?overflow\s*:\s*hidden\s*;/);
 });
+
+test("le contexte route--project force #app en flux document", () => {
+  assert.match(styleSource, /body\.route--project\s+#app\s*\{[\s\S]*?position\s*:\s*relative\s*;[\s\S]*?overflow\s*:\s*visible\s*;/);
+});
