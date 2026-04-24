@@ -13370,6 +13370,8 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .project-situation-drilldown__action-icon{
   color:var(--muted);
   fill:var(--muted);
+  height: 32px;
+  width: 32px;
 }
 
 .project-situation-drilldown__section-action{
