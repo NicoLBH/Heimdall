@@ -22,7 +22,7 @@ export function createProjectSituationsView({
   function renderSituationInsightsBarChart({ labels = [], values = [], yTicks = [0, 1], yMax = 1 } = {}) {
     const safeLabels = Array.isArray(labels) ? labels : [];
     const safeValues = Array.isArray(values) ? values : [];
-    const width = 964;
+    const width = 1012;
     const height = 478;
     const margin = { top: 24, right: 24, bottom: 78, left: 100 };
     const innerWidth = width - margin.left - margin.right;
@@ -175,7 +175,7 @@ export function createProjectSituationsView({
     const hasSituationSubjects = Array.isArray(uiState.selectedSituationSubjects) && uiState.selectedSituationSubjects.length > 0;
     const labels = Array.isArray(burnupData?.labels) ? burnupData.labels : [];
     const chartHtml = renderSvgLineChart({
-      width: 964,
+      width: 1012,
       height: 478,
       xLabel: "",
       yLabel: "",
@@ -197,7 +197,7 @@ export function createProjectSituationsView({
       yMax: labelsData?.yMax || 1
     });
     const objectivesLineChartHtml = renderSvgLineChart({
-      width: 964,
+      width: 1012,
       height: 478,
       xLabel: "",
       yLabel: "",
