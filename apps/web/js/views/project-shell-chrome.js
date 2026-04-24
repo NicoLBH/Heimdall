@@ -28,6 +28,16 @@ function getStickyChromeHostEl() {
   return document.getElementById("projectStickyChromeHost");
 }
 
+function refreshProjectShellChromeRefs() {
+  shellState.globalHeaderEl = document.querySelector("#globalHeaderHost .gh-header");
+  shellState.projectTabsEl = document.querySelector(".project-tabs");
+  shellState.viewHeaderHostEl = document.getElementById("projectViewHeaderHost");
+  shellState.compactTabHostEl = document.getElementById("projectCompactTab");
+  shellState.compactTabLabelEl = document.getElementById("projectCompactTabLabel");
+  shellState.compactTabLabelPrimaryEl = document.getElementById("projectCompactTabLabelPrimary");
+  shellState.compactTabLabelSuffixEl = document.getElementById("projectCompactTabLabelSuffix");
+}
+
 export function setProjectStickyChrome(html = "") {
   const host = getStickyChromeHostEl();
   if (!host) return;
@@ -102,6 +112,7 @@ function syncCompactPrimaryAction() {
 }
 
 function syncCompactTabLabel() {
+  refreshProjectShellChromeRefs();
   const primaryLabel = String(shellState.compactTabCustomLabel || getTabLabel(shellState.tab) || "").trim();
   const suffixLabel = String(shellState.compactTabCustomSuffix || "").trim();
   const hasStructuredLabel = !!(shellState.compactTabLabelPrimaryEl || shellState.compactTabLabelSuffixEl);
@@ -126,6 +137,7 @@ function syncCompactTabLabel() {
 }
 
 function applyCompactState(isCompact) {
+  refreshProjectShellChromeRefs();
   const nextCompact = !!(shellState.compactEnabled && isCompact);
   const didChange = shellState.isCompact !== nextCompact;
   shellState.isCompact = nextCompact;
@@ -201,13 +213,7 @@ export function mountProjectShellChrome({ projectId, tab }) {
 
   shellState.projectId = projectId || null;
   shellState.tab = tab || "dashboard";
-  shellState.globalHeaderEl = document.querySelector("#globalHeaderHost .gh-header");
-  shellState.projectTabsEl = document.querySelector(".project-tabs");
-  shellState.viewHeaderHostEl = document.getElementById("projectViewHeaderHost");
-  shellState.compactTabHostEl = document.getElementById("projectCompactTab");
-  shellState.compactTabLabelEl = document.getElementById("projectCompactTabLabel");
-  shellState.compactTabLabelPrimaryEl = document.getElementById("projectCompactTabLabelPrimary");
-  shellState.compactTabLabelSuffixEl = document.getElementById("projectCompactTabLabelSuffix");
+  refreshProjectShellChromeRefs();
 
   if (shellState.viewHeaderHostEl) {
     shellState.viewHeaderHostEl.innerHTML = "";
@@ -337,6 +343,11 @@ export function setProjectCompactEnabled(enabled = true) {
 }
 
 export function refreshProjectShellChrome() {
+  refreshProjectShellChromeRefs();
+  syncCompactState();
+}
+
+export function refreshProjectShellCompactState() {
   syncCompactState();
 }
 
