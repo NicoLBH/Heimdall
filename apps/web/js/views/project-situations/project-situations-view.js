@@ -3,6 +3,7 @@ import { svgIcon } from "../../ui/icons.js";
 import { renderSettingsModal } from "../ui/settings-modal.js";
 import { renderStatusBadge } from "../ui/status-badges.js";
 import { renderSideNavLayout, renderSideNavGroup, renderSideNavItem } from "../ui/side-nav-layout.js";
+import { renderLightTabs } from "../ui/light-tabs.js";
 import { renderSituationForm } from "./project-situations-form.js";
 
 export function createProjectSituationsView({
@@ -15,6 +16,35 @@ export function createProjectSituationsView({
   getSituationById,
   renderSituationKanban
 }) {
+  function getSelectedSituationLayout() {
+    const layout = String(store.situationsView?.selectedSituationLayout || "").trim().toLowerCase();
+    return ["grille", "tableau", "planning"].includes(layout) ? layout : "tableau";
+  }
+
+  function renderSituationLayoutTabs() {
+    return renderLightTabs({
+      tabs: [
+        { id: "grille", label: "Grille" },
+        { id: "tableau", label: "Tableau" },
+        { id: "planning", label: "Planning" }
+      ],
+      activeTabId: getSelectedSituationLayout(),
+      ariaLabel: "Modes d'affichage de la situation",
+      className: "settings-lots-tabs project-situation-layout-tabs"
+    });
+  }
+
+  function renderSelectedSituationLayoutBody(selectedSituation) {
+    const selectedLayout = getSelectedSituationLayout();
+    if (selectedLayout === "tableau") {
+      return renderSituationKanban(selectedSituation, uiState.selectedSituationSubjects, { loading: uiState.selectedSituationLoading });
+    }
+    if (selectedLayout === "grille") {
+      return `<div class="settings-empty-state">Vue grille disponible prochainement.</div>`;
+    }
+    return `<div class="settings-empty-state">Vue planning disponible prochainement.</div>`;
+  }
+
   function renderCreateSituationModal() {
     if (!uiState.createModalOpen) return "";
 
@@ -86,7 +116,10 @@ export function createProjectSituationsView({
           ${uiState.selectedSituationError ? `<div class="settings-inline-error">${escapeHtml(uiState.selectedSituationError)}</div>` : ""}
           ${uiState.selectedSituationLoading
             ? `<div class="settings-empty-state">Chargement des sujets de la situation…</div>`
-            : renderSituationKanban(selectedSituation, uiState.selectedSituationSubjects, { loading: uiState.selectedSituationLoading })}
+            : `
+              ${renderSituationLayoutTabs()}
+              ${renderSelectedSituationLayoutBody(selectedSituation)}
+            `}
         </div>
       </section>
     `;
