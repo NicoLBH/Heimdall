@@ -47,6 +47,22 @@ function buildLinePath(points, xScale, yScale) {
 function buildAreaPath(points, xScale, yScale, baselineValue) {
   const valid = getValidPoints(points);
   if (!valid.length) return "";
+  const baselinePoints = Array.isArray(baselineValue)
+    ? getValidPoints(baselineValue)
+    : [];
+  if (baselinePoints.length) {
+    const baselineByX = new Map(baselinePoints.map((point) => [point.x, point.y]));
+    const linePath = buildLinePath(valid, xScale, yScale);
+    const baselinePath = [...valid]
+      .reverse()
+      .map((point, index) => {
+        const baselineY = yScale(clampNumber(baselineByX.get(point.x), 0)).toFixed(3);
+        const x = xScale(point.x).toFixed(3);
+        return `${index === 0 ? "L" : "L"}${x},${baselineY}`;
+      })
+      .join("");
+    return `${linePath}${baselinePath}Z`;
+  }
   const firstX = xScale(valid[0].x).toFixed(3);
   const lastX = xScale(valid[valid.length - 1].x).toFixed(3);
   const baselineY = yScale(baselineValue).toFixed(3);
@@ -150,7 +166,7 @@ export function renderSvgLineChart({
           ${series.map((item, index) => {
             const className = `svg-line-chart__series svg-line-chart__series--${index + 1}`;
             const linePath = buildLinePath(item?.points || [], xScale, yScale);
-            const areaPath = buildAreaPath(item?.points || [], xScale, yScale, yMin);
+            const areaPath = buildAreaPath(item?.points || [], xScale, yScale, item?.areaBaselinePoints || yMin);
             const showStroke = item?.stroke !== false;
             const showFill = item?.fill === true;
             const showPoints = item?.pointsVisible === true;

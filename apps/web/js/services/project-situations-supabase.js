@@ -389,6 +389,7 @@ function buildSituationBurnupChartData(subjects = [], range = "2w") {
         color: "#238636",
         areaColor: "#04260f",
         areaOpacity: 0.5,
+        areaBaselinePoints: closedSeries,
         lineDasharray: "none",
         lineWidth: 2,
         legendMarker: "circle"
