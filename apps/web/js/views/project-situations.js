@@ -7,6 +7,7 @@ import {
   refreshProjectShellCompactState,
   registerProjectScrollSources,
   setProjectActiveScrollSource,
+  useProjectScrollSource,
   setProjectViewHeader
 } from "./project-shell-chrome.js";
 import { renderProjectSituationsRunbar, bindProjectSituationsRunbar } from "./project-situations-runbar.js";
@@ -297,8 +298,11 @@ function rerender(root) {
       setProjectCompactEnabled(true);
       setProjectActiveScrollSource(column);
     };
-    const onColumnScroll = () => {
+    const onColumnScroll = (event) => {
+      const columnEl = event?.currentTarget;
+      if (!columnEl) return;
       setProjectCompactEnabled(true);
+      useProjectScrollSource(columnEl);
       refreshProjectShellCompactState();
       syncSituationsAvailableHeight(root);
     };

@@ -276,8 +276,7 @@ export function registerProjectScrollSources(...elements) {
   const onSourceChange = (event) => {
     const sourceEl = event?.currentTarget;
     if (sourceEl) {
-      shellState.activeScrollSourceEl = sourceEl;
-      shellState.activeScrollSourceResolver = null;
+      useProjectScrollSource(sourceEl);
     }
     syncCompactState();
   };
@@ -318,6 +317,15 @@ export function setProjectActiveScrollSource(el, { resolve = null } = {}) {
   }
 
   syncCompactState();
+}
+
+export function useProjectScrollSource(el) {
+  if (!el) return;
+  if (shellState.activeScrollSourceEl === el && !shellState.activeScrollSourceResolver) return;
+  shellState.cleanupActiveScrollSource?.();
+  shellState.cleanupActiveScrollSource = null;
+  shellState.activeScrollSourceEl = el;
+  shellState.activeScrollSourceResolver = null;
 }
 
 export function clearProjectActiveScrollSource(el = null) {
