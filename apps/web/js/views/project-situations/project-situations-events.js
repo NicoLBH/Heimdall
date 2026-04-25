@@ -198,8 +198,8 @@ export function createProjectSituationsEvents({
       rerender(root);
       return true;
     }
-    if (actionNode.matches("[data-subject-objective-toggle]")) {
-      const objectiveId = normalizeGridDropdownTogglePayload(actionNode, "data-subject-objective-toggle");
+    if (actionNode.matches("[data-objective-select]")) {
+      const objectiveId = normalizeGridDropdownTogglePayload(actionNode, "data-objective-select");
       if (!objectiveId) return true;
       await toggleSubjectObjectiveFromSharedDropdown?.(subjectId, objectiveId, { rerender: false });
       rerender(root);
@@ -338,7 +338,7 @@ export function createProjectSituationsEvents({
 
       document.addEventListener("click", async (event) => {
         const actionNode = event.target.closest(
-          "[data-subject-kanban-select],[data-subject-assignee-toggle],[data-subject-label-toggle],[data-subject-objective-toggle]"
+          "[data-subject-kanban-select],[data-subject-assignee-toggle],[data-subject-label-toggle],[data-objective-select]"
         );
         if (actionNode) {
           const state = ensureSituationGridCellDropdownState();
@@ -378,11 +378,12 @@ export function createProjectSituationsEvents({
           }
 
           try {
-            const handled = await handleSharedDropdownAction(root, actionNode);
-            if (handled) closeSituationGridCellDropdown();
+            await handleSharedDropdownAction(root, actionNode);
           } catch (error) {
             console.error("situation grid shared dropdown action failed", error);
             showSituationGridInlineError(root, error instanceof Error ? error.message : "La mise à jour a échoué.");
+          } finally {
+            closeSituationGridCellDropdown();
           }
           return;
         }

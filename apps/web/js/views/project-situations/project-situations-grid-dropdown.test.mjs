@@ -25,4 +25,5 @@ test("la grille réutilise les actions dropdown mutualisées pour assignés, lab
   assert.match(eventsSource, /toggleSubjectAssigneeFromSharedDropdown\?\.\(/);
   assert.match(eventsSource, /toggleSubjectLabelFromSharedDropdown\?\.\(/);
   assert.match(eventsSource, /toggleSubjectObjectiveFromSharedDropdown\?\.\(/);
+  assert.match(eventsSource, /data-objective-select/);
 });
