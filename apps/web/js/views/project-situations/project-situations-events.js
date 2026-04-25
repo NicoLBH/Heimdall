@@ -57,7 +57,8 @@ export function createProjectSituationsEvents({
   toggleSubjectObjectiveFromSharedDropdown,
   setSituationGridKanbanStatus,
   setSituationGridSubjectParent,
-  reorderSituationGridSubjectChildren
+  reorderSituationGridSubjectChildren,
+  reorderSituationGridRootSubjects
 }) {
   let insightsRequestId = 0;
 
@@ -818,24 +819,21 @@ export function createProjectSituationsEvents({
           draggingRow = null;
           return;
         }
-        if (!nextParentId) {
-          showSituationGridInlineError(root, "Le réordonnancement des sujets racine n’est pas encore disponible.");
-          clearDropIndicators();
-          draggingRow = null;
-          return;
-        }
 
         const raw = store?.projectSubjectsView?.rawSubjectsResult || {};
+        const rootIds = sortSubjectIdsByOrder(raw?.rootSubjectIds || [], raw.subjectsById || {});
         const sourceParentId = normalizeSubjectId(
           raw?.parentBySubjectId?.[sourceId]
           || raw?.subjectsById?.[sourceId]?.parent_subject_id
           || raw?.subjectsById?.[sourceId]?.raw?.parent_subject_id
         );
-        const childrenBySubjectId = raw?.childrenBySubjectId && typeof raw.childrenBySubjectId === "object"
-          ? raw.childrenBySubjectId
-          : {};
-        const sourceSiblings = sortSubjectIdsByOrder(childrenBySubjectId[sourceParentId] || [], raw.subjectsById || {});
-        const targetSiblings = sortSubjectIdsByOrder(childrenBySubjectId[nextParentId] || [], raw.subjectsById || {});
+        const resolveChildrenForParent = (parentId) => {
+          const normalizedParentId = normalizeSubjectId(parentId);
+          if (!normalizedParentId) return rootIds;
+          return Array.isArray(raw?.childrenBySubjectId?.[normalizedParentId]) ? raw.childrenBySubjectId[normalizedParentId] : [];
+        };
+        const sourceSiblings = sortSubjectIdsByOrder(resolveChildrenForParent(sourceParentId), raw.subjectsById || {});
+        const targetSiblings = sortSubjectIdsByOrder(resolveChildrenForParent(nextParentId), raw.subjectsById || {});
         const nextSourceSiblings = sourceSiblings.filter((id) => id !== sourceId);
         const nextTargetSiblings = sourceParentId === nextParentId
           ? nextSourceSiblings
@@ -861,7 +859,11 @@ export function createProjectSituationsEvents({
           if (sourceParentId !== nextParentId) {
             await setSituationGridSubjectParent?.(sourceId, nextParentId || null);
           }
-          await reorderSituationGridSubjectChildren?.(nextParentId, nextTargetSiblings);
+          if (nextParentId) {
+            await reorderSituationGridSubjectChildren?.(nextParentId, nextTargetSiblings);
+          } else {
+            await reorderSituationGridRootSubjects?.(nextTargetSiblings);
+          }
           if (sourceParentId && sourceParentId !== nextParentId) {
             await reorderSituationGridSubjectChildren?.(sourceParentId, nextSourceSiblings);
           }

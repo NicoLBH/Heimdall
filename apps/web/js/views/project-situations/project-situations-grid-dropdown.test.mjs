@@ -58,5 +58,6 @@ test("la grille situation bind un DnD multi-niveaux avec instrumentation dédié
   assert.match(eventsSource, /logSituationGridDnd\("persist-error"/);
   assert.match(eventsSource, /await setSituationGridSubjectParent\?\.\(sourceId, nextParentId \|\| null\);/);
   assert.match(eventsSource, /await reorderSituationGridSubjectChildren\?\.\(nextParentId, nextTargetSiblings\);/);
+  assert.match(eventsSource, /await reorderSituationGridRootSubjects\?\.\(nextTargetSiblings\);/);
   assert.match(eventsSource, /bindSituationGridDnd\(root\);/);
 });

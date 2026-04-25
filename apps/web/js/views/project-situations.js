@@ -15,7 +15,8 @@ import { renderProjectSituationsRunbar, bindProjectSituationsRunbar } from "./pr
 import { loadFlatSubjectsForCurrentProject } from "../services/project-subjects-supabase.js";
 import {
   setSubjectParentRelationInSupabase,
-  reorderSubjectChildrenInSupabase
+  reorderSubjectChildrenInSupabase,
+  reorderRootSubjectsInSupabase
 } from "../services/subject-parent-relation-service.js";
 import {
   loadSituationsForCurrentProject,
@@ -494,6 +495,15 @@ const { bindEvents } = createProjectSituationsEvents({
     return reorderSubjectChildrenInSupabase({
       parentSubjectId: normalizedParentId,
       orderedChildIds: normalizedChildIds
+    });
+  },
+  reorderSituationGridRootSubjects: async (orderedRootSubjectIds = []) => {
+    const normalizedRootIds = [...new Set((Array.isArray(orderedRootSubjectIds) ? orderedRootSubjectIds : [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean))];
+    if (!normalizedRootIds.length) return [];
+    return reorderRootSubjectsInSupabase({
+      orderedRootSubjectIds: normalizedRootIds
     });
   }
 });
