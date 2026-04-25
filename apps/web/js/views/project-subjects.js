@@ -13,6 +13,8 @@ import {
   deleteLabel as deleteLabelInSupabase,
   addLabelToSubject as addLabelToSubjectInSupabase,
   removeLabelFromSubject as removeLabelFromSubjectInSupabase,
+  addSubjectAssignee as addSubjectAssigneeInSupabase,
+  removeSubjectAssignee as removeSubjectAssigneeInSupabase,
   replaceSubjectAssignees as replaceSubjectAssigneesInSupabase,
   replaceSubjectLabels as replaceSubjectLabelsInSupabase,
   replaceSubjectSituations as replaceSubjectSituationsInSupabase,
@@ -668,6 +670,8 @@ const projectSubjectsActions = createProjectSubjectsActions({
   getObjectives: (...args) => projectSubjectsView.getObjectives(...args),
   addLabelToSubjectInSupabase: (...args) => addLabelToSubjectInSupabase(...args),
   removeLabelFromSubjectInSupabase: (...args) => removeLabelFromSubjectInSupabase(...args),
+  addSubjectAssigneeInSupabase: (...args) => addSubjectAssigneeInSupabase(...args),
+  removeSubjectAssigneeInSupabase: (...args) => removeSubjectAssigneeInSupabase(...args),
   replaceSubjectAssigneesInSupabase: (...args) => replaceSubjectAssigneesInSupabase(...args),
   replaceSubjectLabelsInSupabase: (...args) => replaceSubjectLabelsInSupabase(...args),
   replaceSubjectSituationsInSupabase: (...args) => replaceSubjectSituationsInSupabase(...args),
@@ -998,9 +1002,11 @@ export function openSharedSubjectKanbanDropdown({
   return true;
 }
 
-export function closeSharedSubjectDropdowns() {
+export function closeSharedSubjectDropdowns(root = document) {
   closeSubjectMetaDropdown();
   closeSubjectKanbanDropdown();
+  renderSubjectMetaDropdownHost(root);
+  syncSubjectMetaDropdownPosition(root);
 }
 
 export function setSharedSubjectMetaDropdownQuery(query = "", root = document) {
