@@ -3606,10 +3606,20 @@ body.is-resizing{
   position:relative;
   background:color-mix(in srgb, rgb(31, 111, 235) 14%, transparent);
   transform:translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 0 rgb(31, 111, 235),
-    inset 0 -1px 0 0 rgb(31, 111, 235);
+  z-index:3;
 }
+.situation-grid .subissues-sortable-row.is-subissue-dragging::before,
+.situation-grid .subissues-sortable-row.is-subissue-dragging::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  height:2px;
+  background:rgb(31, 111, 235);
+  pointer-events:none;
+}
+.situation-grid .subissues-sortable-row.is-subissue-dragging::before{top:0;}
+.situation-grid .subissues-sortable-row.is-subissue-dragging::after{bottom:0;}
 .cell-subissue-assignees-value{
   display:flex;
   justify-content:flex-end;

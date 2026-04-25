@@ -87,7 +87,9 @@ test("les indicateurs de drop de la grille situation utilisent une ligne plus é
   assert.match(styleSource, /\.situation-grid \.subissues-sortable-row\.is-subissue-dragging\{/);
   assert.match(styleSource, /background:color-mix\(in srgb, rgb\(31, 111, 235\) 14%, transparent\);/);
   assert.match(styleSource, /transform:translateY\(-2px\);/);
-  assert.match(styleSource, /inset 0 1px 0 0 rgb\(31, 111, 235\)/);
-  assert.match(styleSource, /inset 0 -1px 0 0 rgb\(31, 111, 235\)/);
+  assert.match(styleSource, /\.situation-grid \.subissues-sortable-row\.is-subissue-dragging::before,/);
+  assert.match(styleSource, /height:2px;/);
+  assert.match(styleSource, /\.situation-grid \.subissues-sortable-row\.is-subissue-dragging::before\{top:0;\}/);
+  assert.match(styleSource, /\.situation-grid \.subissues-sortable-row\.is-subissue-dragging::after\{bottom:0;\}/);
   assert.match(styleSource, /\.subject-status-blocked-indicator \.octicon-blocked\{[\s\S]*background:var\(--bg\);/);
 });
