@@ -1,5 +1,8 @@
 import { bindLightTabs } from "../ui/light-tabs.js";
 import { renderProjectSituationDrilldown } from "../project-situation-drilldown.js";
+import { escapeHtml } from "../../utils/escape-html.js";
+import { svgIcon } from "../../ui/icons.js";
+import { renderSelectMenuSection } from "../ui/select-menu.js";
 import {
   buildSituationGridColumnWidthsScopeKey,
   getSituationGridColumnCssVariables,
@@ -18,6 +21,14 @@ function parseCsvList(value) {
     .map((entry) => entry.trim())
     .filter(Boolean))];
 }
+
+const SITUATION_GRID_KANBAN_OPTIONS = [
+  { key: "non_active", label: "Non activé", hint: "Hors de la pile active." },
+  { key: "to_activate", label: "À activer", hint: "Prêt à être pris en charge." },
+  { key: "in_progress", label: "En cours", hint: "Travail en cours." },
+  { key: "in_arbitration", label: "En arbitrage", hint: "Décision en attente." },
+  { key: "resolved", label: "Résolu", hint: "Sujet clôturé côté situation." }
+];
 
 export function createProjectSituationsEvents({
   store,
