@@ -112,7 +112,7 @@ export function createProjectSituationsView({
       return renderSituationKanban(selectedSituation, uiState.selectedSituationSubjects, { loading: uiState.selectedSituationLoading });
     }
     if (selectedLayout === "grille") {
-      return renderSituationGridView(selectedSituation, uiState.selectedSituationSubjects);
+      return renderSituationGridView(selectedSituation, uiState.selectedSituationSubjects, { store, uiState });
     }
     return renderSituationRoadmapView(selectedSituation, uiState.selectedSituationSubjects);
   }
