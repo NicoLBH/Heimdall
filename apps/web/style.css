@@ -10049,6 +10049,132 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   overflow:auto;
 }
 
+.project-situation-grid,
+.situation-grid{
+  width:100%;
+  min-height:0;
+  height:100%;
+  border:1px solid var(--borderColor-default, #30363d);
+  border-radius:8px;
+  background:var(--bgColor-default, #0d1117);
+}
+
+.project-situation-grid__scroll,
+.situation-grid__scroll{
+  min-height:0;
+  height:100%;
+  overflow:auto;
+}
+
+.project-situation-grid__header,
+.situation-grid__header{
+  position:sticky;
+  top:0;
+  z-index:2;
+  display:grid;
+  grid-template-columns:minmax(460px, 1fr);
+  background:var(--bgColor-default, #0d1117);
+  border-bottom:1px solid var(--borderColor-default, #30363d);
+}
+
+.project-situation-grid__head-cell,
+.situation-grid__head-cell{
+  min-height:32px;
+  padding:0 16px;
+  display:flex;
+  align-items:center;
+  font-size:12px;
+  font-weight:500;
+  color:var(--fgColor-muted, #8b949e);
+}
+
+.project-situation-grid__body,
+.situation-grid__body{
+  display:block;
+}
+
+.project-situation-grid__row,
+.situation-grid__row{
+  display:grid;
+  grid-template-columns:minmax(460px, 1fr);
+  border-bottom:1px solid var(--borderColor-default, #30363d);
+  min-height:40px;
+}
+
+.situation-grid__cell{
+  padding:0 16px;
+  display:flex;
+  align-items:center;
+  min-width:0;
+}
+
+.situation-grid__title-content{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  width:100%;
+}
+
+.situation-grid__indent{
+  width:var(--situation-grid-indent, 0px);
+  min-width:var(--situation-grid-indent, 0px);
+  height:1px;
+}
+
+.situation-grid__toggle{
+  width:20px;
+  height:20px;
+  min-width:20px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:none;
+  background:transparent;
+  color:var(--fgColor-muted, #8b949e);
+  border-radius:6px;
+  padding:0;
+}
+
+.situation-grid__toggle:hover{
+  background:var(--bgColor-muted, rgba(110,118,129,.1));
+  color:var(--fgColor-default, #e6edf3);
+}
+
+.situation-grid__toggle--placeholder{
+  pointer-events:none;
+}
+
+.situation-grid__status-icon{
+  flex:0 0 16px;
+}
+
+.situation-grid__subject-title{
+  border:none;
+  background:transparent;
+  padding:0;
+  margin:0;
+  color:var(--fgColor-default, #e6edf3);
+  font-size:14px;
+  line-height:1.35;
+  text-align:left;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.situation-grid__subject-title:hover{
+  color:var(--fgColor-accent, #2f81f7);
+}
+
+.situation-grid__subject-id{
+  color:var(--fgColor-muted, #8b949e);
+  font-size:12px;
+  flex:0 0 auto;
+}
+
 .situation-kanban__empty{
   border:1px dashed var(--borderColor-default, #30363d);
   border-radius:10px;

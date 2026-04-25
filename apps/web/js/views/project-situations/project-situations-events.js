@@ -448,6 +448,30 @@ export function createProjectSituationsEvents({
       }
     });
 
+    root.querySelectorAll("[data-situation-grid-toggle]").forEach((node) => {
+      node.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const subjectId = String(node.getAttribute("data-situation-grid-toggle") || "").trim();
+        const situationId = String(node.getAttribute("data-situation-grid-situation-id") || "").trim();
+        if (!subjectId || !situationId) return;
+        if (!store.situationsView || typeof store.situationsView !== "object") store.situationsView = {};
+        if (!store.situationsView.gridExpandedSubjectIdsBySituationId || typeof store.situationsView.gridExpandedSubjectIdsBySituationId !== "object") {
+          store.situationsView.gridExpandedSubjectIdsBySituationId = {};
+        }
+        const currentValues = store.situationsView.gridExpandedSubjectIdsBySituationId[situationId];
+        const expandedSet = new Set(
+          Array.isArray(currentValues)
+            ? currentValues.map((value) => String(value || "").trim()).filter(Boolean)
+            : []
+        );
+        if (expandedSet.has(subjectId)) expandedSet.delete(subjectId);
+        else expandedSet.add(subjectId);
+        store.situationsView.gridExpandedSubjectIdsBySituationId[situationId] = [...expandedSet];
+        rerender(root);
+      });
+    });
+
     bindCreateModalEvents(root);
     bindEditPanelEvents(root);
   }
