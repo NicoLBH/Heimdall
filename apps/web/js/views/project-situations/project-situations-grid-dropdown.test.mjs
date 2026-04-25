@@ -74,7 +74,7 @@ test("le drop de grille est résolu au niveau du conteneur pour accepter toute l
   assert.match(eventsSource, /dropContainer\.addEventListener\("drop", async \(event\) => \{/);
   assert.match(eventsSource, /const resolveDropTargetFromPointer = \(clientY\) => \{/);
   assert.match(eventsSource, /row\.style\.setProperty\("--situation-grid-drop-indent"/);
-  assert.match(eventsSource, /const indent = Math\.max\(0, depth - 1\) \* 20;/);
+  assert.match(eventsSource, /const indent = \(depth \+ 2\) \* 20;/);
 });
 
 test("les indicateurs de drop de la grille situation utilisent une ligne plus épaisse et indentée", () => {

@@ -10322,7 +10322,25 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 }
 
 .situation-grid__status-icon{
+  position:relative;
   flex:0 0 16px;
+}
+
+.subject-status-blocked-indicator{
+  position:absolute;
+  right:-5px;
+  bottom:-5px;
+  width:12px;
+  height:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--danger-fg,#f85149);
+}
+
+.subject-status-blocked-indicator .octicon-blocked{
+  width:12px;
+  height:12px;
 }
 
 .situation-grid__subject-title{
@@ -10515,6 +10533,7 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 }
 
 .situation-kanban-card__status-icon{
+  position:relative;
   flex:0 0 auto;
 }
 

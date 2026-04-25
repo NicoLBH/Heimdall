@@ -127,3 +127,39 @@ test("normalizeSituationGridColumnWidths respecte les largeurs minimales par col
   assert.equal(widths.labels, 480);
   assert.equal(widths.objectives, 220);
 });
+
+test("renderSituationGridView affiche l'indicateur blocked même si le bloqueur n'est pas dans la situation", () => {
+  const html = renderSituationGridView(
+    { id: "sit-1", title: "Situation" },
+    [{ id: "subject-1", title: "Sujet 1", status: "open" }],
+    {
+      store: {
+        situationsView: {},
+        projectSubjectsView: {
+          subjectLinks: [
+            {
+              id: "l-1",
+              link_type: "blocked_by",
+              source_subject_id: "subject-1",
+              target_subject_id: "subject-x"
+            }
+          ],
+          rawSubjectsResult: {
+            subjectsById: {
+              "subject-1": { id: "subject-1", title: "Sujet 1", status: "open" }
+            },
+            childrenBySubjectId: {
+              "subject-1": []
+            },
+            parentBySubjectId: {
+              "subject-1": null
+            }
+          }
+        }
+      }
+    }
+  );
+
+  assert.match(html, /subject-status-blocked-indicator/);
+  assert.match(html, /situation-grid__status-blocked-indicator/);
+});
