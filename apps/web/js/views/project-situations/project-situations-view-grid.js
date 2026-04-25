@@ -2,8 +2,28 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { renderSubjectTreeGrid } from "../shared/subject-tree-grid.js";
 
+const KANBAN_STATUS_META = {
+  non_active: { label: "Non activé", bg: "rgba(46, 160, 67, 0.15)", border: "rgb(35, 134, 54)", text: "rgb(63, 185, 80)" },
+  to_activate: { label: "À activer", bg: "rgba(56, 139, 253, 0.1)", border: "rgb(31, 111, 235)", text: "rgb(88, 166, 255)" },
+  in_progress: { label: "En cours", bg: "rgba(187, 128, 9, 0.15)", border: "rgb(158, 106, 3)", text: "rgb(210, 153, 34)" },
+  in_arbitration: { label: "En arbitrage", bg: "rgba(171, 125, 248, 0.15)", border: "rgb(137, 87, 229)", text: "rgb(188, 140, 255)" },
+  resolved: { label: "Résolu", bg: "rgba(219, 109, 40, 0.1)", border: "rgb(189, 86, 29)", text: "rgb(255, 161, 107)" }
+};
+
 function normalizeIssueLifecycleStatus(status = "") {
   return String(status || "").trim().toLowerCase() === "closed" ? "closed" : "open";
+}
+
+function normalizeId(value) {
+  return String(value || "").trim();
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
 }
 
 function renderIssueStateIcon(subject) {
@@ -13,10 +33,6 @@ function renderIssueStateIcon(subject) {
       ? svgIcon("check-circle", { style: "color: var(--fgColor-done)" })
       : svgIcon("issue-opened", { style: "color: var(--fgColor-open)" })
   }</span>`;
-}
-
-function normalizeId(value) {
-  return String(value || "").trim();
 }
 
 function sortSubjectIds(subjectIds = [], subjectsById = {}) {
@@ -117,6 +133,163 @@ function getSubjectDisplayIdentifier(subject = {}) {
   return subjectId ? `#${subjectId}` : "";
 }
 
+function getSubjectProgress(subject, subjectsById = {}, childrenBySubjectId = {}) {
+  const subjectId = normalizeId(subject?.id);
+  const childIds = Array.isArray(childrenBySubjectId?.[subjectId]) ? childrenBySubjectId[subjectId] : [];
+  const childSubjects = childIds.map((id) => subjectsById?.[id]).filter(Boolean);
+  const total = childSubjects.length;
+  if (!total) return null;
+  const resolved = childSubjects.filter((child) => normalizeIssueLifecycleStatus(child?.status) === "closed").length;
+  const percent = Math.max(0, Math.min(100, Math.round((resolved / total) * 100)));
+  return { resolved, total, percent };
+}
+
+function getKanbanStatusMeta(subjectId, situationId, store) {
+  const normalizedSubjectId = normalizeId(subjectId);
+  const normalizedSituationId = normalizeId(situationId);
+  const key = String(store?.situationsView?.kanbanStatusBySituationId?.[normalizedSituationId]?.[normalizedSubjectId] || "non_active").trim().toLowerCase();
+  return KANBAN_STATUS_META[key] || KANBAN_STATUS_META.non_active;
+}
+
+function getActiveProjectCollaborators(store) {
+  const collaborators = Array.isArray(store?.projectForm?.collaborators) ? store.projectForm.collaborators : [];
+  return collaborators
+    .filter((collaborator) => String(collaborator?.status || "Actif").toLowerCase() !== "retiré")
+    .map((collaborator) => ({
+      id: firstNonEmpty(collaborator?.personId, collaborator?.id),
+      name: firstNonEmpty(collaborator?.name, [collaborator?.firstName, collaborator?.lastName].filter(Boolean).join(" "), collaborator?.email, "Utilisateur"),
+      avatarUrl: firstNonEmpty(collaborator?.avatarUrl, collaborator?.avatar, "")
+    }))
+    .filter((collaborator) => !!collaborator.id);
+}
+
+function renderAssigneesCell(subjectId, rawSubjectsResult = {}, store = {}) {
+  const assigneeMap = rawSubjectsResult?.assigneePersonIdsBySubjectId && typeof rawSubjectsResult.assigneePersonIdsBySubjectId === "object"
+    ? rawSubjectsResult.assigneePersonIdsBySubjectId
+    : {};
+  const assigneeIds = Array.isArray(assigneeMap?.[subjectId]) ? assigneeMap[subjectId].map((value) => normalizeId(value)).filter(Boolean) : [];
+  if (!assigneeIds.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+
+  const collaboratorsById = new Map(getActiveProjectCollaborators(store).map((item) => [item.id, item]));
+  const firstAssignees = assigneeIds.slice(0, 3).map((id) => collaboratorsById.get(id) || { id, name: `Collaborateur ${id.slice(0, 8)}`, avatarUrl: "" });
+  const overflowCount = Math.max(0, assigneeIds.length - firstAssignees.length);
+
+  return `
+    <span class="situation-grid__assignees" aria-label="${escapeHtml(`${assigneeIds.length} assigné(s)`)}">
+      ${firstAssignees.map((assignee) => {
+        const initials = String(assignee?.name || "U")
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part.charAt(0).toUpperCase())
+          .join("") || "U";
+        return assignee?.avatarUrl
+          ? `<img class="situation-grid__assignee-avatar" src="${escapeHtml(assignee.avatarUrl)}" alt="${escapeHtml(assignee.name || "Assigné")}" loading="lazy">`
+          : `<span class="situation-grid__assignee-avatar situation-grid__assignee-avatar--fallback" aria-hidden="true">${escapeHtml(initials)}</span>`;
+      }).join("")}
+      ${overflowCount > 0 ? `<span class="situation-grid__assignee-overflow mono">+${overflowCount}</span>` : ""}
+    </span>
+  `;
+}
+
+function renderKanbanCell(subjectId, situationId, store) {
+  const meta = getKanbanStatusMeta(subjectId, situationId, store);
+  return `<span class="subject-kanban-badge" style="--subject-kanban-badge-bg:${meta.bg};--subject-kanban-badge-border:${meta.border};--subject-kanban-badge-text:${meta.text};">${escapeHtml(meta.label)}</span>`;
+}
+
+function renderProgressCell(subject, subjectsById = {}, childrenBySubjectId = {}) {
+  const progress = getSubjectProgress(subject, subjectsById, childrenBySubjectId);
+  if (!progress) return "<span class=\"situation-grid__empty-cell\"></span>";
+  return `
+    <span class="situation-grid__progress">
+      <span class="situation-grid__progress-meta mono">${progress.resolved} / ${progress.total}</span>
+      <span class="situation-grid__progress-bar" aria-hidden="true"><span class="situation-grid__progress-value" style="width:${progress.percent}%"></span></span>
+      <span class="situation-grid__progress-percent mono">${progress.percent}%</span>
+    </span>
+  `;
+}
+
+function renderLabelsCell(subjectId, rawSubjectsResult = {}) {
+  const labelsById = rawSubjectsResult?.labelsById && typeof rawSubjectsResult.labelsById === "object" ? rawSubjectsResult.labelsById : {};
+  const labelIdsBySubjectId = rawSubjectsResult?.labelIdsBySubjectId && typeof rawSubjectsResult.labelIdsBySubjectId === "object" ? rawSubjectsResult.labelIdsBySubjectId : {};
+  const labelIds = Array.isArray(labelIdsBySubjectId?.[subjectId]) ? labelIdsBySubjectId[subjectId] : [];
+  if (!labelIds.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+
+  const labels = labelIds
+    .map((labelId) => labelsById[normalizeId(labelId)] || null)
+    .filter(Boolean);
+  if (!labels.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+
+  const visible = labels.slice(0, 2);
+  const overflow = Math.max(0, labels.length - visible.length);
+  return `
+    <span class="situation-grid__labels">
+      ${visible.map((label) => {
+        const labelName = firstNonEmpty(label?.name, label?.label, label?.key, label?.id, "Label");
+        return `<span class="subject-label-badge">${escapeHtml(labelName)}</span>`;
+      }).join("")}
+      ${overflow > 0 ? `<span class="situation-grid__pill-overflow mono">+${overflow}</span>` : ""}
+    </span>
+  `;
+}
+
+function renderObjectivesCell(subjectId, rawSubjectsResult = {}) {
+  const objectivesById = rawSubjectsResult?.objectivesById && typeof rawSubjectsResult.objectivesById === "object" ? rawSubjectsResult.objectivesById : {};
+  const objectiveIdsBySubjectId = rawSubjectsResult?.objectiveIdsBySubjectId && typeof rawSubjectsResult.objectiveIdsBySubjectId === "object" ? rawSubjectsResult.objectiveIdsBySubjectId : {};
+  const objectiveIds = Array.isArray(objectiveIdsBySubjectId?.[subjectId]) ? objectiveIdsBySubjectId[subjectId] : [];
+  if (!objectiveIds.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+
+  const objectives = objectiveIds
+    .map((objectiveId) => objectivesById[normalizeId(objectiveId)] || null)
+    .filter(Boolean);
+  if (!objectives.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+
+  const visible = objectives.slice(0, 1);
+  const overflow = Math.max(0, objectives.length - visible.length);
+  return `
+    <span class="situation-grid__objectives">
+      ${visible.map((objective) => `<span class="situation-grid__objective-pill"><span class="situation-grid__objective-icon" aria-hidden="true">${svgIcon("milestone", { className: "octicon octicon-milestone" })}</span>${escapeHtml(firstNonEmpty(objective?.title, objective?.name, objective?.id, "Objectif"))}</span>`).join("")}
+      ${overflow > 0 ? `<span class="situation-grid__pill-overflow mono">+${overflow}</span>` : ""}
+    </span>
+  `;
+}
+
+function renderPriorityCell(subject = {}) {
+  const priority = firstNonEmpty(subject?.priority, subject?.raw?.priority, "");
+  if (!priority) return "<span class=\"situation-grid__empty-cell\"></span>";
+  return `<span class="situation-grid__priority-pill">${escapeHtml(priority)}</span>`;
+}
+
+function formatDateCellValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
+}
+
+function renderDatesCell(subject = {}) {
+  const created = formatDateCellValue(subject?.created_at || subject?.raw?.created_at);
+  const updated = formatDateCellValue(subject?.updated_at || subject?.raw?.updated_at);
+  if (!created && !updated) return "<span class=\"situation-grid__empty-cell\"></span>";
+  return `<span class="situation-grid__dates mono-small">${escapeHtml(created || "—")} · ${escapeHtml(updated || "—")}</span>`;
+}
+
+function renderGridHeaderRow() {
+  return `
+    <header class="project-situation-grid__header situation-grid__header" role="row">
+      <div class="project-situation-grid__head-cell situation-grid__head-cell situation-grid__head-cell--title" role="columnheader">Titre</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--assignees" role="columnheader">Assignés</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--kanban" role="columnheader">Statut</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--progress" role="columnheader">Progression</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--labels" role="columnheader">Labels</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--objectives" role="columnheader">Objectifs</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--priority" role="columnheader">Priorité</div>
+      <div class="project-situation-grid__head-cell situation-grid__head-cell--dates" role="columnheader">Créé · MAJ</div>
+    </header>
+  `;
+}
+
 export function renderSituationGridView(situation, subjects = [], options = {}) {
   const title = String(situation?.title || "Situation");
   const normalizedSituationId = normalizeId(situation?.id);
@@ -139,6 +312,7 @@ export function renderSituationGridView(situation, subjects = [], options = {}) 
   const rawSubjectsResult = options?.store?.projectSubjectsView?.rawSubjectsResult && typeof options.store.projectSubjectsView.rawSubjectsResult === "object"
     ? options.store.projectSubjectsView.rawSubjectsResult
     : {};
+
   const {
     selectedSubjectIds,
     subjectsById,
@@ -199,16 +373,22 @@ export function renderSituationGridView(situation, subjects = [], options = {}) 
         </div>
       `;
     },
-    renderExtraCells: () => ""
+    renderExtraCells: ({ subject, subjectId }) => `
+      <div class="situation-grid__cell situation-grid__cell--assignees">${renderAssigneesCell(subjectId, rawSubjectsResult, options?.store || {})}</div>
+      <div class="situation-grid__cell situation-grid__cell--kanban">${renderKanbanCell(subjectId, normalizedSituationId, options?.store || {})}</div>
+      <div class="situation-grid__cell situation-grid__cell--progress">${renderProgressCell(subject, subjectsById, childrenBySubjectId)}</div>
+      <div class="situation-grid__cell situation-grid__cell--labels">${renderLabelsCell(subjectId, rawSubjectsResult)}</div>
+      <div class="situation-grid__cell situation-grid__cell--objectives">${renderObjectivesCell(subjectId, rawSubjectsResult)}</div>
+      <div class="situation-grid__cell situation-grid__cell--priority">${renderPriorityCell(subject)}</div>
+      <div class="situation-grid__cell situation-grid__cell--dates">${renderDatesCell(subject)}</div>
+    `
   });
 
   return `
     <section class="project-situation-alt-view project-situation-alt-view--grid" aria-label="Vue grille">
       <section class="project-situation-grid situation-grid" data-situation-grid="${escapeHtml(normalizedSituationId)}">
         <div class="project-situation-grid__scroll situation-grid__scroll">
-          <header class="project-situation-grid__header situation-grid__header" role="row">
-            <div class="project-situation-grid__head-cell situation-grid__head-cell situation-grid__head-cell--title" role="columnheader">Titre</div>
-          </header>
+          ${renderGridHeaderRow()}
           <div class="project-situation-grid__body situation-grid__body" role="rowgroup">
             ${rowsHtml}
           </div>
@@ -220,6 +400,8 @@ export function renderSituationGridView(situation, subjects = [], options = {}) 
 
 export function __situationGridTestUtils() {
   return {
-    resolveSituationTreeData
+    resolveSituationTreeData,
+    getSubjectProgress,
+    getKanbanStatusMeta
   };
 }
