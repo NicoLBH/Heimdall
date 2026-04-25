@@ -741,7 +741,9 @@ export function createProjectSituationsEvents({
 
     Object.entries(orderedByParentId || {}).forEach(([parentId, childIds]) => {
       const normalizedParentId = normalizeSubjectId(parentId);
-      const normalizedChildIds = sortSubjectIdsByOrder(childIds, raw.subjectsById);
+      const normalizedChildIds = [...new Set((Array.isArray(childIds) ? childIds : [])
+        .map((value) => normalizeSubjectId(value))
+        .filter(Boolean))];
       normalizedChildIds.forEach((childId, index) => {
         const child = raw.subjectsById[childId];
         if (!child) return;

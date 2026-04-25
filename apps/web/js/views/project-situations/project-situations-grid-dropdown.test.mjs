@@ -61,3 +61,8 @@ test("la grille situation bind un DnD multi-niveaux avec instrumentation dédié
   assert.match(eventsSource, /await reorderSituationGridRootSubjects\?\.\(nextTargetSiblings\);/);
   assert.match(eventsSource, /bindSituationGridDnd\(root\);/);
 });
+
+test("le patch local de hiérarchie respecte l'ordre déposé sans resort implicite", () => {
+  assert.match(eventsSource, /const normalizedChildIds = \[\.\.\.new Set\(\(Array\.isArray\(childIds\) \? childIds : \[\]\)/);
+  assert.doesNotMatch(eventsSource, /const normalizedChildIds = sortSubjectIdsByOrder\(childIds, raw\.subjectsById\);/);
+});
