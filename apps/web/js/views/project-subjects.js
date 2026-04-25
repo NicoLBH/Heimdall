@@ -1002,9 +1002,11 @@ export function openSharedSubjectKanbanDropdown({
   return true;
 }
 
-export function closeSharedSubjectDropdowns() {
+export function closeSharedSubjectDropdowns(root = document) {
   closeSubjectMetaDropdown();
   closeSubjectKanbanDropdown();
+  renderSubjectMetaDropdownHost(root);
+  syncSubjectMetaDropdownPosition(root);
 }
 
 export function setSharedSubjectMetaDropdownQuery(query = "", root = document) {
