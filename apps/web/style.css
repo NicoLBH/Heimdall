@@ -10146,7 +10146,7 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 .situation-grid__resize-handle{
   position:absolute;
   top:0;
-  right:-5px;
+  right:-6px;
   width:10px;
   height:100%;
   border:none;
@@ -10160,8 +10160,8 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 .situation-grid__resize-handle::before{
   content:"";
   position:absolute;
-  top:8px;
-  bottom:8px;
+  top:0px;
+  bottom:0px;
   left:4px;
   width:1px;
   background:var(--borderColor-default, #30363d);
