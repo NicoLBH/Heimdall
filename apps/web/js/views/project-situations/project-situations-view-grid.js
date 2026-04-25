@@ -248,7 +248,21 @@ function renderAssigneesCell(subjectId, rawSubjectsResult = {}, store = {}) {
 
 function renderKanbanCell(subjectId, situationId, store) {
   const meta = getKanbanStatusMeta(subjectId, situationId, store);
-  return `<span class="subject-kanban-badge" style="--subject-kanban-badge-bg:${meta.bg};--subject-kanban-badge-border:${meta.border};--subject-kanban-badge-text:${meta.text};">${escapeHtml(meta.label)}</span>`;
+  return `
+    <button
+      type="button"
+      class="situation-grid__editable-trigger"
+      data-situation-grid-edit-cell="kanban"
+      data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+      data-situation-grid-situation-id="${escapeHtml(situationId)}"
+      aria-haspopup="menu"
+      aria-expanded="false"
+      title="Modifier le statut kanban"
+    >
+      <span class="subject-kanban-badge" style="--subject-kanban-badge-bg:${meta.bg};--subject-kanban-badge-border:${meta.border};--subject-kanban-badge-text:${meta.text};">${escapeHtml(meta.label)}</span>
+      <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+    </button>
+  `;
 }
 
 function renderProgressCell(subject, subjectsById = {}, childrenBySubjectId = {}) {
@@ -267,23 +281,64 @@ function renderLabelsCell(subjectId, rawSubjectsResult = {}) {
   const labelsById = rawSubjectsResult?.labelsById && typeof rawSubjectsResult.labelsById === "object" ? rawSubjectsResult.labelsById : {};
   const labelIdsBySubjectId = rawSubjectsResult?.labelIdsBySubjectId && typeof rawSubjectsResult.labelIdsBySubjectId === "object" ? rawSubjectsResult.labelIdsBySubjectId : {};
   const labelIds = Array.isArray(labelIdsBySubjectId?.[subjectId]) ? labelIdsBySubjectId[subjectId] : [];
-  if (!labelIds.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+  if (!labelIds.length) {
+    return `
+      <button
+        type="button"
+        class="situation-grid__editable-trigger situation-grid__editable-trigger--empty"
+        data-situation-grid-edit-cell="labels"
+        data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        title="Modifier les labels"
+      >
+        <span class="situation-grid__empty-cell"></span>
+        <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+      </button>
+    `;
+  }
 
   const labels = labelIds
     .map((labelId) => labelsById[normalizeId(labelId)] || null)
     .filter(Boolean);
-  if (!labels.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+  if (!labels.length) {
+    return `
+      <button
+        type="button"
+        class="situation-grid__editable-trigger situation-grid__editable-trigger--empty"
+        data-situation-grid-edit-cell="labels"
+        data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        title="Modifier les labels"
+      >
+        <span class="situation-grid__empty-cell"></span>
+        <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+      </button>
+    `;
+  }
 
   const visible = labels.slice(0, 2);
   const overflow = Math.max(0, labels.length - visible.length);
   return `
-    <span class="situation-grid__labels">
+    <button
+      type="button"
+      class="situation-grid__editable-trigger"
+      data-situation-grid-edit-cell="labels"
+      data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+      aria-haspopup="menu"
+      aria-expanded="false"
+      title="Modifier les labels"
+    >
+      <span class="situation-grid__labels">
       ${visible.map((label) => {
         const labelName = firstNonEmpty(label?.name, label?.label, label?.key, label?.id, "Label");
         return `<span class="subject-label-badge">${escapeHtml(labelName)}</span>`;
       }).join("")}
       ${overflow > 0 ? `<span class="situation-grid__pill-overflow mono">+${overflow}</span>` : ""}
-    </span>
+      </span>
+      <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+    </button>
   `;
 }
 
@@ -291,20 +346,61 @@ function renderObjectivesCell(subjectId, rawSubjectsResult = {}) {
   const objectivesById = rawSubjectsResult?.objectivesById && typeof rawSubjectsResult.objectivesById === "object" ? rawSubjectsResult.objectivesById : {};
   const objectiveIdsBySubjectId = rawSubjectsResult?.objectiveIdsBySubjectId && typeof rawSubjectsResult.objectiveIdsBySubjectId === "object" ? rawSubjectsResult.objectiveIdsBySubjectId : {};
   const objectiveIds = Array.isArray(objectiveIdsBySubjectId?.[subjectId]) ? objectiveIdsBySubjectId[subjectId] : [];
-  if (!objectiveIds.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+  if (!objectiveIds.length) {
+    return `
+      <button
+        type="button"
+        class="situation-grid__editable-trigger situation-grid__editable-trigger--empty"
+        data-situation-grid-edit-cell="objectives"
+        data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        title="Modifier les objectifs"
+      >
+        <span class="situation-grid__empty-cell"></span>
+        <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+      </button>
+    `;
+  }
 
   const objectives = objectiveIds
     .map((objectiveId) => objectivesById[normalizeId(objectiveId)] || null)
     .filter(Boolean);
-  if (!objectives.length) return "<span class=\"situation-grid__empty-cell\"></span>";
+  if (!objectives.length) {
+    return `
+      <button
+        type="button"
+        class="situation-grid__editable-trigger situation-grid__editable-trigger--empty"
+        data-situation-grid-edit-cell="objectives"
+        data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        title="Modifier les objectifs"
+      >
+        <span class="situation-grid__empty-cell"></span>
+        <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+      </button>
+    `;
+  }
 
   const visible = objectives.slice(0, 1);
   const overflow = Math.max(0, objectives.length - visible.length);
   return `
-    <span class="situation-grid__objectives">
+    <button
+      type="button"
+      class="situation-grid__editable-trigger"
+      data-situation-grid-edit-cell="objectives"
+      data-situation-grid-subject-id="${escapeHtml(subjectId)}"
+      aria-haspopup="menu"
+      aria-expanded="false"
+      title="Modifier les objectifs"
+    >
+      <span class="situation-grid__objectives">
       ${visible.map((objective) => `<span class="situation-grid__objective-pill"><span class="situation-grid__objective-icon" aria-hidden="true">${svgIcon("milestone", { className: "octicon octicon-milestone" })}</span>${escapeHtml(firstNonEmpty(objective?.title, objective?.name, objective?.id, "Objectif"))}</span>`).join("")}
       ${overflow > 0 ? `<span class="situation-grid__pill-overflow mono">+${overflow}</span>` : ""}
-    </span>
+      </span>
+      <span class="situation-grid__editable-caret" aria-hidden="true">${svgIcon("chevron-down", { className: "octicon octicon-chevron-down" })}</span>
+    </button>
   `;
 }
 

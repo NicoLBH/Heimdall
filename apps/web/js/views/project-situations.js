@@ -430,7 +430,34 @@ const { bindEvents } = createProjectSituationsEvents({
   getSituationById,
   loadSituationSelection,
   loadSituationInsightsData,
-  openSituationDrilldownFromSelection
+  openSituationDrilldownFromSelection,
+  setSituationGridKanbanStatus: async (situationId, subjectId, nextStatus) => {
+    const normalizedSituationId = String(situationId || "").trim();
+    const normalizedSubjectId = String(subjectId || "").trim();
+    const normalizedNextStatus = String(nextStatus || "").trim().toLowerCase();
+    if (!normalizedSituationId || !normalizedSubjectId || !normalizedNextStatus) return false;
+    try {
+      await setSituationSubjectKanbanStatus(normalizedSituationId, normalizedSubjectId, normalizedNextStatus);
+      if (!store.situationsView || typeof store.situationsView !== "object") store.situationsView = {};
+      store.situationsView.kanbanStatusBySituationId = {
+        ...(store.situationsView.kanbanStatusBySituationId || {}),
+        [normalizedSituationId]: {
+          ...((store.situationsView.kanbanStatusBySituationId || {})[normalizedSituationId] || {}),
+          [normalizedSubjectId]: normalizedNextStatus
+        }
+      };
+      return true;
+    } catch (error) {
+      await loadSituationKanbanStatusMap([normalizedSituationId]).then((map) => {
+        if (!store.situationsView || typeof store.situationsView !== "object") store.situationsView = {};
+        store.situationsView.kanbanStatusBySituationId = {
+          ...(store.situationsView.kanbanStatusBySituationId || {}),
+          ...(map || {})
+        };
+      }).catch(() => undefined);
+      throw error;
+    }
+  }
 });
 
 export function renderProjectSituations(root) {
