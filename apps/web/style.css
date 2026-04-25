@@ -10210,6 +10210,21 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   justify-content:space-between;
   gap:8px;
   text-align:left;
+  position:relative;
+}
+
+.situation-grid__cell{
+  position:relative;
+}
+
+.situation-grid__cell--active::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  border:2px solid rgb(31, 111, 235);
+  border-radius:4px;
+  pointer-events:none;
+  z-index:2;
 }
 
 .situation-grid__editable-trigger:hover .situation-grid__editable-caret,
