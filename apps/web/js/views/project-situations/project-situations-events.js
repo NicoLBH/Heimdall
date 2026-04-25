@@ -86,6 +86,11 @@ export function createProjectSituationsEvents({
     console.info(`[situation-grid-dropdown] ${message}`, payload);
   }
 
+  function logSituationGridSupabaseMutation(payload = {}) {
+    if (!isSituationGridDropdownDebugEnabled()) return;
+    console.info("[situation-grid-dropdown] supabase-mutation", payload);
+  }
+
   function getSharedDropdownDebugMeta() {
     const dropdown = store?.projectSubjectsView?.subjectMetaDropdown || {};
     return {
@@ -282,6 +287,41 @@ export function createProjectSituationsEvents({
       type: actionType
     };
     logSituationGridDropdown("shared-action:start", payload);
+    logSituationGridSupabaseMutation({
+      action: actionType === "assignee"
+        ? "assignee:toggle"
+        : actionType === "label"
+          ? "label:toggle"
+          : "objective:toggle",
+      field,
+      subjectId,
+      situationId,
+      value,
+      method: actionType === "objective"
+        ? "POST|DELETE"
+        : actionType === "assignee"
+          ? "POST|DELETE"
+          : "POST|DELETE",
+      endpoint: actionType === "objective"
+        ? "/rest/v1/milestone_subjects"
+        : actionType === "assignee"
+          ? "/rest/v1/subject_assignees"
+          : "/rest/v1/subject_labels",
+      payload: actionType === "objective"
+        ? {
+            milestone_id: value,
+            subject_id: subjectId
+          }
+        : actionType === "assignee"
+          ? {
+              person_id: value,
+              subject_id: subjectId
+            }
+          : {
+              label_id: value,
+              subject_id: subjectId
+            }
+    });
     try {
       const success = await action?.(subjectId, value, { root, skipRerender: true });
       if (success === true) {
@@ -430,6 +470,24 @@ export function createProjectSituationsEvents({
     closeSituationGridCellDropdown();
     try {
       logSituationGridDropdown("kanban-action:start", payload);
+      logSituationGridSupabaseMutation({
+        action: "kanban:update",
+        field: "kanban",
+        subjectId,
+        situationId,
+        value: nextStatus,
+        method: "PATCH",
+        endpoint: "/rest/v1/situation_subjects",
+        payload: {
+          where: {
+            situation_id: `eq.${situationId}`,
+            subject_id: `eq.${subjectId}`
+          },
+          body: {
+            kanban_status: nextStatus
+          }
+        }
+      });
       await setSituationGridKanbanStatus?.(situationId, subjectId, nextStatus);
       logSituationGridDropdown("kanban-action:success", payload);
     } catch (error) {
