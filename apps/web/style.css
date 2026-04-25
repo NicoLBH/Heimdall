@@ -3600,8 +3600,8 @@ body.is-resizing{
   pointer-events:none;
   z-index:2;
 }
-.situation-grid .subissues-sortable-row.is-subissue-drop-before::before{top:0;}
-.situation-grid .subissues-sortable-row.is-subissue-drop-after::after{bottom:0;}
+.situation-grid .subissues-sortable-row.is-subissue-drop-before::before{top:-1px;}
+.situation-grid .subissues-sortable-row.is-subissue-drop-after::after{bottom:1px;}
 .cell-subissue-assignees-value{
   display:flex;
   justify-content:flex-end;

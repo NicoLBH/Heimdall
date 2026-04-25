@@ -782,7 +782,7 @@ export function createProjectSituationsEvents({
     const applyDropIndicator = (row, placement) => {
       if (!row || !placement) return;
       const depth = Math.max(0, Number(row.dataset.subissueDepth || 0));
-      const indent = depth * 20;
+      const indent = Math.max(0, depth - 1) * 20;
       clearDropIndicators();
       row.classList.add(placement === "before" ? "is-subissue-drop-before" : "is-subissue-drop-after");
       row.style.setProperty("--situation-grid-drop-indent", `${indent}px`);

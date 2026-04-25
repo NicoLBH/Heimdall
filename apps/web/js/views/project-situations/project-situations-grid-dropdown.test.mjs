@@ -74,6 +74,7 @@ test("le drop de grille est résolu au niveau du conteneur pour accepter toute l
   assert.match(eventsSource, /dropContainer\.addEventListener\("drop", async \(event\) => \{/);
   assert.match(eventsSource, /const resolveDropTargetFromPointer = \(clientY\) => \{/);
   assert.match(eventsSource, /row\.style\.setProperty\("--situation-grid-drop-indent"/);
+  assert.match(eventsSource, /const indent = Math\.max\(0, depth - 1\) \* 20;/);
 });
 
 test("les indicateurs de drop de la grille situation utilisent une ligne plus épaisse et indentée", () => {
@@ -81,4 +82,6 @@ test("les indicateurs de drop de la grille situation utilisent une ligne plus é
   assert.match(styleSource, /left:calc\(16px \+ var\(--situation-grid-drop-indent, 0px\)\);/);
   assert.match(styleSource, /height:3px;/);
   assert.match(styleSource, /background:rgb\(31, 111, 235\);/);
+  assert.match(styleSource, /\.situation-grid \.subissues-sortable-row\.is-subissue-drop-before::before\{top:-1px;\}/);
+  assert.match(styleSource, /\.situation-grid \.subissues-sortable-row\.is-subissue-drop-after::after\{bottom:1px;\}/);
 });
