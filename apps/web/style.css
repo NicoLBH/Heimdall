@@ -2575,6 +2575,7 @@ body.is-resizing{
 .comment-composer .comment-composer__box.gh-comment-box--help:has(.comment-composer__editor:not(.hidden) .comment-composer__textarea:focus){
   outline:2px dashed rgb(31, 111, 235);
   outline-offset:-1px;
+  border-color:transparent;
 }
 .comment-composer__actions{padding-bottom:100px;}
 .comment-composer__actions-right{width:100%;}
