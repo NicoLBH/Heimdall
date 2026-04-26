@@ -1057,6 +1057,14 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const authorUserId = normalizeId(entry?.meta?.author_user_id);
     const isCurrentUserAuthor = !!authorUserId && !!currentUserId && authorUserId === currentUserId;
     const agent = String(entry?.agent || (isCurrentUserAuthor ? "human" : "member")).trim().toLowerCase();
+    if (entry?.meta?.is_mdall || agent === "mdall") {
+      return {
+        displayName: "Mdall",
+        avatarType: "agent",
+        avatarHtml: svgIcon("heimdall"),
+        avatarInitial: "M"
+      };
+    }
     const isRapso = agent === "specialist_ps";
     if (isRapso) {
       return { displayName: "Agent specialist_ps", avatarType: "agent", avatarHtml: "", avatarInitial: "AS" };
@@ -1866,7 +1874,15 @@ priority=${firstNonEmpty(subject.priority, "")}`
     const previewMode = !!store.situationsView.commentPreviewMode;
     const helpMode = !!store.situationsView.helpMode;
 
-    const hintHtml = "";
+    const pendingMdallSubjectId = normalizeId(store?.situationsView?.mdallReplyPendingSubjectId);
+    const hintHtml = type === "sujet" && pendingMdallSubjectId && pendingMdallSubjectId === normalizedSubjectId
+      ? `
+        <span class="rapso-mention-hint mdall-pending-hint">
+          <span class="ui-spinner ui-spinner--sm" aria-hidden="true"><span class="ui-spinner__ring"></span></span>
+          <span>Mdall est en train d’écrire…</span>
+        </span>
+      `
+      : "";
 
     const issueStatusActionHtml = renderIssueStatusAction(resolvedSelection);
     const replyContext = type === "sujet" ? getReplyContextForSubject(item?.id) : null;

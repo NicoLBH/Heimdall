@@ -3248,6 +3248,7 @@ async function applyCommentAction(root) {
     return Array.isArray(mentions)
       && mentions.some((mention) => String(mention?.label || "").trim().toLowerCase() === "mdall");
   })();
+  store.situationsView.mdallReplyPendingSubjectId = "";
   store.situationsView.isCommentSubmitPending = true;
   try {
     const createdMessage = await addComment(target.type, target.id, message, {
@@ -3258,7 +3259,12 @@ async function applyCommentAction(root) {
       uploadSessionId: uploadSessionId || undefined
     });
 
+    ta.value = "";
+    store.situationsView.commentDraft = "";
+    store.situationsView.commentPreviewMode = false;
+
     if (shouldTriggerMdallNormalReply && target.type === "sujet" && createdMessage?.id) {
+      store.situationsView.mdallReplyPendingSubjectId = String(target.id || "");
       try {
         await sendSubjectMdallReplyForExistingMessage({
           subjectId: target.id,
@@ -3270,14 +3276,13 @@ async function applyCommentAction(root) {
         refreshTimelineForCurrentScope(resolveScopeHost());
       } catch (error) {
         console.warn("[subject-mdall] normal exchange failed", error);
+      } finally {
+        store.situationsView.mdallReplyPendingSubjectId = "";
       }
     }
   } finally {
     store.situationsView.isCommentSubmitPending = false;
   }
-  ta.value = "";
-  store.situationsView.commentDraft = "";
-  store.situationsView.commentPreviewMode = false;
   if (store.situationsView?.replyContext) {
     store.situationsView.replyContext.subjectId = "";
     store.situationsView.replyContext.parentMessageId = "";
