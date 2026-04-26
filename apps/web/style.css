@@ -4282,6 +4282,9 @@ body.drilldown-open .drilldown__inner,
   font-family: var(--font);
   font-size:14px;
 }
+.comment-composer__tabs.light-tabs.gh-comment-header--help::before{
+  border-bottom:1px dashed rgba(31, 111, 235, .65);
+}
 .comment-composer__tabs.light-tabs.gh-comment-header--help .light-tabs__item.is-active{
   border:1px dashed rgba(31,111,235,.70);
   border-top:none;
