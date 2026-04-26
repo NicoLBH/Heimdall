@@ -36,6 +36,7 @@ type SubjectMdallContext = {
     children_subjects: Array<{ id: string; title: string; status: string }>;
     labels: Array<{ id: string; name: string }>;
     assignees: Array<{ id: string; display_name: string }>;
+    objectives: Array<{ id: string; title: string; status: string; due_date: string | null }>;
   };
   recent_messages: MessageContextItem[];
 };
@@ -47,9 +48,11 @@ const openAiApiKey = Deno.env.get("OPENAI_API_KEY")!;
 
 const MODEL = "gpt-4.1-mini";
 const MAX_MESSAGE_HISTORY = 25;
+const MAX_MESSAGE_HISTORY_EPHEMERAL = 30;
 const MAX_SUBJECT_DESCRIPTION_CHARS = 4000;
 const MAX_MESSAGE_CHARS = 1000;
 const MAX_PROMPT_CHARS = 28000;
+const MAX_RELATIONS_ITEMS = 10;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -147,7 +150,7 @@ serve(async (req) => {
     console.log("subject-mdall-exchange:openai-request", {
       model: MODEL,
       subject_id: exchange.subject_id,
-      prompt_chars: prompt.length
+      prompt_chars: prompt.input.length
     });
 
     const openAiReply = await fetch("https://api.openai.com/v1/responses", {
@@ -158,10 +161,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        instructions:
-          "Tu es Mdall, assistant intégré à l'application Mdall. " +
-          "Tu réponds en français, en markdown simple, de manière utile, précise, synthétique et orientée action.",
-        input: prompt
+        instructions: prompt.system,
+        input: prompt.input
       })
     });
 
@@ -224,7 +225,8 @@ async function buildSubjectMdallContext(
   {
     subjectId,
     projectId,
-    userMessageId
+    userMessageId,
+    isEphemeral
   }: { subjectId: string; projectId: string; userMessageId: string; isEphemeral: boolean }
 ): Promise<SubjectMdallContext> {
   const { data: subjectRow, error: subjectError } = await supabase
@@ -238,7 +240,7 @@ async function buildSubjectMdallContext(
     throw new Error(`Failed to load subject context: ${subjectError?.message || "subject not found"}`);
   }
 
-  const [projectRes, childrenRes, labelsRes, assigneesRes, messagesRes] = await Promise.all([
+  const [projectRes, childrenRes, labelsRes, assigneesRes, objectivesRes, messagesRes] = await Promise.all([
     supabase.from("projects").select("id,name").eq("id", projectId).maybeSingle(),
     supabase
       .from("subjects")
@@ -246,19 +248,24 @@ async function buildSubjectMdallContext(
       .eq("project_id", projectId)
       .eq("parent_subject_id", subjectId)
       .order("updated_at", { ascending: false })
-      .limit(6),
+      .limit(MAX_RELATIONS_ITEMS),
     supabase
       .from("subject_labels")
-      .select("id,name")
+      .select("label_id,project_labels!inner(id,name)")
       .eq("project_id", projectId)
       .eq("subject_id", subjectId)
-      .limit(10),
+      .limit(MAX_RELATIONS_ITEMS),
     supabase
       .from("subject_assignees")
       .select("person_id,directory_people!inner(id,first_name,last_name,email)")
       .eq("project_id", projectId)
       .eq("subject_id", subjectId)
-      .limit(10),
+      .limit(MAX_RELATIONS_ITEMS),
+    supabase
+      .from("milestone_subjects")
+      .select("milestone_id,milestones!inner(id,title,status,due_date)")
+      .eq("subject_id", subjectId)
+      .limit(MAX_RELATIONS_ITEMS),
     supabase
       .from("subject_messages")
       .select("id,created_at,deleted_at,origin,visibility,visible_until,body_markdown")
@@ -275,6 +282,7 @@ async function buildSubjectMdallContext(
     : null;
 
   const now = Date.now();
+  const maxMessages = isEphemeral ? MAX_MESSAGE_HISTORY_EPHEMERAL : MAX_MESSAGE_HISTORY;
   const recentMessages = (messagesRes.data || [])
     .filter((row) => {
       if (row.deleted_at) return false;
@@ -283,7 +291,7 @@ async function buildSubjectMdallContext(
       return Number.isFinite(visibleUntil) && visibleUntil > now;
     })
     .reverse()
-    .slice(-MAX_MESSAGE_HISTORY)
+    .slice(-maxMessages)
     .map((row) => ({
       id: String(row.id),
       created_at: String(row.created_at || ""),
@@ -312,6 +320,10 @@ async function buildSubjectMdallContext(
     }
   }
 
+  const normalizedMessages = [...recentMessages]
+    .sort((a, b) => Date.parse(a.created_at || "") - Date.parse(b.created_at || ""))
+    .slice(-maxMessages);
+
   return {
     project: {
       id: String(project.id || projectId),
@@ -332,13 +344,11 @@ async function buildSubjectMdallContext(
         title: String(row.title || ""),
         status: String(row.status || "")
       })),
-      labels: (labelsRes.data || []).map((row) => ({
-        id: String(row.id),
-        name: String(row.name || "")
-      })),
-      assignees: normalizeAssignees(assigneesRes.data || [])
+      labels: normalizeLabels(labelsRes.data || []),
+      assignees: normalizeAssignees(assigneesRes.data || []),
+      objectives: normalizeObjectives(objectivesRes.data || [])
     },
-    recent_messages: recentMessages
+    recent_messages: normalizedMessages
   };
 }
 
@@ -351,24 +361,28 @@ function buildSubjectMdallPrompt({
   userMessage: string;
   isEphemeral: boolean;
 }) {
-  const payload = {
+  const system = [
+    "Tu es Mdall, assistant intégré à l’application Mdall.",
+    "Tu aides dans le contexte précis du sujet.",
+    "Tu réponds en français.",
+    "Tu réponds en markdown.",
+    "Tu ne prétends pas avoir accès à des informations absentes du contexte.",
+    isEphemeral
+      ? "Le mode est éphémère : la réponse est une aide temporaire visible brièvement."
+      : "Le mode est normal : la réponse sera stockée durablement dans la discussion comme message Mdall.",
+    "Tu dois être utile, précis, synthétique, et orienté action."
+  ].join(" ");
+
+  const inputPayload = {
     mode: isEphemeral ? "ephemeral" : "normal",
-    directives: {
-      role: "Tu es Mdall, assistant intégré à l'application Mdall.",
-      scope: "Tu aides dans le contexte précis du sujet uniquement.",
-      language: "Tu réponds en français.",
-      format: "Tu réponds en markdown simple.",
-      honesty: "Tu ne prétends pas avoir accès à des informations absentes du contexte.",
-      ephemeral_note: isEphemeral
-        ? "Le mode est éphémère: ta réponse est une aide temporaire visible brièvement."
-        : "Le mode est normal: ta réponse est stockée durablement dans la discussion.",
-      style: "Sois utile, précis, synthétique, orienté action."
-    },
     context,
     user_message: truncate(userMessage, MAX_MESSAGE_CHARS)
   };
 
-  return truncate(JSON.stringify(payload, null, 2), MAX_PROMPT_CHARS);
+  return {
+    system,
+    input: truncate(JSON.stringify(inputPayload, null, 2), MAX_PROMPT_CHARS)
+  };
 }
 
 async function fetchParentSubject(supabase: ReturnType<typeof createClient>, projectId: string, parentId: string) {
@@ -397,6 +411,28 @@ function normalizeAssignees(rows: any[]) {
     return {
       id: String(person?.id || row.person_id || ""),
       display_name: `${firstName} ${lastName}`.trim() || fallback
+    };
+  });
+}
+
+function normalizeLabels(rows: any[]) {
+  return rows.map((row) => {
+    const label = Array.isArray(row.project_labels) ? row.project_labels[0] : row.project_labels;
+    return {
+      id: String(label?.id || row.label_id || ""),
+      name: String(label?.name || "")
+    };
+  });
+}
+
+function normalizeObjectives(rows: any[]) {
+  return rows.map((row) => {
+    const objective = Array.isArray(row.milestones) ? row.milestones[0] : row.milestones;
+    return {
+      id: String(objective?.id || row.milestone_id || ""),
+      title: String(objective?.title || ""),
+      status: String(objective?.status || ""),
+      due_date: objective?.due_date ? String(objective.due_date) : null
     };
   });
 }
