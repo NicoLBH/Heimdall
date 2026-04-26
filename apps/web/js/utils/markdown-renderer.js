@@ -1,4 +1,5 @@
 import { escapeHtml } from "./escape-html.js";
+import { renderLatexToHtml } from "./math-renderer.js";
 
 const LIST_ITEM_PATTERN = /^\s*([-*])\s+(.*)$/;
 const ORDERED_LIST_PATTERN = /^\s*\d+[\.)]\s+(.*)$/;
@@ -13,10 +14,56 @@ function sanitizeLinkHref(rawHref = "") {
   return "";
 }
 
-function renderInlineMarkdown(source = "") {
-  let safe = escapeHtml(String(source || ""));
+function tokenizeInlineCode(source = "") {
+  const tokens = [];
+  const tokenized = String(source || "").replace(/`([^`\n]+)`/g, (_, code) => {
+    const id = tokens.length;
+    tokens.push(`<code>${escapeHtml(code)}</code>`);
+    return `@@MD_CODE_${id}@@`;
+  });
+  return { tokenized, tokens };
+}
 
-  safe = safe.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+function extractMathTokens(source = "", options = {}) {
+  const tokens = [];
+  let tokenized = String(source || "");
+
+  tokenized = tokenized.replace(/\\\[((?:.|\n)*?)\\\]/g, (_, latex) => {
+    const id = tokens.length;
+    tokens.push(renderLatexToHtml(latex, { displayMode: true }));
+    return `@@MD_MATH_${id}@@`;
+  });
+
+  tokenized = tokenized.replace(/\\\(((?:.|\n)*?)\\\)/g, (_, latex) => {
+    const id = tokens.length;
+    tokens.push(renderLatexToHtml(latex, { displayMode: false }));
+    return `@@MD_MATH_${id}@@`;
+  });
+
+  // Inline $...$ is intentionally opt-in to avoid currency false positives.
+  if (options.enableDollarInlineMath) {
+    tokenized = tokenized.replace(/(^|[^\\\w])\$([^$\n]+?)\$(?!\w)/g, (_, prefix, latex) => {
+      const id = tokens.length;
+      tokens.push(renderLatexToHtml(latex, { displayMode: false }));
+      return `${prefix}@@MD_MATH_${id}@@`;
+    });
+  }
+
+  return { tokenized, tokens };
+}
+
+function restoreTokens(source = "", codeTokens = [], mathTokens = []) {
+  return String(source || "")
+    .replace(/@@MD_MATH_(\d+)@@/g, (_, id) => mathTokens[Number(id)] || "")
+    .replace(/@@MD_CODE_(\d+)@@/g, (_, id) => codeTokens[Number(id)] || "");
+}
+
+function renderInlineMarkdown(source = "", options = {}) {
+  const { tokenized: codeTokenized, tokens: codeTokens } = tokenizeInlineCode(source);
+  const { tokenized: mathTokenized, tokens: mathTokens } = extractMathTokens(codeTokenized, options);
+
+  let safe = escapeHtml(mathTokenized);
+
   safe = safe.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
   safe = safe.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
   safe = safe.replace(/\+\+([^+\n]+)\+\+/g, "<u>$1</u>");
@@ -30,14 +77,14 @@ function renderInlineMarkdown(source = "") {
     return `<a href="${escapeHtml(href)}"${className}${external ? ' target="_blank" rel="noopener noreferrer"' : ""}>${label}</a>`;
   });
 
-  return safe;
+  return restoreTokens(safe, codeTokens, mathTokens);
 }
 
 function flushParagraph(paragraphLines = [], html = [], options = {}) {
   if (!paragraphLines.length) return;
   const preserveMessageLineBreaks = !!options.preserveMessageLineBreaks;
   const renderedLines = paragraphLines
-    .map((line) => renderInlineMarkdown(String(line || "")))
+    .map((line) => renderInlineMarkdown(String(line || ""), options))
     .join("<br>");
   if (!preserveMessageLineBreaks && !renderedLines.trim()) return;
   html.push(`<p>${renderedLines}</p>`);
@@ -52,6 +99,15 @@ function flushList(state, html) {
   state.items = [];
 }
 
+function detectSingleLineMathBlock(line = "") {
+  const trimmed = String(line || "").trim();
+  let match = trimmed.match(/^\$\$(.+)\$\$$/);
+  if (match) return { latex: match[1], delimiter: '$$' };
+  match = trimmed.match(/^\\\[(.+)\\\]$/);
+  if (match) return { latex: match[1], delimiter: '\\[' };
+  return null;
+}
+
 export function renderMarkdownToHtml(markdown = "", options = {}) {
   const source = String(markdown || "").replace(/\r\n?/g, "\n");
   if (!source.trim()) return "";
@@ -60,66 +116,98 @@ export function renderMarkdownToHtml(markdown = "", options = {}) {
   const html = [];
   const paragraphLines = [];
   const listState = { type: "", items: [] };
+  let mathBlockState = null;
 
   const lines = source.split("\n");
   lines.forEach((rawLine) => {
     const line = String(rawLine || "");
     const trimmed = line.trim();
 
+    if (mathBlockState) {
+      const isClosingLine = mathBlockState.delimiter === '$$'
+        ? trimmed.endsWith('$$')
+        : trimmed.endsWith('\\]');
+      if (isClosingLine) {
+        const closingToken = mathBlockState.delimiter === '$$' ? '$$' : '\\]';
+        const lineWithoutClosing = line.replace(new RegExp(`${closingToken.replace(/[\\\]$^]/g, '\\$&')}\s*$`), '');
+        mathBlockState.lines.push(lineWithoutClosing);
+        html.push(renderLatexToHtml(mathBlockState.lines.join('\n'), { displayMode: true }));
+        mathBlockState = null;
+      } else {
+        mathBlockState.lines.push(line);
+      }
+      return;
+    }
+
+    const singleLineMathBlock = detectSingleLineMathBlock(line);
+    if (singleLineMathBlock) {
+      flushParagraph(paragraphLines, html, options);
+      flushList(listState, html);
+      html.push(renderLatexToHtml(singleLineMathBlock.latex, { displayMode: true }));
+      return;
+    }
+
+    if (trimmed === '$$' || trimmed === '\\[') {
+      flushParagraph(paragraphLines, html, options);
+      flushList(listState, html);
+      mathBlockState = {
+        delimiter: trimmed,
+        lines: []
+      };
+      return;
+    }
+
     const headingMatch = line.match(HEADING_PATTERN);
     if (headingMatch) {
-      flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+      flushParagraph(paragraphLines, html, options);
       flushList(listState, html);
       const level = Math.min(6, headingMatch[1].length);
-      html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+      html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2], options)}</h${level}>`);
       return;
     }
 
     const blockquoteMatch = line.match(BLOCKQUOTE_PATTERN);
     if (blockquoteMatch) {
-      flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+      flushParagraph(paragraphLines, html, options);
       flushList(listState, html);
-      html.push(`<blockquote>${renderInlineMarkdown(blockquoteMatch[1])}</blockquote>`);
+      html.push(`<blockquote>${renderInlineMarkdown(blockquoteMatch[1], options)}</blockquote>`);
       return;
     }
 
     const checklistMatch = line.match(CHECKLIST_PATTERN);
     if (checklistMatch) {
-      flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+      flushParagraph(paragraphLines, html, options);
       if (listState.type && listState.type !== "unordered") flushList(listState, html);
       listState.type = "unordered";
       const checked = String(checklistMatch[1] || "").toLowerCase() === "x";
-      listState.items.push(`<li class="md-task-item"><input type="checkbox" disabled ${checked ? "checked" : ""}> <span>${renderInlineMarkdown(checklistMatch[2])}</span></li>`);
+      listState.items.push(`<li class="md-task-item"><input type="checkbox" disabled ${checked ? "checked" : ""}> <span>${renderInlineMarkdown(checklistMatch[2], options)}</span></li>`);
       return;
     }
 
     const unorderedMatch = line.match(LIST_ITEM_PATTERN);
     if (unorderedMatch) {
-      flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+      flushParagraph(paragraphLines, html, options);
       if (listState.type && listState.type !== "unordered") flushList(listState, html);
       listState.type = "unordered";
-      listState.items.push(`<li>${renderInlineMarkdown(unorderedMatch[2])}</li>`);
+      listState.items.push(`<li>${renderInlineMarkdown(unorderedMatch[2], options)}</li>`);
       return;
     }
 
     const orderedMatch = line.match(ORDERED_LIST_PATTERN);
     if (orderedMatch) {
-      flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+      flushParagraph(paragraphLines, html, options);
       if (listState.type && listState.type !== "ordered") flushList(listState, html);
       listState.type = "ordered";
-      listState.items.push(`<li>${renderInlineMarkdown(orderedMatch[1])}</li>`);
+      listState.items.push(`<li>${renderInlineMarkdown(orderedMatch[1], options)}</li>`);
       return;
     }
 
     if (!trimmed) {
-      // Message mode preserves user-entered line breaks in plain text blocks
-      // by keeping empty lines inside the current paragraph instead of forcing
-      // a new paragraph split.
       if (preserveMessageLineBreaks && !listState.type) {
         paragraphLines.push("");
         return;
       }
-      flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+      flushParagraph(paragraphLines, html, options);
       flushList(listState, html);
       return;
     }
@@ -128,7 +216,11 @@ export function renderMarkdownToHtml(markdown = "", options = {}) {
     paragraphLines.push(line);
   });
 
-  flushParagraph(paragraphLines, html, { preserveMessageLineBreaks });
+  if (mathBlockState) {
+    html.push(`<p>${escapeHtml(mathBlockState.delimiter)}<br>${mathBlockState.lines.map((line) => escapeHtml(line)).join('<br>')}</p>`);
+  }
+
+  flushParagraph(paragraphLines, html, options);
   flushList(listState, html);
 
   const rendered = `<div class="md-render">${html.join("")}</div>`;
