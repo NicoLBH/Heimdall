@@ -6,7 +6,7 @@ import {
   __handwritingRecognitionMock
 } from "./handwriting-document-recognition.js";
 
-const { HANDWRITING_MOCK_STORAGE_KEY } = __handwritingRecognitionMock;
+const { HANDWRITING_MOCK_STORAGE_KEY, RECOGNITION_FUNCTION_NAME } = __handwritingRecognitionMock;
 
 function withLocalStorage(initialValue = "") {
   const data = new Map([[HANDWRITING_MOCK_STORAGE_KEY, initialValue]]);
@@ -38,16 +38,42 @@ test("recognizeHandwrittenDocument retourne Markdown + LaTeX en mode mock", asyn
   assert.match(result.markdown, /\\int_0\^1/);
 });
 
-test("recognizeHandwrittenDocument échoue proprement hors mode mock", async () => {
+test("recognizeHandwrittenDocument appelle l'Edge Function hors mock", async () => {
   withLocalStorage("0");
+  globalThis.window = { MDALL_CONFIG: { supabaseUrl: "https://example.supabase.co" } };
+  let calledUrl = "";
+  globalThis.fetch = async (url) => {
+    calledUrl = String(url || "");
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({ markdown: "## depuis edge", provider: "mock-backend" });
+      }
+    };
+  };
+
+  const result = await recognizeHandwrittenDocument({ strokes: [] });
+
+  assert.equal(result.markdown, "## depuis edge");
+  assert.equal(result.provider, "mock-backend");
+  assert.match(calledUrl, new RegExp(`/functions/v1/${RECOGNITION_FUNCTION_NAME}$`));
+});
+
+test("recognizeHandwrittenDocument remonte une erreur claire si l'Edge Function répond en erreur", async () => {
+  withLocalStorage("0");
+  globalThis.window = { MDALL_CONFIG: { supabaseUrl: "https://example.supabase.co" } };
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 503,
+    async text() {
+      return JSON.stringify({ error: "Reconnaissance manuscrite non configurée" });
+    }
+  });
 
   await assert.rejects(
     () => recognizeHandwrittenDocument({ strokes: [] }),
-    (error) => {
-      assert.equal(error?.message, "Reconnaissance manuscrite non configurée");
-      assert.equal(error?.code, "HANDWRITING_RECOGNITION_NOT_CONFIGURED");
-      return true;
-    }
+    /Reconnaissance manuscrite non configurée/
   );
 });
 
