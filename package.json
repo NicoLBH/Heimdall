@@ -1,0 +1,13 @@
+{
+  "name": "mdall",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test $(find apps/web/js -name '*.test.mjs' -print)",
+    "prepare:katex": "node scripts/prepare-katex.mjs",
+    "build:web": "npm run prepare:katex"
+  },
+  "dependencies": {
+    "katex": "^0.16.9"
+  }
+}
