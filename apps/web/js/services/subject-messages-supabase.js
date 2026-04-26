@@ -949,6 +949,18 @@ export function createSubjectMessagesSupabaseRepository() {
         .filter((row) => !!row.personId);
     },
 
+    async getOrCreateMdallPerson() {
+      const payload = await rpcCall("get_or_create_mdall_person", {});
+      const row = Array.isArray(payload) ? payload[0] : payload;
+      const personId = normalizeId(row?.person_id || row?.id);
+      if (!personId) return null;
+      return {
+        personId,
+        label: String(row?.label || "Mdall"),
+        email: String(row?.email || "mdall@system.local")
+      };
+    },
+
     async listUnreadConversationNotifications({ projectId, personId = "" } = {}) {
       const normalizedProjectId = await resolveProjectId(projectId);
       const resolvedPersonId = normalizeId(personId) || await resolveCurrentPersonId();
