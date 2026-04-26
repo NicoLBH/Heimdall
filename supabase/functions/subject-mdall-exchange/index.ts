@@ -5,6 +5,7 @@ type ExchangeRequest = {
   subject_id?: string;
   body_markdown?: string;
   is_ephemeral?: boolean;
+  existing_user_message_id?: string | null;
   parent_message_id?: string | null;
   mentions?: unknown[];
 };
@@ -86,6 +87,7 @@ serve(async (req) => {
     const subjectId = String(body?.subject_id || "").trim();
     const bodyMarkdown = String(body?.body_markdown || "").trim();
     const isEphemeral = !!body?.is_ephemeral;
+    const existingUserMessageId = normalizeUuid(body?.existing_user_message_id);
     const parentMessageId = normalizeUuid(body?.parent_message_id);
     const mentions = Array.isArray(body?.mentions) ? body?.mentions : [];
 
@@ -100,6 +102,7 @@ serve(async (req) => {
     console.log("subject-mdall-exchange:start", {
       subject_id: subjectId,
       is_ephemeral: isEphemeral,
+      existing_user_message_id: existingUserMessageId,
       has_parent_message_id: !!parentMessageId,
       mentions_count: mentions.length
     });
@@ -110,22 +113,32 @@ serve(async (req) => {
 
     const serviceSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    const { data: exchangeRaw, error: createExchangeError } = await userSupabase.rpc("create_subject_mdall_exchange", {
-      p_subject_id: subjectId,
-      p_body_markdown: bodyMarkdown,
-      p_is_ephemeral: isEphemeral,
-      p_parent_message_id: parentMessageId,
-      p_mentions: mentions
-    });
+    let exchange: any = null;
 
-    if (createExchangeError) {
-      throw new Error(`create_subject_mdall_exchange failed: ${createExchangeError.message}`);
+    if (existingUserMessageId) {
+      exchange = await buildExchangeFromExistingMessage(userSupabase, {
+        subjectId,
+        userMessageId: existingUserMessageId,
+        isEphemeral
+      });
+    } else {
+      const { data: exchangeRaw, error: createExchangeError } = await userSupabase.rpc("create_subject_mdall_exchange", {
+        p_subject_id: subjectId,
+        p_body_markdown: bodyMarkdown,
+        p_is_ephemeral: isEphemeral,
+        p_parent_message_id: parentMessageId,
+        p_mentions: mentions
+      });
+
+      if (createExchangeError) {
+        throw new Error(`create_subject_mdall_exchange failed: ${createExchangeError.message}`);
+      }
+
+      exchange = normalizeRpcJsonResult(exchangeRaw);
     }
 
-    const exchange = normalizeRpcJsonResult(exchangeRaw);
-
     if (!exchange?.user_message_id || !exchange?.subject_id || !exchange?.project_id || !exchange?.mdall_person_id) {
-      throw new Error("create_subject_mdall_exchange returned invalid payload");
+      throw new Error("subject-mdall-exchange invalid bootstrap payload");
     }
 
     const context = await buildSubjectMdallContext(serviceSupabase, {
@@ -219,6 +232,56 @@ serve(async (req) => {
     return json({ error: "Mdall est momentanément indisponible." }, 500);
   }
 });
+
+async function buildExchangeFromExistingMessage(
+  supabase: ReturnType<typeof createClient>,
+  {
+    subjectId,
+    userMessageId,
+    isEphemeral
+  }: {
+    subjectId: string;
+    userMessageId: string;
+    isEphemeral: boolean;
+  }
+) {
+  const { data: userMessage, error: messageError } = await supabase
+    .from("subject_messages")
+    .select("id,subject_id,project_id,parent_message_id,body_markdown,visibility,visible_until,origin,metadata")
+    .eq("id", userMessageId)
+    .eq("subject_id", subjectId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (messageError || !userMessage) {
+    throw new Error(`existing_user_message_id not found: ${messageError?.message || "message missing"}`);
+  }
+
+  const messageOrigin = String(userMessage.origin || "human").trim().toLowerCase();
+  if (messageOrigin !== "human") {
+    throw new Error("existing_user_message_id must reference a human message");
+  }
+
+  const { data: mdallPersonRaw, error: mdallPersonError } = await supabase.rpc("get_or_create_mdall_person", {});
+  if (mdallPersonError) {
+    throw new Error(`get_or_create_mdall_person failed: ${mdallPersonError.message}`);
+  }
+  const mdallPerson = normalizeRpcJsonResult(mdallPersonRaw);
+  const mdallPersonId = normalizeUuid(mdallPerson?.person_id || mdallPerson?.id);
+  if (!mdallPersonId) {
+    throw new Error("get_or_create_mdall_person returned invalid payload");
+  }
+
+  return {
+    user_message_id: String(userMessage.id),
+    mdall_person_id: mdallPersonId,
+    subject_id: String(userMessage.subject_id),
+    project_id: String(userMessage.project_id),
+    is_ephemeral: isEphemeral,
+    visible_until: null,
+    client_request_id: null
+  };
+}
 
 async function buildSubjectMdallContext(
   supabase: ReturnType<typeof createClient>,

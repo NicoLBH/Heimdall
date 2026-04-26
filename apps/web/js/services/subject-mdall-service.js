@@ -159,3 +159,74 @@ export async function sendSubjectMdallExchange({
     throw new Error("Mdall est momentanément indisponible.");
   }
 }
+
+export async function sendSubjectMdallReplyForExistingMessage({
+  subjectId,
+  userMessageId,
+  bodyMarkdown,
+  parentMessageId = null,
+  mentions = []
+} = {}) {
+  const normalizedSubjectId = normalizeId(subjectId);
+  const normalizedUserMessageId = normalizeId(userMessageId);
+  const normalizedBody = normalizeMarkdown(bodyMarkdown);
+
+  if (!normalizedSubjectId) throw new Error("subjectId is required");
+  if (!normalizedUserMessageId) throw new Error("userMessageId is required");
+  if (!normalizedBody) throw new Error("bodyMarkdown is required");
+
+  debugLog("exchange-start", {
+    subjectId: normalizedSubjectId,
+    userMessageId: normalizedUserMessageId,
+    mode: "existing-user-message",
+    hasParentMessageId: !!normalizeId(parentMessageId),
+    mentionsCount: Array.isArray(mentions) ? mentions.length : 0
+  });
+
+  try {
+    const raw = await invokeSubjectMdallExchange({
+      existing_user_message_id: normalizedUserMessageId,
+      subject_id: normalizedSubjectId,
+      body_markdown: normalizedBody,
+      is_ephemeral: false,
+      parent_message_id: normalizeId(parentMessageId) || null,
+      mentions: Array.isArray(mentions) ? mentions : []
+    });
+
+    if (!raw?.subject_id) {
+      throw new Error("Réponse serveur Mdall invalide.");
+    }
+
+    const parsedReply = parseAssistantReply(raw);
+
+    debugLog("llm-response", {
+      hasRaw: !!raw,
+      replyLength: String(parsedReply || "").length,
+      userMessageId: raw.user_message_id || normalizedUserMessageId,
+      replyMessageId: raw.reply_message_id || null
+    });
+
+    debugLog("exchange-completed", {
+      subjectId: raw.subject_id,
+      projectId: raw.project_id || null,
+      mode: "existing-user-message"
+    });
+
+    return {
+      userMessageId: normalizeId(raw.user_message_id) || normalizedUserMessageId,
+      subjectId: normalizeId(raw.subject_id) || normalizedSubjectId,
+      projectId: normalizeId(raw.project_id),
+      visibleUntil: raw.visible_until || null,
+      replyMessageId: normalizeId(raw.reply_message_id),
+      replyMarkdown: parsedReply
+    };
+  } catch (error) {
+    debugLog("exchange-error", {
+      message: String(error?.message || error || "unknown error"),
+      subjectId: normalizedSubjectId,
+      userMessageId: normalizedUserMessageId,
+      mode: "existing-user-message"
+    });
+    throw new Error("Mdall est momentanément indisponible.");
+  }
+}
