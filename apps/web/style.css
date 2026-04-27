@@ -10245,7 +10245,7 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   grid-template-columns:minmax(0, 1fr);
   height:40px;
   min-height:40px;
-  border-bottom:1px solid var(--borderColor-muted, #21262d);
+  border-bottom:none;
 }
 
 .situation-trajectory__subject-cell{
