@@ -10307,6 +10307,7 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   position:relative;
   min-height:360px;
   overflow:auto;
+  background-color: rgb(21, 27, 35);
 }
 
 .situation-trajectory__scroll-sizer{
@@ -10354,7 +10355,7 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   grid-template-columns:minmax(0, 1fr);
   height:40px;
   min-height:40px;
-  border-bottom:none;
+  padding:0px;
 }
 
 .situation-trajectory__subject-cell{
@@ -10555,12 +10556,10 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 
 .situation-grid__cell{
   height:40px;
-  padding:0 16px;
+  padding:12px 16px;
   display:flex;
   align-items:center;
   min-width:0;
-  border-right:1px solid var(--borderColor-default, #30363d);
-  border-bottom:1px solid var(--borderColor-default, #30363d);
 }
 
 .situation-grid__editable-trigger{
