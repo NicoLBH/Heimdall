@@ -583,11 +583,13 @@ export function createProjectSituationsEvents({
           window.removeEventListener("pointermove", onPointerMove);
           window.removeEventListener("pointerup", onPointerUp);
           window.removeEventListener("pointercancel", onPointerUp);
+          trajectoryNode.classList.remove("is-resizing-left");
           persistTrajectoryColumnWidth(situationId, widthsBySituationId[situationId]);
         };
 
         event.preventDefault();
         event.stopPropagation();
+        trajectoryNode.classList.add("is-resizing-left");
         window.addEventListener("pointermove", onPointerMove);
         window.addEventListener("pointerup", onPointerUp);
         window.addEventListener("pointercancel", onPointerUp);
