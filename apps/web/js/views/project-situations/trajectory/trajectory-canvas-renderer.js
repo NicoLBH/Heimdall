@@ -1,5 +1,12 @@
 import { getTrajectoryVisibleWindow } from "./trajectory-virtualizer.js";
 
+const HIERARCHY_EVENT_TYPES = new Set([
+  "subject_parent_added",
+  "subject_parent_removed",
+  "subject_child_added",
+  "subject_child_removed"
+]);
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -176,9 +183,91 @@ function resolvePointIcon(point = {}, previousPoint = null) {
   return "open";
 }
 
+function normalizeId(value) {
+  return String(value || "").trim();
+}
+
+function buildHierarchyLinks(relationEvents = []) {
+  const dedupe = new Map();
+  for (const event of asArray(relationEvents)) {
+    const type = String(event?.event_type || "").trim().toLowerCase();
+    if (!HIERARCHY_EVENT_TYPES.has(type)) continue;
+
+    const subjectId = normalizeId(event?.subject_id);
+    const counterpartId = normalizeId(event?.payload?.counterpart_subject_id || event?.counterpart_subject_id);
+    if (!subjectId || !counterpartId) continue;
+
+    const at = new Date(event?.created_at || event?.at || Date.now());
+    if (Number.isNaN(at.getTime())) continue;
+
+    const isParentEvent = type.startsWith("subject_parent_");
+    const parentId = isParentEvent ? counterpartId : subjectId;
+    const childId = isParentEvent ? subjectId : counterpartId;
+    const action = type.endsWith("_removed") ? "removed" : "added";
+    const key = `${parentId}|${childId}|${at.toISOString()}|${action}`;
+
+    if (!dedupe.has(key) || isParentEvent) {
+      dedupe.set(key, {
+        parentId,
+        childId,
+        action,
+        at
+      });
+    }
+  }
+  return [...dedupe.values()].sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+function drawHierarchyLink(ctx, {
+  x,
+  parentY,
+  childY,
+  isRemoved = false,
+  isReverse = false
+}) {
+  const startY = isReverse ? childY : parentY;
+  const endY = isReverse ? parentY : childY;
+  const direction = endY >= startY ? 1 : -1;
+
+  const laneStartX = x + 2;
+  const laneMidX = x + 10;
+  const laneEndX = x + 18;
+
+  ctx.save();
+  ctx.strokeStyle = "#8c959f";
+  ctx.fillStyle = "#8c959f";
+  ctx.lineWidth = 1.5;
+  if (isRemoved) ctx.setLineDash([4, 4]);
+
+  ctx.beginPath();
+  ctx.moveTo(laneStartX, startY);
+  ctx.lineTo(laneMidX - 3, startY);
+  ctx.quadraticCurveTo(laneMidX, startY, laneMidX, startY + (direction * 6));
+  ctx.lineTo(laneMidX, endY - (direction * 6));
+  ctx.quadraticCurveTo(laneMidX, endY, laneEndX, endY);
+  ctx.stroke();
+
+  if (!isRemoved) {
+    ctx.beginPath();
+    ctx.arc(laneStartX, startY, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const arrowSize = 4;
+  ctx.beginPath();
+  ctx.moveTo(laneEndX, endY);
+  ctx.lineTo(laneEndX - arrowSize, endY - (direction * arrowSize));
+  ctx.lineTo(laneEndX - arrowSize, endY + (direction * arrowSize));
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
 export function renderTrajectoryCanvas({
   canvas,
   rows = [],
+  relationEvents = [],
   timeScale,
   scrollLeft = 0,
   scrollTop = 0,
@@ -285,6 +374,49 @@ export function renderTrajectoryCanvas({
     }
   }
 
+  const rowIndexBySubjectId = new Map();
+  safeRows.forEach((row, index) => {
+    const subjectId = normalizeId(row?.subjectId);
+    if (subjectId) rowIndexBySubjectId.set(subjectId, index);
+  });
+
+  const hierarchyLinks = buildHierarchyLinks(relationEvents);
+  const linkRowMin = Math.max(0, rowStart - 2);
+  const linkRowMax = Math.min(Math.max(0, rowCount - 1), rowEnd + 2);
+  let visibleLinkCount = 0;
+
+  for (const link of hierarchyLinks) {
+    const parentIndex = rowIndexBySubjectId.get(link.parentId);
+    const childIndex = rowIndexBySubjectId.get(link.childId);
+    if (!Number.isInteger(parentIndex) || !Number.isInteger(childIndex)) continue;
+    if ((parentIndex < linkRowMin || parentIndex > linkRowMax)
+      && (childIndex < linkRowMin || childIndex > linkRowMax)) {
+      continue;
+    }
+
+    const ts = toTimestamp(link.at);
+    if (ts < visibleStartTs || ts > visibleEndTs) continue;
+
+    const x = timeScale.timeToX(ts) - scrollLeft;
+    const parentY = (parentIndex * safeRowHeight) - scrollTop + (safeRowHeight / 2);
+    const childY = (childIndex * safeRowHeight) - scrollTop + (safeRowHeight / 2);
+    if ((parentY < -safeRowHeight || parentY > height + safeRowHeight)
+      && (childY < -safeRowHeight || childY > height + safeRowHeight)) {
+      continue;
+    }
+
+    drawHierarchyLink(ctx, {
+      x,
+      parentY,
+      childY,
+      isRemoved: link.action === "removed",
+      isReverse: link.action === "removed"
+    });
+    visibleLinkCount += 1;
+  }
+
+  console.info("[trajectory] hierarchy-links", { visibleLinkCount });
+
   const visibleRows = rowCount ? (rowEnd - rowStart + 1) : 0;
   const visibleStart = new Date(visibleStartTs).toISOString();
   const visibleEnd = new Date(visibleEndTs).toISOString();
@@ -306,6 +438,7 @@ export function __trajectoryCanvasRendererTestUtils() {
     getVisibleRowWindow,
     collectObjectiveVerticalTimestamps,
     resolvePointIcon,
-    intersectsRange
+    intersectsRange,
+    buildHierarchyLinks
   };
 }

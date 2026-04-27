@@ -625,6 +625,26 @@ export function createProjectSituationsEvents({
     return scoped.statusEventsBySubjectId || scoped.eventsBySubjectId || {};
   }
 
+
+  function resolveTrajectoryRelationEvents(situationId = "") {
+    const bySituationId = store?.projectSubjectsView?.trajectoryHistoryBySituationId;
+    if (!bySituationId || typeof bySituationId !== "object") return [];
+    const scoped = bySituationId[situationId];
+    if (!scoped || typeof scoped !== "object") return [];
+    if (Array.isArray(scoped.relationEvents)) return scoped.relationEvents;
+    const eventsBySubjectId = scoped.eventsBySubjectId;
+    if (!eventsBySubjectId || typeof eventsBySubjectId !== "object") return [];
+    const relationTypes = new Set([
+      "subject_parent_added",
+      "subject_parent_removed",
+      "subject_child_added",
+      "subject_child_removed"
+    ]);
+    return Object.values(eventsBySubjectId)
+      .flatMap((events) => (Array.isArray(events) ? events : []))
+      .filter((event) => relationTypes.has(String(event?.event_type || "").trim().toLowerCase()));
+  }
+
   function resolveTrajectoryProjectStartDate() {
     return store?.projectForm?.project?.created_at
       || store?.project?.created_at
@@ -673,6 +693,7 @@ export function createProjectSituationsEvents({
           const objectiveIdsBySubjectId = rawSubjectsResult.objectiveIdsBySubjectId || {};
           const objectivesById = rawSubjectsResult.objectivesById || {};
           const historyBySubjectId = resolveTrajectoryHistoryBySubjectId(situationId);
+          const relationEvents = resolveTrajectoryRelationEvents(situationId);
 
           const projectStartDate = resolveTrajectoryProjectStartDate()
             || subjects.reduce((acc, subject) => {
@@ -734,6 +755,7 @@ export function createProjectSituationsEvents({
             renderTrajectoryCanvas({
               canvas: canvasNode,
               rows,
+              relationEvents,
               timeScale,
               scrollLeft,
               scrollTop,
