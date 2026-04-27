@@ -10720,6 +10720,7 @@ circle.situation-trajectory__hierarchy-link{
   display:flex;
   align-items:center;
   min-width:0;
+  border-right:solid 1px var(--border);
 }
 
 .situation-grid__editable-trigger{
