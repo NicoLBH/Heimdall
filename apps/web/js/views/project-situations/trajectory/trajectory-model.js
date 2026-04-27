@@ -2,6 +2,17 @@ function normalizeId(value) {
   return String(value || "").trim();
 }
 
+function resolveSubjectDisplayIdentifier(subject = {}, subjectId = "") {
+  const orderNumber = Number(
+    subject?.subject_number
+    ?? subject?.subjectNumber
+    ?? subject?.raw?.subject_number
+    ?? subject?.raw?.subjectNumber
+  );
+  if (Number.isFinite(orderNumber) && orderNumber > 0) return `#${Math.floor(orderNumber)}`;
+  return subjectId ? `#${subjectId}` : "";
+}
+
 function toDate(value) {
   if (value instanceof Date) return new Date(value.getTime());
   const date = new Date(value);
@@ -187,6 +198,8 @@ export function buildTrajectoryModel({
 
   const rows = asArray(subjects).map((subject = {}) => {
     const subjectId = normalizeId(subject.id);
+    const subjectTitle = String(subject?.title || subjectId || "Sujet");
+    const subjectNumber = resolveSubjectDisplayIdentifier(subject, subjectId);
     const objectiveDates = resolveObjectiveDates({ subjectId, objectivesById, objectiveIdsBySubjectId });
     const latestObjectiveTs = objectiveDates.length ? objectiveDates[objectiveDates.length - 1].dueDate.getTime() : null;
 
@@ -307,6 +320,8 @@ export function buildTrajectoryModel({
 
     return {
       subjectId,
+      subjectTitle,
+      subjectNumber,
       statusPoints,
       lifecycleSegments,
       objectiveMarkers

@@ -305,6 +305,8 @@ export function renderTrajectoryDom({
     if (!row) continue;
     const y = (index * safeRowHeight) + (safeRowHeight / 2);
     const subjectId = normalizeId(row?.subjectId);
+    const subjectTitle = String(row?.subjectTitle || subjectId || "Sujet");
+    const subjectNumber = String(row?.subjectNumber || (subjectId ? `#${subjectId}` : "")).trim();
 
     for (const segment of asArray(row.lifecycleSegments)) {
       const startTs = toTimestamp(segment.startAt);
@@ -326,6 +328,22 @@ export function renderTrajectoryDom({
         segmentNode.dataset.trajectorySubjectId = subjectId;
         segmentNode.dataset.openSituationSubject = subjectId;
       }
+      const segmentLabelNode = document.createElement("span");
+      segmentLabelNode.className = "situation-trajectory__segment-label";
+
+      const segmentTitleNode = document.createElement("span");
+      segmentTitleNode.className = "situation-trajectory__segment-title";
+      segmentTitleNode.textContent = subjectTitle;
+      segmentLabelNode.appendChild(segmentTitleNode);
+
+      if (subjectNumber) {
+        const segmentNumberNode = document.createElement("span");
+        segmentNumberNode.className = "situation-trajectory__segment-number mono";
+        segmentNumberNode.textContent = subjectNumber;
+        segmentLabelNode.appendChild(segmentNumberNode);
+      }
+
+      segmentNode.appendChild(segmentLabelNode);
       segmentNode.title = `Sujet ${subjectId || "inconnu"} · ${formatDateLabel(segment.startAt)} → ${formatDateLabel(segment.endAt)} · statut ${String(segment?.status || "open").trim().toLowerCase() || "open"}`;
       fragmentItems.appendChild(segmentNode);
       segmentCount += 1;

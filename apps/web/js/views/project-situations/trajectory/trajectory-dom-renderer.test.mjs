@@ -113,6 +113,8 @@ function queryByClass(root, className) {
 function createRows(count) {
   return Array.from({ length: count }, (_unused, index) => ({
     subjectId: `subject-${index}`,
+    subjectTitle: `Sujet ${index}`,
+    subjectNumber: `#${index + 1}`,
     lifecycleSegments: [
       {
         subjectId: `subject-${index}`,
@@ -192,6 +194,10 @@ test("renderTrajectoryDom rend uniquement les lignes visibles et les éléments 
     [...new Set(segments.map((node) => node.dataset.trajectorySubjectId))].sort(),
     ["subject-2", "subject-3"]
   );
+  const segmentTitles = queryByClass(itemsRoot, "situation-trajectory__segment-title");
+  const segmentNumbers = queryByClass(itemsRoot, "situation-trajectory__segment-number");
+  assert.equal(segmentTitles.length, 2);
+  assert.equal(segmentNumbers.length, 2);
 
   const points = queryByClass(itemsRoot, "situation-trajectory__point");
   assert.equal(points.length, 2);
