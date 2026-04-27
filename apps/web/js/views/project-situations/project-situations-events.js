@@ -657,7 +657,7 @@ export function createProjectSituationsEvents({
     return endDate;
   }
 
-  function renderTrajectoryTimelineTicks(timelineContentNode, timeScale) {
+  function renderTrajectoryTimelineTicks(timelineContentNode, timeScale, { objectivesById = {} } = {}) {
     if (!timelineContentNode || !timeScale || typeof timeScale.buildTicks !== "function") return;
     const ticks = timeScale.buildTicks({
       scrollLeft: 0,
@@ -669,17 +669,49 @@ export function createProjectSituationsEvents({
       return;
     }
 
-    const tickHtml = ticks.map((tick, index) => {
+    const todayIsoDate = new Date().toISOString().slice(0, 10);
+
+    const dayTicksHtml = ticks.map((tick, index) => {
       const nextTick = ticks[index + 1];
-      const tickWidth = Math.max(24, Math.round((nextTick?.x ?? timeScale.totalWidth) - tick.x));
+      const tickWidth = Math.max(24, (nextTick?.x ?? timeScale.totalWidth) - tick.x);
       const date = tick.date instanceof Date ? tick.date : new Date(tick.timestamp);
       const dayLabel = String(date.getUTCDate());
       const isoDate = date.toISOString().slice(0, 10);
-      const isToday = isoDate === new Date().toISOString().slice(0, 10);
-      return `<time role="columnheader" data-index="${index}" datetime="${isoDate}" class="situation-trajectory__timeline-day${isToday ? " is-today" : ""}" style="left:${Math.round(tick.x)}px;width:${tickWidth}px;">${dayLabel}</time>`;
+      const isToday = isoDate === todayIsoDate;
+      return `<time role="columnheader" data-index="${index}" datetime="${isoDate}" class="situation-trajectory__timeline-day${isToday ? " is-today" : ""}" style="left:${tick.x}px;width:${tickWidth}px;">${dayLabel}</time>`;
     }).join("");
 
-    timelineContentNode.innerHTML = `<div role="row" class="situation-trajectory__timeline-row">${tickHtml}</div>`;
+    const monthTicksHtml = ticks
+      .filter((tick, index) => {
+        const date = tick.date instanceof Date ? tick.date : new Date(tick.timestamp);
+        return index === 0 || date.getUTCDate() === 1;
+      })
+      .map((tick) => {
+        const date = tick.date instanceof Date ? tick.date : new Date(tick.timestamp);
+        const label = date.toLocaleDateString("fr-FR", {
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC"
+        });
+        return `<time datetime="${date.toISOString().slice(0, 10)}" class="situation-trajectory__timeline-month" style="left:${tick.x}px;">${label}</time>`;
+      }).join("");
+
+    const objectiveLabelsHtml = Object.values(objectivesById || {})
+      .filter((objective) => objective && objective.due_date && objective.title)
+      .map((objective) => {
+        const dueDate = new Date(objective.due_date);
+        if (Number.isNaN(dueDate.getTime())) return "";
+        const x = timeScale.timeToX(dueDate);
+        const safeTitle = escapeHtml(String(objective.title));
+        return `<div class="situation-trajectory__timeline-objective" style="left:${x}px;" title="${safeTitle}">${safeTitle}</div>`;
+      })
+      .filter(Boolean)
+      .join("");
+
+    timelineContentNode.innerHTML = `
+      <div role="row" class="situation-trajectory__timeline-row situation-trajectory__timeline-row--months">${monthTicksHtml}${objectiveLabelsHtml}</div>
+      <div role="row" class="situation-trajectory__timeline-row situation-trajectory__timeline-row--days">${dayTicksHtml}</div>
+    `;
   }
 
   function bindTrajectoryCanvas(root) {
@@ -751,7 +783,7 @@ export function createProjectSituationsEvents({
           }
           if (timelineContentNode) {
             timelineContentNode.style.width = `${Math.max(viewportNode.clientWidth || 0, timeScale.totalWidth)}px`;
-            renderTrajectoryTimelineTicks(timelineContentNode, timeScale);
+            renderTrajectoryTimelineTicks(timelineContentNode, timeScale, { objectivesById });
           }
 
           let rafId = 0;
@@ -776,7 +808,7 @@ export function createProjectSituationsEvents({
 
             if (spinnerNode) spinnerNode.hidden = !windowState.isFastScrolling;
             if (leftContentNode) leftContentNode.style.transform = `translateY(${-scrollTop}px)`;
-            if (timelineContentNode) timelineContentNode.style.transform = `translateX(${-scrollLeft}px)`;
+            if (timelineContentNode) timelineContentNode.style.transform = `translate3d(${-scrollLeft}px,0,0)`;
 
             renderTrajectoryCanvas({
               canvas: canvasNode,
