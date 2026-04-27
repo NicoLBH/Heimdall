@@ -444,6 +444,7 @@ const { bindEvents } = createProjectSituationsEvents({
   loadSituationSelection,
   loadSituationInsightsData,
   openSituationDrilldownFromSelection,
+  openSubjectDrilldown: (...args) => openSubjectDrilldownFromSituation(...args),
   openSharedSubjectMetaDropdown: (...args) => openSharedSubjectMetaDropdown(...args),
   openSharedSubjectKanbanDropdown: (...args) => openSharedSubjectKanbanDropdown(...args),
   closeSharedSubjectDropdowns: (...args) => closeSharedSubjectDropdowns(...args),
