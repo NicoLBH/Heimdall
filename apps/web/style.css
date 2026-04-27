@@ -10326,26 +10326,13 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   height:28px;
   border-radius:var(--radius);
   background:rgb(13, 17, 23);
-  border:solid 1px currentColor;
+  border:solid 1px rgb(61, 68, 77);
   outline-color:rgb(240, 246, 252);
   box-shadow:rgba(1, 4, 9, 0.4) 0px 1px 1px 0px, rgba(1, 4, 9, 0.8) 0px 3px 6px 0px;
-  color:var(--fgColor-muted, #8b949e);
   opacity:.95;
   pointer-events:auto;
   cursor:pointer;
   z-index:1;
-}
-
-.situation-trajectory__segment--green{
-  color:rgb(35, 134, 54);
-}
-
-.situation-trajectory__segment--red{
-  color:rgb(207, 34, 46);
-}
-
-.situation-trajectory__segment--gray{
-  color:rgb(99, 110, 123);
 }
 
 .situation-trajectory__segment--dashed{
@@ -10353,15 +10340,15 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 }
 
 .situation-trajectory__segment--dashed.situation-trajectory__segment--green{
-  border-color:rgb(35, 134, 54);
+  border-color:rgb(61, 68, 77);
 }
 
 .situation-trajectory__segment--dashed.situation-trajectory__segment--red{
-  border-color:rgb(207, 34, 46);
+  border-color:rgb(61, 68, 77);
 }
 
 .situation-trajectory__segment--dashed.situation-trajectory__segment--gray{
-  border-color:rgb(99, 110, 123);
+  border-color:rgb(61, 68, 77);
 }
 
 .situation-trajectory__segment-label{
@@ -10371,19 +10358,37 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
   width:100%;
   min-width:0;
   padding:0 10px;
-  font-size:12px;
-  line-height:1.2;
+  font-size:14px;
+  line-height:21px;
+  font-weight:400;
+}
+
+.situation-trajectory__segment-label::before{
+  content:"";
+  width:16px;
+  height:16px;
+  border-radius:999px;
+  background:rgb(99, 110, 123);
+  flex:0 0 16px;
+}
+
+.situation-trajectory__segment--green .situation-trajectory__segment-label::before{
+  background:rgb(35, 134, 54);
+}
+
+.situation-trajectory__segment--red .situation-trajectory__segment-label::before{
+  background:rgb(207, 34, 46);
 }
 
 .situation-trajectory__segment-title{
-  color:rgb(240, 246, 252);
+  color:rgb(145, 152, 161);
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
 
 .situation-trajectory__segment-number{
-  color:var(--muted);
+  color:rgb(145, 152, 161);
   flex:0 0 auto;
 }
 

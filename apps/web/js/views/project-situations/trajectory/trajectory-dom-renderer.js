@@ -338,7 +338,7 @@ export function renderTrajectoryDom({
 
       if (subjectNumber) {
         const segmentNumberNode = document.createElement("span");
-        segmentNumberNode.className = "situation-trajectory__segment-number mono";
+        segmentNumberNode.className = "situation-trajectory__segment-number";
         segmentNumberNode.textContent = subjectNumber;
         segmentLabelNode.appendChild(segmentNumberNode);
       }
