@@ -325,7 +325,7 @@ export function renderTrajectoryDom({
       const pointType = resolvePointIcon(point, statusPoints[pointIndex - 1] || null);
       pointNode.classList.add(`situation-trajectory__point--${pointType}`);
       pointNode.dataset.trajectoryPointType = pointType;
-      pointNode.innerHTML = `<span class="situation-trajectory__point-icon" aria-hidden="true">${svgIcon(resolvePointSymbol(pointType), { className: "octicon", width: 12, height: 12 })}</span>`;
+      pointNode.innerHTML = `<span class="situation-trajectory__point-icon" aria-hidden="true">${svgIcon(resolvePointSymbol(pointType), { className: "octicon", width: 16, height: 16 })}</span>`;
       if (subjectId) {
         pointNode.dataset.trajectorySubjectId = subjectId;
         pointNode.dataset.openSituationSubject = subjectId;

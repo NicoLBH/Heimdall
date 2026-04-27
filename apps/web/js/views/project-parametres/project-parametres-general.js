@@ -2,7 +2,10 @@ import { store } from "../../store.js";
 import { PROJECT_TAB_IDS } from "../../constants.js";
 import { escapeHtml } from "../../utils/escape-html.js";
 import { bindGhEditableFields } from "../ui/gh-input.js";
-import { persistCurrentProjectNameToSupabase } from "../../services/project-supabase-sync.js";
+import {
+  persistCurrentProjectNameToSupabase,
+  syncCurrentProjectIdentityFromSupabase
+} from "../../services/project-supabase-sync.js";
 import {
   renderSettingsBlock,
   renderSectionCard,
@@ -106,6 +109,12 @@ export function renderGeneralParametresContent() {
 
 export function bindGeneralParametresSection(root) {
   bindBaseParametresUi();
+
+  if (!resolveProjectCreatedAt()) {
+    syncCurrentProjectIdentityFromSupabase().catch((error) => {
+      console.warn("syncCurrentProjectIdentityFromSupabase failed", error);
+    });
+  }
 
   bindGhEditableFields(document, {
     onValidate: async (id, value) => {
