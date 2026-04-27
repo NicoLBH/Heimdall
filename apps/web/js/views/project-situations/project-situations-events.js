@@ -35,7 +35,7 @@ const TRAJECTORY_LEFT_COLUMN_WIDTH = {
   max: 640,
   default: 320
 };
-const TRAJECTORY_ROW_HEIGHT = 36;
+const TRAJECTORY_ROW_HEIGHT = 40;
 
 export function createProjectSituationsEvents({
   store,
@@ -657,6 +657,31 @@ export function createProjectSituationsEvents({
     return endDate;
   }
 
+  function renderTrajectoryTimelineTicks(timelineContentNode, timeScale) {
+    if (!timelineContentNode || !timeScale || typeof timeScale.buildTicks !== "function") return;
+    const ticks = timeScale.buildTicks({
+      scrollLeft: 0,
+      viewportWidth: Math.max(1, Number(timeScale.totalWidth) || 1),
+      overscanPx: 0
+    });
+    if (!ticks.length) {
+      timelineContentNode.innerHTML = "";
+      return;
+    }
+
+    const tickHtml = ticks.map((tick, index) => {
+      const nextTick = ticks[index + 1];
+      const tickWidth = Math.max(24, Math.round((nextTick?.x ?? timeScale.totalWidth) - tick.x));
+      const date = tick.date instanceof Date ? tick.date : new Date(tick.timestamp);
+      const dayLabel = String(date.getUTCDate());
+      const isoDate = date.toISOString().slice(0, 10);
+      const isToday = isoDate === new Date().toISOString().slice(0, 10);
+      return `<time role="columnheader" data-index="${index}" datetime="${isoDate}" class="situation-trajectory__timeline-day${isToday ? " is-today" : ""}" style="left:${Math.round(tick.x)}px;width:${tickWidth}px;">${dayLabel}</time>`;
+    }).join("");
+
+    timelineContentNode.innerHTML = `<div role="row" class="situation-trajectory__timeline-row">${tickHtml}</div>`;
+  }
+
   function bindTrajectoryCanvas(root) {
     const trajectoryNodes = [...root.querySelectorAll("[data-situation-trajectory][data-situation-id]")];
     if (!trajectoryNodes.length) return;
@@ -726,6 +751,7 @@ export function createProjectSituationsEvents({
           }
           if (timelineContentNode) {
             timelineContentNode.style.width = `${Math.max(viewportNode.clientWidth || 0, timeScale.totalWidth)}px`;
+            renderTrajectoryTimelineTicks(timelineContentNode, timeScale);
           }
 
           let rafId = 0;
