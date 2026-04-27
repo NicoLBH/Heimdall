@@ -53,6 +53,7 @@ export function createProjectSituationsEvents({
   loadSituationSelection,
   loadSituationInsightsData,
   openSituationDrilldownFromSelection,
+  openSubjectDrilldown,
   openSharedSubjectMetaDropdown,
   openSharedSubjectKanbanDropdown,
   closeSharedSubjectDropdowns,
@@ -1690,6 +1691,27 @@ export function createProjectSituationsEvents({
         rerender(root);
       });
     });
+
+    if (!root.dataset.situationSubjectOpenBound) {
+      root.dataset.situationSubjectOpenBound = "true";
+      root.addEventListener("click", (event) => {
+        const trigger = event.target?.closest?.("[data-open-situation-subject]");
+        if (!trigger || !root.contains(trigger)) return;
+        const subjectId = String(trigger.getAttribute("data-open-situation-subject") || "").trim();
+        if (!subjectId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const source = trigger.closest(".situation-trajectory__items, .situation-trajectory__scene, .situation-trajectory")
+          ? "trajectory-dom"
+          : "situations-view";
+        if (source === "trajectory-dom") {
+          console.info("[trajectory] subject.open", { subjectId, source: "trajectory-dom" });
+        }
+        if (typeof openSubjectDrilldown === "function") {
+          openSubjectDrilldown(subjectId);
+        }
+      });
+    }
 
     root.querySelectorAll("[data-situations-status-filter]").forEach((node) => {
       node.addEventListener("click", (event) => {

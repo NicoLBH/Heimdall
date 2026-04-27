@@ -69,6 +69,20 @@ function normalizeId(value) {
   return String(value || "").trim();
 }
 
+function formatDateLabel(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "date inconnue";
+  return date.toISOString().replace("T", " ").replace(".000Z", "Z");
+}
+
+function formatPointEventLabel(point = {}) {
+  const source = String(point?.source || "").trim().toLowerCase();
+  if (source === "subject_created") return "création";
+  if (source === "subject_closed") return "fermeture";
+  if (source === "subject_reopened") return "réouverture";
+  return source || "mise à jour";
+}
+
 function buildHierarchyLinks(relationEvents = []) {
   const dedupe = new Map();
   for (const event of asArray(relationEvents)) {
@@ -270,7 +284,13 @@ export function renderTrajectoryDom({
       if (!intersectsRange(startTs, endTs, visibleStartTs, visibleEndTs)) continue;
 
       const segmentNode = document.createElement("div");
-      segmentNode.className = "situation-trajectory__segment";
+      const segmentColor = String(segment?.lineColor || "").trim().toLowerCase();
+      const segmentStyle = String(segment?.lineStyle || "").trim().toLowerCase();
+      segmentNode.className = [
+        "situation-trajectory__segment",
+        segmentColor ? `situation-trajectory__segment--${segmentColor}` : "",
+        segmentStyle === "dashed" ? "situation-trajectory__segment--dashed" : ""
+      ].filter(Boolean).join(" ");
       segmentNode.style.left = `${timeScale.timeToX(startTs)}px`;
       segmentNode.style.top = `${y}px`;
       segmentNode.style.width = `${Math.max(0, timeScale.timeToX(endTs) - timeScale.timeToX(startTs))}px`;
@@ -278,6 +298,7 @@ export function renderTrajectoryDom({
         segmentNode.dataset.trajectorySubjectId = subjectId;
         segmentNode.dataset.openSituationSubject = subjectId;
       }
+      segmentNode.title = `Sujet ${subjectId || "inconnu"} · ${formatDateLabel(segment.startAt)} → ${formatDateLabel(segment.endAt)} · statut ${String(segment?.status || "open").trim().toLowerCase() || "open"}`;
       fragmentItems.appendChild(segmentNode);
       segmentCount += 1;
     }
@@ -295,11 +316,15 @@ export function renderTrajectoryDom({
       pointNode.style.top = `${y}px`;
 
       const pointType = resolvePointIcon(point, statusPoints[pointIndex - 1] || null);
+      pointNode.classList.add(`situation-trajectory__point--${pointType}`);
       pointNode.dataset.trajectoryPointType = pointType;
       if (subjectId) {
         pointNode.dataset.trajectorySubjectId = subjectId;
         pointNode.dataset.openSituationSubject = subjectId;
       }
+      pointNode.setAttribute("tabindex", "0");
+      pointNode.setAttribute("role", "button");
+      pointNode.title = `Sujet ${subjectId || "inconnu"} · ${formatDateLabel(point.at)} · ${formatPointEventLabel(point)}`;
       fragmentItems.appendChild(pointNode);
       pointCount += 1;
     }
@@ -310,7 +335,8 @@ export function renderTrajectoryDom({
 
       const markerNode = document.createElement("button");
       markerNode.type = "button";
-      markerNode.className = "situation-trajectory__marker";
+      const markerType = String(marker?.markerType || "").trim().toLowerCase() || "cross";
+      markerNode.className = `situation-trajectory__marker situation-trajectory__marker--${markerType}`;
       markerNode.style.left = `${timeScale.timeToX(ts)}px`;
       markerNode.style.top = `${y}px`;
 
@@ -320,6 +346,9 @@ export function renderTrajectoryDom({
       }
       const objectiveId = normalizeId(marker?.objectiveId);
       if (objectiveId) markerNode.dataset.trajectoryObjectiveId = objectiveId;
+      markerNode.setAttribute("tabindex", "0");
+      markerNode.setAttribute("role", "button");
+      markerNode.title = `Objectif ${objectiveId || "inconnu"} · ${formatDateLabel(marker.at)} · ${markerType === "check" ? "check" : "cross"}`;
       fragmentItems.appendChild(markerNode);
       markerCount += 1;
     }
