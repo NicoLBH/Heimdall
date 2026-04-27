@@ -10229,7 +10229,7 @@ body.route--project .project-simple-scroll.project-simple-scroll--situation-view
 
 .situation-trajectory__timeline-objective{
   position:absolute;
-  top:2px;
+  top:10px;
   transform:translateX(-50%);
   max-width:160px;
   padding:1px 6px;
