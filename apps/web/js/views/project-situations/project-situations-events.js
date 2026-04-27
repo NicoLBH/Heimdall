@@ -51,6 +51,15 @@ function parseLocalDate(value) {
   return new Date(value);
 }
 
+function toTimelineDisplayDate(value, zoom = "day") {
+  const date = parseLocalDate(value);
+  if (Number.isNaN(date.getTime())) return date;
+  if (String(zoom || "").trim().toLowerCase() === "day") {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+  }
+  return date;
+}
+
 function flattenVisibleSubjectIds({
   rootSubjectIds = [],
   childrenBySubjectId = {},
@@ -785,7 +794,7 @@ export function createProjectSituationsEvents({
     const objectiveLabelsHtml = Object.values(objectivesById || {})
       .filter((objective) => objective && objective.due_date && objective.title)
       .map((objective) => {
-        const dueDate = parseLocalDate(objective.due_date);
+        const dueDate = toTimelineDisplayDate(objective.due_date, timeScale.zoom);
         if (Number.isNaN(dueDate.getTime())) return "";
         const x = timeScale.timeToX(dueDate);
         const safeTitle = escapeHtml(String(objective.title));
