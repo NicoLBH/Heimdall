@@ -163,7 +163,7 @@ test("un bloc de code clôturé se rend, ligne par ligne", () => {
 });
 
 test("un extrait de l'écriture Mdall porte la nature de chaque ligne", () => {
-  const html = renderMarkdownToHtml("```mdall\n§ Données de base · Structure\n- zone de neige  A1\n+ zone de neige  A2\n```");
+  const html = renderMarkdownToHtml("```mdall\nfichier: escalier-b/structure.ddb\n- Zone de neige = \"A1\"\n+ Zone de neige = \"A2\"\n```");
 
   assert.match(html, /md-code--mdall/);
   assert.match(html, /md-code__line--section/);

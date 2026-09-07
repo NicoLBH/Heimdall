@@ -177,23 +177,22 @@ grammaire entière.
 
 ```
 Classement du bâtiment = "3e famille B"
-   ← règle Classement du bâtiment — arrêté du 31 janvier 1986, article 3, 3°)
-   statut retenu
+   règle: Classement du bâtiment — arrêté du 31 janvier 1986, article 3, 3°)
+   statut: retenu
 ```
 
 Quatre conséquences pour le code :
 
-1. **La règle a son propre dossier, et le projet en garde un instantané.** Une
+1. **La règle a son propre fichier, et le projet en garde un instantané.** Une
    règle vaut pour mille bâtiments, une valeur pour un seul : les mêler
    produisait des règles fabriquées à partir des cotes du projet — `si hauteur =
-   26` là où l'arrêté dit `≤ 28 m`. Mais elle doit être **dans** le projet, sous
-   `Référentiels/`, sans quoi le renvoi `← règle …` pointe vers rien, le graphe
-   ne se reconstruit pas, et un arrêté modifié plus tard réécrirait l'histoire en
+   26` là où l'arrêté dit `<= 28 m`. Mais elle doit être **dans** le projet,
+   dans un `.ref`, sans quoi le renvoi `règle: …` pointe vers rien, le graphe ne
+   se reconstruit pas, et un arrêté modifié plus tard réécrirait l'histoire en
    silence — ce que la règle 2 interdit.
-2. **Le type de la provenance est l'origine.** Une valeur qui renvoie à une
-   règle est déduite, à un plan est lue, à un calcul est calculée. Un champ
-   « origine » à côté redirait la même chose et finirait par la contredire
-   (règle 4).
+2. **Le mot-clé de provenance est l'origine.** `règle:` est déduite,
+   `document:` est lue, `calcul:` est calculée. Un champ « origine » à côté
+   redirait la même chose et finirait par la contredire (règle 4).
 3. **Rien ne se recopie de ce qui se déduit.** Les dépendances sortent des
    conditions de la règle : les écrire aussi les laisserait diverger le jour où
    quelqu'un modifie la règle sans y penser.
@@ -219,6 +218,11 @@ nouveau n'a rien à brancher — il écrit du mdall, comme tous les autres.
 Elle interdit aussi quelque chose : **on n'ajoute au langage aucune information
 qu'on ne saurait pas relire.** Toute construction nouvelle passe d'abord par ce
 test.
+
+Elle impose enfin que **tout se tape au clavier**. Un langage qu'un architecte
+doit pouvoir écrire à la main ne peut pas exiger une table de caractères : les
+marques `§`, `¶`, `←`, `≤` sont devenues des mots suivis de deux points. La
+grammaire entière est dans `docs/langage-mdall.md`.
 
 Ce qui n'est pas compris n'est jamais avalé en silence. La lecture rend la
 ligne, son numéro et la raison du refus — un fichier amputé qui entrerait sans

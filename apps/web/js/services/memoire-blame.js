@@ -28,7 +28,7 @@
  * le reste ferait lire comme acquis ce que quelqu'un a refusé.
  */
 
-import { cheminDeRangement } from "./memoire-rangement.js";
+import { cheminsDeRangement, extensionDeRangement } from "./memoire-rangement.js";
 import { cheminDeFichier } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -53,20 +53,26 @@ export function fichiersDeLaMemoire(assertions = []) {
     // ligne, qui est l'endroit où on le cherche.
     if (texte(assertion?.superseded_by)) continue;
 
-    const chemin = cheminDeRangement({
-      nature: assertion?.nature,
-      domain: assertion?.domain,
-      // Une règle appliquée n'est pas un fait du projet : elle a son dossier.
-      referentiel: assertion?.payload?.referentiel === true
-    });
-    const cle = chemin.join(" / ");
-    if (!parFichier.has(cle)) {
-      parFichier.set(cle, { chemin, fichier: cheminDeFichier(chemin), lignes: [], ecartees: [] });
-    }
+    const referentiel = assertion?.payload?.referentiel === true;
+    const extension = extensionDeRangement({ nature: assertion?.nature, referentiel });
 
-    const entree = parFichier.get(cle);
-    if (texte(assertion?.status) === VAUT.REJECTED) entree.ecartees.push(assertion);
-    else entree.lignes.push(assertion);
+    // Une affirmation qui vaut pour deux zones se lit dans les deux fichiers.
+    // Ce n'est pas une copie : c'est la même, vue de deux endroits, et l'effacer
+    // de l'une la cacherait à qui ouvre cette zone-là.
+    for (const chemin of cheminsDeRangement({ domain: assertion?.domain, zones: zonesLisibles(assertion) })) {
+      const cle = `${chemin.join(" / ")}.${extension}`;
+      if (!parFichier.has(cle)) {
+        parFichier.set(cle, {
+          chemin, extension,
+          fichier: cheminDeFichier(chemin, extension),
+          lignes: [], ecartees: []
+        });
+      }
+
+      const entree = parFichier.get(cle);
+      if (texte(assertion?.status) === VAUT.REJECTED) entree.ecartees.push(assertion);
+      else entree.lignes.push(assertion);
+    }
   }
 
   return [...parFichier.values()].map((fichier) => ({
@@ -74,6 +80,19 @@ export function fichiersDeLaMemoire(assertions = []) {
     lignes: fichier.lignes.sort(parSujet),
     ecartees: fichier.ecartees.sort(parSujet)
   }));
+}
+
+/**
+ * Les zones d'une affirmation, telles qu'on les affiche.
+ *
+ * La colonne `zones` de la base est normalisée — « escalier-b » — et le
+ * `payload` garde ce que l'utilisateur a écrit. C'est celui-là qu'on montre :
+ * un dossier nommé « escalier-b » se lit moins bien qu'« Escalier B ».
+ */
+function zonesLisibles(assertion = {}) {
+  const dites = assertion?.payload?.zones;
+  if (Array.isArray(dites) && dites.length) return dites.map(texte).filter(Boolean);
+  return (Array.isArray(assertion?.zones) ? assertion.zones : []).map(texte).filter(Boolean);
 }
 
 /** L'ordre d'un fichier : par sujet, pour qu'on retrouve une ligne au même endroit. */

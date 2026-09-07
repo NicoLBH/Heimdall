@@ -2,56 +2,59 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  cheminDeRangement, DOSSIERS, SANS_NATURE, SANS_DOMAINE, rangDuDossier, phraseDuDossier, REFERENTIELS } from "./memoire-rangement.js";
-import { cheminDeFichier } from "./memoire-en-texte.js";
+  cheminDeRangement, cheminsDeRangement, extensionDeRangement,
+  EXTENSIONS, EXTENSION_REGLE, SANS_NATURE, SANS_DOMAINE, TOUT_LOUVRAGE,
+  rangDeLExtension, rangDeLaZone, phraseDeLExtension, phraseDeLaZone
+} from "./memoire-rangement.js";
 
-test("une conclusion d'étude incendie est une contrainte, pas une donnée de base", () => {
-  const chemin = cheminDeRangement({ nature: "contrainte", domain: "incendie" });
-  assert.deepEqual(chemin, ["Contraintes", "Incendie"]);
-  assert.equal(cheminDeFichier(chemin), "contraintes/incendie.mdall");
+test("l'arborescence part de la zone, parce que c'est de là qu'on part", () => {
+  // « l'escalier B, l'incendie, ce qui a été relevé » — et non l'inverse.
+  assert.deepEqual(cheminDeRangement({ domain: "incendie", zones: ["Escalier B"] }), ["Escalier B", "Incendie"]);
+  assert.equal(extensionDeRangement({ nature: "donnee-de-base" }), "ddb");
 });
 
-test("un relevé va aux données de base", () => {
-  assert.equal(cheminDeFichier(cheminDeRangement({ nature: "donnee-de-base", domain: "structure" })),
-    "donnees-de-base/structure.mdall");
+test("ce qui n'a pas de zone vaut pour tout l'ouvrage : c'est une portée, pas un manque", () => {
+  assert.deepEqual(cheminDeRangement({ domain: "structure" }), [TOUT_LOUVRAGE, "Structure"]);
+  assert.match(phraseDeLaZone(TOUT_LOUVRAGE), /l'ensemble du projet/);
+  assert.match(phraseDeLaZone("Escalier B"), /pour Escalier B/);
 });
 
-test("une contrainte déduite reste une contrainte : elle s'impose comme les autres", () => {
-  // « Profondeur hors gel » sort d'un calcul et s'impose pourtant exactement
-  // comme si elle sortait d'un texte. Ce qui la distingue se lit sur sa ligne,
-  // derrière la double flèche — pas dans un dossier à part.
-  assert.equal(cheminDeFichier(cheminDeRangement({ nature: "contrainte", domain: "structure" })),
-    "contraintes/structure.mdall");
+test("une affirmation qui vaut pour deux zones se lit dans les deux fichiers", () => {
+  assert.deepEqual(cheminsDeRangement({ domain: "incendie", zones: ["Escalier A", "Escalier B"] }), [
+    ["Escalier A", "Incendie"],
+    ["Escalier B", "Incendie"]
+  ]);
+  // Sans zone, un seul fichier : celui de l'ouvrage entier.
+  assert.deepEqual(cheminsDeRangement({ domain: "incendie" }), [[TOUT_LOUVRAGE, "Incendie"]]);
+  // Deux fois la même zone ne fait pas deux fichiers.
+  assert.equal(cheminsDeRangement({ domain: "incendie", zones: ["A", "A"] }).length, 1);
 });
 
-test("ce qui n'a pas de nature ne devient pas une donnée de base par défaut", () => {
-  assert.deepEqual(cheminDeRangement({}), [SANS_NATURE, SANS_DOMAINE]);
-  assert.deepEqual(cheminDeRangement({ nature: "n'importe quoi", domain: "incendie" }), [SANS_NATURE, "Incendie"]);
+test("l'extension dit la nature, et une nature inconnue ne s'invente pas", () => {
+  assert.equal(extensionDeRangement({ nature: "contrainte" }), EXTENSIONS.contrainte);
+  assert.equal(extensionDeRangement({ nature: "hypothese" }), "hyp");
+  assert.equal(extensionDeRangement({ nature: "constat" }), "cst");
+  assert.equal(extensionDeRangement({ nature: "intendance" }), "crp");
+  assert.equal(extensionDeRangement({}), SANS_NATURE);
+  // Une règle appliquée n'a pas de nature : c'est un texte, pas un fait.
+  assert.equal(extensionDeRangement({ nature: "contrainte", referentiel: true }), EXTENSION_REGLE);
 });
 
-test("les dossiers se lisent dans l'ordre de la confiance", () => {
-  assert.ok(rangDuDossier(DOSSIERS["donnee-de-base"]) < rangDuDossier(DOSSIERS.contrainte));
-  assert.ok(rangDuDossier(DOSSIERS.contrainte) < rangDuDossier(DOSSIERS.hypothese));
-  assert.ok(rangDuDossier(SANS_NATURE) > rangDuDossier(DOSSIERS.intendance));
-  assert.ok(rangDuDossier("Quelque chose d'autre") >= rangDuDossier(SANS_NATURE));
+test("un domaine inconnu se range à part plutôt que de se deviner", () => {
+  assert.deepEqual(cheminDeRangement({ zones: ["Escalier B"] }), ["Escalier B", SANS_DOMAINE]);
 });
 
-test("chaque dossier dit ce qu'on y range, sinon on y range au hasard", () => {
-  assert.match(phraseDuDossier(DOSSIERS.contrainte), /pas de recours/);
-  assert.match(phraseDuDossier(DOSSIERS["donnee-de-base"]), /ne se calcule pas/);
-  assert.match(phraseDuDossier(SANS_NATURE), /ne devrait pas se remplir/);
+test("les règles se lisent avant ce qu'on en tire", () => {
+  assert.equal(rangDeLExtension(EXTENSION_REGLE), 0);
+  assert.ok(rangDeLExtension("ref") < rangDeLExtension("ctr"));
+  assert.ok(rangDeLExtension("ctr") < rangDeLExtension("hyp"));
+  assert.equal(rangDeLaZone(TOUT_LOUVRAGE), 0);
+  assert.ok(rangDeLaZone(TOUT_LOUVRAGE) < rangDeLaZone("Escalier B"));
 });
 
-test("une règle appliquée ne se range pas avec les faits du projet", () => {
-  assert.deepEqual(cheminDeRangement({ nature: "contrainte", domain: "incendie" }), ["Contraintes", "Incendie"]);
-  assert.deepEqual(cheminDeRangement({ nature: "contrainte", domain: "incendie", referentiel: true }),
-    [REFERENTIELS, "Incendie"]);
-  // Une règle n'a pas de nature : c'est un texte appliqué, pas un fait constaté.
-  assert.deepEqual(cheminDeRangement({ domain: "structure", referentiel: true }), [REFERENTIELS, "Structure"]);
-});
-
-test("les référentiels se lisent en premier : on applique un texte avant d'en tirer des valeurs", () => {
-  assert.equal(rangDuDossier(REFERENTIELS), 0);
-  assert.ok(rangDuDossier(REFERENTIELS) < rangDuDossier("Données de base"));
-  assert.match(phraseDuDossier(REFERENTIELS), /telles qu'elles étaient le jour où on les a appliquées/);
+test("chaque extension dit ce qu'elle contient, sans quoi on range au hasard", () => {
+  assert.match(phraseDeLExtension("ref"), /règles appliquées/);
+  assert.match(phraseDeLExtension("ctr"), /pas de recours/);
+  assert.match(phraseDeLExtension("cst"), /Un constat sans date ne vaut rien/);
+  assert.match(phraseDeLExtension("inconnue"), /ne devrait pas se remplir/);
 });

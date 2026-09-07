@@ -17,7 +17,7 @@ test("un seuil du texte se publie tel quel, jamais la cote du projet", () => {
   assert.deepEqual(conditions, [{
     fait: "hauteurPlancherBasLogementLePlusHaut",
     sujet: "Hauteur du plancher bas du logement le plus haut",
-    operateur: "≤",
+    operateur: "<=",
     valeur: 28,
     unite: "m",
     logique: false
@@ -28,18 +28,18 @@ test("chaque opérateur du moteur a son signe", () => {
   const signes = (exigence) => conditionsMontrables({ etagesSurRdc: exigence }, sujets, unites)
     .map((condition) => condition.operateur);
 
-  assert.deepEqual(signes({ auPlus: 7 }), ["≤"]);
-  assert.deepEqual(signes({ auMoins: 2 }), ["≥"]);
+  assert.deepEqual(signes({ auPlus: 7 }), ["<="]);
+  assert.deepEqual(signes({ auMoins: 2 }), [">="]);
   assert.deepEqual(signes({ plusDe: 8 }), [">"]);
   assert.deepEqual(signes({ moinsDe: 3 }), ["<"]);
-  assert.deepEqual(signes({ differentDe: "x" }), ["≠"]);
+  assert.deepEqual(signes({ differentDe: "x" }), ["!="]);
   assert.deepEqual(signes(["a", "b"]), ["parmi"]);
   assert.deepEqual(signes({ renseigne: true }), ["renseigné"]);
 });
 
 test("une fourchette donne deux comparaisons, pas une", () => {
   const conditions = conditionsMontrables({ etagesSurRdc: { auMoins: 3, auPlus: 7 } }, sujets, unites);
-  assert.deepEqual(conditions.map((c) => [c.operateur, c.valeur]), [["≥", 3], ["≤", 7]]);
+  assert.deepEqual(conditions.map((c) => [c.operateur, c.valeur]), [[">=", 3], ["<=", 7]]);
 });
 
 test("un booléen se lit oui ou non, et se marque comme logique", () => {

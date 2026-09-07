@@ -113,7 +113,7 @@ test("les règles appliquées partent avec les valeurs qu'elles produisent", () 
       valeur: "3e famille B", exigence: true,
       conditions: [
         { sujet: "Logements superposés", operateur: "=", valeur: "oui", unite: null, logique: true },
-        { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: 28, unite: "m", logique: false }
+        { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "<=", valeur: 28, unite: "m", logique: false }
       ],
       pourquoi: { article: "3", paragraphe: "3°)", citation: "Troisième famille B : …" }
     }]
@@ -131,7 +131,7 @@ test("les règles appliquées partent avec les valeurs qu'elles produisent", () 
   assert.equal(regle.valeur, "3e famille B");
   assert.deepEqual(regle.regle.conditions.map((c) => [c.sujet, c.operateur]), [
     ["Logements superposés", "="],
-    ["Hauteur du plancher bas du logement le plus haut", "≤"]
+    ["Hauteur du plancher bas du logement le plus haut", "<="]
   ]);
   // Le seuil du texte, jamais la cote du projet.
   assert.deepEqual(regle.regle.conditions[1].valeur, ["28"]);
@@ -139,7 +139,7 @@ test("les règles appliquées partent avec les valeurs qu'elles produisent", () 
   assert.equal(regle.provenance.type, "texte");
 });
 
-test("une règle ne porte pas de portée : elle ne dépend d'aucun bâtiment", () => {
+test("une règle appliquée porte sa zone : deux escaliers, deux classements", () => {
   const vue = {
     modules: [{
       id: "m", titre: "Colonne sèche", statut: "conclu", valeur: "exigée", exigence: true,
@@ -148,8 +148,12 @@ test("une règle ne porte pas de portée : elle ne dépend d'aucun bâtiment", (
     }]
   };
 
-  const [regle] = reglesVersables(conclusionsVersables(vue), "bâtiment A");
-  assert.deepEqual(regle.zones, []);
+  const [regle] = reglesVersables(conclusionsVersables(vue), "Escalier B");
+  // Le texte de l'arrêté est universel ; les règles appliquées ne le sont pas.
+  assert.deepEqual(regle.zones, ["Escalier B"]);
+
+  const [partout] = reglesVersables(conclusionsVersables(vue), "");
+  assert.deepEqual(partout.zones, []);
 });
 
 test("une règle sans condition reste une règle : elle s'applique toujours", () => {

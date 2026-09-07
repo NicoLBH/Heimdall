@@ -88,9 +88,9 @@ test("un avis ajouté n'a pas d'avant : on ne lui en invente pas un", () => {
 
   assert.equal(avant.length, 0);
   assert.equal(apres.length, 1);
-  // Un avis est un constat : il se range comme tel, et non dans un dossier
-  // « Avis » qui n'existerait que pour lui.
-  assert.deepEqual(apres[0].chemin, ["Constats", "Incendie"]);
+  // Zone puis domaine : un avis sans zone vaut pour l'ouvrage entier, et son
+  // extension `.cst` dit que c'est un constat.
+  assert.deepEqual(apres[0].chemin, ["Tout l'ouvrage", "Incendie"]);
   assert.equal(apres[0].id, "avis:A-12");
 });
 
@@ -110,8 +110,8 @@ test("un avis dont l'état change porte les deux états", () => {
 test("les affirmations reprennent le tableau avant/après sans le recalculer", () => {
   const { avant, apres } = reperesDAffirmations({
     lignes: [
-      { cle: "degre-cf", sujet: "Degré coupe-feu", domaineLabel: "Incendie", avant: "CF 1/2 h", apres: "CF 1 h" },
-      { cle: "zone-neige", sujet: "Zone de neige", domaineLabel: "Structure", avant: "", apres: "A2" }
+      { cle: "degre-cf", sujet: "Degré coupe-feu", domaine: "incendie", avant: "CF 1/2 h", apres: "CF 1 h" },
+      { cle: "zone-neige", sujet: "Zone de neige", domaine: "structure", avant: "", apres: "A2" }
     ]
   });
 
@@ -173,15 +173,17 @@ test("les lignes d'un groupe portent deux numéros, comme un diff unifié", () =
   );
 });
 
-test("le nom d'une ligne ne porte le champ que si le repère en a plusieurs", () => {
+test("le nom d'une ligne ne porte le champ que si celui-ci en a un", () => {
   const { lignes } = comparerDesReperes({
     apres: [
-      repere("un", { Valeur: "A2" }),
+      repere("un", { "": "un = \"A2\"" }),
       repere("deux", { "État": "Levé", "Appréciation": "conforme" })
     ]
   });
 
   const noms = lignesNumerotees(arbreDesReperes(lignes)[0]).map((l) => l.nom);
+  // Le champ sans nom est la tête du bloc : il porte déjà le titre, et
+  // « un · » ne dirait rien de plus.
   assert.deepEqual(noms, ["un", "deux · État", "deux · Appréciation"]);
 });
 
@@ -200,40 +202,77 @@ test("une hypothèse qui devient un relevé est un changement, même à valeur �
 
   const compare = comparerDesReperes({ avant, apres });
   const ligne = compare.lignes.find((entree) => entree.id === "affirmation:gel");
-  const changes = ligne.champs.filter((champ) => champ.etat !== ETAT.INCHANGE).map((champ) => champ.nom);
+  const changes = ligne.champs.filter((champ) => champ.etat !== ETAT.INCHANGE);
 
-  assert.deepEqual(changes.sort(), ["D'où", "Provenance", "Statut"]);
+  assert.deepEqual(changes.map((champ) => champ.nom).sort(), ["provenance", "statut"]);
+  // La valeur d'un champ **est** la ligne du fichier : le diff d'un `.ctr`
+  // ressemble à un `.ctr`.
+  const provenance = changes.find((champ) => champ.nom === "provenance");
+  assert.match(provenance.avant, /^\s+hypothèse: altitude inconnue/);
+  assert.match(provenance.apres, /^\s+calcul: hors gel/);
 });
 
 test("un champ absent des deux côtés ne s'invente pas", () => {
   const { apres } = reperesDAffirmations({
     lignes: [{ cle: "neige", sujet: "Zone de neige", apres: "A1" }]
   });
-  assert.deepEqual(Object.keys(apres[0].champs), ["Valeur"]);
+  // Une seule ligne : la tête. Pas de provenance vide, pas de statut creux.
+  assert.deepEqual(Object.keys(apres[0].champs), [""]);
+  assert.equal(apres[0].champs[""], 'Zone de neige = "A1"');
 });
 
 test("un seuil de l'arrêté qui bouge est le seul changement que le projet puisse voir", () => {
   const regle = (seuil) => ({
-    conditions: [{ sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: [seuil], unite: "m" }],
+    conditions: [{ sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "<=", valeur: [seuil], unite: "m" }],
     sinon: "", sauf: []
   });
 
   const { avant, apres } = reperesDAffirmations({
     lignes: [{
-      cle: "classement", sujet: "Classement du bâtiment", domaine: "incendie", referentiel: true,
+      cle: "classement", sujet: "Classement du bâtiment", domaine: "incendie",
+      referentiel: true, zones: ["Escalier B"],
       avant: "3e famille B", apres: "3e famille B",
       regleAvant: regle("28"), regle: regle("30")
     }]
   });
 
-  // Une règle se range dans « Référentiels », jamais avec les contraintes.
-  assert.deepEqual(apres[0].chemin, ["Référentiels", "Incendie"]);
+  // Zone puis domaine, et l'extension dit que ce sont des règles.
+  assert.deepEqual(apres[0].chemin, ["Escalier B", "Incendie"]);
+  assert.equal(apres[0].extension, "ref");
 
   const compare = comparerDesReperes({ avant, apres });
   const ligne = compare.lignes.find((entree) => entree.id === "affirmation:classement");
   const change = ligne.champs.find((champ) => champ.etat !== ETAT.INCHANGE);
 
-  assert.equal(change.nom, "Règle");
-  assert.match(change.avant, /≤ 28 m$/);
-  assert.match(change.apres, /≤ 30 m$/);
+  // La condition se nomme par son sujet : réordonner n'invente aucun changement.
+  assert.equal(change.nom, "si Hauteur du plancher bas du logement le plus haut");
+  assert.match(change.avant, /<= 28 m$/);
+  assert.match(change.apres, /<= 30 m$/);
+});
+
+test("un diff de règles ressemble à un fichier de règles", () => {
+  const { apres } = reperesDAffirmations({
+    lignes: [{
+      cle: "classement", sujet: "Classement du bâtiment", domaine: "incendie", referentiel: true,
+      apres: "3e famille B",
+      regle: {
+        conditions: [
+          { sujet: "Logements superposés", operateur: "=", valeur: ["oui"], logique: true },
+          { sujet: "Hauteur du plancher bas", operateur: "<=", valeur: ["28"], unite: "m", joint: "et" }
+        ],
+        sinon: "", sauf: []
+      },
+      provenance: { type: "texte", quoi: "arrêté du 31 janvier 1986, article 3" },
+      preuve: "Troisième famille B : …"
+    }]
+  });
+
+  assert.deepEqual(Object.values(apres[0].champs), [
+    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas)",
+    "   si Logements superposés = oui",
+    "   et Hauteur du plancher bas <= 28 m",
+    '   alors "3e famille B"',
+    "   texte: arrêté du 31 janvier 1986, article 3",
+    '      parce que: "Troisième famille B : …"'
+  ]);
 });

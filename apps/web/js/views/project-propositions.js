@@ -83,9 +83,8 @@ import { aChange, reperesDuDepot } from "../services/depot-carburants.js";
 import { limiterAuDepot } from "../services/depot-portee.js";
 import { ISSUE, passerLesControles, resumeDesControles } from "../services/depot-controles.js";
 import { bindSideResizer, renderSideResizer } from "./ui/side-resizer.js";
-import {
-  cheminDeFichier, couperLUnite, enClair, estMesuree, ligneDAffirmation, nomDeFichier
-} from "../services/memoire-en-texte.js";
+import { cheminDeFichier, enClair, nomDeFichier } from "../services/memoire-en-texte.js";
+import { jetonsDeLaLigne as jetonsDuTexte } from "../services/memoire-en-lecture.js";
 import { avisFromFigures, mergeAvis } from "../services/avis-from-figures.js";
 import { describeReadingStack } from "../services/run-workflow.js";
 
@@ -2825,19 +2824,14 @@ function renderDiffLigne(groupe, entree) {
  * changement.
  */
 function jetonsDeLaLigne(entree) {
-  const provenance = entree.ligne.provenance ?? {};
-  const brute = String(entree.valeur ?? "");
-  const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
-
-  // Le diff compare des **champs** de repères, un par ligne : la provenance et
-  // le statut y ont déjà leur propre ligne, avec leur propre `-` ou `+`. Les
-  // réécrire ici les ferait apparaître deux fois, dont une sans signe.
-  return ligneDAffirmation({
-    sujet: entree.nom,
-    valeur: coupe.nombre,
-    unite: coupe.unite,
-    zones: provenance.zones ?? []
-  });
+  // La valeur d'un champ **est** la ligne du fichier, écrite dans la langue.
+  // On la relit pour la colorer : `lire(écrire(G)) = G` garantit que rien ne se
+  // perd, et le diff d'un `.ref` ressemble donc à un `.ref`.
+  //
+  // Elle était réécrite ici sous la forme `Sujet = valeur`, quel que soit le
+  // champ — si bien qu'une règle se lisait exactement comme une contrainte, et
+  // qu'on ne voyait plus aucune règle.
+  return jetonsDuTexte(entree.valeur);
 }
 
 /**

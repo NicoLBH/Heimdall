@@ -60,13 +60,13 @@ test("lire(écrire(G)) = G — une règle traverse le texte sans rien perdre", (
 
 test("lire(écrire(G)) = G — une affirmation de projet aussi", () => {
   const affirmations = [
-    { sujet: "Classement du bâtiment", valeur: "3e famille B", unite: "", zones: [],
+    { sujet: "Classement du bâtiment", valeur: "3e famille B", unite: "",
       provenance: { type: PROVENANCE.REGLE, quoi: "Classement du bâtiment, article 3, 3°)" },
       preuve: "", statut: STATUT.RETENU },
-    { sujet: "Hauteur du plancher bas du logement le plus haut", valeur: "26", unite: "m", zones: ["bâtiment A"],
+    { sujet: "Hauteur du plancher bas du logement le plus haut", valeur: "26", unite: "m",
       provenance: { type: PROVENANCE.DOCUMENT, quoi: "plan de coupe AA, indice C" },
       preuve: "niveau +26,00 au plancher du R+8", statut: "" },
-    { sujet: "Portance du sol", valeur: "0,2", unite: "MPa", zones: [],
+    { sujet: "Portance du sol", valeur: "0,2", unite: "MPa",
       provenance: { type: PROVENANCE.HYPOTHESE, quoi: "à confirmer par le G2" },
       preuve: "", statut: STATUT.SUPPOSE }
   ];
@@ -77,7 +77,7 @@ test("lire(écrire(G)) = G — une affirmation de projet aussi", () => {
   assert.deepEqual(refus, []);
   assert.deepEqual(
     blocs.map((bloc) => ({
-      sujet: bloc.sujet, valeur: bloc.valeur, unite: bloc.unite, zones: bloc.zones,
+      sujet: bloc.sujet, valeur: bloc.valeur, unite: bloc.unite,
       provenance: bloc.provenance, preuve: bloc.preuve, statut: bloc.statut
     })),
     affirmations
@@ -115,18 +115,33 @@ test("un architecte peut taper <= et des guillemets droits", () => {
   assert.equal(aLaMain.unite, "m");
 });
 
-test("la portée se lit derrière l'arobase", () => {
-  const tete = lireUneTete('Degré coupe-feu des planchers = "CF 1 h" @ bâtiment A, bâtiment B');
-  assert.equal(tete.sujet, "Degré coupe-feu des planchers");
-  assert.equal(tete.valeur, "CF 1 h");
-  assert.deepEqual(tete.zones, ["bâtiment A", "bâtiment B"]);
+test("la signature d'une règle nomme ses entrées, et ne fait pas partie du sujet", () => {
+  const tete = lireUneTete("Classement du bâtiment (Logements superposés, Hauteur du plancher bas)");
+  assert.equal(tete.sujet, "Classement du bâtiment");
+  assert.deepEqual(tete.entrees, ["Logements superposés", "Hauteur du plancher bas"]);
+  assert.equal(tete.valeur, "");
+
+  // Une parenthèse qui appartient au sujet reste dans le sujet : elle ne se
+  // lit comme une signature que collée à la fin.
+  assert.equal(lireUneTete("Voie-engins (article 4) = \"non décrite\"").sujet, "Voie-engins (article 4)");
+});
+
+test("une date de constat se lit, parce qu'un constat sans date ne vaut rien", () => {
+  const { blocs } = lireUnFichier([
+    'Encloisonnement de l\'escalier = "non réalisé"',
+    "   le: 12 mars 2026",
+    "   document: rapport de visite n°4"
+  ].join("\n"));
+
+  assert.equal(blocs[0].le, "12 mars 2026");
+  assert.deepEqual(blocs[0].provenance, { type: "document", quoi: "rapport de visite n°4" });
 });
 
 test("ce qui ne se comprend pas se dit, avec son numéro de ligne", () => {
   const { blocs, refus } = lireUnFichier([
     'Classement du bâtiment = "3e famille B"',
-    "   ← oracle une boule de cristal",
-    "   statut peut-être",
+    "   oracle: une boule de cristal",
+    "   statut: peut-être",
     "   pourquoi pas",
     "   dépend de Famille"
   ].join("\n"));

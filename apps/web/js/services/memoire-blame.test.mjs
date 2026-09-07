@@ -21,7 +21,7 @@ test("un fichier ne contient que ce qui vaut aujourd'hui", () => {
   ]);
 
   assert.equal(fichiers.length, 1);
-  assert.equal(fichiers[0].fichier, "contraintes/incendie.mdall");
+  assert.equal(fichiers[0].fichier, "tout-l-ouvrage/incendie.ctr");
   assert.deepEqual(fichiers[0].lignes.map((l) => l.payload.value), ["CF 1 h", "3e famille B"]);
 });
 
@@ -35,20 +35,36 @@ test("ce qui a été écarté a sa section, il ne se lit pas comme acquis", () =
   assert.deepEqual(fichiers[0].ecartees.map((l) => l.subject_key), ["desenfumage"]);
 });
 
-test("le rangement suit la nature : deux natures font deux fichiers", () => {
+test("le rangement suit la zone, et l'extension dit la nature", () => {
   const fichiers = fichiersDeLaMemoire([
     assertion("a1", "zone-neige", "A2", { nature: "donnee-de-base", domain: "structure" }),
     assertion("a2", "hors-gel", "0,80 m", { nature: "contrainte", domain: "structure" })
   ]);
 
+  // Même zone, même domaine, deux natures : deux fichiers voisins, comme
+  // `app.css` et `app.js`.
   assert.deepEqual(fichiers.map((f) => f.fichier).sort(),
-    ["contraintes/structure.mdall", "donnees-de-base/structure.mdall"]);
+    ["tout-l-ouvrage/structure.ctr", "tout-l-ouvrage/structure.ddb"]);
+});
+
+test("une affirmation qui vaut pour deux zones se lit dans les deux fichiers", () => {
+  const fichiers = fichiersDeLaMemoire([
+    assertion("a1", "degre-cf", "CF 1 h", {
+      nature: "contrainte", domain: "incendie",
+      payload: { subject: "Degré coupe-feu", value: "CF 1 h", zones: ["Escalier A", "Escalier B"] }
+    })
+  ]);
+
+  assert.deepEqual(fichiers.map((f) => f.fichier).sort(),
+    ["escalier-a/incendie.ctr", "escalier-b/incendie.ctr"]);
+  // La même affirmation, vue de deux endroits : même identifiant des deux côtés.
+  assert.deepEqual(fichiers.map((f) => f.lignes[0].id), ["a1", "a1"]);
 });
 
 test("un dossier vide ne s'affiche pas : un projet neuf n'a rien perdu", () => {
   assert.deepEqual(dossiersDeLaMemoire([]), []);
   const dossiers = dossiersDeLaMemoire([assertion("a1", "degre-cf", "CF 1 h")]);
-  assert.deepEqual(dossiers.map((d) => d.nom), ["Contraintes"]);
+  assert.deepEqual(dossiers.map((d) => d.nom), ["Tout l'ouvrage"]);
   assert.equal(dossiers[0].lignes, 1);
 });
 

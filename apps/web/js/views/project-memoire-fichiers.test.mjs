@@ -19,8 +19,8 @@ test("une valeur mesurée s'écrit nue, avec sa provenance dessous", () => {
 
   assert.deepEqual(lignes.map(clair), [
     "Altitude du site = 490,03 m",
-    "   ← document Zonages réglementaires",
-    "   statut retenu"
+    "   document: Zonages réglementaires",
+    "   statut: retenu"
   ]);
   assert.equal(lignes[0].nature, "affirmation");
   assert.equal(lignes[1].nature, "detail");
@@ -66,8 +66,8 @@ test("une hypothèse se dit supposée, et sa provenance dit qui doit la confirme
 
   assert.equal(texte, [
     "Portance du sol = 0,2 MPa",
-    "   ← hypothèse à confirmer par le G2",
-    "   statut supposé"
+    "   hypothèse: à confirmer par le G2",
+    "   statut: supposé"
   ].join("\n"));
 });
 
@@ -83,13 +83,12 @@ test("la mémoire ne recopie plus la règle, et n'écrit plus de dépendances", 
 
   assert.equal(texte.includes("si "), false);
   assert.equal(texte.includes("dépend de"), false);
-  assert.match(texte, /parce que "Les habitations de la 3ème famille B/);
+  assert.match(texte, /parce que: "Les habitations de la 3ème famille B/);
 });
 
 test("ce que la mémoire écrit se relit sans perte", () => {
   const assertion = {
     nature: "contrainte",
-    zones: ["bâtiment A"],
     payload: {
       subject: "Degré coupe-feu des planchers", value: "CF 1 h",
       provenance: { type: PROVENANCE.REGLE, quoi: "Degré coupe-feu des planchers — article 6" },
@@ -103,7 +102,6 @@ test("ce que la mémoire écrit se relit sans perte", () => {
   assert.equal(blocs.length, 1);
   assert.equal(blocs[0].sujet, "Degré coupe-feu des planchers");
   assert.equal(blocs[0].valeur, "CF 1 h");
-  assert.deepEqual(blocs[0].zones, ["bâtiment A"]);
   assert.deepEqual(blocs[0].provenance, assertion.payload.provenance);
   assert.equal(blocs[0].preuve, assertion.payload.citation);
   assert.equal(blocs[0].statut, STATUT.RETENU);
@@ -139,7 +137,7 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
       regle: {
         conditions: [
           { sujet: "Logements superposés", operateur: "=", valeur: ["oui"], unite: "", logique: true },
-          { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: ["28"], unite: "m", joint: "et" }
+          { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "<=", valeur: ["28"], unite: "m", joint: "et" }
         ],
         sinon: "3e famille A",
         sauf: []
@@ -150,13 +148,13 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
   });
 
   assert.equal(texte, [
-    "Classement du bâtiment",
+    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut)",
     "   si Logements superposés = oui",
-    "   et Hauteur du plancher bas du logement le plus haut ≤ 28 m",
+    "   et Hauteur du plancher bas du logement le plus haut <= 28 m",
     '   alors "3e famille B"',
     '   sinon "3e famille A"',
-    "   ← texte arrêté du 31 janvier 1986 modifié, article 3, 3°)",
-    '      parce que "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."'
+    "   texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)",
+    '      parce que: "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."'
   ].join("\n"));
 
   // Pas de `=` sur la tête : la règle ne dit pas ce que vaut la donnée ici.

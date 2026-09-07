@@ -120,10 +120,12 @@ export function reglesVersables(conclusions = [], zone = "") {
       provenance: conclusion.regle.provenance,
       citation: conclusion.regle.preuve,
       reference: `regle:${conclusion.id}`,
-      // Une règle ne dépend pas d'un bâtiment : elle ne porte pas de portée.
-      // Le jour où deux bâtiments appliquent la même règle, elle ne s'écrit
-      // qu'une fois.
-      zones: portee.length ? [] : [],
+      // Une règle **appliquée** dépend de la zone. Le texte de l'arrêté est
+      // universel ; l'escalier A classé en 3ᵉ famille B et l'escalier B classé
+      // en 2ᵉ famille ne suivent pas les mêmes articles. Sans la portée, les
+      // règles des deux escaliers se mélangeraient dans un seul fichier, et la
+      // seconde étude périmerait la première.
+      zones: portee,
       atelier: "Incendie — Habitation"
     }));
 }

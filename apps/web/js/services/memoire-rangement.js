@@ -1,67 +1,65 @@
 /**
  * Où une affirmation se range, et sous quel nom.
  *
- * ## Le rangement suivait le domaine. Il doit suivre la nature.
+ * ## L'arborescence suit la zone, puis le domaine
  *
- * Toutes les affirmations d'un utilitaire atterrissaient dans
- * `données-de-base/<domaine>.mdall`. C'était faux, et de deux façons :
- *
- * - les conclusions d'une étude incendie — « degré coupe-feu des planchers :
- *   CF 1 h » — ne sont pas des données de base. Ce sont des **contraintes** :
- *   on ne les mesure pas, on les subit, et si l'on n'est pas d'accord il n'y a
- *   pas de recours ;
- * - l'utilitaire neige-vent produit les deux à la fois. « Zone de neige : E »
- *   est un relevé, non négociable et non calculé. « Profondeur hors gel :
- *   0,985 m » en découle : elle ne tient que tant que ses entrées tiennent.
- *
- * Le rangement suit donc la **nature**, qui est déjà la question que la
- * taxonomie pose, et le nom du fichier vient du **domaine**.
+ * Elle suivait la nature, puis le domaine : `contraintes/incendie`,
+ * `donnees-de-base/structure`. C'était logique pour qui range, pas pour qui
+ * cherche. Sur un chantier on ne dit pas « les données de base de l'incendie,
+ * pour l'escalier B » : on dit **« l'escalier B, l'incendie, ce qui a été
+ * relevé »**. On part du morceau d'ouvrage qu'on a en tête.
  *
  * ```
- * donnees-de-base/structure.mdall     ce qui est relevé, non négociable
- * contraintes/incendie.mdall          ce qui s'impose, calculé ou non
- * hypotheses/sol.mdall                ce qu'on suppose en attendant
- * constats/incendie.mdall             ce qui a été observé, à une date
- * corpus/documents.mdall              ce qui est entré au dossier
+ * Escalier B/incendie.ref     les règles appliquées à cet escalier
+ * Escalier B/incendie.ctr     ce qui s'y impose
+ * Escalier B/incendie.ddb     ce qui y a été relevé
+ * Escalier A/incendie.ref     et ce ne sont pas les mêmes règles
  * ```
  *
- * ## Pourquoi une contrainte déduite reste une contrainte
+ * Le gain est double. L'arborescence est **plus courte** — deux niveaux au lieu
+ * de trois — parce que la nature descend dans l'extension. Et tout ce qui
+ * concerne une zone se lit d'un seul endroit, ce qui est exactement le geste
+ * qu'on fait quand on travaille sur cette zone.
  *
- * « Profondeur hors gel » sort d'un calcul, mais elle s'impose exactement comme
- * si elle sortait d'un texte : on ne fonde pas plus haut parce que le calcul
- * nous déplaît. En faire une famille à part la sortirait du dossier où on la
- * cherche — celui des contraintes du site.
+ * Ce qu'on y perd : « montre-moi toutes les hypothèses du projet » demande
+ * maintenant la recherche plutôt qu'un dossier. C'est le bon échange — la
+ * première question se pose tous les jours, la seconde une fois par mois.
  *
- * Ce qui la distingue se lit **sur sa ligne**, derrière la double flèche `⇐`
- * qui nomme le calcul et ses entrées : c'est là que compte la différence, parce
- * que c'est là qu'on saura quoi refaire le jour où l'altitude change.
+ * ## L'extension dit ce que le fichier contient
  *
- * ## Les règles appliquées ont leur dossier
+ * Deux `incendie.mdall` à deux endroits n'ont pas de sens, et c'est dangereux :
+ * on ouvre l'un en croyant l'autre. Comme `app.html`, `app.css` et `app.js`
+ * disent trois choses du même `app`, l'extension dit la **nature** — et chaque
+ * nature a sa forme d'écriture.
  *
- * Un référentiel n'est pas un fait de **ce** projet : c'est ce qu'on lui
- * applique. Le ranger avec les contraintes ferait croire que le texte a été
- * décidé ici.
+ * ```
+ * .ref   des règles          Sujet (entrées) / si / alors / texte: / parce que:
+ * .ctr   des contraintes     Sujet = valeur / règle: / statut:
+ * .ddb   des données de base Sujet = valeur / document: / parce que:
+ * .hyp   des hypothèses      Sujet = valeur / hypothèse: / statut: supposé
+ * .cst   des constats        Sujet = valeur / le: / document: / parce que:
+ * .crp   le corpus           ce qui est entré au dossier
+ * ```
  *
- * Mais il doit y être. Une contrainte dit « ← règle Classement du bâtiment » :
- * si la règle n'est nulle part dans le projet, cette référence pointe vers rien,
- * le graphe des dépendances ne se reconstruit pas, et l'on ne peut plus
- * répondre à « la hauteur change, qu'est-ce qui tombe ? ». Pire : six mois plus
- * tard l'arrêté aura peut-être bougé, et un renvoi vers un corpus vivant
- * réécrirait l'histoire en silence — ce que la doctrine interdit.
+ * ## Une règle appartient à une zone
  *
- * Le projet garde donc un **instantané** des règles qu'il a appliquées, à la
- * version où il les a appliquées. Ce n'est pas le corpus : les cent quatre
- * modules, leur ordre, les branches non prises et le catalogue des questions
- * restent au serveur. C'est la quarantaine de règles qui ont servi à ce
- * bâtiment-ci.
+ * Le texte de l'arrêté est universel ; **les règles appliquées ne le sont
+ * pas**. L'escalier A classé en 3ᵉ famille B et l'escalier B classé en 2ᵉ
+ * famille ne suivent pas les mêmes articles. Une règle se range donc dans la
+ * zone où elle a été appliquée, comme tout le reste.
+ *
+ * ## Ce qui n'a pas de zone
+ *
+ * Ce qui vaut pour tout l'ouvrage. Ce n'est pas un manque, c'est une portée —
+ * et c'est le cas le plus fréquent au début d'un projet.
  *
  * ## Ce qui n'a pas de nature
  *
- * Un fichier `non-classe/` plutôt qu'un rangement deviné. Une affirmation dont
- * on ignore la nature ne devient pas une donnée de base parce que c'est le
- * dossier le plus courant : ne pas savoir n'autorise pas à prétendre
- * (fondamentaux, règle 5), et un dossier qui se remplit tout seul dit qu'un
- * utilitaire a oublié de se prononcer.
+ * Une extension `.mdall` plutôt qu'un rangement deviné. Une affirmation dont on
+ * ignore la nature ne devient pas une donnée de base parce que c'est la plus
+ * courante : ne pas savoir n'autorise pas à prétendre (fondamentaux, règle 5),
+ * et un fichier qui se remplit tout seul dit qu'un utilitaire a oublié de se
+ * prononcer.
  */
 
 import { NATURE, DOMAIN, normalizeNature, normalizeDomain, domainLabel, natureLabel } from "./assertion-taxonomy.js";
@@ -69,99 +67,140 @@ import { NATURE, DOMAIN, normalizeNature, normalizeDomain, domainLabel, natureLa
 const texte = (valeur) => String(valeur ?? "").trim();
 
 /**
- * Le dossier des règles appliquées.
+ * L'extension de chaque nature. Trois lettres, comme on en tape.
  *
- * Il se lit en premier : on applique un texte avant d'en tirer des valeurs, et
- * c'est dans cet ordre qu'on relit une étude.
+ * Elle remplace le dossier de nature : ce que le fichier contient se lit sur
+ * son nom, et l'arborescence garde deux niveaux au lieu de trois.
  */
-export const REFERENTIELS = "Référentiels";
-
-/** Le dossier de chaque nature. Le pluriel, parce qu'un dossier en contient. */
-export const DOSSIERS = {
-  [NATURE.DONNEE_BASE]: "Données de base",
-  [NATURE.CONTRAINTE]: "Contraintes",
-  [NATURE.HYPOTHESE]: "Hypothèses",
-  [NATURE.CONSTAT]: "Constats",
-  [NATURE.INTENDANCE]: "Corpus"
+export const EXTENSIONS = {
+  [NATURE.DONNEE_BASE]: "ddb",
+  [NATURE.CONTRAINTE]: "ctr",
+  [NATURE.HYPOTHESE]: "hyp",
+  [NATURE.CONSTAT]: "cst",
+  [NATURE.INTENDANCE]: "crp"
 };
 
-/** Là où va ce dont on ignore la nature. Il ne doit pas se remplir. */
-export const SANS_NATURE = "Non classé";
+/** Les règles appliquées. Elles n'ont pas de nature : ce sont des textes. */
+export const EXTENSION_REGLE = "ref";
+
+/** Ce dont on ignore la nature. Cette extension ne devrait pas se rencontrer. */
+export const SANS_NATURE = "mdall";
+
+/** La zone de ce qui vaut pour l'ouvrage entier. Une portée, pas un manque. */
+export const TOUT_LOUVRAGE = "Tout l'ouvrage";
 
 /** Là où va ce dont on ignore le domaine. */
 export const SANS_DOMAINE = "Non classé";
 
 /**
- * Le chemin d'une affirmation : son dossier, puis son fichier.
+ * Ce qu'une extension dit, en une phrase.
  *
- * @param {{nature?: string, domain?: string}} affirmation
- * @returns {string[]} `["Contraintes", "Incendie"]`
+ * Une extension nommée sans être expliquée se lit de travers : `.ctr` et `.ddb`
+ * se ressemblent assez pour qu'on range au hasard.
  */
-export function cheminDeRangement({ nature = "", domain = "", referentiel = false } = {}) {
-  const domaine = normalizeDomain(domain);
-
-  // Une règle n'est pas un fait du projet : elle se range à part, et c'est ce
-  // qui permet de la relire sans croire qu'elle a été décidée ici.
-  if (referentiel === true) {
-    return [REFERENTIELS, domaine ? domainLabel(domaine) : SANS_DOMAINE];
+export function phraseDeLExtension(extension) {
+  const dit = texte(extension);
+  if (dit === EXTENSION_REGLE) {
+    return "Les règles appliquées, telles qu'elles étaient le jour où on les a appliquées.";
   }
 
+  const entree = Object.entries(EXTENSIONS).find(([, ext]) => ext === dit);
+  if (!entree) return "Ce que personne n'a encore classé. Ce fichier ne devrait pas se remplir.";
+
+  return {
+    [NATURE.DONNEE_BASE]: "Ce qui a été relevé sur le site ou le programme. Ne se discute pas, ne se calcule pas.",
+    [NATURE.CONTRAINTE]: "Ce qui s'impose au projet. Si vous n'êtes pas d'accord, vous n'avez pas de recours.",
+    [NATURE.HYPOTHESE]: "Ce qu'on suppose en attendant mieux. Se remplace, et ce qui en dépend devient suspect.",
+    [NATURE.CONSTAT]: "Ce qui a été observé, à une date. Un constat sans date ne vaut rien.",
+    [NATURE.INTENDANCE]: "Ce qui est entré au dossier : documents, pièces jointes, avis."
+  }[entree[0]];
+}
+
+/** L'ordre de lecture des extensions : les textes d'abord, puis ce qu'on en tire. */
+export const ORDRE_DES_EXTENSIONS = [
+  EXTENSION_REGLE,
+  EXTENSIONS[NATURE.DONNEE_BASE],
+  EXTENSIONS[NATURE.CONTRAINTE],
+  EXTENSIONS[NATURE.HYPOTHESE],
+  EXTENSIONS[NATURE.CONSTAT],
+  EXTENSIONS[NATURE.INTENDANCE],
+  SANS_NATURE
+];
+
+/** Le rang d'une extension, pour trier. Les inconnues en dernier. */
+export function rangDeLExtension(extension) {
+  const rang = ORDRE_DES_EXTENSIONS.indexOf(texte(extension));
+  return rang === -1 ? ORDRE_DES_EXTENSIONS.length : rang;
+}
+
+/**
+ * L'extension d'une affirmation : ce qu'elle est.
+ *
+ * Une règle appliquée n'a pas de nature — c'est un texte, pas un fait constaté
+ * — et son extension le dit avant tout le reste.
+ */
+export function extensionDeRangement({ nature = "", referentiel = false } = {}) {
+  if (referentiel === true) return EXTENSION_REGLE;
   const famille = normalizeNature(nature);
+  return famille ? EXTENSIONS[famille] : SANS_NATURE;
+}
+
+/**
+ * Le chemin d'une affirmation : sa zone, puis son domaine.
+ *
+ * L'extension n'y figure pas — elle se calcule à part, parce que deux fichiers
+ * du même chemin et d'extensions différentes sont deux fichiers voisins, pas
+ * deux dossiers.
+ *
+ * @param {{nature?: string, domain?: string, zones?: string[], referentiel?: boolean}} affirmation
+ * @returns {string[]} `["Escalier B", "Incendie"]`
+ */
+export function cheminDeRangement({ domain = "", zones = [] } = {}) {
+  const domaine = normalizeDomain(domain);
+  const portees = (Array.isArray(zones) ? zones : [zones]).map(texte).filter(Boolean);
+
   return [
-    famille ? DOSSIERS[famille] : SANS_NATURE,
+    // La première zone nomme le fichier. Une affirmation qui vaut pour deux
+    // zones apparaît dans les deux : voir `cheminsDeRangement`.
+    portees[0] || TOUT_LOUVRAGE,
     domaine ? domainLabel(domaine) : SANS_DOMAINE
   ];
 }
 
 /**
- * Les dossiers de la mémoire, dans l'ordre où on les lit.
+ * Tous les chemins d'une affirmation — un par zone où elle vaut.
  *
- * Les textes appliqués d'abord, puis ce que le projet a relevé, ce qui s'impose,
- * ce qu'on suppose, ce qu'on a vu, ce qui est entré au dossier. C'est l'ordre de
- * la confiance : un référentiel ne se discute pas du tout, une donnée de base ne
- * se discute pas, une hypothèse attend d'être confirmée.
+ * Une contrainte qui vaut pour l'escalier A **et** pour l'escalier B se lit dans
+ * les deux fichiers. Ce n'est pas une copie : c'est la même affirmation, vue de
+ * deux endroits, et elle porte le même identifiant dans les deux.
+ *
+ * L'alternative — un dossier « A + B » — cacherait la contrainte à qui ouvre
+ * l'escalier A, ce qui est exactement l'erreur qu'on veut éviter.
  */
-export const ORDRE_DES_DOSSIERS = [
-  REFERENTIELS,
-  DOSSIERS[NATURE.DONNEE_BASE],
-  DOSSIERS[NATURE.CONTRAINTE],
-  DOSSIERS[NATURE.HYPOTHESE],
-  DOSSIERS[NATURE.CONSTAT],
-  DOSSIERS[NATURE.INTENDANCE],
-  SANS_NATURE
-];
-
-/** Le rang d'un dossier, pour trier. Les inconnus en dernier. */
-export function rangDuDossier(dossier) {
-  const rang = ORDRE_DES_DOSSIERS.indexOf(texte(dossier));
-  return rang === -1 ? ORDRE_DES_DOSSIERS.length : rang;
+export function cheminsDeRangement({ domain = "", zones = [] } = {}) {
+  const portees = [...new Set((Array.isArray(zones) ? zones : [zones]).map(texte).filter(Boolean))];
+  if (!portees.length) return [cheminDeRangement({ domain })];
+  return portees.map((zone) => cheminDeRangement({ domain, zones: [zone] }));
 }
 
 /**
- * Ce qu'un dossier dit de lui-même, en une phrase.
+ * Les zones, dans l'ordre où on les lit.
  *
- * Un dossier nommé sans être expliqué se remplit de travers : « contraintes »
- * et « données de base » se ressemblent assez pour qu'on y range au hasard. La
- * phrase vient de la taxonomie, qui a déjà posé la question — elle n'est pas
- * réécrite ici, elle est citée.
+ * « Tout l'ouvrage » d'abord : ce qui vaut partout se lit avant ce qui ne vaut
+ * qu'ici, et c'est aussi ce qui existe en premier dans un projet.
  */
-export function phraseDuDossier(dossier) {
-  if (texte(dossier) === REFERENTIELS) {
-    return "Les règles appliquées au projet, telles qu'elles étaient le jour où on les a appliquées.";
-  }
-
-  const entree = Object.entries(DOSSIERS).find(([, nom]) => nom === texte(dossier));
-  if (!entree) return "Ce que personne n'a encore classé. Ce dossier ne devrait pas se remplir.";
-
-  const [nature] = entree;
-  return {
-    [NATURE.DONNEE_BASE]: "Ce qui a été relevé sur le site ou le programme. Ne se discute pas, ne se calcule pas.",
-    [NATURE.CONTRAINTE]: "Ce qui s'impose au projet. Si vous n'êtes pas d'accord, vous n'avez pas de recours.",
-    [NATURE.HYPOTHESE]: "Ce qu'on suppose en attendant mieux. Se remplace, et ce qui en dépend devient suspect.",
-    [NATURE.CONSTAT]: "Ce qui a été observé, à une date, par quelqu'un. Reste vrai à sa date.",
-    [NATURE.INTENDANCE]: "Ce qui est entré au dossier : les livrables, les rattachements."
-  }[nature] ?? natureLabel(nature);
+export function rangDeLaZone(zone) {
+  return texte(zone) === TOUT_LOUVRAGE ? 0 : 1;
 }
 
-/** Les domaines connus, pour peupler une arborescence vide sans rien inventer. */
-export { DOMAIN, NATURE };
+/**
+ * Ce qu'une zone dit d'elle-même, en une phrase.
+ *
+ * Un dossier nommé sans être expliqué se remplit de travers, et « Tout
+ * l'ouvrage » se confond avec « je n'ai pas su où le mettre ».
+ */
+export function phraseDeLaZone(zone) {
+  return texte(zone) === TOUT_LOUVRAGE
+    ? "Ce qui vaut pour l'ensemble du projet, sans distinction de bâtiment ni de cage."
+    : `Ce que le projet retient pour ${texte(zone)}, et rien d'autre.`;
+}

@@ -6,22 +6,19 @@ capitalise, à côté des décisions, des relevés, des calculs et des hypothès
 
 Il s'adresse à des contrôleurs techniques, des architectes, des maîtres
 d'ouvrage, des conducteurs de travaux. Aucun de ses mots n'est emprunté à un
-langage de programmation, et un test le vérifie.
+langage de programmation, et **tout se tape au clavier**.
 
 ---
 
 ## Les cinq objets, et pourquoi ils ne se mélangent pas
 
-Une même ligne portait autrefois cinq choses de natures différentes. Les
-séparer est tout l'intérêt de la version 3.
-
 | l'objet | ce qu'il est | où il s'écrit |
 | --- | --- | --- |
 | la **donnée** | « Hauteur du plancher bas du logement le plus haut » | le sujet, en tête de ligne |
 | la **valeur** | « 26 m » | après le `=` |
-| la **règle** | `si … alors …` | un fichier de référentiel |
-| la **preuve** | l'article, puis sa citation | `←` puis `parce que` |
-| le **statut** | « retenu », « supposé » | `statut`, sur sa ligne |
+| la **règle** | `si … alors …` | un fichier `.ref` |
+| la **preuve** | la provenance, puis sa citation | `texte:` puis `parce que:` |
+| le **statut** | « retenu », « supposé » | `statut:`, sur sa ligne |
 
 ---
 
@@ -32,25 +29,28 @@ séparer est tout l'intérêt de la version 3.
    d'une tabulation dépend de qui la lit, et une mémoire qui se lit
    différemment selon l'écran n'est pas une mémoire.
 2. **Un mot-clé ne compte qu'en tête de ligne**, après le retrait. « Habitation
-   individuelle **ou** collective » est un sujet, pas une disjonction. C'est la
-   seule subtilité de la grammaire, et elle règle le seul vrai piège.
+   individuelle **ou** collective » est un sujet, pas une disjonction.
 3. **Une valeur textuelle porte des guillemets, une valeur mesurée n'en porte
    pas.** `= "3e famille B"` contre `= 26 m`. Sans cette différence, on ne
    saurait pas relire `= 3` : le chiffre trois, ou la catégorie « 3 » ?
 
 ---
 
-## Les huit constructions
+## Tout se tape au clavier
+
+`§`, `¶`, `←`, `≤`, `≥`, `≠` étaient jolis et intapables. Un langage qu'un
+architecte doit pouvoir écrire à la main ne peut pas exiger une table de
+caractères : chaque marque est devenue un **mot suivi de deux points**, qui dit
+en plus ce qu'elle voulait dire.
 
 ```
-§ contraintes/incendie.mdall              le fichier
-¶ écriture Mdall v3.0                     une note, jamais interprétée
+fichier: escalier-b/incendie.ctr          le chemin du fichier
+note: écriture Mdall v4.0                 une note, jamais interprétée
 
 Sujet = valeur                            une affirmation
-Sujet = valeur @ bâtiment A               sa portée, quand ce n'est pas l'ouvrage entier
-Sujet                                     une donnée, en tête d'une règle
+Sujet (entrée, entrée)                    la tête d'une règle, et ses entrées
 
-   si Sujet ≤ 28 m                        une condition
+   si Sujet <= 28 m                       une condition
    et Sujet = "collective"
    ou Sujet parmi "a" ou "b"
    non Sujet = "x"
@@ -58,112 +58,138 @@ Sujet                                     une donnée, en tête d'une règle
    sinon "3e famille A"
    sauf si Sujet = oui                    ce qui la borne
 
-   ← texte      arrêté …, article 3, 3°)  d'où cela vient, typé
-      parce que "citation exacte"         la preuve, sous sa provenance
-
-   statut retenu                          l'état du raisonnement ici
+   le: 12 mars 2026                       quand — pour un constat
+   texte: arrêté …, article 3, 3°)        d'où cela vient, typé par le mot-clé
+      parce que: "citation exacte"        la preuve, sous sa provenance
+   statut: retenu                         l'état du raisonnement ici
 ```
 
-### Les comparateurs
+**Les comparateurs** : `=` `!=` `<=` `>=` `<` `>` `parmi` `renseigné`
+`non renseigné`. La lecture accepte aussi `≤`, `≥`, `≠`, `<>`, `==` : personne
+ne doit être refusé pour une raison de clavier, et une mémoire ne refuse pas ce
+qu'elle a elle-même écrit hier.
 
-`=` `≠` `≤` `≥` `<` `>` `parmi` `renseigné` `non renseigné`
+**Les six provenances** : le mot-clé **est** le type, et le type **est**
+l'origine de la valeur. Rien de plus à déclarer.
 
-La lecture accepte aussi `<=`, `>=`, `!=`, `<>` : personne ne doit être refusé
-pour une raison de clavier. L'écriture rend toujours le signe, parce que c'est
-ce qu'on lit dans un CCTP.
-
-### Les six provenances
-
-Le **type de la provenance est l'origine de la valeur**. Rien à déclarer en
-plus : une ligne qui renvoie à une règle est déduite, une ligne qui renvoie à un
-plan est lue, une ligne qui renvoie à un calcul est calculée.
-
-| type | ce qu'il dit |
+| mot-clé | ce qu'il dit |
 | --- | --- |
-| `texte` | un texte réglementaire, une norme, un DTU |
-| `document` | une pièce du projet : plan, note, compte rendu |
-| `calcul` | un calcul, avec ce qu'il a lu |
-| `règle` | une règle d'un référentiel |
-| `décision` | quelqu'un a tranché |
-| `hypothèse` | on suppose, en attendant mieux |
+| `texte:` | un texte réglementaire, une norme, un DTU |
+| `document:` | une pièce du projet : plan, note, compte rendu |
+| `calcul:` | un calcul, avec ce qu'il a lu |
+| `règle:` | une règle d'un référentiel |
+| `décision:` | quelqu'un a tranché |
+| `hypothèse:` | on suppose, en attendant mieux |
 
-Les deux dernières sont les seules qui ne se déduisent de rien d'autre, et les
-seules qui engagent quelqu'un.
+Les deux dernières sont les seules qui ne se déduisent de rien, et les seules
+qui engagent quelqu'un.
 
-### Les sept statuts
-
-`retenu` · `supposé` · `contesté` · `remplacé` · `écarté` · `sans objet` ·
-`en attente`
-
-Le statut n'est pas une propriété de la valeur, ni de la règle : c'est ce que
-**ce projet** en fait aujourd'hui. La même règle donne « retenu » ici et
-« contesté » là, sans que rien ne change dans le référentiel.
+**Les sept statuts** : `retenu` · `supposé` · `contesté` · `remplacé` ·
+`écarté` · `sans objet` · `en attente`. Le statut n'est pas une propriété de la
+valeur ni de la règle : c'est ce que **ce projet** en fait aujourd'hui.
 
 ---
 
-## Deux niveaux : la connaissance, et le projet
-
-C'est le partage le plus important du langage.
-
-### Un référentiel — ce que le texte exige
+## Une règle se lit comme une fonction
 
 ```
-§ referentiels/incendie-habitation.mdall
-
-Classement du bâtiment
-   si Logements superposés = oui
-   et Hauteur du plancher bas du logement le plus haut ≤ 28 m
-   et Voie-échelles parmi "non conforme" ou "non décrite"
-   alors "3e famille B"
-   ← texte arrêté du 31 janvier 1986 modifié, article 3, 3°)
-      parce que "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."
-
-Colonne sèche
-   si Classement du bâtiment parmi "3e famille B" ou "4e famille"
-   alors "exigée, une colonne sèche de 65 mm par escalier"
-   ← texte arrêté du 31 janvier 1986 modifié, article 98, premier alinéa
-      parce que "Les habitations de la 3ème famille B et de la 4ème famille doivent comporter une colonne sèche de 65 mm par escalier."
+Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages retenu pour le classement)
+   si Habitation individuelle ou collective = "collective"
+   et Nombre d'étages retenu pour le classement <= 3
+   alors "2e famille"
+   texte: arrêté du 31 janvier 1986 modifié, article 3, 2°), quatrième tiret
+      parce que: "habitations collectives comportant au plus trois étages sur rez-de-chaussée."
 ```
 
-Aucune valeur de projet n'y figure. Ce fichier vaut pour mille bâtiments et ne
-change que si l'arrêté change.
+La parenthèse nomme les **entrées**, et c'est ce qui manquait le plus : on voit
+d'un coup d'œil de quoi la règle a besoin sans lire ses conditions. Ce n'est pas
+une concession à l'informatique — un article d'arrêté commence lui aussi par
+dire de quoi il parle.
 
-**Il est versé avec la proposition**, dans le dossier `Référentiels/`. Ce n'est
-pas une contradiction avec « une règle n'est pas un fait du projet » : le projet
-en garde un **instantané**, à la version où il l'a appliquée. Sans lui, trois
-choses cassent — le renvoi `← règle …` pointe vers rien, le graphe des
-dépendances ne se reconstruit pas, et un arrêté modifié six mois plus tard
-réécrirait l'histoire en silence.
+**Elle ne se stocke pas** : les entrées *sont* les sujets des conditions, et une
+signature recopiée diverge le jour où quelqu'un ajoute une condition. Elle se
+calcule à l'écriture.
 
-Ce qui reste au serveur, c'est le **corpus** : les cent quatre modules, leur
-ordre, les branches non prises, le catalogue des questions. Pas la quarantaine
-de règles qui ont servi à un bâtiment.
+Pas d'accolades, et pas de `retourne(…)` : l'indentation délimite déjà le bloc,
+et `alors` dit déjà ce que la règle pose. Deux façons d'écrire la même chose
+finissent par ne plus dire la même chose.
 
-### Un projet — ce qu'il retient
+---
+
+## L'arborescence part de la zone
+
+Elle partait de la nature : `contraintes/incendie`, `donnees-de-base/structure`.
+C'était logique pour qui range, pas pour qui cherche. Sur un chantier on ne dit
+pas « les données de base de l'incendie, pour l'escalier B » : on dit
+**« l'escalier B, l'incendie, ce qui a été relevé »**.
 
 ```
-§ contraintes/incendie.mdall
-
-Classement du bâtiment = "3e famille B"
-   ← règle Classement du bâtiment — arrêté du 31 janvier 1986 modifié, article 3, 3°)
-   statut retenu
-
-Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier"
-   ← règle Colonne sèche — arrêté du 31 janvier 1986 modifié, article 98, premier alinéa
-   statut retenu
+Escalier B/
+   incendie.ref     les règles appliquées à cet escalier
+   incendie.ddb     ce qui y a été relevé
+   incendie.ctr     ce qui s'y impose
+   incendie.hyp     ce qu'on y suppose
+   incendie.cst     ce qui y a été constaté, à une date
+Escalier A/
+   incendie.ref     et ce ne sont pas les mêmes règles
+Tout l'ouvrage/
+   structure.ddb    ce qui vaut partout
 ```
 
-La règle n'est pas recopiée dans la ligne : elle a son fichier, à côté, et le
-renvoi suffit à la retrouver.
+Le gain est double : l'arborescence est **plus courte** — deux niveaux au lieu
+de trois, la nature ayant migré dans l'extension — et tout ce qui concerne une
+zone se lit d'un seul endroit.
 
-**Pourquoi cela compte.** Tant que la règle vivait dans le fichier du projet,
-elle était fabriquée à partir des valeurs conclues, et l'on écrivait `si Hauteur
-du plancher bas = 26` là où l'arrêté dit `≤ 28 m`. Trois conséquences :
+Ce qu'on y perd : « montre-moi toutes les hypothèses du projet » demande la
+recherche plutôt qu'un dossier. C'est le bon échange — la première question se
+pose tous les jours, la seconde une fois par mois.
 
-- une règle vraie d'un seul bâtiment ne capitalise rien ;
-- le diff mentait dans les deux sens — il annonçait un changement de règle quand
-  une cote du projet bougeait, et n'annonçait rien quand l'arrêté était modifié ;
-- le graphe ne se reconstruisait pas depuis le texte.
+**Une affirmation qui vaut pour deux zones se lit dans les deux fichiers.** Ce
+n'est pas une copie : c'est la même, vue de deux endroits, et elle porte le même
+identifiant des deux côtés. L'alternative — un dossier « A + B » — la cacherait
+à qui ouvre l'escalier A.
+
+---
+
+## Une extension par nature, et une forme par extension
+
+Deux `incendie.mdall` à deux endroits de l'arborescence n'ont pas de sens, et
+c'est dangereux : on ouvre l'un en croyant l'autre. Comme `app.html`, `app.css`
+et `app.js` disent trois choses du même `app`, l'extension dit la nature — et
+**chaque nature a sa forme**.
+
+| extension | ce qu'elle contient | sa forme |
+| --- | --- | --- |
+| `.ref` | des règles | `Sujet (entrées)` · `si` · `alors` · `texte:` · `parce que:` |
+| `.ctr` | des contraintes | `Sujet = valeur` · `règle:` · `statut:` |
+| `.ddb` | des données de base | `Sujet = valeur` · `document:` · `parce que:` |
+| `.hyp` | des hypothèses | `Sujet = valeur` · `hypothèse:` · `statut: supposé` |
+| `.cst` | des constats | `Sujet = valeur` · `le:` · `document:` · `parce que:` |
+| `.crp` | le corpus | ce qui est entré au dossier |
+
+`le:` est propre au constat, et indispensable à lui : « l'escalier n'était pas
+encloisonné » — quand ? avant ou après la reprise ? Un constat sans date ne se
+conteste ni ne se lève.
+
+Un `.ref` ne porte **jamais** de statut : un référentiel n'a pas d'état dans un
+projet, il est appliqué ou il ne l'est pas.
+
+---
+
+## Le diff est le fichier
+
+Chaque champ comparé **est** une ligne du fichier, écrite dans la langue. Le
+diff d'un `.ref` ressemble donc à un `.ref`, et celui d'un `.ctr` à un `.ctr` —
+ce qui est la moindre des choses, puisque c'est le même fichier.
+
+Les champs s'appelaient « Valeur », « Règle », « D'où », et le diff les rendait
+tous sous la forme `Sujet = valeur`. Une règle s'y lisait exactement comme une
+contrainte, et l'on ne voyait plus aucune règle.
+
+**Le nom d'un champ est son identité, pas son rang.** Une condition se nomme par
+son sujet : `si Hauteur du plancher bas`. Deux conditions réordonnées ne
+produisent donc aucun changement, et une condition ajoutée produit exactement
+une ligne ajoutée.
 
 ---
 
@@ -174,48 +200,23 @@ lire(écrire(G)) = G
 ```
 
 Chaque information du graphe apparaît **une fois** dans le texte, et rien de
-déductible n'y apparaît. Un test le vérifie sur des blocs réels, dans
-`memoire-en-lecture.test.mjs`.
+déductible n'y apparaît. Un test le vérifie sur des blocs réels.
 
 C'est cette loi qui autorise à dire que le texte **est** la mémoire, et pas une
 vue de la mémoire. C'est elle aussi qui interdit d'ajouter au langage une
-information qu'on ne saurait pas relire.
-
-Deux conséquences pratiques :
-
-- **un architecte écrit à la main.** Trois lignes dans un éditeur, collées dans
-  l'Atelier, et le projet retient une décision. La porte d'entrée la moins chère
-  qui existe, et elle ne demande aucun utilitaire ;
-- **les utilitaires n'écrivent que du mdall.** Si le texte est le format commun,
-  un utilitaire nouveau n'a plus rien à brancher.
+information qu'on ne saurait pas relire — et c'est elle qui permet au diff de
+colorer une ligne en la relisant, plutôt que de transporter deux représentations
+de la même ligne.
 
 Ce qui n'est pas compris n'est jamais avalé en silence : la lecture rend la
 ligne, son numéro et la raison du refus.
 
 ---
 
-## Ce qui a disparu, et pourquoi
-
-| disparu | remplacé par | la raison |
-| --- | --- | --- |
-| `dépend de A · B` | rien | la dépendance se déduit des conditions ; recopiée, elle diverge |
-| `alors X ✓ retenu` | `statut retenu` | mélangeait la conséquence de la règle et l'état du projet |
-| `⇐ calcul(…)` | `← calcul …` | un calcul est une provenance comme une autre |
-| `on retient` / `on suppose` | `← décision` / `← hypothèse` | un geste n'est pas un préfixe, c'est une provenance |
-| ligne « sans objet » | `statut sans objet` | la valeur doit rester : d'autres règles en dépendent |
-
-Ce dernier point était un vrai défaut. « Voie-engins » concluait « non décrite »
-**et** n'imposait rien ; l'écriture posait « sans objet » à la place de la
-valeur, et le graphe se cassait — « Voie-échelles » dépend de « Voie-engins »,
-dont le fichier ne disait plus rien.
-
----
-
 ## Le graphe, sans en avoir l'air
 
-Pour le lecteur, c'est du texte. Pour Mdall, `grapheDesBlocs()` en tire les
-producteurs, les liens et les **entrées** — les sujets qu'aucune règle ne
-produit, et qu'il faudra donc demander ou relever.
+`grapheDesBlocs()` tire du texte les producteurs, les liens et les **entrées** —
+les sujets qu'aucune règle ne produit, et qu'il faudra donc demander ou relever.
 
 `aRevoirSi("Hauteur du plancher bas du logement le plus haut")` répond alors à
 la question qui fait tout l'intérêt d'une mémoire de projet :
@@ -224,8 +225,6 @@ la question qui fait tout l'intérêt d'une mémoire de projet :
 > bâtiment**, et par lui la **colonne sèche**, la **circulation horizontale
 > protégée**, le **type d'escalier** et le **désenfumage**.
 
-Un corpus circulaire ne fait pas boucler : un sujet déjà vu ne se reparcourt pas.
-
 ---
 
 ## Où cela vit dans le code
@@ -233,6 +232,7 @@ Un corpus circulaire ne fait pas boucler : un sujet déjà vu ne se reparcourt p
 | fichier | ce qu'il fait |
 | --- | --- |
 | `apps/web/js/services/memoire-en-texte.js` | écrit — graphe → texte |
-| `apps/web/js/services/memoire-en-lecture.js` | lit — texte → graphe |
-| `apps/web/js/services/incendie-en-texte.js` | branche l'utilitaire incendie sur les deux |
+| `apps/web/js/services/memoire-en-lecture.js` | lit — texte → graphe, et colore |
+| `apps/web/js/services/memoire-rangement.js` | où un fichier vit, et sous quelle extension |
+| `apps/web/js/services/incendie-en-texte.js` | branche l'utilitaire incendie sur le tout |
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
