@@ -31,11 +31,11 @@ import {
   ligneDeZone, ligneFermante, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDuDossier, phraseDeLExtension, rangDuDossier, rangDeLExtension
+  phraseDeLExtension, rangDuDossier, rangDeLExtension
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
-  dernierVersementDe, versementsDeLaMemoire
+  dernierVersementDe, contributeursDuFichier, PARTS_DANCIENNETE
 } from "../services/memoire-blame.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -96,6 +96,34 @@ export function fichierDuChemin(memoire, chemin = []) {
  * L'arborescence
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Une ligne de l'arbre des Fichiers.
+ *
+ * ## Une seule arborescence, un seul nœud
+ *
+ * L'onglet portait deux constructions parallèles : les dossiers de la Mémoire
+ * d'un côté, ceux des Documents de l'autre, avec chacune son balisage, ses
+ * attributs et son écouteur. Elles se ressemblaient assez pour paraître une
+ * seule, et se comportaient assez différemment pour que cliquer un fichier de
+ * mémoire depuis un dossier de documents ne fasse rien.
+ *
+ * Il n'y a plus qu'un type de nœud et qu'un rendu. Les deux moitiés du projet
+ * décrivent ce qu'elles contiennent ; l'arbre les dessine de la même façon, et
+ * un seul geste les ouvre.
+ *
+ * @typedef {object} Noeud
+ * @property {string} aller l'adresse à ouvrir : `memoire:Incendie/incendie.ref`,
+ *   `documents:<id de dossier>`, `document:<id de pièce>`, ou `` pour la racine
+ * @property {string} libelle
+ * @property {number} profondeur zéro pour une racine
+ * @property {"dossier"|"fichier"} genre
+ * @property {boolean} [ouvrable] porte un caret
+ * @property {boolean} [ouvert] déplié — l'icône du dossier le dit aussi
+ * @property {string} [plier] l'adresse que le caret plie, si elle diffère
+ * @property {boolean} [actif]
+ * @property {string|number} [compte]
+ */
+
 /** Le retrait d'une ligne d'arbre : un trait de continuité par niveau. */
 function retraitDArbre(profondeur) {
   if (profondeur <= 0) return "";
@@ -106,60 +134,84 @@ function retraitDArbre(profondeur) {
 }
 
 /**
- * Les lignes de la Mémoire dans l'arbre des Fichiers.
+ * L'icône d'un nœud.
  *
- * Ce sont des **lignes**, pas un panneau : l'arbre a deux racines — ce que le
- * projet sait, ce qu'il a reçu — et il n'y en a qu'un. Deux panneaux qui se
- * ressemblent donneraient l'impression de deux applications, et surtout on ne
- * verrait jamais l'autre moitié du projet.
- *
- * Les mêmes classes que l'arbre des Documents, pour la même raison.
+ * Un dossier déplié n'a pas la même icône qu'un dossier fermé : c'est la seule
+ * marque qui reste quand le caret est hors du champ de vision, en bas d'une
+ * longue arborescence.
  */
-export function lignesDArbreMemoire(memoire, { chemin = [], replies = new Set(), profondeur = 1 } = {}) {
-  return (memoire.dossiers ?? [])
-    .map((dossier) => {
-      const replie = replies.has(dossier.nom);
-      const actif = chemin[0] === dossier.nom && chemin.length === 1;
+function iconeDuNoeud(noeud) {
+  if (noeud.genre === "dossier") {
+    return svgIcon(noeud.ouvert ? "file-directory-open" : "file-directory", { className: "octicon" });
+  }
+  return svgIcon("file", { className: "octicon" });
+}
 
-      return `
-        <div class="documents-tree__row${actif ? " is-active" : ""}">
-          ${retraitDArbre(profondeur - 1)}
-          <button type="button" class="documents-tree__caret" data-memoire-plier="${escapeHtml(dossier.nom)}"
-            aria-expanded="${replie ? "false" : "true"}"
-            aria-label="${replie ? "Déplier" : "Replier"} ${escapeHtml(dossier.nom)}">
-            ${svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" })}
-          </button>
-          <button type="button" class="documents-tree__item${actif ? " is-active" : ""}"
-            data-memoire-aller="${escapeHtml(dossier.nom)}">
-            <span class="documents-tree__icon-slot">${svgIcon("file-directory", { className: "octicon" })}</span>
-            <span class="documents-tree__label">${escapeHtml(dossier.nom)}</span>
-            <span class="diff-tree__compte">${dossier.lignes}</span>
-          </button>
-        </div>
-        ${
-          replie
-            ? ""
-            : dossier.fichiers
-                .map((fichier) => {
-                  const ici = chemin.join("/") === adresseDuFichier(fichier);
-                  return `
-                    <div class="documents-tree__row${ici ? " is-active" : ""}">
-                      ${retraitDArbre(profondeur)}
-                      <span class="documents-tree__caret-spacer"></span>
-                      <button type="button" class="documents-tree__item${ici ? " is-active" : ""}"
-                        data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
-                        <span class="documents-tree__icon-slot">${svgIcon("file", { className: "octicon" })}</span>
-                        <span class="documents-tree__label">${escapeHtml(nomDeFichier(fichier.chemin, fichier.extension))}</span>
-                        <span class="diff-tree__compte">${fichier.lignes.length}</span>
-                      </button>
-                    </div>
-                  `;
-                })
-                .join("")
-        }
-      `;
-    })
-    .join("");
+/** Une ligne, quelle que soit la matière qu'elle porte. */
+export function renderLigneDArbre(noeud) {
+  const actif = noeud.actif === true;
+  const plier = noeud.plier ?? noeud.aller;
+
+  return `
+    <div class="documents-tree__row${actif ? " is-active" : ""}">
+      ${retraitDArbre(noeud.profondeur)}
+      ${
+        noeud.ouvrable
+          ? `<button type="button" class="documents-tree__caret" data-arbre-plier="${escapeHtml(plier)}"
+               aria-expanded="${noeud.ouvert ? "true" : "false"}"
+               aria-label="${noeud.ouvert ? "Replier" : "Déplier"} ${escapeHtml(noeud.libelle)}">
+               ${svgIcon(noeud.ouvert ? "chevron-down" : "chevron-right", { className: "octicon" })}
+             </button>`
+          : `<span class="documents-tree__caret-spacer"></span>`
+      }
+      <button type="button" class="documents-tree__item${actif ? " is-active" : ""}"
+        data-arbre-aller="${escapeHtml(noeud.aller)}">
+        <span class="documents-tree__icon-slot">${iconeDuNoeud(noeud)}</span>
+        <span class="documents-tree__label">${escapeHtml(noeud.libelle)}</span>
+        ${noeud.compte === undefined || noeud.compte === "" ? "" : `<span class="diff-tree__compte">${escapeHtml(String(noeud.compte))}</span>`}
+      </button>
+    </div>
+  `;
+}
+
+/**
+ * Les nœuds de la Mémoire : ses dossiers, et leurs fichiers.
+ *
+ * @returns {Noeud[]}
+ */
+export function noeudsDeLaMemoire(memoire, { chemin = [], replies = new Set(), profondeur = 1 } = {}) {
+  const noeuds = [];
+
+  for (const dossier of memoire.dossiers ?? []) {
+    const replie = replies.has(dossier.nom);
+    noeuds.push({
+      aller: `memoire:${dossier.nom}`,
+      plier: `dossier:${dossier.nom}`,
+      libelle: dossier.nom,
+      profondeur,
+      genre: "dossier",
+      ouvrable: dossier.fichiers.length > 0,
+      ouvert: !replie,
+      actif: chemin[0] === dossier.nom && chemin.length === 1,
+      compte: dossier.lignes
+    });
+
+    if (replie) continue;
+
+    for (const fichier of dossier.fichiers) {
+      const adresse = adresseDuFichier(fichier);
+      noeuds.push({
+        aller: `memoire:${adresse}`,
+        libelle: nomDeFichier(fichier.chemin, fichier.extension),
+        profondeur: profondeur + 1,
+        genre: "fichier",
+        actif: chemin.join("/") === adresse,
+        compte: fichier.lignes.length
+      });
+    }
+  }
+
+  return noeuds;
 }
 
 /**
@@ -169,12 +221,21 @@ export function lignesDArbreMemoire(memoire, { chemin = [], replies = new Set(),
  * même des deux côtés, et deux largeurs pour un seul panneau finiraient par
  * diverger — on tirait la Mémoire, les Documents restaient où ils étaient.
  */
-export function renderPanneauDArbre(corps, { ouverte = true, largeur = 280 } = {}) {
+export function renderPanneauDArbre(corps, { ouverte = true, largeur = 280, query = "" } = {}) {
   const bornee = Math.max(220, Math.min(520, Number(largeur) || 280));
   return `
     <aside class="documents-tree memoire-tree${ouverte ? " is-open" : " is-collapsed"}"
       style="--memoire-tree-width:${bornee}px;--documents-tree-width:${bornee}px"
       aria-label="Les fichiers du projet">
+      <div class="memoire-tree__tete">
+        ${renderReplieDuRail(ouverte)}
+        ${
+          // La recherche se pose en haut de l'arborescence quand elle est
+          // ouverte, et rejoint le fil d'Ariane quand elle ne l'est plus : elle
+          // est toujours à la même hauteur, jamais au même endroit inutile.
+          ouverte ? renderRechercheDuProjet(query) : ""
+        }
+      </div>
       <div class="documents-tree__panel">
         ${corps || `<p class="diff-tree__vide">Le projet n'a encore rien reçu ni rien versé.</p>`}
       </div>
@@ -187,7 +248,7 @@ export function renderPanneauDArbre(corps, { ouverte = true, largeur = 280 } = {
  * La barre : fil d'Ariane, et la recherche à droite
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export function renderBarre({ chemin = [], query = "", ouverte = true } = {}) {
+export function renderFilDAriane({ chemin = [] } = {}) {
   // Le fil remonte jusqu'à la racine de l'onglet : sans elle, on entrait dans
   // la Mémoire sans pouvoir en ressortir vers les Documents.
   //
@@ -205,31 +266,48 @@ export function renderBarre({ chemin = [], query = "", ouverte = true } = {}) {
     }))
   ];
 
+  // Un répertoire garde son slash final, un fichier n'en a pas : « Fichiers /
+  // Mémoire / » se lit comme un endroit où l'on est, « … / incendie.ref » comme
+  // une chose qu'on regarde.
+  const surUnFichier = /\.[a-z0-9]+$/i.test(morceaux[morceaux.length - 1]?.libelle ?? "");
+
   const miettes = morceaux
     .map((morceau, rang) =>
       rang === morceaux.length - 1
         ? `<span class="documents-breadcrumb__current">${escapeHtml(morceau.libelle)}</span>`
         : `<button type="button" class="documents-breadcrumb__link" ${morceau.cible}>${escapeHtml(morceau.libelle)}</button>`)
-    .join(`<span class="documents-breadcrumb__sep">/</span>`);
+    .join(`<span class="documents-breadcrumb__sep">/</span>`)
+    + (surUnFichier ? "" : `<span class="documents-breadcrumb__sep">/</span>`);
 
+  return `<nav class="documents-breadcrumb" aria-label="Chemin">${miettes}</nav>`;
+}
+
+/** Le champ de recherche. Il change de place, jamais de forme. */
+export function renderRechercheDuProjet(query = "") {
   return `
-    <div class="documents-topbar memoire-barre memoire-barre--pleine">
-      <div class="documents-topbar__left">
-        <button type="button" class="documents-tree__toggle" data-memoire-replier
-          aria-label="${escapeHtml(ouverte ? "Replier la barre latérale" : "Étendre la barre latérale")}"
-          title="${escapeHtml(ouverte ? "Replier la barre latérale" : "Étendre la barre latérale")}">
-          ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
-        </button>
-        <nav class="documents-breadcrumb" aria-label="Chemin">${miettes}</nav>
-      </div>
-      <div class="documents-topbar__right">
-        <label class="memoire-recherche">
-          ${svgIcon("search", { className: "octicon" })}
-          <input type="search" class="gh-input" data-memoire-query value="${escapeHtml(query)}"
-            placeholder="Chercher dans le projet">
-        </label>
-      </div>
-    </div>
+    <label class="memoire-recherche">
+      ${svgIcon("search", { className: "octicon" })}
+      <input type="search" class="gh-input" data-memoire-query value="${escapeHtml(query)}"
+        placeholder="Chercher dans le projet">
+    </label>
+  `;
+}
+
+/**
+ * Le bouton qui replie la barre latérale.
+ *
+ * Il vit **dans** la barre, en haut, et n'en bouge pas : un bouton qui se
+ * déplace selon l'état qu'il commande oblige à le chercher chaque fois qu'on
+ * veut revenir en arrière. Replié, la barre n'est plus qu'une bande large de ce
+ * bouton — il reste exactement où il était.
+ */
+export function renderReplieDuRail(ouverte) {
+  const dit = ouverte ? "Replier la barre latérale" : "Étendre la barre latérale";
+  return `
+    <button type="button" class="documents-tree__toggle" data-memoire-replier
+      aria-label="${escapeHtml(dit)}" title="${escapeHtml(dit)}">
+      ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
+    </button>
   `;
 }
 
@@ -244,28 +322,71 @@ export function renderBarre({ chemin = [], query = "", ouverte = true } = {}) {
  * ressemblent assez pour qu'on y range au hasard, et un dossier nommé sans être
  * expliqué se remplit de travers.
  */
-export function renderDossiers(memoire, { assertions = [] } = {}) {
+/**
+ * L'en-tête d'un tableau de fichiers.
+ *
+ * Un seul, partout : dans la Mémoire, dans les Documents, à chaque niveau. Ce
+ * qu'on cherche en parcourant un dépôt est toujours la même chose — de quoi il
+ * s'agit, ce qui lui est arrivé en dernier, et quand — et deux en-têtes
+ * différents pour cette question-là donnaient l'impression de deux
+ * applications.
+ *
+ * L'accueil de l'onglet n'en porte pas : il ne montre pas des fichiers, il
+ * montre les deux matières du projet.
+ */
+export const COLONNES_DU_TABLEAU = [
+  { cle: "nom", libelle: "Nom" },
+  { cle: "message", libelle: "Message du dernier versement" },
+  { cle: "date", libelle: "Date du dernier versement" }
+];
+
+/** La largeur des trois colonnes. Un seul gabarit, sinon elles se décalent. */
+export const GABARIT_DU_TABLEAU = "minmax(160px, 2fr) minmax(0, 3fr) minmax(90px, auto)";
+
+export function renderEnteteDuTableau() {
+  return `
+    <div class="memoire-entete">
+      ${COLONNES_DU_TABLEAU
+        .map((colonne) => `<span class="memoire-entete__${colonne.cle}">${escapeHtml(colonne.libelle)}</span>`)
+        .join("")}
+    </div>
+  `;
+}
+
+/**
+ * La racine de la Mémoire : ses dossiers.
+ *
+ * Les mêmes trois colonnes qu'ailleurs. Les phrases explicatives sous chaque
+ * nom sont parties avec elles : elles doublaient la hauteur d'un tableau qu'on
+ * parcourt du regard, et elles disaient une fois pour toutes ce qu'on
+ * n'apprend qu'une fois.
+ */
+export function renderDossiers(memoire, { auteurs = new Map(), propositions = new Map() } = {}) {
   if (!(memoire.dossiers ?? []).length) {
     return `<div class="propositions-empty"><b>La mémoire est vide</b>
       <p>Rien n'y entre directement : ce que le projet retient passe par une proposition, et quelqu'un la signe.</p></div>`;
   }
 
   return `
-    ${renderEnTeteDeMemoire(assertions)}
-    <div class="memoire-liste">
+    <div class="memoire-liste memoire-liste--tableau">
+      ${renderEnteteDuTableau()}
       ${memoire.dossiers
-        .map(
-          (dossier) => `
-            <button type="button" class="memoire-entree" data-memoire-aller="${escapeHtml(dossier.nom)}">
-              <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
-              <span class="memoire-entree__corps">
-                <span class="memoire-entree__nom">${escapeHtml(dossier.nom)}</span>
-                <span class="memoire-entree__phrase">${escapeHtml(phraseDuDossier(dossier.nom))}</span>
+        .map((dossier) => {
+          const dernier = dernierVersementDe(
+            dossier.fichiers.flatMap((fichier) => fichier.lignes),
+            { auteurs, propositions }
+          );
+          return `
+            <button type="button" class="memoire-entree memoire-entree--fichier" data-memoire-aller="${escapeHtml(dossier.nom)}">
+              <span class="memoire-entree__nom">
+                <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
+                ${escapeHtml(dossier.nom)}
               </span>
-              <span class="memoire-entree__compte">${dossier.lignes} ligne${dossier.lignes > 1 ? "s" : ""}</span>
+              <span class="memoire-entree__message">${escapeHtml(dernier?.message || "—")}</span>
+              <span class="memoire-entree__date">${escapeHtml(dernier ? ilYA(dernier.quand) : "—")}</span>
             </button>
-          `
-        )
+          `;
+        })
         .join("")}
     </div>
   `;
@@ -279,16 +400,9 @@ export function renderFichiers(memoire, dossier, { auteurs = new Map(), proposit
       <p>Aucune affirmation ne s'y range aujourd'hui.</p></div>`;
   }
 
-  const toutes = entree.fichiers.flatMap((fichier) => fichier.lignes);
-
   return `
-    ${renderDernierVersement(toutes, { auteurs, propositions })}
     <div class="memoire-liste memoire-liste--tableau">
-      <div class="memoire-entete">
-        <span class="memoire-entete__nom">Fichier</span>
-        <span class="memoire-entete__message">Dernier versement</span>
-        <span class="memoire-entete__date">Date</span>
-      </div>
+      ${renderEnteteDuTableau()}
       ${entree.fichiers
         .map((fichier) => {
           const dernier = dernierVersementDe(fichier.lignes, { auteurs, propositions });
@@ -310,43 +424,19 @@ export function renderFichiers(memoire, dossier, { auteurs = new Map(), proposit
 }
 
 /**
- * Ce que la mémoire a reçu, en tête de sa racine.
- *
- * On compte des **versements**, pas des lignes : une proposition qui verse
- * trente contraintes est un acte, et c'est l'acte qui fait l'histoire du
- * projet.
- */
-export function renderEnTeteDeMemoire(assertions = []) {
-  const { versements, plusRecent } = versementsDeLaMemoire(assertions);
-  if (!versements) return "";
-
-  return `
-    <div class="memoire-entete-racine">
-      <span class="memoire-entete-racine__espace"></span>
-      <span class="memoire-entete-racine__date">${escapeHtml(ilYA(plusRecent))}</span>
-      <span class="memoire-entete-racine__sep">·</span>
-      <span class="memoire-entete-racine__compte">
-        ${svgIcon("history", { className: "octicon" })}
-        <b>${versements}</b> versement${versements > 1 ? "s" : ""}
-      </span>
-    </div>
-  `;
-}
-
-/**
  * L'encart du dernier versement, en tête d'un dossier ou d'un fichier.
  *
  * Qui, quoi, quand — dans cet ordre, parce que c'est l'ordre dans lequel on lit
  * un changement : on regarde de qui il vient avant de lire ce qu'il dit.
  */
-export function renderDernierVersement(lignes, { auteurs = new Map(), propositions = new Map() } = {}) {
+export function renderDernierVersement(lignes, { auteurs = new Map(), avatars = new Map(), propositions = new Map() } = {}) {
   const dernier = dernierVersementDe(lignes, { auteurs, propositions });
   if (!dernier) return "";
 
   const qui = dernier.qui || "auteur inconnu";
   return `
     <div class="memoire-versement">
-      <span class="memoire-versement__avatar" aria-hidden="true">${escapeHtml(initialesDe(qui))}</span>
+      ${renderPortrait(dernier.quiId, qui, { avatars })}
       <span class="memoire-versement__qui">${escapeHtml(qui)}</span>
       <span class="memoire-versement__message">${escapeHtml(dernier.message || "sans intitulé")}</span>
       <span class="memoire-versement__espace"></span>
@@ -366,6 +456,67 @@ function initialesDe(nom) {
   const mots = texte(nom).split(/\s+/).filter(Boolean);
   if (!mots.length) return "?";
   return (mots[0][0] + (mots.length > 1 ? mots[mots.length - 1][0] : "")).toUpperCase();
+}
+
+/**
+ * Le portrait de quelqu'un, ou de quoi tenir sa place.
+ *
+ * L'image d'abord : c'est à cela qu'on reconnaît quelqu'un dans une liste. Les
+ * initiales ne sont pas un choix, c'est ce qui reste quand il n'y a pas de
+ * photo — et l'écran affichait les initiales même quand la photo existait.
+ */
+function renderPortrait(identifiant, nom, { avatars = new Map(), titre = "" } = {}) {
+  const url = texte(avatars.get?.(texte(identifiant)));
+  const infobulle = texte(titre) || texte(nom);
+
+  if (url) {
+    return `<img class="memoire-versement__avatar" src="${escapeHtml(url)}"
+      alt="" title="${escapeHtml(infobulle)}" loading="lazy" decoding="async">`;
+  }
+
+  return `<span class="memoire-versement__avatar" title="${escapeHtml(infobulle)}"
+    aria-hidden="true">${escapeHtml(initialesDe(nom))}</span>`;
+}
+
+/**
+ * L'échelle d'ancienneté, en tête d'un fichier lu par son origine.
+ *
+ * ## Pourquoi une légende, et pas seulement des couleurs
+ *
+ * La marge colorée dit déjà « ceci est vieux, ceci est récent ». Mais elle ne
+ * dit pas dans quel sens : sans repère, une bande sombre à gauche peut aussi
+ * bien vouloir dire « le plus ancien » que « le plus important ». Deux mots aux
+ * deux bouts suffisent, et c'est ce que fait un dépôt.
+ *
+ * ## Les contributeurs à droite
+ *
+ * Ce sont ceux **de ce fichier**, du plus récent au plus ancien : la question
+ * qu'on se pose en ouvrant l'origine d'un fichier est « qui a écrit ça », et la
+ * réponse tient en trois portraits.
+ */
+export function renderEchelleDAnciennete(lignes = [], { auteurs = new Map(), avatars = new Map() } = {}) {
+  const gens = contributeursDuFichier(lignes, auteurs);
+
+  const degres = Array.from({ length: PARTS_DANCIENNETE })
+    .map((_, rang) => `<span class="memoire-anciennete__degre memoire-anciennete__degre--${rang}"></span>`)
+    .join("");
+
+  return `
+    <div class="memoire-anciennete">
+      <span class="memoire-anciennete__bout">Older</span>
+      <span class="memoire-anciennete__echelle" aria-hidden="true">${degres}</span>
+      <span class="memoire-anciennete__bout">Newer</span>
+      <span class="memoire-anciennete__espace"></span>
+      ${
+        gens.length
+          ? `<span class="memoire-anciennete__gens">
+               ${gens.map((qui) => renderPortrait(qui.id, qui.nom, { avatars })).join("")}
+               <span class="memoire-anciennete__compte">${gens.length}</span>
+             </span>`
+          : ""
+      }
+    </div>
+  `;
 }
 
 /**
@@ -428,7 +579,7 @@ export function lignesAffichables(fichier) {
       // tête du suivant se collent, et l'œil ne voit plus où l'un finit.
       if (place > 0) {
         rang += 1;
-        sorties.push({ rang, jetons: [], nature: "vide", bloc: null, ouvre: null, parent: blocDeZone, assertion: null, position: 0 });
+        sorties.push({ rang, jetons: [], nature: "vide", bloc: null, ouvre: null, ferme: null, parent: blocDeZone, assertion: null, position: 0 });
       }
 
       numeroDeBloc += 1;
@@ -442,6 +593,10 @@ export function lignesAffichables(fichier) {
           bloc: cle,
           // Seule la tête porte le caret, et seulement si le bloc a un corps.
           ouvre: position === 0 && lignes.length > 1 ? cle : null,
+          // L'accolade fermante reste visible quand le bloc est replié : deux
+          // lignes — la tête et sa fermeture — se lisent d'un coup d'œil, là où
+          // une seule ligne « { … } » demande de reconstruire la paire.
+          ferme: position === lignes.length - 1 && lignes.length > 1 ? cle : null,
           parent: position === 0 ? blocDeZone : cle,
           assertion, position
         });
@@ -480,7 +635,8 @@ export function lignesAffichables(fichier) {
  * ferait croire à quatre décisions.
  */
 export function renderFichier(fichier, {
-  lecture = LECTURE.CODE, auteurs = new Map(), propositions = new Map(), plies = new Set()
+  lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
+  propositions = new Map(), plies = new Set()
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
@@ -490,14 +646,28 @@ export function renderFichier(fichier, {
   const corps = lignes.map((ligne) => {
     const blame = ligne.assertion ? blameDeLaLigne(ligne.assertion, auteurs) : null;
     const replie = pliable && ligne.ouvre && plies.has(ligne.ouvre);
-    // Une ligne dont le bloc parent est replié se cache. La tête, elle, reste.
-    const cachee = pliable && ligne.parent && ligne.parent !== ligne.ouvre && plies.has(ligne.parent);
+    // Une ligne dont le bloc parent est replié se cache. La tête reste, et sa
+    // fermeture avec : un bloc replié garde ses deux bornes, l'œil voit d'où à
+    // où il va sans avoir à reconstruire la paire.
+    const cachee = pliable
+      && ligne.parent
+      && ligne.parent !== ligne.ouvre
+      && ligne.parent !== ligne.ferme
+      && plies.has(ligne.parent);
 
     return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
-      }${replie ? " memoire-ligne--plie" : ""}" data-memoire-parent="${escapeHtml(ligne.parent ?? "")}"${cachee ? " hidden" : ""}>
+      }${replie ? " memoire-ligne--plie" : ""}" data-memoire-parent="${escapeHtml(ligne.parent ?? "")}"${
+        ligne.ferme ? ` data-memoire-ferme="${escapeHtml(ligne.ferme)}"` : ""
+      }${cachee ? " hidden" : ""}>
         ${
+          // L'ancienneté colore **chaque** ligne, la première d'un bloc comme
+          // les suivantes : c'est une bande continue qu'on lit sans y penser,
+          // et un trait qui s'interrompt trois lignes sur quatre ne se lit plus.
+          // Le blâme, lui, ne se répète pas : les lignes d'un bloc viennent du
+          // même versement, et le redire quatre fois ferait croire à quatre
+          // décisions.
           lecture === LECTURE.BLAME
             ? blame && ligne.position === 0
               ? `<button type="button" class="memoire-blame memoire-blame--chaleur-${chaleurDeLaLigne(ligne.assertion, bornes)}"
@@ -506,7 +676,9 @@ export function renderFichier(fichier, {
                    <span class="memoire-blame__ref">${escapeHtml(blame.intitule)}</span>
                    <span class="memoire-blame__date">${escapeHtml(blame.quand ? formatDate(blame.quand) : "—")}</span>
                  </button>`
-              : `<span class="memoire-blame memoire-blame--suite" aria-hidden="true"></span>`
+              : `<span class="memoire-blame memoire-blame--suite${
+                  blame ? ` memoire-blame--chaleur-${chaleurDeLaLigne(ligne.assertion, bornes)}` : ""
+                }" aria-hidden="true"></span>`
             : ""
         }
         <span class="memoire-ligne__num">${ligne.rang}</span>
@@ -521,12 +693,17 @@ export function renderFichier(fichier, {
               : `<span class="memoire-ligne__caret" aria-hidden="true"></span>`
             : ""
         }
-        <span class="memoire-ligne__code">${renderJetons(ligne.jetons)}</span>
+        <span class="memoire-ligne__code">${renderJetons(ligne.jetons)}${
+          ligne.ouvre
+            ? `<span class="memoire-ligne__replie" aria-hidden="true">${svgIcon("fold", { className: "octicon" })}</span>`
+            : ""
+        }</span>
       </div>
     `;
   }).join("");
 
   return `
+    ${renderDernierVersement(fichier.lignes, { auteurs, avatars, propositions })}
     <section class="memoire-fichier">
       <header class="memoire-fichier__tete">
         <span class="memoire-fichier__lectures">
@@ -544,7 +721,7 @@ export function renderFichier(fichier, {
           ${svgIcon("copy", { className: "octicon" })}
         </button>
       </header>
-      ${renderDernierVersement(fichier.lignes, { auteurs, propositions })}
+      ${lecture === LECTURE.BLAME ? renderEchelleDAnciennete(fichier.lignes, { auteurs, avatars }) : ""}
       <div class="memoire-fichier__corps">
         ${corps || `<p class="review-empty-note">Ce fichier ne porte plus aucune valeur : tout ce qu'il contenait a été remplacé ou écarté.</p>`}
       </div>

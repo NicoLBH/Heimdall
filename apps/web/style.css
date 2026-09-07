@@ -6463,6 +6463,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-move-modal__target.is-active{border-color:#58a6ff;background:rgba(56,139,253,.15);}
 .documents-move-modal__actions{display:flex;justify-content:flex-end;margin-top:12px;}
 .documents-layout{display:grid;grid-template-columns:var(--documents-tree-width, auto) 1fr;align-items:start;gap:2px;}
+.documents-layout:has(.memoire-tree.is-collapsed){grid-template-columns:48px 1fr;}
 .documents-layout.is-root{grid-template-columns:minmax(0,1100px);justify-content:center;}
 .documents-main{min-width:0;max-height:var(--documents-content-height, calc(100vh - 120px));height:100%;z-index:2;background:var(--bg);padding-left:10px;}
 .documents-topbar{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 0px;}
@@ -6482,8 +6483,10 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-tree__indent{display:flex;align-items:stretch;align-self:stretch;gap:0;min-width:0;}
 .documents-tree__indent .documents-tree__divider:first-child{border-left-color:transparent !important;}
 .documents-tree__divider{width:14px;height:100%;display:inline-block;position:relative;flex:0 0 14px;}
-.documents-tree__divider.is-expanded::after{content:"";position:absolute;top:50%;right:0;transform:translateY(-50%);height:36px;width:1px;background:#ffff;}
-.documents-tree__divider.is-collapsed::after{content:"";position:absolute;top:50%;right:0;transform:translateY(-50%);height:36px;width:1px;background:#ffff;}
+/* Les traits de continuité guident l'œil, ils ne réclament pas son attention :
+   en blanc, ils pesaient plus que les noms qu'ils accompagnent. */
+.documents-tree__divider.is-expanded::after,
+.documents-tree__divider.is-collapsed::after{content:"";position:absolute;top:50%;right:0;transform:translateY(-50%);height:36px;width:1px;background:var(--border);}
 .documents-tree__item{display:flex;align-items:center;gap:8px;padding:8px 12px 8px 0px;border:0;background:transparent;color:var(--text);border-radius:8px;text-align:left;cursor:pointer;width:100%;}
 .documents-tree__item.is-active{color:#58a6ff;}
 .documents-tree__file{display:flex;align-items:center;gap:4px;font-size:13px;padding:0;height:34px;min-width:0;border:0;background:transparent;color:var(--text);cursor:pointer;position:relative;border-radius:6px;}
@@ -6563,7 +6566,13 @@ body.documents-local-chrome-compact .documents-shell--pdf-preview .documents-rep
 .documents-shell--pdf-preview .documents-pdf-viewer__pages{
   min-width:max-content;
 }
-.documents-tree .documents-repo__icon--folder,.documents-tree .octicon-file-directory-fill,.documents-tree .octicon-file-directory-open-fill{fill:rgb(145, 152, 161);color:rgb(145, 152, 161);}
+/* Une seule couleur pour toutes les icônes de l'arbre : le bleu disait « ceci
+   est un lien » là où chaque ligne l'est déjà, et distinguait deux moitiés qui
+   n'ont pas à se distinguer. */
+.documents-tree .documents-tree__icon-slot,
+.documents-tree .documents-repo__icon--folder,
+.documents-tree .octicon-file-directory-fill,
+.documents-tree .octicon-file-directory-open-fill{fill:rgb(145, 152, 161);color:rgb(145, 152, 161);}
 .documents-tree__resize-handle{position:absolute;top:0;right:-6px;width:12px;height:100%;cursor:col-resize;}
 .documents-tree__resize-guide{position:absolute;top:0;bottom:0;width:2px;background:#2f81f7;display:none;pointer-events:none;}
 .documents-repo {height:auto;}
@@ -20023,7 +20032,7 @@ img.fichiers-racine__avatar{ object-fit:cover; background:none; }
   position:absolute; right:0; top:calc(100% + 6px); z-index:30;
   min-width:250px; padding:4px;
   border:1px solid var(--border); border-radius:6px;
-  background:var(--surface, #161b22); box-shadow:0 8px 24px rgba(1,4,9,.5);
+  background:var(--panel2); box-shadow:0 8px 24px rgba(1,4,9,.5);
 }
 .fichiers-ajout__item{
   display:flex; align-items:center; gap:8px; width:100%;
@@ -20052,6 +20061,7 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 }
 .fichiers-racine__ligne:first-of-type{ border-top:0; }
 .fichiers-racine__ligne:hover{ background:rgba(110,118,129,.08); }
+.fichiers-racine__ligne:hover .fichiers-racine__nom{ color:var(--blueLink); }
 .fichiers-racine__nom{ display:inline-flex; align-items:center; gap:8px; font-weight:500; }
 .fichiers-racine__nom .ui-icon{ color:rgb(145, 152, 161); }
 .fichiers-racine__phrase,
@@ -20094,7 +20104,9 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   width:min(560px, 100%);
   display:flex; flex-direction:column; gap:16px;
   padding:16px; border:1px solid var(--border); border-radius:var(--radius);
-  background:var(--bgElev); box-shadow:0 16px 48px rgba(1,4,9,.6);
+  /* `--panel2` et non `--bgElev` : cette variable n'existe pas, et une boîte de
+     dialogue sans fond laisse lire l'écran au travers. */
+  background:var(--panel2); box-shadow:0 16px 48px rgba(1,4,9,.6);
 }
 .fichiers-saisie__tete{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .fichiers-saisie__fermer{ padding:2px; border:0; border-radius:4px; background:none; color:var(--muted); cursor:pointer; line-height:0; }
@@ -20144,7 +20156,7 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   border-top:1px solid var(--border);
   min-height:calc(100vh - var(--app-top) - 220px);
 }
-.memoire-layout--replie,
+.memoire-layout--replie{ grid-template-columns:48px minmax(0, 1fr); }
 .memoire-layout--racine{ grid-template-columns:minmax(0, 1fr); }
 
 /* Dès qu'on entre dans un dossier, l'écran prend la largeur : un rail, un
@@ -20160,7 +20172,29 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 }
 .memoire-layout--racine .memoire-corps{ padding-left:0; }
 .memoire-tree{ width:var(--memoire-tree-width, 280px); align-self:stretch; }
-.memoire-tree.is-collapsed{ display:none; }
+/* Repliée, la barre n'est pas absente : elle se réduit à son bouton, qui reste
+   exactement où il était. Un bouton qui se déplace selon l'état qu'il commande
+   oblige à le chercher chaque fois qu'on veut revenir en arrière. */
+.memoire-tree.is-collapsed{ width:48px; }
+.memoire-tree.is-collapsed .documents-tree__panel,
+.memoire-tree.is-collapsed .side-resizer__handle,
+.memoire-tree.is-collapsed .side-resizer__guide{ display:none; }
+
+/* Les deux têtes — celle du rail, celle du contenu — sont à la même hauteur :
+   le bouton, le fil d'Ariane et la recherche se lisent sur une seule ligne. */
+.memoire-tree__tete,
+.memoire-corps__tete{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:44px;
+  padding:6px 8px;
+}
+.memoire-corps__tete{ padding:6px 0; }
+.memoire-corps__espace{ flex:1 1 auto; }
+.memoire-tree__tete .memoire-recherche{ min-width:0; flex:1 1 auto; }
+.memoire-tree__tete .memoire-recherche .gh-input{ width:100%; }
+.memoire-corps__tete .documents-breadcrumb{ margin:0; }
 /* Le panneau descend jusqu'en bas, quoi qu'il porte. Réglé sur `auto`, il
    s'arrêtait à sa dernière ligne : un projet de trois fichiers laissait un
    filet vertical suspendu au milieu de l'écran, et la colonne de gauche
@@ -20169,7 +20203,10 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   min-height:var(--documents-content-height, calc(100vh - 180px));
   height:var(--documents-content-height, calc(100vh - 180px));
 }
-.memoire-corps{ min-width:0; padding:20px 0 20px 20px; }
+/* Pas de marge en haut : la tête du contenu doit tomber à la même hauteur que
+   celle du rail, sans quoi le bouton de repli et le fil d'Ariane ne sont pas
+   sur la même ligne. */
+.memoire-corps{ min-width:0; padding:0 0 20px 20px; display:flex; flex-direction:column; gap:16px; }
 
 /* La liste d'un dossier, ou de la racine. Chaque dossier porte sa phrase :
    « Contraintes » et « Données de base » se ressemblent assez pour qu'on y
@@ -20205,6 +20242,9 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 .memoire-liste--tableau .memoire-entree,
 .memoire-entete{
   display:grid;
+  /* Le même gabarit que le dépôt, énoncé une fois côté JavaScript :
+     `GABARIT_DU_TABLEAU`. Deux tableaux qui montrent la même chose ne doivent
+     pas avoir deux découpages de colonnes. */
   grid-template-columns:minmax(160px, 2fr) minmax(0, 3fr) minmax(90px, auto);
   align-items:center;
   gap:12px;
@@ -20257,7 +20297,8 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   font-size:12px;
 }
 .memoire-versement + .memoire-liste{ border-radius:var(--radius); }
-.memoire-fichier .memoire-versement{ border:0; border-bottom:1px solid var(--border); border-radius:0; }
+
+img.memoire-versement__avatar{ object-fit:cover; background:none; }
 .memoire-versement__avatar{
   flex:0 0 auto;
   display:inline-flex;
@@ -20358,9 +20399,14 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
    navigateur sur `[hidden]` — même spécificité, mais une feuille d'auteur passe
    avant celle de l'agent —, et le caret posait un attribut sans effet. */
 .memoire-ligne[hidden]{ display:none; }
-/* Ce qui est replié se dit sur la tête, comme le fait un éditeur : sans cette
-   marque, l'accolade ouvrante resterait seule et le bloc paraîtrait tronqué. */
-.memoire-ligne--plie .memoire-ligne__code::after{ content:" … }"; color:var(--muted); }
+/* Ce qui est replié se dit sur la tête, comme le fait un éditeur — mais le bloc
+   garde ses deux lignes, l'ouvrante et la fermante. « { … } » sur une seule
+   ligne demande de reconstruire la paire ; deux lignes se lisent d'un coup.
+
+   L'icône ne s'affiche que replié : dépliée, elle doublerait le caret. */
+.memoire-ligne__replie{ display:none; margin-left:8px; vertical-align:-2px; color:var(--muted); }
+.memoire-ligne--plie .memoire-ligne__replie{ display:inline-flex; }
+.memoire-ligne--plie .memoire-ligne__replie:hover{ color:var(--text); }
 /* Le numéro porte son écart : en mode Blame la gouttière tombe à zéro — la
    marge du blâme a la sienne —, et le numéro se collait au code. */
 .memoire-ligne__num{ flex:0 0 40px; padding-right:12px; text-align:right; color:var(--muted); font-size:11px; user-select:none; }
@@ -20424,11 +20470,34 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .memoire-ligne--detail .memoire-ligne__code{ box-shadow:inset 2px 0 0 0 rgba(110,118,129,.45); }
 .memoire-blame__ref{ flex:0 0 auto; font-variant-numeric:tabular-nums; }
 .memoire-blame__date{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.memoire-blame--chaleur-0{ border-left-color:rgba(88,166,255,.15); }
-.memoire-blame--chaleur-1{ border-left-color:rgba(88,166,255,.3); }
-.memoire-blame--chaleur-2{ border-left-color:rgba(88,166,255,.5); }
-.memoire-blame--chaleur-3{ border-left-color:rgba(88,166,255,.7); }
-.memoire-blame--chaleur-4{ border-left-color:rgb(88,166,255); }
+/* Dix degrés d'ancienneté, du plus ancien au plus récent. La même échelle sert
+   la marge de chaque ligne et la légende en tête du fichier : deux nuanciers
+   pour une même information ne se recoupent jamais tout à fait. */
+.memoire-blame--chaleur-0,.memoire-anciennete__degre--0{ --memoire-age:rgb(49, 23, 8); }
+.memoire-blame--chaleur-1,.memoire-anciennete__degre--1{ --memoire-age:rgb(67, 32, 10); }
+.memoire-blame--chaleur-2,.memoire-anciennete__degre--2{ --memoire-age:rgb(99, 47, 13); }
+.memoire-blame--chaleur-3,.memoire-anciennete__degre--3{ --memoire-age:rgb(123, 60, 14); }
+.memoire-blame--chaleur-4,.memoire-anciennete__degre--4{ --memoire-age:rgb(152, 75, 16); }
+.memoire-blame--chaleur-5,.memoire-anciennete__degre--5{ --memoire-age:rgb(196, 98, 18); }
+.memoire-blame--chaleur-6,.memoire-anciennete__degre--6{ --memoire-age:rgb(237, 131, 38); }
+.memoire-blame--chaleur-7,.memoire-anciennete__degre--7{ --memoire-age:rgb(241, 147, 59); }
+.memoire-blame--chaleur-8,.memoire-anciennete__degre--8{ --memoire-age:rgb(246, 176, 106); }
+.memoire-blame--chaleur-9,.memoire-anciennete__degre--9{ --memoire-age:rgb(250, 198, 143); }
+.memoire-blame[class*="memoire-blame--chaleur-"]{ border-left-color:var(--memoire-age); }
+.memoire-anciennete__degre{ flex:1 1 auto; height:8px; background:var(--memoire-age); }
+
+/* La légende, en tête d'un fichier lu par son origine : dans quel sens va la
+   couleur, et qui a écrit dedans. */
+.memoire-anciennete{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 16px; border-bottom:1px solid var(--border);
+  color:var(--muted); font-size:11px;
+}
+.memoire-anciennete__bout{ flex:0 0 auto; }
+.memoire-anciennete__echelle{ flex:0 0 120px; display:flex; border-radius:2px; overflow:hidden; }
+.memoire-anciennete__espace{ flex:1 1 auto; }
+.memoire-anciennete__gens{ display:inline-flex; align-items:center; gap:4px; }
+.memoire-anciennete__compte{ margin-left:2px; font-variant-numeric:tabular-nums; }
 
 .memoire-fichier__ecartees{
   padding:12px;

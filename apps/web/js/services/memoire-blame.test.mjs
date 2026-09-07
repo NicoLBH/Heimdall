@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, histoireDeLaLigne,
-  chaleurDeLaLigne, bornesDuFichier, dernierVersementDe, versementsDeLaMemoire
+  chaleurDeLaLigne, bornesDuFichier, dernierVersementDe, versementsDeLaMemoire,
+  contributeursDuFichier, PARTS_DANCIENNETE
 } from "./memoire-blame.js";
 
 const assertion = (id, cle, valeur, extra = {}) => ({
@@ -132,12 +133,30 @@ test("la marge se colore par ancienneté, du plus ancien au plus récent", () =>
   const bornes = bornesDuFichier(lignes);
 
   assert.equal(chaleurDeLaLigne(lignes[0], bornes), 0);
-  assert.equal(chaleurDeLaLigne(lignes[1], bornes), 4);
+  assert.equal(chaleurDeLaLigne(lignes[1], bornes), PARTS_DANCIENNETE - 1);
+
+  // Dix degrés, et le milieu tombe au milieu : c'est ce qui rend l'échelle
+  // lisible plutôt que décorative.
+  const milieu = assertion("a3", "z", "3", { decided_at: "2026-05-02T00:00:00Z" });
+  assert.equal(chaleurDeLaLigne(milieu, bornes), 4);
 });
 
 test("un fichier d'une seule ligne ne se colore pas à moitié", () => {
   const seule = assertion("a1", "x", "1");
-  assert.equal(chaleurDeLaLigne(seule, bornesDuFichier([seule])), 4);
+  assert.equal(chaleurDeLaLigne(seule, bornesDuFichier([seule])), PARTS_DANCIENNETE - 1);
+});
+
+test("les contributeurs d'un fichier se comptent par identifiant, du plus récent", () => {
+  const lignes = [
+    assertion("a1", "x", "1", { decided_by: "u1", decided_at: "2026-01-01T00:00:00Z" }),
+    assertion("a2", "y", "2", { decided_by: "u2", decided_at: "2026-09-01T00:00:00Z" }),
+    assertion("a3", "z", "3", { decided_by: "u1", decided_at: "2026-05-01T00:00:00Z" })
+  ];
+  const gens = contributeursDuFichier(lignes, new Map([["u1", "Nicolas LE BIHAN"]]));
+
+  assert.deepEqual(gens.map((qui) => qui.id), ["u2", "u1"]);
+  // Un nom qu'on ignore ne fait pas disparaître la personne.
+  assert.deepEqual(gens.map((qui) => qui.nom), ["auteur inconnu", "Nicolas LE BIHAN"]);
 });
 
 test("les versements se comptent en actes, pas en lignes", () => {
