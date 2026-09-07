@@ -709,6 +709,11 @@ async function proposerLesFondations(root) {
     return;
   }
 
+  // Où cela s'applique se demande **avant** d'ouvrir la proposition.
+  const { demanderLesZones } = await import("../../ui/choix-des-zones.js");
+  const zones = await demanderLesZones({ projectId: projetCourant });
+  if (zones === null) return;
+
   etat.transformation = "Préparation de la proposition…";
   etat.etudeErreur = "";
   dessiner(root);
@@ -719,7 +724,8 @@ async function proposerLesFondations(root) {
     titre: "Fondations superficielles — cotes retenues",
     intro: "Cotes des semelles retenues par le pré-dimensionnement, celles qui vérifient.",
     source: "Fondations superficielles — calcul (NF DTU 13.1)",
-    affirmations
+    affirmations,
+    zones
   });
 
   etat.transformation = "";

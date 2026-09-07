@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   lignesDeLAssertion, provenanceDeLAssertion, statutDeLAssertion,
-  jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee
+  jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee, grouperParVersement
 } from "./project-memoire-fichiers.js";
 import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
 import { lireUnFichier } from "../services/memoire-en-lecture.js";
@@ -147,6 +147,29 @@ test("replier une zone emporte tout ce qu'elle contient, pas seulement ses tête
   assert.equal(apres.length, lignes.length - 2, "seuls les deux détails du bloc se cachent");
   // Sa fermeture reste : un bloc replié garde ses deux bornes.
   assert.ok(apres.some((ligne) => ligne.ferme === bloc));
+});
+
+test("l'origine s'écrit une fois par versement, pas devant chaque bloc", () => {
+  const bloc = (sujet, proposition) => ({
+    id: `a-${sujet}`, proposition_id: proposition, decided_at: "2026-09-01T10:00:00Z",
+    nature: "contrainte", payload: { subject: sujet, value: "x", source: "arrêté" }
+  });
+
+  const lignes = grouperParVersement(lignesAffichables({
+    lignes: [], ecartees: [],
+    sections: [{ zone: "", lignes: [bloc("A", "p1"), bloc("B", "p1"), bloc("C", "p2")] }]
+  }));
+
+  // Un seul début de groupe par versement : le premier bloc de p1, puis le
+  // passage à p2 — et non trois, un par bloc.
+  const debuts = lignes.filter((ligne) => ligne.debutDeGroupe);
+  assert.deepEqual(debuts.map((ligne) => ligne.versement), ["p1", "p2"]);
+
+  // La ligne vide appartient au bloc qu'elle précède : elle est née avec lui.
+  const vides = lignes.filter((ligne) => ligne.nature === "vide");
+  assert.deepEqual(vides.map((ligne) => ligne.versement), ["p1", "p2"]);
+  // Celle qui précède le premier bloc de p2 ouvre donc le groupe.
+  assert.equal(vides[1].debutDeGroupe, true);
 });
 
 test("le poids d'un fichier se dit en octets, accents compris", () => {

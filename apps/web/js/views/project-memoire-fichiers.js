@@ -222,18 +222,23 @@ export function noeudsDeLaMemoire(memoire, { chemin = [], replies = new Set(), p
  * diverger — on tirait la Mémoire, les Documents restaient où ils étaient.
  */
 export function renderPanneauDArbre(corps, { ouverte = true, largeur = 280, query = "" } = {}) {
+  // Repliée, la barre **n'existe pas** : son bouton rejoint le fil d'Ariane.
+  // Une colonne réduite à la largeur d'un bouton prend quand même sa place, et
+  // c'est de la largeur d'affichage perdue pour rien.
+  if (!ouverte) return "";
+
   const bornee = Math.max(220, Math.min(520, Number(largeur) || 280));
   return `
-    <aside class="documents-tree memoire-tree${ouverte ? " is-open" : " is-collapsed"}"
+    <aside class="documents-tree memoire-tree is-open"
       style="--memoire-tree-width:${bornee}px;--documents-tree-width:${bornee}px"
       aria-label="Les fichiers du projet">
       <div class="memoire-tree__tete">
-        ${renderReplieDuRail(ouverte)}
+        ${renderReplieDuRail(true)}
         ${
           // La recherche se pose en haut de l'arborescence quand elle est
           // ouverte, et rejoint le fil d'Ariane quand elle ne l'est plus : elle
           // est toujours à la même hauteur, jamais au même endroit inutile.
-          ouverte ? renderRechercheDuProjet(query) : ""
+          renderRechercheDuProjet(query)
         }
       </div>
       <div class="documents-tree__panel">
@@ -298,9 +303,10 @@ export function renderFilDAriane({ chemin = [] } = {}) {
  * @param {string} options.fil le fil d'Ariane, déjà rendu
  * @param {string} [options.droite] les gestes, alignés à droite
  */
-export function renderTeteDuContenu({ fil = "", droite = "" } = {}) {
+export function renderTeteDuContenu({ fil = "", droite = "", replie = false } = {}) {
   return `
     <div class="memoire-corps__tete">
+      ${replie ? renderReplieDuRail(false) : ""}
       ${fil}
       <span class="memoire-corps__espace"></span>
       ${droite}
@@ -656,6 +662,53 @@ export function lignesAffichables(fichier) {
 }
 
 /**
+ * Le versement qui a fait naître une ligne.
+ *
+ * Une proposition, ou une déclaration à la main — qui est un acte aussi, avec
+ * son auteur et sa date. `""` pour ce qui n'appartient à personne : la balise
+ * de zone et son accolade fermante ne sont écrites par aucun versement.
+ */
+export function versementDeLaLigne(assertion) {
+  if (!assertion) return "";
+  const proposition = texte(assertion.proposition_id);
+  return proposition || (assertion.id ? `main:${texte(assertion.id)}` : "");
+}
+
+/**
+ * Les lignes, groupées par versement.
+ *
+ * ## Pourquoi grouper
+ *
+ * Répéter « #P29 · 7 septembre 2026 » devant chaque bloc dit trente fois la
+ * même chose. Un dépôt écrit l'origine **une fois**, en tête du groupe de
+ * lignes qu'elle a versées, et trace un filet là où l'origine change. On lit
+ * alors « ces quarante lignes viennent de là » d'un coup d'œil.
+ *
+ * La ligne vide appartient au bloc qu'elle précède : elle est née avec lui —
+ * c'est son insertion qui l'a créée. Sans quoi elle laissait un blanc au
+ * milieu d'un groupe, et le groupe paraissait coupé en deux.
+ *
+ * @returns {object[]} les mêmes lignes, avec `versement` et `debutDeGroupe`
+ */
+export function grouperParVersement(lignes = []) {
+  const avecVersement = lignes.map((ligne, rang) => {
+    if (ligne.nature !== "vide") return { ...ligne, versement: versementDeLaLigne(ligne.assertion) };
+
+    // La suivante qui appartient à quelqu'un : c'est elle qui a fait naître ce
+    // blanc.
+    const suivante = lignes.slice(rang + 1).find((autre) => autre.assertion);
+    return { ...ligne, versement: versementDeLaLigne(suivante?.assertion) };
+  });
+
+  let precedent = null;
+  return avecVersement.map((ligne) => {
+    const change = Boolean(ligne.versement) && ligne.versement !== precedent;
+    if (ligne.versement) precedent = ligne.versement;
+    return { ...ligne, debutDeGroupe: change };
+  });
+}
+
+/**
  * Une ligne se cache-t-elle, vu ce qui est replié ?
  *
  * Elle se cache si **l'un de ses ancêtres** est replié — c'est ce qui rend le
@@ -695,18 +748,21 @@ export function renderFichier(fichier, {
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
-  const lignes = lignesAffichables(fichier);
+  const lignes = grouperParVersement(lignesAffichables(fichier));
   const pliable = lecture === LECTURE.CODE;
 
   const corps = lignes.map((ligne) => {
-    const blame = ligne.assertion ? blameDeLaLigne(ligne.assertion, auteurs) : null;
+    const porteuse = ligne.assertion ?? ligneDuVersement(lignes, ligne.versement);
+    const blame = porteuse ? blameDeLaLigne(porteuse, auteurs) : null;
     const replie = pliable && ligne.ouvre && plies.has(ligne.ouvre);
     const cachee = pliable && ligneCachee(ligne, plies);
 
     return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
-      }${replie ? " memoire-ligne--plie" : ""}"
+      }${replie ? " memoire-ligne--plie" : ""}${
+        lecture === LECTURE.BLAME && ligne.debutDeGroupe && ligne.rang > 1 ? " memoire-ligne--versement" : ""
+      }"
         style="--memoire-profondeur:${ligne.profondeur ?? 0}"
         data-memoire-ancetres="${escapeHtml((ligne.ancetres ?? []).join(" "))}"${
         ligne.ferme ? ` data-memoire-ferme="${escapeHtml(ligne.ferme)}"` : ""
@@ -719,7 +775,7 @@ export function renderFichier(fichier, {
           // même versement, et le redire quatre fois ferait croire à quatre
           // décisions.
           lecture === LECTURE.BLAME
-            ? blame && ligne.position === 0
+            ? blame && ligne.debutDeGroupe
               ? `<button type="button" class="memoire-blame memoire-blame--chaleur-${chaleurDeLaLigne(ligne.assertion, bornes)}"
                    ${blame.propositionId ? `data-memoire-proposition="${escapeHtml(blame.propositionId)}"` : "disabled"}
                    title="${escapeHtml([blame.qui, blame.quand ? formatDate(blame.quand) : ""].filter(Boolean).join(" · ") || "origine inconnue")}">
@@ -727,7 +783,7 @@ export function renderFichier(fichier, {
                    <span class="memoire-blame__date">${escapeHtml(blame.quand ? formatDate(blame.quand) : "—")}</span>
                  </button>`
               : `<span class="memoire-blame memoire-blame--suite${
-                  blame ? ` memoire-blame--chaleur-${chaleurDeLaLigne(ligne.assertion, bornes)}` : ""
+                  ligne.versement ? ` memoire-blame--chaleur-${chaleurDeLaLigne(ligne.assertion ?? ligneDuVersement(lignes, ligne.versement), bornes)}` : ""
                 }" aria-hidden="true"></span>`
             : ""
         }
@@ -923,6 +979,12 @@ export function renderRecherche(memoire, query = "", { pieces = [] } = {}) {
         .join("")}
     </div>
   `;
+}
+
+/** Une affirmation de ce versement, pour en lire la date et l'auteur. */
+function ligneDuVersement(lignes, versement) {
+  if (!versement) return null;
+  return lignes.find((ligne) => ligne.assertion && ligne.versement === versement)?.assertion ?? null;
 }
 
 /** Le poids d'un fichier, comme un dépôt l'affiche. */

@@ -224,14 +224,29 @@ export async function preparerUneProposition({
   // Une description écrite par l'appelant. Elle sert quand ce qu'il y a à dire
   // n'est pas une liste de valeurs — défaire une proposition raconte ce qu'on
   // remet, ce qu'on écarte et ce qu'on laisse.
-  description = ""
+  description = "",
+  // À quelles parties de l'ouvrage tout ceci s'applique. Une liste vide veut
+  // dire « partout » — c'est une portée, pas une absence de réponse.
+  //
+  // Elle ne s'impose qu'à ce qui n'a pas déjà la sienne : un utilitaire qui
+  // sait où va chacune de ses conclusions garde le dernier mot.
+  zones = null
 } = {}) {
   const projet = texte(projectId);
   if (!projet) return { ok: false, raison: "Ce projet n'est pas relié à la base." };
 
-  const items = Array.isArray(affirmations) && affirmations.length && affirmations[0]?.itemType
+  const portees = Array.isArray(zones) ? zones : null;
+  const situees = portees === null
     ? affirmations
-    : itemsDeProposition(affirmations);
+    : (Array.isArray(affirmations) ? affirmations : []).map((affirmation) => (
+        Array.isArray(affirmation?.zones) && affirmation.zones.length
+          ? affirmation
+          : { ...affirmation, zones: portees }
+      ));
+
+  const items = Array.isArray(situees) && situees.length && situees[0]?.itemType
+    ? situees
+    : itemsDeProposition(situees);
   if (!items.length) return { ok: false, raison: "Il n'y a rien à proposer." };
 
   const { createProposition, soumettreDesItems } = await import("./propositions-supabase.js");
