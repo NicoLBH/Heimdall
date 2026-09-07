@@ -29,7 +29,7 @@ import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renameDocumentFolder, moveDocumentFile, resolveCurrentBackendProjectId, syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 import {
-  preparerLaMemoire, fichierDuChemin, adresseDuFichier, renderArbre, renderBarre,
+  preparerLaMemoire, fichierDuChemin, adresseDuFichier, renderArbre, renderBarre, renderRecherche,
   renderDossiers, renderFichiers, renderFichier, fichierEnClair, LECTURE
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
@@ -69,6 +69,17 @@ function logPdfPreviewDebug(label, payload = {}) {
   console.info("[documents-pdf-preview]", label, payload);
 }
 
+/**
+ * Les deux branches de l'onglet Fichiers.
+ *
+ * Elles se nomment ici et nulle part ailleurs. Une clé tirée du libellé —
+ * « Mémoire ».toLowerCase() — rendait « mémoire », qui ne vaut aucune branche :
+ * le clic ouvrait donc les Documents, et les fichiers de mémoire devenaient
+ * inatteignables. Un identifiant qui se **dérive** d'un texte affiché finit par
+ * en dépendre.
+ */
+const BRANCHE = { MEMOIRE: "memoire", DOCUMENTS: "documents" };
+
 const docsViewState = {
   mode: "list", // "list" | "upload" | "report-preview" | "pdf-preview"
   /**
@@ -82,12 +93,14 @@ const docsViewState = {
    * et l'application les produit. Le besoin est le même, l'écran l'était déjà
    * presque : un arbre, un tableau, un lecteur.
    *
-   * `""` la racine, `"memoire"` ce que le projet sait, `"documents"` ce qu'il a
-   * reçu.
+   * `""` la racine, `BRANCHE.MEMOIRE` ce que le projet sait, `BRANCHE.DOCUMENTS`
+   * ce qu'il a reçu.
    */
   branche: "",
-  /** Le chemin ouvert dans la branche Mémoire : `["Mémoire", "incendie.ctr"]`. */
+  /** Le chemin ouvert dans la branche Mémoire : `["Incendie", "incendie.ctr"]`. */
   memoireChemin: [],
+  /** Ce qu'on cherche dans la mémoire. Traverse les dossiers. */
+  memoireQuery: "",
   /** Code ou Origine. */
   memoireLecture: "code",
   /** Les blocs repliés du fichier ouvert, par leur identifiant. */
@@ -1308,7 +1321,7 @@ function renderDocumentsTopBar() {
           // fichier de mémoire n'a pas de chemin qu'on choisit — il est calculé
           // — et proposer de le déplacer serait proposer de casser un rangement
           // qui n'appartient pas à celui qui lit.
-          docsViewState.branche === "documents"
+          docsViewState.branche === BRANCHE.DOCUMENTS
             ? renderDocumentsMenu(enApercu ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null)
             : ""
         }
@@ -1408,7 +1421,7 @@ function renderRepoDocumentRow(doc) {
       <div class="documents-repo__cell documents-repo__cell--date">${escapeHtml(decoratedDoc.updatedAt || "À l'instant")}</div>
       <div class="documents-repo__cell documents-repo__cell--stats">
         <div class="documents-repo__stats-actions">${renderDocumentStatsCell(decoratedDoc)}${
-  docsViewState.branche === "documents"
+  docsViewState.branche === BRANCHE.DOCUMENTS
     ? `<button type="button" class="gh-btn" data-document-move-id="${escapeHtml(decoratedDoc.id || "")}">Déplacer</button>`
     : ""
 }</div>
@@ -1888,6 +1901,7 @@ function bindLaMemoire(root) {
     bouton.addEventListener("click", () => {
       docsViewState.branche = bouton.getAttribute("data-fichiers-branche") || "";
       docsViewState.memoireChemin = [];
+      docsViewState.memoireQuery = "";
       renderProjectDocumentsContent(root);
     });
   }
@@ -1899,7 +1913,22 @@ function bindLaMemoire(root) {
       // racine de la branche, pas celle de l'onglet.
       docsViewState.memoireChemin = cible ? cible.split("/").filter(Boolean) : [];
       docsViewState.memoirePlies = new Set();
+      // Ouvrir un résultat ferme la recherche : on est allé quelque part.
+      docsViewState.memoireQuery = "";
       renderProjectDocumentsContent(root);
+    });
+  }
+
+  const chercher = root.querySelector("[data-memoire-query]");
+  if (chercher) {
+    chercher.addEventListener("input", (event) => {
+      docsViewState.memoireQuery = event.target.value;
+      renderProjectDocumentsContent(root);
+      // Le curseur revient où il était : redessiner l'écran à chaque touche le
+      // renverrait au début du champ.
+      const champ = root.querySelector("[data-memoire-query]");
+      champ?.focus();
+      champ?.setSelectionRange(champ.value.length, champ.value.length);
     });
   }
 
@@ -1979,8 +2008,8 @@ function bindLaMemoire(root) {
  * pour cela qu'elles vivent au même endroit.
  */
 function renderRacineDesFichiers() {
-  const entree = (nom, phrase, compte) => `
-    <button type="button" class="memoire-entree" data-fichiers-branche="${escapeHtml(nom.toLowerCase())}">
+  const entree = (branche, nom, phrase, compte) => `
+    <button type="button" class="memoire-entree" data-fichiers-branche="${escapeHtml(branche)}">
       <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
       <span class="memoire-entree__corps">
         <span class="memoire-entree__nom">${escapeHtml(nom)}</span>
@@ -2000,9 +2029,11 @@ function renderRacineDesFichiers() {
       <div class="documents-shell documents-shell--project-page">
         <main class="documents-main">
           <div class="memoire-liste">
-            ${entree("Mémoire", "Ce que le projet sait, et comment il l'a su. Écrit par l'application, jamais déplaçable.",
+            ${entree(BRANCHE.MEMOIRE, "Mémoire",
+              "Ce que le projet sait, et comment il l'a su. Écrit par l'application, jamais déplaçable.",
               `${lignes} ligne${lignes > 1 ? "s" : ""}`)}
-            ${entree("Documents", "Les pièces déposées : plans, notes, comptes rendus. Rangez-les comme vous voulez.",
+            ${entree(BRANCHE.DOCUMENTS, "Documents",
+              "Les pièces déposées : plans, notes, comptes rendus. Rangez-les comme vous voulez.",
               `${pieces} entrée${pieces > 1 ? "s" : ""}`)}
           </div>
         </main>
@@ -2031,7 +2062,15 @@ function renderBrancheMemoire() {
   };
 
   const fichier = chemin.length >= 2 ? fichierDuChemin(memoire, chemin) : null;
-  const vue = racine
+
+  // La recherche traverse les dossiers : c'est le geste qu'on fait quand on ne
+  // sait pas où c'est rangé, et un navigateur qui refuserait de chercher
+  // obligerait à ouvrir cinq dossiers pour trouver une ligne.
+  const query = String(docsViewState.memoireQuery ?? "").trim();
+
+  const vue = query
+    ? renderRecherche(memoire, query)
+    : racine
     ? renderDossiers(memoire, { assertions: docsViewState.memoireAssertions ?? [] })
     : chemin.length === 1
       ? renderFichiers(memoire, chemin[0], contexte)
@@ -2048,7 +2087,7 @@ function renderBrancheMemoire() {
     <section class="project-simple-page project-simple-page--documents">
       <div class="documents-shell documents-shell--project-page">
         <main class="documents-main">
-          ${renderBarre({ chemin: chemin.slice(1), prefixe: chemin.slice(0, 1), ouverte, racine })}
+          ${renderBarre({ chemin, query: docsViewState.memoireQuery ?? "", ouverte, racine })}
           <div class="memoire-layout${ouverte ? "" : " memoire-layout--replie"}${racine ? " memoire-layout--racine" : " memoire-layout--pleine"}"
                style="--memoire-tree-width:${largeur}px">
             ${racine ? "" : renderArbre(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), ouverte })}
@@ -3314,7 +3353,7 @@ function renderProjectDocumentsContent(root) {
 
   root.innerHTML = docsViewState.mode === "list" && docsViewState.branche === ""
     ? renderRacineDesFichiers()
-    : docsViewState.mode === "list" && docsViewState.branche === "memoire"
+    : docsViewState.mode === "list" && docsViewState.branche === BRANCHE.MEMOIRE
     ? renderBrancheMemoire()
     : docsViewState.mode === "upload"
     ? renderUploadView()

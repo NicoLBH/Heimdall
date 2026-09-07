@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import {
   cheminDeRangement, extensionDeRangement, zonesDeRangement,
   EXTENSIONS, EXTENSION_REGLE, SANS_NATURE, SANS_DOMAINE, MEMOIRE, DOCUMENTS,
-  rangDeLExtension, rangDeLaZone, rangDeLaRacine,
-  phraseDeLExtension, phraseDeLaRacine
+  rangDeLExtension, rangDeLaZone, rangDeLaRacine, rangDuDossier,
+  phraseDeLExtension, phraseDeLaRacine, phraseDuDossier
 } from "./memoire-rangement.js";
 import { TOUTES_ZONES } from "./memoire-en-texte.js";
 
@@ -58,6 +58,23 @@ test("les deux racines se lisent dans l'ordre : ce que le projet sait, puis ce q
   assert.ok(rangDeLaRacine(MEMOIRE) < rangDeLaRacine(DOCUMENTS));
   assert.match(phraseDeLaRacine(MEMOIRE), /jamais déplaçable/);
   assert.match(phraseDeLaRacine(DOCUMENTS), /Rangez-les comme vous voulez/);
+});
+
+test("dans Mémoire, ce qui est observé se lit avant ce qui s'en déduit", () => {
+  const noms = ["Incendie", "Corpus", "Non classé", "Données de base", "Hypothèses"];
+  assert.deepEqual(
+    noms.slice().sort((gauche, droite) => rangDuDossier(gauche) - rangDuDossier(droite)
+      || gauche.localeCompare(droite, "fr")),
+    ["Données de base", "Hypothèses", "Corpus", "Incendie", "Non classé"]
+  );
+});
+
+test("un dossier de Mémoire dit s'il vaut pour tout le projet ou pour une discipline", () => {
+  assert.match(phraseDuDossier("Données de base"), /Vaut pour tout le projet/);
+  assert.match(phraseDuDossier("Hypothèses"), /en attendant mieux/);
+  assert.match(phraseDuDossier("Corpus"), /entré au dossier/);
+  assert.match(phraseDuDossier("Incendie"), /règles incendie appliquées/);
+  assert.match(phraseDuDossier(SANS_DOMAINE), /ne devrait pas se remplir/);
 });
 
 test("chaque extension dit ce qu'elle contient, sans quoi on range au hasard", () => {

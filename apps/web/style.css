@@ -19975,6 +19975,16 @@ body.proposition-merge-open{ overflow:hidden; }
 .memoire-recherche{ display:inline-flex; align-items:center; gap:6px; color:var(--muted); }
 .memoire-recherche .gh-input{ width:min(280px, 40vw); }
 
+/* Les résultats : le fichier, puis ses lignes, avec leurs vrais numéros. */
+.memoire-recherche-resultats{ display:flex; flex-direction:column; gap:12px; }
+.memoire-recherche-resultats__compte{ margin:0; color:var(--muted); font-size:12px; }
+.memoire-recherche-resultats__fichier{
+  display:inline-flex; align-items:center; gap:6px; padding:0; border:0; background:none;
+  color:var(--accent-fg, #4493f8); font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
+}
+.memoire-recherche-resultats__fichier:hover{ text-decoration:underline; }
+.memoire-fichier--trouvaille .memoire-fichier__corps{ padding-block:4px; }
+
 .memoire-layout{
   display:grid;
   grid-template-columns:var(--memoire-tree-width, 280px) minmax(0, 1fr);

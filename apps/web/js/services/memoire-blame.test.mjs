@@ -73,8 +73,22 @@ test("une affirmation qui vaut pour deux zones ouvre les deux sections du même 
 test("un dossier vide ne s'affiche pas : un projet neuf n'a rien perdu", () => {
   assert.deepEqual(dossiersDeLaMemoire([]), []);
   const dossiers = dossiersDeLaMemoire([assertion("a1", "degre-cf", "CF 1 h")]);
-  assert.deepEqual(dossiers.map((d) => d.nom), ["Mémoire"]);
+  assert.deepEqual(dossiers.map((d) => d.nom), ["Incendie"]);
   assert.equal(dossiers[0].lignes, 1);
+});
+
+test("un dossier est ce qui vit dans Mémoire, jamais Mémoire elle-même", () => {
+  // Le premier morceau du chemin est la racine de la branche. Grouper dessus
+  // rendait un unique dossier « Mémoire » dans « Mémoire », et les fichiers
+  // devenaient inatteignables.
+  const dossiers = dossiersDeLaMemoire([
+    assertion("a1", "degre-cf", "CF 1 h"),
+    assertion("a2", "zone-neige", "A2", { nature: "donnee-de-base", domain: "structure" }),
+    assertion("a3", "portance", "0,2 MPa", { nature: "hypothese", domain: "structure" })
+  ]);
+
+  assert.deepEqual(dossiers.map((d) => d.nom).sort(), ["Données de base", "Hypothèses", "Incendie"]);
+  assert.equal(dossiers.some((d) => d.nom === "Mémoire"), false);
 });
 
 test("le blâme d'une ligne mène à la proposition qui l'a versée", () => {

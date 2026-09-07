@@ -127,12 +127,16 @@ function parSujet(gauche, droite) {
  *
  * C'est l'écran racine de la Mémoire : ce que le projet a relevé, ce qui
  * s'impose, ce qu'il suppose. Un dossier sans fichier n'y figure pas.
+ *
+ * On groupe sur le **dernier** morceau du chemin, pas sur le premier : le
+ * premier est `Mémoire`, la racine de la branche, et grouper dessus rendait un
+ * seul dossier « Mémoire » dans « Mémoire », avec tous les fichiers dessous.
  */
 export function dossiersDeLaMemoire(assertions = []) {
   const dossiers = new Map();
 
   for (const fichier of fichiersDeLaMemoire(assertions)) {
-    const nom = fichier.chemin[0];
+    const nom = fichier.chemin[fichier.chemin.length - 1];
     if (!dossiers.has(nom)) dossiers.set(nom, { nom, fichiers: [], lignes: 0 });
     const dossier = dossiers.get(nom);
     dossier.fichiers.push(fichier);
