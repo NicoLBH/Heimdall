@@ -227,6 +227,11 @@ async function proposerLesZones(root) {
     return;
   }
 
+  // Où cela s'applique se demande **avant** d'ouvrir la proposition.
+  const { demanderLesZones } = await import("../../ui/choix-des-zones.js");
+  const zones = await demanderLesZones({ projectId: state.projectId });
+  if (zones === null) return;
+
   state.transforming = true;
   state.error = "";
   render(root);
@@ -237,7 +242,8 @@ async function proposerLesZones(root) {
     titre: buildClimateDraftTitle(),
     intro: "Zonages réglementaires applicables au projet, tels que les référentiels les fixent.",
     source: affirmations[0]?.source || "",
-    affirmations
+    affirmations,
+    zones
   });
 
   state.transforming = false;

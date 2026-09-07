@@ -6465,8 +6465,8 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 /* `align-items:stretch` et une hauteur plancher : sans elles, la colonne de
    gauche s'arrête à sa dernière ligne et son filet paraît coupé au milieu de
    l'écran — le même défaut que côté Mémoire. */
-.documents-layout{display:grid;grid-template-columns:var(--documents-tree-width, auto) 1fr;align-items:stretch;gap:2px;min-height:calc(100vh - var(--app-top) - 220px);}
-.documents-layout:has(.memoire-tree.is-collapsed){grid-template-columns:48px 1fr;}
+.documents-layout{display:grid;grid-template-columns:var(--documents-tree-width, auto) 1fr;align-items:stretch;gap:2px;min-height:var(--documents-content-height, calc(100vh - var(--app-top) - 220px));}
+.documents-layout:not(:has(.memoire-tree)){grid-template-columns:minmax(0, 1fr);}
 .documents-layout.is-root{grid-template-columns:minmax(0,1100px);justify-content:center;}
 .documents-main{min-width:0;max-height:var(--documents-content-height, calc(100vh - 120px));height:100%;z-index:2;background:var(--bg);padding-left:10px;}
 /* `.documents-topbar` a disparu du balisage : les deux matières partagent
@@ -6520,11 +6520,15 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   overflow:hidden;
   z-index:auto;
 }
-/* En lecture, l'en-tête du projet laisse la place au document. */
-body.route--project.documents-pdf-sticky-mode #globalHeaderHost{
-  opacity:0;
-  visibility:hidden;
-  pointer-events:none;
+/* L'en-tête du projet ne s'efface qu'**au défilement** du document, comme
+   ailleurs : le cacher dès l'ouverture faisait disparaître le nom du projet et
+   le chemin de retour sans qu'on ait rien demandé.
+
+   En lecture il quitte la mise en page — `display:none` et non `visibility` :
+   la page ne défile pas, alors un en-tête invisible mais présent laisserait sa
+   bande vide en haut de l'écran, et les barres ne remonteraient pas. */
+body.route--project.documents-pdf-sticky-mode.documents-local-chrome-compact #globalHeaderHost{
+  display:none;
 }
 .documents-shell--pdf-preview{
   --documents-pdf-toolbar-h:52px;
@@ -20135,6 +20139,21 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 .fichiers-saisie__trop{ color:var(--dangerFg, #f85149); }
 .fichiers-saisie__echec{ margin:0; color:var(--dangerFg, #f85149); font-size:12px; }
 .fichiers-saisie__pied{ display:flex; justify-content:flex-end; gap:8px; }
+
+/* Le choix des zones, avant qu'une proposition parte. Une case par partie de
+   l'ouvrage, et la définition sous le nom : une zone qu'on ne sait pas nommer
+   ne se coche pas de bon cœur. */
+.zones-choix__lead{ margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.zones-choix__liste{ display:flex; flex-direction:column; gap:2px; max-height:46vh; overflow:auto; }
+.zones-choix__ligne{
+  display:flex; align-items:flex-start; gap:10px;
+  padding:8px 10px; border-radius:6px; cursor:pointer;
+}
+.zones-choix__ligne:hover{ background:rgba(110,118,129,.12); }
+.zones-choix__ligne input{ margin-top:2px; flex:0 0 auto; }
+.zones-choix__corps{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.zones-choix__nom{ color:var(--text); font-size:13px; font-weight:500; }
+.zones-choix__quoi{ color:var(--muted); font-size:12px; }
 .fichiers-meta__gens{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
 .fichiers-meta__gens li{ display:flex; align-items:center; gap:8px; font-size:13px; }
 /* La barre des langages, et sa légende : la même couleur porte la part et sa
@@ -20171,9 +20190,12 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   align-items:stretch;
   gap:0;
   border-top:1px solid var(--border);
-  min-height:calc(100vh - var(--app-top) - 220px);
+  /* La hauteur que l'écran a **mesurée**, pas une soustraction approchée : à
+     220 px près, le filet de la colonne de gauche s'arrêtait au-dessus du bas
+     de l'écran dès que le tableau était court. */
+  min-height:var(--documents-content-height, calc(100vh - var(--app-top) - 220px));
 }
-.memoire-layout--replie{ grid-template-columns:48px minmax(0, 1fr); }
+.memoire-layout--replie{ grid-template-columns:minmax(0, 1fr); }
 .memoire-layout--racine{ grid-template-columns:minmax(0, 1fr); }
 
 /* Dès qu'on entre dans un dossier, l'écran prend la largeur : un rail, un
@@ -20247,6 +20269,9 @@ body.documents-local-chrome-compact .memoire-corps__tete{
   padding:6px 12px;
   background:var(--panel2);
   border-color:var(--border);
+  /* Collée au bord de l'écran, elle n'a pas de coins à arrondir : un arrondi
+     qui touche le bord se lit comme une carte flottante, pas comme une barre. */
+  border-radius:0;
 }
 .memoire-corps__espace{ flex:1 1 auto; }
 .memoire-corps__tete .documents-breadcrumb{ margin:0; }
@@ -20271,7 +20296,7 @@ body.route--project.project-shell-compact.documents-local-chrome-compact #global
   border-right:0;
   min-height:0;
   height:auto;
-  max-height:calc(100vh - var(--app-top, 120px) - 60px);
+  max-height:var(--documents-content-height, calc(100vh - var(--app-top, 120px) - 60px));
   position:sticky;
   top:var(--memoire-colle, 88px);
 }
@@ -20543,6 +20568,10 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 }
 .memoire-blame:hover:not(:disabled){ background:rgba(110,118,129,.14); color:var(--text); }
 .memoire-blame:disabled{ cursor:default; }
+/* Un filet là où l'origine change : il sépare deux groupes de lignes versés par
+   deux propositions différentes. C'est ce qui permet de n'écrire l'origine
+   qu'une fois par groupe, au lieu de la répéter devant chaque bloc. */
+.memoire-ligne--versement{ border-top:1px solid var(--border); padding-top:2px; margin-top:2px; }
 /* Les lignes d'un même bloc viennent du même versement : répéter le numéro
    quatre fois ferait croire à quatre décisions. */
 .memoire-blame--suite{

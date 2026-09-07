@@ -853,6 +853,13 @@ async function proposerDepuisLEtude(root) {
     return;
   }
 
+  // Où cela s'applique se demande **avant** d'ouvrir la proposition : une
+  // exigence posée plus large qu'elle ne vaut se lit comme acquise là où elle
+  // ne l'est pas, et personne ne va vérifier ce qui paraît déjà décidé.
+  const { demanderLesZones } = await import("../../ui/choix-des-zones.js");
+  const zones = await demanderLesZones({ assertions: etat.affirmations ?? [] });
+  if (zones === null) return;
+
   etat.versementEnCours = true;
   etat.versementDit = "Préparation de la proposition…";
   dessiner(root);
@@ -862,7 +869,8 @@ async function proposerDepuisLEtude(root) {
     titre: `Incendie — ${nomDeLEtudeCourante()}`,
     intro: "Conclusions de l'étude incendie, telles que le référentiel les a établies.",
     source: etat.vue?.texteDeReference?.source || "arrêté du 31 janvier 1986 modifié",
-    affirmations
+    affirmations,
+    zones
   });
 
   etat.versementEnCours = false;

@@ -1329,6 +1329,7 @@ function renderDocumentsTopBar() {
     : "";
 
   return renderTeteDuContenu({
+    replie: docsViewState.documentTreeOpen === false,
     fil: renderDocumentsBreadcrumb(),
     droite: `
       ${docsViewState.documentTreeOpen === false ? renderRechercheDuProjet(docsViewState.memoireQuery ?? "") : ""}
@@ -2668,6 +2669,7 @@ function renderBrancheMemoire() {
             ${renderArbreDesFichiers({ memoire, ouverte, query: docsViewState.memoireQuery ?? "" })}
             <div class="memoire-corps">
               ${renderTeteDuContenu({
+                replie: !ouverte,
                 fil: renderFilDAriane({ chemin }),
                 droite: ouverte ? "" : renderRechercheDuProjet(docsViewState.memoireQuery ?? "")
               })}
@@ -3696,13 +3698,22 @@ function bindDocumentsView(root) {
   bindLaMemoire(root);
   const documentsShell = root.querySelector(".documents-shell");
   if (documentsShell) {
+    // En lecture, ce n'est plus la page qui défile mais le document : c'est
+    // donc **son** ascenseur qu'on écoute. Branché sur la page, le repli de
+    // l'en-tête ne se déclenchait jamais — la page ne bougeait pas d'un pixel.
+    const enLecture = docsViewState.mode === "pdf-preview";
+    const ascenseurDuPdf = enLecture ? root.querySelector(".documents-report-table__body--pdf") : null;
+
     bindProjectDocumentChromeCompact({
-      scrollEl: document,
+      scrollEl: ascenseurDuPdf || document,
       chromeEl: documentsShell,
       classHost: document.body,
       bodyClassName: "documents-local-chrome-compact",
       compactThreshold: 8,
-      key: docsViewState.mode === "pdf-preview" ? "documents-pdf-shell" : "documents-list-shell"
+      key: enLecture ? "documents-pdf-shell" : "documents-list-shell",
+      // L'en-tête quitte la mise en page en se repliant : la colonne doit
+      // reprendre la place qu'il laisse, sinon une bande vide reste en bas.
+      onCompactChange: () => requestAnimationFrame(mesurerLaHauteurDuContenu)
     });
   }
   // Le même glisser-déposer que le rail de la Mémoire : un seul composant, une
@@ -3967,14 +3978,25 @@ function bindDocumentsView(root) {
   }
 }
 
+/**
+ * La hauteur du contenu, mesurée depuis sa position réelle.
+ *
+ * Elle se **re-mesure** quand la chrome se replie : en lecture, l'en-tête du
+ * projet disparaît de la mise en page, et une hauteur figée au premier rendu
+ * laissait alors une bande vide en bas de l'écran.
+ */
+function mesurerLaHauteurDuContenu() {
+  const contentHost = document.getElementById("project-content");
+  if (!contentHost) return;
+
+  const top = contentHost.getBoundingClientRect().top || 0;
+  const height = Math.max(320, Math.floor((window.innerHeight || 0) - top - 8));
+  contentHost.style.setProperty("--documents-content-height", `${height}px`);
+}
+
 function renderProjectDocumentsContent(root) {
   syncDocumentsProjectViewHeader();
-  const contentHost = document.getElementById("project-content");
-  if (contentHost) {
-    const top = contentHost.getBoundingClientRect().top || 0;
-    const height = Math.max(320, Math.floor((window.innerHeight || 0) - top - 8));
-    contentHost.style.setProperty("--documents-content-height", `${height}px`);
-  }
+  mesurerLaHauteurDuContenu();
 
   root.innerHTML = docsViewState.mode === "list" && docsViewState.branche === ""
     ? renderRacineDesFichiers()
