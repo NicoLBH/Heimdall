@@ -19972,6 +19972,111 @@ body.proposition-merge-open{ overflow:hidden; }
    gestes, et qu'en apprendre deux pour un seul est un coût payé à chaque
    écran. */
 .memoire-barre{ padding:8px 0 12px; }
+/* ─────────────────────────────────────────────────────────────────────────────
+   La racine de l'onglet Fichiers.
+
+   Elle se lit comme la page d'accueil d'un dépôt : une tête qui dit de quel
+   projet il s'agit et à qui il est, un tableau de ce qu'il contient, et une
+   colonne qui dit de quoi il est fait. Le geste est le même, la forme aussi.
+   ───────────────────────────────────────────────────────────────────────── */
+.fichiers-racine__tete{
+  display:flex; align-items:center; gap:10px;
+  padding:0 0 14px; margin-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+.fichiers-racine__titre{ margin:0; font-size:20px; font-weight:600; color:var(--text); }
+.fichiers-racine__avatar{
+  flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border-radius:50%;
+  background:rgba(110,118,129,.24); color:var(--text);
+  font-size:11px; font-weight:600; letter-spacing:.02em;
+}
+.fichiers-racine__avatar--petit{ width:20px; height:20px; font-size:9px; }
+.fichiers-racine__avatar .ui-icon{ color:var(--muted); }
+.fichiers-racine__avatar--petit .ui-icon{ width:12px; height:12px; }
+.fichiers-racine__pastille{
+  padding:1px 8px; border:1px solid var(--border); border-radius:2em;
+  color:var(--muted); font-size:12px; line-height:18px;
+}
+
+/* Deux colonnes, et les mêmes seuils que le détail d'un sujet : le contenu à
+   gauche, ce qu'on en dit à droite, et l'un sous l'autre quand c'est étroit. */
+.fichiers-racine__grille{ display:grid; grid-template-columns:minmax(0, 1fr) 296px; gap:24px; align-items:start; }
+@media (max-width: 1180px){ .fichiers-racine__grille{ grid-template-columns:minmax(0, 1fr) 256px; } }
+@media (max-width: 900px){ .fichiers-racine__grille{ grid-template-columns:1fr; } }
+.fichiers-racine__principal{ min-width:0; }
+
+.fichiers-racine__barre{ display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+.fichiers-racine__espace{ flex:1 1 auto; }
+
+.fichiers-ajout{ position:relative; }
+.fichiers-ajout__bouton{ display:inline-flex; align-items:center; gap:6px; }
+.fichiers-ajout__menu{
+  position:absolute; right:0; top:calc(100% + 6px); z-index:30;
+  min-width:250px; padding:4px;
+  border:1px solid var(--border); border-radius:6px;
+  background:var(--surface, #161b22); box-shadow:0 8px 24px rgba(1,4,9,.5);
+}
+.fichiers-ajout__item{
+  display:flex; align-items:center; gap:8px; width:100%;
+  padding:8px 10px; border:0; border-radius:4px;
+  background:none; color:var(--text); font:inherit; font-size:13px; text-align:left;
+  cursor:pointer;
+}
+button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
+/* Ce qui n'est pas encore là se voit, mais ne se clique pas : une entrée
+   absente laisse chercher, une entrée grisée dit qu'elle viendra. */
+.fichiers-ajout__item--muet{ color:var(--muted); cursor:not-allowed; }
+
+.fichiers-racine__tableau{ border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.fichiers-racine__entete{
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px; border-bottom:1px solid var(--border);
+  background:rgba(110,118,129,.06); color:var(--muted); font-size:12px;
+}
+.fichiers-racine__versements{ display:inline-flex; align-items:center; gap:6px; }
+.fichiers-racine__ligne{
+  display:grid; grid-template-columns:minmax(160px, 260px) minmax(0, 1fr) auto;
+  align-items:center; gap:16px; width:100%;
+  padding:10px 16px; border:0; border-top:1px solid var(--border);
+  background:none; color:var(--text); font:inherit; font-size:14px; text-align:left;
+  cursor:pointer;
+}
+.fichiers-racine__ligne:first-of-type{ border-top:0; }
+.fichiers-racine__ligne:hover{ background:rgba(110,118,129,.08); }
+.fichiers-racine__nom{ display:inline-flex; align-items:center; gap:8px; font-weight:500; }
+.fichiers-racine__nom .ui-icon{ color:var(--accent-fg, #4493f8); }
+.fichiers-racine__phrase,
+.fichiers-racine__date{ color:var(--muted); font-size:12px; }
+.fichiers-racine__phrase{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width: 900px){
+  .fichiers-racine__ligne{ grid-template-columns:minmax(0, 1fr) auto; }
+  .fichiers-racine__phrase{ display:none; }
+}
+
+.fichiers-meta{ padding-bottom:16px; margin-bottom:16px; border-bottom:1px solid var(--border); }
+.fichiers-meta:last-child{ border-bottom:0; margin-bottom:0; }
+.fichiers-meta__titre{ margin:0 0 10px; font-size:14px; font-weight:600; color:var(--text); }
+.fichiers-meta__compte{
+  margin-left:4px; padding:0 6px; border-radius:2em;
+  background:rgba(110,118,129,.2); color:var(--muted); font-size:11px; font-weight:600;
+}
+.fichiers-meta__vide{ margin:0; color:var(--muted); font-size:12px; }
+.fichiers-meta__gens{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.fichiers-meta__gens li{ display:flex; align-items:center; gap:8px; font-size:13px; }
+/* La barre des langages : les parts, dans l'ordre, comme un dépôt les montre. */
+.fichiers-meta__barre{ display:flex; height:8px; border-radius:4px; overflow:hidden; margin-bottom:10px; background:rgba(110,118,129,.2); }
+.fichiers-meta__barre span:nth-child(1){ background:#4493f8; }
+.fichiers-meta__barre span:nth-child(2){ background:#3fb950; }
+.fichiers-meta__barre span:nth-child(3){ background:#d29922; }
+.fichiers-meta__barre span:nth-child(4){ background:#a371f7; }
+.fichiers-meta__barre span:nth-child(5){ background:#db6d28; }
+.fichiers-meta__barre span:nth-child(n+6){ background:#6e7681; }
+.fichiers-meta__langages{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.fichiers-meta__langages li{ display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; }
+.fichiers-meta__langages code{ color:var(--text); }
+.fichiers-meta__langages span{ color:var(--muted); }
+
 .memoire-recherche{ display:inline-flex; align-items:center; gap:6px; color:var(--muted); }
 .memoire-recherche .gh-input{ width:min(280px, 40vw); }
 
@@ -20197,6 +20302,13 @@ body.proposition-merge-open{ overflow:hidden; }
   min-width:100%;
 }
 .memoire-ligne:hover{ background:rgba(110,118,129,.08); }
+/* Une ligne repliée disparaît vraiment. `display:flex` battait la règle du
+   navigateur sur `[hidden]` — même spécificité, mais une feuille d'auteur passe
+   avant celle de l'agent —, et le caret posait un attribut sans effet. */
+.memoire-ligne[hidden]{ display:none; }
+/* Ce qui est replié se dit sur la tête, comme le fait un éditeur : sans cette
+   marque, l'accolade ouvrante resterait seule et le bloc paraîtrait tronqué. */
+.memoire-ligne--plie .memoire-ligne__code::after{ content:" … }"; color:var(--muted); }
 /* Le numéro porte son écart : en mode Blame la gouttière tombe à zéro — la
    marge du blâme a la sienne —, et le numéro se collait au code. */
 .memoire-ligne__num{ flex:0 0 40px; padding-right:12px; text-align:right; color:var(--muted); font-size:11px; user-select:none; }

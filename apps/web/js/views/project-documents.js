@@ -29,10 +29,12 @@ import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renameDocumentFolder, moveDocumentFile, resolveCurrentBackendProjectId, syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 import {
-  preparerLaMemoire, fichierDuChemin, adresseDuFichier, renderArbre, renderBarre, renderRecherche,
-  renderDossiers, renderFichiers, renderFichier, fichierEnClair, LECTURE
+  preparerLaMemoire, fichierDuChemin, adresseDuFichier, lignesDArbreMemoire, renderPanneauDArbre,
+  renderBarre, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
+import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
+import { versementsDeLaMemoire } from "../services/memoire-blame.js";
 import { buildSupabaseAuthHeaders, getSupabaseAnonKey, getSupabaseUrl } from "../../assets/js/auth.js";
 
 const SUPABASE_URL = getSupabaseUrl();
@@ -105,6 +107,10 @@ const docsViewState = {
   memoireLecture: "code",
   /** Les blocs repliés du fichier ouvert, par leur identifiant. */
   memoirePlies: new Set(),
+  /** Le menu « Ajouter un fichier », ouvert ou non. */
+  ajoutOuvert: false,
+  /** Les racines repliées de l'arbre : « memoire », « documents ». */
+  racinesRepliees: new Set(),
   /** Les dossiers repliés du rail de la Mémoire. */
   memoireReplies: new Set(),
   // Les fichiers choisis pour le prochain dépôt. `files`, plus bas, désigne tout
@@ -155,7 +161,9 @@ const docsViewState = {
   breadcrumb: [],
   folders: [],
   files: [],
-  documentTreeOpen: false,
+  // L'arbre est ouvert d'emblée : c'est lui qui montre les deux matières du
+  // projet, et le replier par défaut cachait la moitié de ce qu'on vient voir.
+  documentTreeOpen: true,
   moveModal: {
     isOpen: false,
     fileId: "",
@@ -1683,11 +1691,11 @@ function renderPdfPreviewView() {
   const previewErrorMessage = String(docsViewState.pdfPreview?.errorMessage || "").trim();
   const hasPdfBytes = docsViewState.pdfPreview?.bytes instanceof Uint8Array && docsViewState.pdfPreview.bytes.byteLength > 0;
 
-  const treeHtml = docsViewState.currentFolderId ? renderDocumentsSidebarTree() : "";
+  const treeHtml = renderArbreDesFichiers({ memoire: preparerLaMemoire(docsViewState.memoireAssertions ?? []) });
   const topBar = renderDocumentsTopBar();
   return `
     <section class="project-simple-page project-simple-page--documents">
-      <div class="documents-shell documents-shell--project-page documents-shell--pdf-preview documents-layout${docsViewState.currentFolderId ? "" : " is-root"}" id="projectDocumentScroll" style="--documents-tree-width:${docsViewState.currentFolderId ? (docsViewState.documentTreeOpen ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth || 280))) : 0) : 0}px">
+      <div class="documents-shell documents-shell--project-page documents-shell--pdf-preview documents-layout" id="projectDocumentScroll" style="--documents-tree-width:${docsViewState.documentTreeOpen ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth || 280))) : 0}px">
         ${treeHtml}
         <main class="documents-main">
           ${topBar}
@@ -1875,9 +1883,12 @@ async function chargerLaMemoire() {
     const ouvertes = (await propositions.listPropositions(projet)) ?? [];
     docsViewState.memoirePropositions = new Map(ouvertes.map((entree) => [String(entree.id), entree]));
 
-    const auteurs = await propositions.loadAuthors(
-      (docsViewState.memoireAssertions ?? []).map((ligne) => ligne.decided_by)
-    );
+    // Le propriétaire aussi : c'est lui que la tête de l'onglet nomme, et il
+    // n'a pas forcément versé quoi que ce soit.
+    const auteurs = await propositions.loadAuthors([
+      ...(docsViewState.memoireAssertions ?? []).map((ligne) => ligne.decided_by),
+      store.currentProject?.ownerId
+    ]);
     docsViewState.memoireAuteurs = new Map(
       [...(auteurs ?? new Map()).entries()].map(([cle, valeur]) => [
         String(cle),
@@ -1932,6 +1943,58 @@ function bindLaMemoire(root) {
     });
   }
 
+  // Le menu « Ajouter un fichier » : un déroulant, pas une navigation.
+  const ajout = root.querySelector("[data-fichiers-ajout]");
+  if (ajout) {
+    ajout.addEventListener("click", (event) => {
+      event.stopPropagation();
+      docsViewState.ajoutOuvert = !docsViewState.ajoutOuvert;
+      renderProjectDocumentsContent(root);
+    });
+    // Un menu qui reste ouvert quand on regarde ailleurs finit par gêner.
+    document.addEventListener("click", () => {
+      if (!docsViewState.ajoutOuvert) return;
+      docsViewState.ajoutOuvert = false;
+      renderProjectDocumentsContent(root);
+    }, { once: true });
+  }
+
+  root.querySelector("[data-fichiers-deposer]")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    docsViewState.ajoutOuvert = false;
+    docsViewState.mode = "upload";
+    renderProjectDocuments(root);
+  });
+
+  // Chercher depuis la racine entre dans la Mémoire : c'est là que le texte
+  // vit, et une recherche qui ne mènerait nulle part ne servirait à rien.
+  const chercherDepuisLaRacine = root.querySelector("[data-fichiers-query]");
+  if (chercherDepuisLaRacine) {
+    chercherDepuisLaRacine.addEventListener("input", (event) => {
+      docsViewState.memoireQuery = event.target.value;
+      docsViewState.branche = BRANCHE.MEMOIRE;
+      docsViewState.memoireChemin = [];
+      renderProjectDocumentsContent(root);
+      const champ = root.querySelector("[data-memoire-query]");
+      champ?.focus();
+      champ?.setSelectionRange(champ.value.length, champ.value.length);
+    });
+  }
+
+  // Plier une racine n'y navigue pas : on n'entre pas dans « Mémoire » en la
+  // dépliant, on y entre en la choisissant.
+  for (const bouton of root.querySelectorAll("[data-fichiers-plier]")) {
+    bouton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const branche = bouton.getAttribute("data-fichiers-plier") || "";
+      const repliees = docsViewState.racinesRepliees ?? new Set();
+      if (repliees.has(branche)) repliees.delete(branche);
+      else repliees.add(branche);
+      docsViewState.racinesRepliees = repliees;
+      renderProjectDocumentsContent(root);
+    });
+  }
+
   for (const bouton of root.querySelectorAll("[data-memoire-plier]")) {
     bouton.addEventListener("click", () => {
       const nom = bouton.getAttribute("data-memoire-plier") || "";
@@ -1942,6 +2005,25 @@ function bindLaMemoire(root) {
       renderProjectDocumentsContent(root);
     });
   }
+
+  // Une seule poignée pour tout l'onglet : l'arbre est le même des deux côtés.
+  bindSideResizer({
+    handle: document.getElementById("fichiersTreeResize"),
+    guide: document.getElementById("fichiersTreeResizeGuide"),
+    getWidth: () => Number(docsViewState.treeWidth || 280),
+    onResize: (largeur) => {
+      docsViewState.treeWidth = largeur;
+      const arbre = root.querySelector(".memoire-tree");
+      arbre?.style.setProperty("--memoire-tree-width", `${largeur}px`);
+      arbre?.style.setProperty("--documents-tree-width", `${largeur}px`);
+      root.querySelector(".memoire-layout")?.style.setProperty("--memoire-tree-width", `${largeur}px`);
+      document.getElementById("projectDocumentScroll")?.style.setProperty("--documents-tree-width", `${largeur}px`);
+    },
+    onEnd: (largeur) => {
+      docsViewState.treeWidth = largeur;
+      renderProjectDocumentsContent(root);
+    }
+  });
 
   root.querySelector("[data-memoire-replier]")?.addEventListener("click", () => {
     docsViewState.memoireNavOuverte = docsViewState.memoireNavOuverte === false;
@@ -1970,6 +2052,9 @@ function bindLaMemoire(root) {
       for (const ligne of root.querySelectorAll(`[data-memoire-parent="${CSS.escape(cle)}"]`)) {
         ligne.hidden = replie;
       }
+      // La tête porte la marque du repli : sans elle, son accolade ouvrante
+      // resterait seule et le bloc paraîtrait tronqué.
+      bouton.closest(".memoire-ligne")?.classList.toggle("memoire-ligne--plie", replie);
       bouton.setAttribute("aria-expanded", replie ? "false" : "true");
       bouton.setAttribute("aria-label", replie ? "Déplier ce bloc" : "Replier ce bloc");
       bouton.innerHTML = svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" });
@@ -2000,41 +2085,227 @@ function bindLaMemoire(root) {
   }
 }
 
+/** Ce qu'on ne sait pas d'un auteur. Le dire vaut mieux que le deviner. */
+const AUTEUR_INCONNU = "auteur inconnu";
+
+/**
+ * Un avatar de secours : les initiales, ou une silhouette.
+ *
+ * « auteur inconnu » ne se réduit pas à « AI » : deux lettres se lisent comme
+ * un nom, et l'écran affirmerait quelqu'un là où il ne sait rien.
+ */
+function avatarDe(nom, { petit = false } = {}) {
+  const classe = `fichiers-racine__avatar${petit ? " fichiers-racine__avatar--petit" : ""}`;
+  const propre = String(nom ?? "").trim();
+  if (!propre || propre === AUTEUR_INCONNU) {
+    return `<span class="${classe}" aria-hidden="true">${svgIcon("person", { className: "octicon" })}</span>`;
+  }
+
+  const mots = propre.split(/\s+/).filter(Boolean);
+  const initiales = (mots.length === 1 ? mots[0].slice(0, 2) : `${mots[0][0]}${mots[mots.length - 1][0]}`).toUpperCase();
+  return `<span class="${classe}" aria-hidden="true">${escapeHtml(initiales)}</span>`;
+}
+
+/** Le nom d'une personne, ou de quoi ne pas mentir sur son absence. */
+function nomDeLAuteur(identifiant) {
+  const connu = (docsViewState.memoireAuteurs ?? new Map()).get(String(identifiant || "").trim());
+  return String(connu || "").trim() || AUTEUR_INCONNU;
+}
+
+/** Le nom du créateur du projet. */
+function createurDuProjet() {
+  return nomDeLAuteur(store.currentProject?.ownerId);
+}
+
+/**
+ * Qui a mis quelque chose dans ce projet.
+ *
+ * On compte les **identifiants**, jamais les noms : deux personnes dont on
+ * ignore le nom sont deux personnes, et les fondre en une seule — ou pire, les
+ * effacer — dirait que le projet n'a pas d'auteur alors qu'il en a deux.
+ */
+function contributeursDuProjet(assertions = []) {
+  const gens = new Map();
+
+  const proprietaire = String(store.currentProject?.ownerId || "").trim();
+  if (proprietaire) gens.set(proprietaire, nomDeLAuteur(proprietaire));
+
+  for (const assertion of assertions) {
+    const qui = String(assertion?.decided_by || "").trim();
+    if (qui && !gens.has(qui)) gens.set(qui, nomDeLAuteur(qui));
+  }
+
+  return [...gens.values()];
+}
+
+/** La date de dernière modification d'un document, telle que la base la donne. */
+function quandDocument(entree) {
+  return String(entree?.updated_at || entree?.updatedAt || entree?.created_at || entree?.createdAt || "").trim();
+}
+
+/** La plus récente de plusieurs dates. `null` si aucune ne se lit. */
+function laPlusRecente(dates = []) {
+  let record = null;
+  for (const date of dates) {
+    const quand = Date.parse(String(date ?? ""));
+    if (Number.isFinite(quand) && (record === null || quand > record)) record = quand;
+  }
+  return record === null ? null : new Date(record).toISOString();
+}
+
+/**
+ * Les langages du projet : une extension est un langage.
+ *
+ * `.ref` n'est pas `.ctr` — l'une porte des règles, l'autre ce qu'elles
+ * imposent, et chacune a sa forme d'écriture. Un dépôt annonce ses langages
+ * pour dire de quoi il est fait ; celui-ci n'a pas de raison de faire autrement.
+ */
+function langagesDuProjet(memoire) {
+  const compte = new Map();
+  for (const fichier of memoire.fichiers ?? []) {
+    const nom = `.${fichier.extension}`;
+    compte.set(nom, (compte.get(nom) ?? 0) + fichier.lignes.length);
+  }
+
+  const pieces = Array.isArray(docsViewState.files) ? docsViewState.files : [];
+  for (const piece of pieces) {
+    const nom = String(piece?.name || piece?.original_filename || "").trim();
+    const point = nom.lastIndexOf(".");
+    const extension = point > 0 ? nom.slice(point).toLowerCase() : ".sans extension";
+    compte.set(extension, (compte.get(extension) ?? 0) + 1);
+  }
+
+  const total = [...compte.values()].reduce((somme, valeur) => somme + valeur, 0);
+  return {
+    total,
+    langages: [...compte.entries()]
+      .sort((gauche, droite) => droite[1] - gauche[1] || gauche[0].localeCompare(droite[0], "fr"))
+      .map(([nom, combien]) => ({ nom, combien, part: total ? Math.round((combien / total) * 1000) / 10 : 0 }))
+  };
+}
+
 /**
  * La racine de l'onglet Fichiers : les deux matières du projet.
  *
  * Ce que le projet **sait** d'un côté, ce qu'il a **reçu** de l'autre. Ce sont
  * les mêmes sources — celles à partir desquelles il se reconstruit — et c'est
  * pour cela qu'elles vivent au même endroit.
+ *
+ * L'écran se lit comme la page d'accueil d'un dépôt, et c'est voulu : le geste
+ * qu'on vient y faire est le même — voir de quoi le projet est fait, entrer
+ * quelque part, y déposer une pièce. Deux lignes qui menaient chacune à un
+ * écran de facture différente donnaient l'impression de deux applications.
  */
 function renderRacineDesFichiers() {
-  const entree = (branche, nom, phrase, compte) => `
-    <button type="button" class="memoire-entree" data-fichiers-branche="${escapeHtml(branche)}">
-      <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
-      <span class="memoire-entree__corps">
-        <span class="memoire-entree__nom">${escapeHtml(nom)}</span>
-        <span class="memoire-entree__phrase">${escapeHtml(phrase)}</span>
+  const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
+  const assertions = docsViewState.memoireAssertions ?? [];
+  const { versements, plusRecent } = versementsDeLaMemoire(assertions);
+
+  const dossiers = Array.isArray(docsViewState.folders) ? docsViewState.folders : [];
+  const pieces = Array.isArray(docsViewState.files) ? docsViewState.files : [];
+  const quandDocuments = laPlusRecente([...dossiers, ...pieces].map(quandDocument));
+
+  // Le même nom que l'en-tête, et pour la même raison : deux façons de nommer
+  // un projet finissent par le nommer différemment sur deux écrans.
+  const nomDuProjet = String(store.currentProject?.name || store.currentProject?.title || "").trim();
+  const identifiant = String(store.currentProjectId || "").trim()
+    || String(location.hash || "").replace(/^#/, "").split("/")[1] || "";
+  const projet = nomDuProjet || (identifiant ? `Projet ${identifiant}` : "Projet");
+  const createur = createurDuProjet();
+  const { total, langages } = langagesDuProjet(memoire);
+
+  const ligne = (branche, nom, phrase, quand) => `
+    <button type="button" class="fichiers-racine__ligne" data-fichiers-branche="${escapeHtml(branche)}">
+      <span class="fichiers-racine__nom">
+        ${svgIcon("file-directory", { className: "octicon" })}
+        ${escapeHtml(nom)}
       </span>
-      <span class="memoire-entree__compte">${escapeHtml(compte)}</span>
+      <span class="fichiers-racine__phrase">${escapeHtml(phrase)}</span>
+      <span class="fichiers-racine__date">${escapeHtml(quand ? ilYA(quand) : "—")}</span>
     </button>
   `;
 
-  const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
-  const lignes = (memoire.fichiers ?? []).reduce((total, fichier) => total + fichier.lignes.length, 0);
-  const pieces = (Array.isArray(docsViewState.files) ? docsViewState.files : []).length
-    + (Array.isArray(docsViewState.folders) ? docsViewState.folders : []).length;
+  const vus = contributeursDuProjet(assertions);
 
   return `
     <section class="project-simple-page project-simple-page--documents">
       <div class="documents-shell documents-shell--project-page">
         <main class="documents-main">
-          <div class="memoire-liste">
-            ${entree(BRANCHE.MEMOIRE, "Mémoire",
-              "Ce que le projet sait, et comment il l'a su. Écrit par l'application, jamais déplaçable.",
-              `${lignes} ligne${lignes > 1 ? "s" : ""}`)}
-            ${entree(BRANCHE.DOCUMENTS, "Documents",
-              "Les pièces déposées : plans, notes, comptes rendus. Rangez-les comme vous voulez.",
-              `${pieces} entrée${pieces > 1 ? "s" : ""}`)}
+          <header class="fichiers-racine__tete">
+            ${avatarDe(createur)}
+            <h2 class="fichiers-racine__titre">${escapeHtml(projet)}</h2>
+            <span class="fichiers-racine__pastille">Privé</span>
+          </header>
+
+          <div class="fichiers-racine__grille">
+            <div class="fichiers-racine__principal">
+              <div class="fichiers-racine__barre">
+                <span class="fichiers-racine__espace"></span>
+                <label class="memoire-recherche">
+                  ${svgIcon("search", { className: "octicon" })}
+                  <input type="search" class="gh-input" data-fichiers-query
+                    value="${escapeHtml(docsViewState.memoireQuery ?? "")}" placeholder="Chercher dans le projet">
+                </label>
+                <div class="fichiers-ajout">
+                  <button type="button" class="gh-btn gh-btn--primary fichiers-ajout__bouton" data-fichiers-ajout
+                    aria-haspopup="true" aria-expanded="${docsViewState.ajoutOuvert ? "true" : "false"}">
+                    Ajouter un fichier
+                    ${svgIcon("chevron-down", { className: "octicon" })}
+                  </button>
+                  <div class="fichiers-ajout__menu" ${docsViewState.ajoutOuvert ? "" : "hidden"}>
+                    <span class="fichiers-ajout__item fichiers-ajout__item--muet"
+                      title="Écrire du mdall à même l'écran viendra plus tard.">
+                      ${svgIcon("plus", { className: "octicon" })}
+                      Créer un nouveau fichier
+                    </span>
+                    <button type="button" class="fichiers-ajout__item" data-fichiers-deposer>
+                      ${svgIcon("upload", { className: "octicon" })}
+                      Déposer un fichier
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="fichiers-racine__tableau">
+                <div class="fichiers-racine__entete">
+                  <span class="fichiers-racine__espace"></span>
+                  <span class="fichiers-racine__depuis">${escapeHtml(plusRecent ? ilYA(plusRecent) : "aucun versement")}</span>
+                  <span class="fichiers-racine__versements">
+                    ${svgIcon("history", { className: "octicon" })}
+                    <b>${versements}</b> versement${versements > 1 ? "s" : ""}
+                  </span>
+                </div>
+                ${ligne(BRANCHE.MEMOIRE, MEMOIRE, phraseDeLaRacine(MEMOIRE), plusRecent)}
+                ${ligne(BRANCHE.DOCUMENTS, DOCUMENTS, phraseDeLaRacine(DOCUMENTS), quandDocuments)}
+              </div>
+            </div>
+
+            <aside class="fichiers-racine__meta">
+              <section class="fichiers-meta">
+                <h3 class="fichiers-meta__titre">Contributeurs <span class="fichiers-meta__compte">${vus.length}</span></h3>
+                ${
+                  vus.length
+                    ? `<ul class="fichiers-meta__gens">${vus
+                        .map((nom) => `<li>${avatarDe(nom, { petit: true })}${escapeHtml(nom)}</li>`)
+                        .join("")}</ul>`
+                    : `<p class="fichiers-meta__vide">Personne n'a encore rien versé ni rien déposé.</p>`
+                }
+              </section>
+
+              <section class="fichiers-meta">
+                <h3 class="fichiers-meta__titre">Langages <span class="fichiers-meta__compte">${langages.length}</span></h3>
+                ${
+                  total
+                    ? `<div class="fichiers-meta__barre">${langages
+                        .map((langage) => `<span style="width:${langage.part}%" title="${escapeHtml(`${langage.nom} — ${langage.combien}`)}"></span>`)
+                        .join("")}</div>
+                       <ul class="fichiers-meta__langages">${langages
+                        .map((langage) => `<li><code>${escapeHtml(langage.nom)}</code><span>${langage.combien}</span></li>`)
+                        .join("")}</ul>`
+                    : `<p class="fichiers-meta__vide">Le projet n'a encore aucun fichier.</p>`
+                }
+              </section>
+            </aside>
           </div>
         </main>
       </div>
@@ -2053,8 +2324,8 @@ function renderBrancheMemoire() {
   const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
   const chemin = docsViewState.memoireChemin ?? [];
   const racine = chemin.length === 0;
-  const ouverte = !racine && docsViewState.memoireNavOuverte !== false;
-  const largeur = ouverte ? Math.max(220, Math.min(520, Number(docsViewState.memoireNavWidth) || 280)) : 0;
+  const ouverte = docsViewState.memoireNavOuverte !== false;
+  const largeur = ouverte ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth) || 280)) : 0;
 
   const contexte = {
     auteurs: docsViewState.memoireAuteurs ?? new Map(),
@@ -2083,20 +2354,69 @@ function renderBrancheMemoire() {
         : `<div class="propositions-empty"><b>Ce fichier n'existe plus</b>
              <p>Rien ne s'y range aujourd'hui. Il réapparaîtra dès qu'une proposition y versera une ligne.</p></div>`;
 
+  // Toute largeur dès qu'on est entré dans une racine, et l'arbre entier avec.
+  // Un deuxième écran plus étroit, sans arbre, obligeait à revenir en arrière
+  // pour changer de dossier — et cachait l'autre moitié du projet.
   return `
     <section class="project-simple-page project-simple-page--documents">
       <div class="documents-shell documents-shell--project-page">
         <main class="documents-main">
-          ${renderBarre({ chemin, query: docsViewState.memoireQuery ?? "", ouverte, racine })}
-          <div class="memoire-layout${ouverte ? "" : " memoire-layout--replie"}${racine ? " memoire-layout--racine" : " memoire-layout--pleine"}"
+          ${renderBarre({ chemin, query: docsViewState.memoireQuery ?? "", ouverte })}
+          <div class="memoire-layout${ouverte ? "" : " memoire-layout--replie"} memoire-layout--pleine"
                style="--memoire-tree-width:${largeur}px">
-            ${racine ? "" : renderArbre(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), ouverte })}
+            ${renderArbreDesFichiers({ memoire, ouverte })}
             <div class="memoire-corps">${vue}</div>
           </div>
         </main>
       </div>
     </section>
   `;
+}
+
+/**
+ * L'arbre des Fichiers : deux racines, et tout ce qu'elles portent.
+ *
+ * Il n'y en a qu'un, et il montre les deux matières quelle que soit celle qu'on
+ * parcourt. Deux arbres séparés cachaient chacun la moitié du projet : on
+ * entrait dans la Mémoire et les Documents disparaissaient, sans même un chemin
+ * pour y revenir.
+ *
+ * Les racines se plient comme des dossiers, mais leur libellé **navigue** : on
+ * n'entre pas dans « Mémoire » en la dépliant, on y entre en la choisissant.
+ */
+function renderArbreDesFichiers({ memoire, ouverte = true } = {}) {
+  const repliees = docsViewState.racinesRepliees ?? new Set();
+
+  const racine = (branche, nom, actif, corps) => {
+    const replie = repliees.has(branche);
+    return `
+      <div class="documents-tree__row${actif ? " is-active" : ""}">
+        <button type="button" class="documents-tree__caret" data-fichiers-plier="${escapeHtml(branche)}"
+          aria-expanded="${replie ? "false" : "true"}"
+          aria-label="${replie ? "Déplier" : "Replier"} ${escapeHtml(nom)}">
+          ${svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" })}
+        </button>
+        <button type="button" class="documents-tree__item${actif ? " is-active" : ""}"
+          data-fichiers-branche="${escapeHtml(branche)}">
+          <span class="documents-tree__icon-slot">${getFolderOpenIconSvg()}</span>
+          <span class="documents-tree__label">${escapeHtml(nom)}</span>
+        </button>
+      </div>
+      ${replie ? "" : corps}
+    `;
+  };
+
+  const dansLaMemoire = docsViewState.branche === BRANCHE.MEMOIRE;
+  const chemin = docsViewState.memoireChemin ?? [];
+
+  return renderPanneauDArbre(
+    racine(BRANCHE.MEMOIRE, MEMOIRE, dansLaMemoire && chemin.length === 0,
+      lignesDArbreMemoire(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), profondeur: 1 }))
+    + racine(BRANCHE.DOCUMENTS, DOCUMENTS,
+      docsViewState.branche === BRANCHE.DOCUMENTS && !docsViewState.currentFolderId,
+      lignesDArbreDocuments()),
+    { ouverte, largeur: docsViewState.treeWidth }
+  );
 }
 
 function renderDocumentsListView() {
@@ -2106,7 +2426,9 @@ function renderDocumentsListView() {
   const bodyHtml = [...folders.map(renderRepoFolderRow), ...documents.map(renderRepoDocumentRow)].join("");
 
   const isRoot = !docsViewState.currentFolderId;
-  const treeHtml = isRoot ? "" : renderDocumentsSidebarTree();
+  // L'arbre est là dès la racine des Documents : on doit pouvoir passer d'une
+  // matière à l'autre sans revenir en arrière.
+  const treeHtml = renderArbreDesFichiers({ memoire: preparerLaMemoire(docsViewState.memoireAssertions ?? []) });
   const topBar = renderDocumentsTopBar();
   const moveModalHtml = docsViewState.moveModal?.isOpen ? renderMoveFileModal() : "";
   const emptyTitle = isRoot ? "La racine est vide." : "Ce dossier est vide.";
@@ -2115,7 +2437,7 @@ function renderDocumentsListView() {
     : "Ajoutez un sous-dossier ou importez un document dans ce dossier.";
   return `
     <section class="project-simple-page project-simple-page--documents">
-      <div class="documents-shell documents-shell--project-page documents-layout${isRoot ? " is-root" : ""}" id="projectDocumentScroll" style="--documents-tree-width:${isRoot ? 0 : (docsViewState.documentTreeOpen ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth || 280))) : 0)}px">
+      <div class="documents-shell documents-shell--project-page documents-layout" id="projectDocumentScroll" style="--documents-tree-width:${docsViewState.documentTreeOpen ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth || 280))) : 0}px">
           ${treeHtml}
           <main class="documents-main">
             ${isRoot ? renderDocumentsToolbar() : topBar}
@@ -2139,7 +2461,13 @@ function renderDocumentsListView() {
   `;
 }
 
-function renderDocumentsSidebarTree() {
+/**
+ * Les lignes des Documents dans l'arbre des Fichiers.
+ *
+ * Des lignes, pas un panneau : l'arbre a deux racines et il n'y en a qu'un.
+ * La racine « Documents » est posée par l'appelant, avec celle de la Mémoire.
+ */
+function lignesDArbreDocuments() {
   const folders = Array.isArray(docsViewState.moveModal?.folders) && docsViewState.moveModal.folders.length
     ? docsViewState.moveModal.folders
     : (Array.isArray(docsViewState.folders) ? docsViewState.folders : []);
@@ -2192,15 +2520,7 @@ function renderDocumentsSidebarTree() {
     return `${row}${walk(id, depth + 1).join("")}${fileRows}`;
     });
   };
-  const opened = !!docsViewState.documentTreeOpen;
-  const treeBody = `<div class="documents-tree__panel"><div class="documents-tree__row${docsViewState.currentFolderId ? "" : " is-active"}"><button type="button" class="documents-tree__item${docsViewState.currentFolderId ? "" : " is-active"}" data-tree-folder-id=""><span class="documents-tree__icon-slot">${getFolderOpenIconSvg()}</span> <span class="documents-tree__label">Documents</span></button></div>${walk("").join("")}</div>`;
-  return `
-    <aside class="documents-tree${opened ? " is-open" : " is-collapsed"}" style="--documents-tree-width:${Math.max(220, Math.min(520, Number(docsViewState.treeWidth || 280)))}px">
-      ${treeBody}
-      <div class="documents-tree__resize-handle" id="documentsTreeResizeHandle"></div>
-      <div class="documents-tree__resize-guide" id="documentsTreeResizeGuide"></div>
-    </aside>
-  `;
+  return walk("", 1).join("");
 }
 
 function renderMoveFolderOption(folder, depth = 0) {

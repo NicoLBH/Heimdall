@@ -96,25 +96,40 @@ export function fichierDuChemin(memoire, chemin = []) {
  * L'arborescence
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/** Le retrait d'une ligne d'arbre : un trait de continuité par niveau. */
+function retraitDArbre(profondeur) {
+  if (profondeur <= 0) return "";
+  const traits = Array.from({ length: profondeur })
+    .map(() => `<span class="documents-tree__divider is-expanded" aria-hidden="true"></span>`)
+    .join("");
+  return `<span class="documents-tree__indent">${traits}</span>`;
+}
+
 /**
- * Le rail : les dossiers, leurs fichiers.
+ * Les lignes de la Mémoire dans l'arbre des Fichiers.
  *
- * Les mêmes classes que l'arbre des Documents. Deux arborescences qui se
- * ressemblent à peu près donnent l'impression de deux applications.
+ * Ce sont des **lignes**, pas un panneau : l'arbre a deux racines — ce que le
+ * projet sait, ce qu'il a reçu — et il n'y en a qu'un. Deux panneaux qui se
+ * ressemblent donneraient l'impression de deux applications, et surtout on ne
+ * verrait jamais l'autre moitié du projet.
+ *
+ * Les mêmes classes que l'arbre des Documents, pour la même raison.
  */
-export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte = true } = {}) {
-  const corps = (memoire.dossiers ?? [])
+export function lignesDArbreMemoire(memoire, { chemin = [], replies = new Set(), profondeur = 1 } = {}) {
+  return (memoire.dossiers ?? [])
     .map((dossier) => {
       const replie = replies.has(dossier.nom);
-      const actif = chemin[0] === dossier.nom;
+      const actif = chemin[0] === dossier.nom && chemin.length === 1;
 
       return `
-        <div class="documents-tree__row${actif && chemin.length === 1 ? " is-active" : ""}">
+        <div class="documents-tree__row${actif ? " is-active" : ""}">
+          ${retraitDArbre(profondeur - 1)}
           <button type="button" class="documents-tree__caret" data-memoire-plier="${escapeHtml(dossier.nom)}"
-            aria-expanded="${replie ? "false" : "true"}">
+            aria-expanded="${replie ? "false" : "true"}"
+            aria-label="${replie ? "Déplier" : "Replier"} ${escapeHtml(dossier.nom)}">
             ${svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" })}
           </button>
-          <button type="button" class="documents-tree__item${actif && chemin.length === 1 ? " is-active" : ""}"
+          <button type="button" class="documents-tree__item${actif ? " is-active" : ""}"
             data-memoire-aller="${escapeHtml(dossier.nom)}">
             <span class="documents-tree__icon-slot">${svgIcon("file-directory", { className: "octicon" })}</span>
             <span class="documents-tree__label">${escapeHtml(dossier.nom)}</span>
@@ -129,7 +144,7 @@ export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte
                   const ici = chemin.join("/") === adresseDuFichier(fichier);
                   return `
                     <div class="documents-tree__row${ici ? " is-active" : ""}">
-                      <span class="documents-tree__indent"><span class="documents-tree__divider is-expanded"></span></span>
+                      ${retraitDArbre(profondeur)}
                       <span class="documents-tree__caret-spacer"></span>
                       <button type="button" class="documents-tree__item${ici ? " is-active" : ""}"
                         data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
@@ -145,13 +160,25 @@ export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte
       `;
     })
     .join("");
+}
 
+/**
+ * Le panneau, autour de lignes venues d'ailleurs.
+ *
+ * Une seule poignée pour tout l'onglet, et une seule largeur : l'arbre est le
+ * même des deux côtés, et deux largeurs pour un seul panneau finiraient par
+ * diverger — on tirait la Mémoire, les Documents restaient où ils étaient.
+ */
+export function renderPanneauDArbre(corps, { ouverte = true, largeur = 280 } = {}) {
+  const bornee = Math.max(220, Math.min(520, Number(largeur) || 280));
   return `
-    <aside class="documents-tree memoire-tree${ouverte ? " is-open" : " is-collapsed"}" aria-label="Mémoire du projet">
+    <aside class="documents-tree memoire-tree${ouverte ? " is-open" : " is-collapsed"}"
+      style="--memoire-tree-width:${bornee}px;--documents-tree-width:${bornee}px"
+      aria-label="Les fichiers du projet">
       <div class="documents-tree__panel">
-        ${corps || `<p class="diff-tree__vide">Le projet n'a encore rien versé.</p>`}
+        ${corps || `<p class="diff-tree__vide">Le projet n'a encore rien reçu ni rien versé.</p>`}
       </div>
-      ${renderSideResizer({ id: "memoireTreeResize", className: "documents-tree__resize-handle" })}
+      ${renderSideResizer({ id: "fichiersTreeResize", className: "documents-tree__resize-handle" })}
     </aside>
   `;
 }
@@ -160,7 +187,7 @@ export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte
  * La barre : fil d'Ariane, et la recherche à droite
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export function renderBarre({ chemin = [], query = "", ouverte = true, racine = false } = {}) {
+export function renderBarre({ chemin = [], query = "", ouverte = true } = {}) {
   // Le fil remonte jusqu'à la racine de l'onglet : sans elle, on entrait dans
   // la Mémoire sans pouvoir en ressortir vers les Documents.
   //
@@ -178,13 +205,13 @@ export function renderBarre({ chemin = [], query = "", ouverte = true, racine = 
   ].join("");
 
   return `
-    <div class="documents-topbar memoire-barre${racine ? "" : " memoire-barre--pleine"}">
+    <div class="documents-topbar memoire-barre memoire-barre--pleine">
       <div class="documents-topbar__left">
-        ${racine ? "" : `<button type="button" class="documents-tree__toggle" data-memoire-replier
+        <button type="button" class="documents-tree__toggle" data-memoire-replier
           aria-label="${escapeHtml(ouverte ? "Replier la barre latérale" : "Étendre la barre latérale")}"
           title="${escapeHtml(ouverte ? "Replier la barre latérale" : "Étendre la barre latérale")}">
           ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
-        </button>`}
+        </button>
         <nav class="documents-breadcrumb" aria-label="Chemin">${miettes}</nav>
       </div>
       <div class="documents-topbar__right">
@@ -461,7 +488,7 @@ export function renderFichier(fichier, {
     return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
-      }" data-memoire-parent="${escapeHtml(ligne.parent ?? "")}"${cachee ? " hidden" : ""}>
+      }${replie ? " memoire-ligne--plie" : ""}" data-memoire-parent="${escapeHtml(ligne.parent ?? "")}"${cachee ? " hidden" : ""}>
         ${
           lecture === LECTURE.BLAME
             ? blame && ligne.position === 0
