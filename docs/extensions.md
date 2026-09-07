@@ -45,19 +45,30 @@ change réécrirait l'histoire en silence.
 point-virgule sur ce que la règle pose.
 
 ```
+// Le classement commande tout le reste : c'est la première règle qu'on lit.
 fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas) {
+   soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°";
+   soit parce que = "Troisième famille B : habitations ne satisfaisant pas à…";
+
    si (Logements superposés = oui)
    et (Hauteur du plancher bas <= 28 m)
    alors ("3e famille B");
    sinon ("3e famille A");
-   texte: arrêté du 31 janvier 1986 modifié, article 3, 3°
-      parce que: "Troisième famille B : habitations ne satisfaisant pas à…"
 }
 ```
 
 - La parenthèse de tête nomme les **entrées** : on voit de quoi la règle a
   besoin sans lire ses conditions. Elle ne se stocke pas — les entrées **sont**
   les sujets des conditions, et une signature recopiée diverge.
+- **Ce qui fonde la règle se déclare en tête**, comme les `const` d'une
+  fonction : `soit texte = …` porte la provenance, `soit parce que = …` la
+  citation. Le nom de la locale **est** le type de provenance — `soit
+  document = …`, `soit règle = …` —, et c'est ce qui dit comment la valeur a été
+  obtenue. En bas, après la conclusion, on ne les cherchait plus.
+- **Les commentaires** s'écrivent `// …` ou `/* … */`. Ils ne posent rien, ne
+  conditionnent rien, et deviennent nécessaires dès qu'une règle passe quinze
+  lignes : dire *pourquoi* une condition existe est autre chose que dire ce
+  qu'elle teste.
 - **Aucun statut.** Un référentiel n'a pas d'état dans un projet : il est
   appliqué, ou il ne l'est pas.
 - **Aucune valeur de ce projet.** `si hauteur = 26` serait une règle vraie d'un
@@ -65,6 +76,36 @@ fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas)
 
 La ponctuation rend la règle exécutable, elle ne la rend pas obligatoire : un
 fichier tapé à la main sans parenthèses se lit exactement pareil.
+
+### `Mémoire/variables-du-projet.ref`
+
+À la racine de la mémoire, un `.ref` d'un genre particulier : il ne porte aucune
+règle, seulement les **noms** que le projet partage.
+
+```
+// Les noms que le projet partage. Une règle qui cite un nom absent d'ici
+// s'appuie sur ce que personne n'a versé.
+// Ce fichier s'engendre depuis les autres : il ne se verse pas, il se relit.
+
+const Hauteur du plancher bas = { type: "mesure", unité: "m" };
+const Classement du bâtiment = { type: "texte" };
+const Logements superposés = { type: "inconnu" };
+```
+
+C'est ce qu'on lit **avant** d'écrire une règle : pour réutiliser un nom qui
+existe plutôt que d'en inventer un voisin. Entre « Hauteur du plancher bas » et
+« Hauteur du dernier plancher », on se trompe vite, et un nom mal orthographié
+fabrique une seconde variable qui ne servira jamais.
+
+**Il ne dit pas ce qu'une variable vaut.** Une variable prend plusieurs valeurs
+au fil d'une étude, et une définition qui en porterait une cesserait d'être vraie
+au premier versement. Ce qu'elle vaut aujourd'hui, qui la déclare et qui s'en
+sert relèvent de l'**analyse** : c'est l'écran `Atelier › Développements › Suivre
+les variables mutualisées`. Le même partage se retrouve au survol d'un nom, dans
+n'importe quel fichier.
+
+Il s'engendre depuis les autres fichiers, et ne se verse donc pas : le verser en
+ferait une seconde vérité, qui divergerait au premier versement.
 
 ---
 

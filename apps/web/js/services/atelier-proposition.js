@@ -126,13 +126,44 @@ export function cleDAffirmation(affirmation) {
 }
 
 /**
+ * Un sujet, un item — et le premier gagne.
+ *
+ * ## Pourquoi cette fonction existe
+ *
+ * La base tient `(proposition_id, item_type, item_key)` pour unique, et
+ * l'écriture est un seul `INSERT … ON CONFLICT`. Deux lignes de même clé dans
+ * le même envoi ne produisent pas un doublon : PostgreSQL **refuse l'envoi
+ * entier** (« ON CONFLICT DO UPDATE command cannot affect row a second time »).
+ * La proposition s'ouvrait alors vide, et l'écran disait « Rien à comparer »
+ * sans que rien ne dise pourquoi.
+ *
+ * Un utilitaire qui verse deux fois le même sujet a un problème de modèle, et
+ * il faut le corriger là où il est. Mais perdre la proposition entière pour
+ * cela est hors de proportion : on garde la première écriture, qui est celle
+ * que l'appelant a mise en tête.
+ */
+export function sansDoublonDItems(items = []) {
+  const vus = new Set();
+  const gardes = [];
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const cle = `${texte(item?.itemType)}|${texte(item?.itemKey)}`;
+    if (vus.has(cle)) continue;
+    vus.add(cle);
+    gardes.push(item);
+  }
+
+  return gardes;
+}
+
+/**
  * Les items d'une proposition, à partir de ce que l'Atelier a produit.
  *
  * Une affirmation sans sujet ou sans valeur n'entre pas : elle n'affirmerait
  * rien, et une proposition qui porte des lignes vides ne se relit pas.
  */
 export function itemsDeProposition(affirmations = []) {
-  return (Array.isArray(affirmations) ? affirmations : [])
+  return sansDoublonDItems((Array.isArray(affirmations) ? affirmations : [])
     .filter((affirmation) => texte(affirmation?.sujet) && texte(affirmation?.valeur))
     .map((affirmation) => {
       const portees = [...new Set((affirmation.zones ?? []).map(normalizeZoneKey).filter(Boolean))].sort();
@@ -178,7 +209,7 @@ export function itemsDeProposition(affirmations = []) {
           regle: regleRetenue(affirmation.regle)
         }
       };
-    });
+    }));
 }
 
 /**
@@ -245,7 +276,7 @@ export async function preparerUneProposition({
       ));
 
   const items = Array.isArray(situees) && situees.length && situees[0]?.itemType
-    ? situees
+    ? sansDoublonDItems(situees)
     : itemsDeProposition(situees);
   if (!items.length) return { ok: false, raison: "Il n'y a rien à proposer." };
 

@@ -271,10 +271,10 @@ test("un diff de règles ressemble à un fichier de règles", () => {
   // clause, un point-virgule sur ce qu'elle pose. Le diff montre le fichier.
   assert.deepEqual(Object.values(apres[0].champs), [
     "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas)",
+    '   soit texte = "arrêté du 31 janvier 1986, article 3";',
+    '   soit parce que = "Troisième famille B : …";',
     "   si (Logements superposés = oui)",
     "   et (Hauteur du plancher bas <= 28 m)",
-    '   alors ("3e famille B");',
-    "   texte: arrêté du 31 janvier 1986, article 3",
-    '      parce que: "Troisième famille B : …"'
+    '   alors ("3e famille B");'
   ]);
 });

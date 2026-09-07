@@ -7,10 +7,12 @@ capitalise, à côté des décisions, des relevés, des calculs et des hypothès
 Il s'adresse à des contrôleurs techniques, des architectes, des maîtres
 d'ouvrage, des conducteurs de travaux, et **tout se tape au clavier**.
 
-Un seul de ses mots est emprunté à un langage de programmation : `fonction`, qui
-ouvre une règle. Il l'est parce qu'un fichier `.ref` en est un — il s'exécute —
-et parce qu'un raisonnement composé de trois conditions ne se relit pas sans
-bornes. Le reste du langage vient de l'écrit technique et juridique.
+Les seuls mots empruntés à un langage de programmation vivent dans les fichiers
+`.ref` : `fonction` ouvre une règle, `soit` déclare ce qui la fonde, `const`
+définit un nom du projet, et `//` ouvre un commentaire. Ils le sont parce qu'un
+`.ref` **s'exécute**, et parce qu'un raisonnement composé de trois conditions ne
+se relit pas sans bornes. Le reste du langage vient de l'écrit technique et
+juridique, et les autres extensions n'en portent aucun.
 
 ---
 
@@ -61,6 +63,9 @@ zone: Bâtiment A {                        une section de portée
    }
 
    fonction Sujet(entrée, entrée) {       la tête d'une règle, et ses entrées
+      soit texte = "…";                   d'où elle sort, déclaré en tête
+      soit parce que = "…";               la citation qui la fonde
+      // un commentaire, jamais interprété
       si (Sujet <= 28 m)                  une condition
       et (Sujet = "collective")
       ou (Sujet parmi "a" ou "b")
@@ -125,13 +130,23 @@ valeur ni de la règle : c'est ce que **ce projet** en fait aujourd'hui.
 
 ```
 fonction Classement du bâtiment(Habitation individuelle ou collective, Nombre d'étages retenu pour le classement) {
+   soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 2°), quatrième tiret";
+   soit parce que = "habitations collectives comportant au plus trois étages sur rez-de-chaussée.";
+
    si (Habitation individuelle ou collective = "collective")
    et (Nombre d'étages retenu pour le classement <= 3)
    alors ("2e famille");
-   texte: arrêté du 31 janvier 1986 modifié, article 3, 2°), quatrième tiret
-      parce que: "habitations collectives comportant au plus trois étages sur rez-de-chaussée."
 }
 ```
+
+**Ce qui fonde la règle se déclare en tête**, comme les `const` d'une fonction :
+`soit texte = …` porte la provenance, `soit parce que = …` la citation, et le
+nom de la locale **est** le type de provenance. En bas, après la conclusion, on
+ne les cherchait plus.
+
+**Les commentaires** s'écrivent `// …` ou `/* … */`, et se lisent en gris. Ils
+ne posent rien : dire *pourquoi* une condition existe est autre chose que dire
+ce qu'elle teste, et une règle de quinze lignes en a besoin.
 
 **Un `.ref` est le seul fichier qui s'exécute**, et sa ponctuation le dit : une
 parenthèse par clause, un point-virgule sur ce que la règle pose. Trois

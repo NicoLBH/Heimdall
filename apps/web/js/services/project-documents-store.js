@@ -78,10 +78,24 @@ export function addProjectDocument(documentInput = {}) {
   return document;
 }
 
+/**
+ * La pièce qu'on regarde.
+ *
+ * ## Pourquoi l'identifiant n'est plus vérifié contre la liste
+ *
+ * Il l'était, et c'était une divergence : cette liste porte les documents du
+ * projet, tandis que l'écran des Fichiers en tient une seconde, celle du
+ * répertoire ouvert. Une pièce présente dans l'une et absente de l'autre
+ * faisait rendre `null` — l'aperçu ne trouvait plus son document, retombait
+ * sur la liste des fichiers, et cliquer un PDF ne faisait **rien**, sans un mot.
+ *
+ * Ce champ dit ce que l'utilisateur a ouvert, pas ce que cette liste-ci
+ * contient. On le conserve tel qu'il est donné ; c'est à l'écran de dire s'il
+ * ne sait pas l'afficher (`docs/fondamentaux.md`, règle 5).
+ */
 export function setActiveProjectDocument(documentId) {
   const docsState = ensureProjectDocumentsState();
-  const safeId = safeString(documentId);
-  docsState.activeDocumentId = getProjectDocumentById(safeId)?.id || null;
+  docsState.activeDocumentId = safeString(documentId) || null;
   return docsState.activeDocumentId;
 }
 

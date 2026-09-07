@@ -7,7 +7,7 @@ import {
 } from "./memoire-en-texte.js";
 import {
   lireUnFichier, lireUneCondition, lireUneValeur, lireUneTete,
-  dependancesDuBloc, grapheDesBlocs, aRevoirSi, jetonsDeLaLigne
+  dependancesDuBloc, grapheDesBlocs, aRevoirSi, jetonsDeLaLigne, lireUneLocale, estUnCommentaire
 } from "./memoire-en-lecture.js";
 
 /** Ce que le référentiel incendie porte, en petit. */
@@ -315,4 +315,82 @@ test("colorer une ligne de règle la réécrit telle qu'elle était", () => {
   ]) {
     assert.equal(rendre(ligne), ligne);
   }
+});
+
+test("une locale de règle se relit comme la ligne qu'elle remplace", () => {
+  // `soit texte = "…"` et `texte: …` disent la même chose. La première est la
+  // forme d'un `.ref`, la seconde celle d'un fichier de projet ; les deux se
+  // lisent, sinon un fichier écrit hier cesserait de se lire aujourd'hui.
+  const enLocales = lireUnFichier([
+    "fonction Colonne sèche(Classement du bâtiment) {",
+    '   soit texte = "arrêté du 31 janvier 1986, article 98";',
+    '   soit parce que = "Les habitations de la 3ème famille B…";',
+    "   si (Classement du bâtiment = \"3e famille B\")",
+    '   alors ("exigée");',
+    "}"
+  ].join("\n"));
+
+  const enDeuxPoints = lireUnFichier([
+    "Colonne sèche (Classement du bâtiment)",
+    "   si Classement du bâtiment = \"3e famille B\"",
+    '   alors "exigée"',
+    "   texte: arrêté du 31 janvier 1986, article 98",
+    '      parce que: "Les habitations de la 3ème famille B…"'
+  ].join("\n"));
+
+  for (const lu of [enLocales, enDeuxPoints]) {
+    assert.deepEqual(lu.refus, []);
+    assert.deepEqual(lu.blocs[0].provenance, { type: "texte", quoi: "arrêté du 31 janvier 1986, article 98" });
+    assert.equal(lu.blocs[0].preuve, "Les habitations de la 3ème famille B…");
+    assert.equal(lu.blocs[0].alors, "exigée");
+  }
+});
+
+test("une locale qui ne pose rien se refuse en le disant", () => {
+  const lu = lireUnFichier([
+    "fonction Colonne sèche()",
+    "   soit ceci",
+    '   soit machin = "quelque chose";'
+  ].join("\n"));
+
+  assert.equal(lu.refus.length, 2);
+  assert.match(lu.refus[0].raison, /ne pose aucune valeur/);
+  // « machin » n'est pas une provenance : on nomme ce qu'on n'a pas su lire
+  // plutôt que de le ranger quelque part au hasard.
+  assert.match(lu.refus[1].raison, /machin/);
+});
+
+test("un commentaire ne dit rien au raisonnement, et ne se refuse jamais", () => {
+  const lu = lireUnFichier([
+    "// Pourquoi cette règle existe : le déclassement de l'article 4.",
+    "fonction Colonne sèche(Classement du bâtiment) {",
+    "   /* Trois branches y mènent ; celle-ci est la seule qui conclut. */",
+    "   si (Classement du bâtiment = \"3e famille B\")",
+    '   alors ("exigée");',
+    "}"
+  ].join("\n"));
+
+  assert.deepEqual(lu.refus, []);
+  assert.equal(lu.blocs.length, 1);
+  assert.equal(lu.blocs[0].alors, "exigée");
+  assert.equal(estUnCommentaire("// ceci"), true);
+  assert.equal(estUnCommentaire("Colonne sèche = 1"), false);
+});
+
+test("colorer une locale ou un commentaire les réécrit tels quels", () => {
+  const rendre = (ligne) => jetonsDeLaLigne(ligne).map((j) => j.texte).join("");
+  for (const ligne of [
+    '   soit texte = "arrêté du 31 janvier 1986, article 98";',
+    '   soit parce que = "Les habitations de la 3ème famille B…";',
+    "   // trois branches y mènent",
+    "   /* et celle-ci est la seule qui conclut */"
+  ]) {
+    assert.equal(rendre(ligne), ligne);
+  }
+});
+
+test("lireUneLocale rend le nom et la valeur, sans les bornes", () => {
+  assert.deepEqual(lireUneLocale('texte = "arrêté, article 98";'), { nom: "texte", valeur: "arrêté, article 98" });
+  assert.deepEqual(lireUneLocale('parce que = "une phrase"'), { nom: "parce que", valeur: "une phrase" });
+  assert.equal(lireUneLocale("rien du tout"), null);
 });

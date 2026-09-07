@@ -20074,6 +20074,14 @@ body.proposition-merge-open{ overflow:hidden; }
    colore rien. C'est la palette d'un éditeur de code, et c'est voulu : un
    `.ref` ne se lit pas, il s'exécute. */
 .mdall-mot-fonction{ color:rgb(255,123,114); }
+/* `soit` déclare une locale, comme `const` : même famille de mot, même
+   couleur. Le nom qui suit reste blanc — c'est un nom, pas un mot-clé. */
+.mdall-mot-soit,
+.mdall-mot-const{ color:rgb(255,123,114); }
+.mdall-locale{ color:var(--text); }
+/* Ce qu'on écrit pour soi s'efface derrière ce qui décide. Un commentaire aussi
+   visible que le code se lit comme du code. */
+.mdall-commentaire{ color:rgb(139,148,158); font-style:italic; }
 .mdall-parametre{ color:var(--text); }
 /* Les bornes et les séparateurs : blancs. Ils structurent la ligne, ils n'y
    ajoutent rien — une parenthèse colorée se lirait comme un mot. */
@@ -20103,6 +20111,25 @@ body.proposition-merge-open{ overflow:hidden; }
 .memoire-fichier--enonce .mdall-mot-statut,
 .memoire-fichier--enonce .mdall-mot-date,
 .memoire-fichier--enonce .mdall-mot-raison{ color:rgb(121,192,255); font-style:normal; }
+
+/* Un panneau d'utilitaire, quand il n'a rien de plus à dire que son titre, sa
+   phrase et son contenu. Les utilitaires plus anciens portent chacun le leur ;
+   celui-ci n'avait pas de raison d'en inventer un troisième. */
+.studio-panel{ display:flex; flex-direction:column; gap:16px; padding:24px; }
+.studio-panel__head{ display:flex; flex-direction:column; gap:8px; }
+.studio-panel__title{ margin:0; font-size:20px; font-weight:600; }
+.studio-panel__lead{ margin:0; max-width:72ch; color:var(--muted); font-size:13px; line-height:1.6; }
+.studio-panel__lead code{
+  padding:1px 4px; border-radius:4px;
+  background:var(--panel2); color:var(--text);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px;
+}
+
+/* La barre de l'écran des variables : chercher un nom, et relire la mémoire.
+   Chercher est le geste principal — on vient ici parce qu'on ne se rappelle
+   plus comment un nom s'écrit. */
+.memoire-variables__barre{ display:flex; align-items:center; gap:8px; }
+.memoire-variables__barre input{ flex:1 1 auto; max-width:420px; }
 
 /* ── Les variables du projet ────────────────────────────────────────────────
    Ce que le projet partage d'une discipline à l'autre : un nom déclaré quelque
@@ -20566,7 +20593,6 @@ body.route--project.project-shell-compact.documents-local-chrome-compact #global
   padding:10px 16px;
   border:1px solid var(--border);
   border-radius:var(--radius);
-  margin-bottom:16px;
   font-size:12px;
 }
 .memoire-versement + .memoire-liste{ border-radius:var(--radius); }

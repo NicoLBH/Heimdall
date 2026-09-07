@@ -235,7 +235,11 @@ function renderRow(proposition) {
           // signe que partout ailleurs — la pastille de l'en-tête, l'acte du
           // fil, la carte de fin. Une proposition ouverte prend celui d'une
           // demande ouverte : deux états ne peuvent pas porter le même dessin.
-          svgIcon(merged ? "git-compare" : closed ? "stop-alert" : "git-pull-request", {
+          //
+          // Refusée, c'est une demande **fermée** : le panneau d'alerte disait
+          // « attention », alors qu'il n'y a rien à surveiller — quelqu'un a
+          // décidé, et la proposition est close.
+          svgIcon(merged ? "git-compare" : closed ? "git-pull-request-closed" : "git-pull-request", {
             className: "octicon"
           })
         }

@@ -155,8 +155,12 @@
  * v4.1 — un `.ref` s'écrit comme il s'exécute : `fonction` ouvre la règle, ses
  * entrées sont ses paramètres, chaque clause porte ses parenthèses et ce qu'elle
  * pose se termine par un point-virgule. Les autres fichiers ne changent pas.
+ *
+ * v4.2 — ce qui fonde une règle se déclare en tête, comme les `const` d'une
+ * fonction : `soit texte = …`, `soit parce que = …`. Les commentaires `//` et
+ * `/* … *\/` entrent dans le langage, et `const` définit un nom du projet.
  */
-export const ECRITURE = "4.1";
+export const ECRITURE = "4.2";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
@@ -201,6 +205,14 @@ export const JETON = {
   ENTREES: "entrees",
   /** `fonction` — le mot qui ouvre une règle. */
   MOT_FONCTION: "mot-fonction",
+  /** `soit` — le mot qui déclare une locale, en tête de règle. */
+  MOT_SOIT: "mot-soit",
+  /** `const` — le mot qui déclare une variable du projet. */
+  MOT_CONST: "mot-const",
+  /** Le nom d'une locale : `texte`, `document`, `parce que`. */
+  LOCALE: "locale",
+  /** `// …` ou `/* … *\/` — ce qu'on écrit pour soi, jamais interprété. */
+  COMMENTAIRE: "commentaire",
   /** Un paramètre de la règle : une entrée, nommée. */
   PARAMETRE: "parametre",
   /** `(`, `)`, `,`, `;` — ce qui borne et sépare, sans rien dire. */
@@ -315,10 +327,11 @@ export const OPERATEURS = Object.values(OPERATEUR);
  */
 export const MOTS = [
   "sauf si", "parce que", "statut", "fichier", "note", "le", "zone",
-  // `fonction` ouvre une règle, et c'est le seul mot emprunté à un langage de
-  // programmation. Il l'est parce qu'un `.ref` en est un : il s'exécute. Voir
-  // l'en-tête, « L'identité de l'écriture, et pourquoi elle a bougé ».
-  "fonction",
+  // Les mots d'un `.ref`, et eux seuls. Ils sont empruntés à un langage de
+  // programmation parce qu'un `.ref` en est un : il s'exécute. `fonction`
+  // l'ouvre, `soit` déclare ce qui la fonde, `const` définit un nom du projet.
+  // Voir l'en-tête, « L'identité de l'écriture, et pourquoi elle a bougé ».
+  "fonction", "soit", "const",
   "si", "et", "ou", "non", "alors", "sinon",
   ...Object.values(PROVENANCE)
 ];
@@ -503,15 +516,119 @@ export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1,
 }
 
 /**
+ * `soit texte = "arrêté du 31 janvier 1986, article 98";`
+ *
+ * Une locale d'une règle. Elle se pose en tête du bloc, avant les conditions,
+ * comme on déclare les `const` d'une fonction avant de s'en servir : ce qui
+ * fonde la règle se lit avant ce qu'elle fait, et non après.
+ *
+ * Le nom reste celui du concept — `texte`, `document`, `règle`, `parce que` —
+ * parce que c'est lui qui porte le sens. `soit machin = …` ne dirait rien.
+ */
+export function ligneDeLocale(nom = "", valeur = "", profondeur = 1) {
+  const quoi = texte(valeur);
+  if (!texte(nom) || !quoi) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_SOIT, "soit"),
+    espace(),
+    jeton(JETON.LOCALE, texte(nom)),
+    espace(),
+    jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
+    espace(),
+    jeton(JETON.VALEUR, `"${quoi.replace(/^["\u00ab]\s*/, "").replace(/\s*["\u00bb]$/, "")}"`),
+    jeton(JETON.PONCTUATION, ";")
+  ];
+}
+
+/**
+ * `const Hauteur du plancher bas = { type: "mesure", unité: "m" };`
+ *
+ * ## Ce que cette ligne dit, et ce qu'elle ne dit pas
+ *
+ * Elle **définit** un nom : ce qu'il désigne, comment il se mesure. Elle ne dit
+ * pas ce qu'il vaut dans ce projet — une variable prend plusieurs valeurs au
+ * fil d'une étude, et une définition qui porterait l'une d'elles cesserait
+ * d'être vraie au premier versement.
+ *
+ * C'est ce qu'on lit **avant** d'écrire une règle : pour réutiliser un nom qui
+ * existe plutôt que d'en inventer un voisin. Entre « Hauteur du plancher bas »
+ * et « Hauteur du dernier plancher », on se trompe vite, et un nom mal
+ * orthographié fabrique une seconde variable qui ne servira jamais.
+ *
+ * @param {{nom: string, type?: string, unite?: string, quoi?: string}} variable
+ */
+export function ligneDeVariable({ nom = "", type = "", unite = "", quoi = "" } = {}, profondeur = 0) {
+  const dit = texte(nom);
+  if (!dit) return null;
+
+  const champs = [
+    ["type", texte(type) || "inconnu"],
+    ...(texte(unite) ? [["unité", texte(unite)]] : []),
+    ...(texte(quoi) ? [["quoi", texte(quoi)]] : [])
+  ];
+
+  const jetons = [
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.MOT_CONST, "const"),
+    espace(),
+    // Le nom porte le jeton d'un sujet : c'est le même nom que les règles
+    // citent, et il doit se colorer et se survoler comme lui.
+    jeton(JETON.SUJET, dit),
+    espace(),
+    jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
+    espace(),
+    jeton(JETON.PONCTUATION, "{"),
+    espace()
+  ];
+
+  champs.forEach(([cle, valeur], rang) => {
+    if (rang > 0) jetons.push(jeton(JETON.PONCTUATION, ","), espace());
+    jetons.push(jeton(JETON.LOCALE, cle), jeton(JETON.PONCTUATION, ":"), espace(), jeton(JETON.VALEUR, `"${valeur}"`));
+  });
+
+  jetons.push(espace(), jeton(JETON.PONCTUATION, "}"), jeton(JETON.PONCTUATION, ";"));
+  return jetons;
+}
+
+/**
+ * `// ce qu'on écrit pour soi`
+ *
+ * Un commentaire n'est jamais interprété : il ne pose rien, ne conditionne
+ * rien, et se relit tel quel. Il devient nécessaire dès qu'une règle passe
+ * quinze lignes — expliquer pourquoi une condition existe est autre chose que
+ * dire ce qu'elle teste.
+ *
+ * `note:` existait déjà, mais pour le **fichier** : une note en tête dit d'où
+ * il vient. Un commentaire se met où l'on veut, et c'est ce qui manquait.
+ */
+export function ligneDeCommentaire(phrase = "", profondeur = 0) {
+  const dit = texte(phrase);
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.COMMENTAIRE, dit.startsWith("//") || dit.startsWith("/*") ? dit : `// ${dit}`)
+  ];
+}
+
+/**
  * `texte: arrêté du 31 janvier 1986 modifié, article 6`
  *
  * Le mot-clé **est** le type, et le type **est** l'origine de la valeur : une
  * ligne qui dit `règle:` est déduite, `document:` est lue, `calcul:` est
  * calculée. Rien à déclarer en plus, et une flèche de moins à taper.
  */
-export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, profondeur = 1) {
+export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, profondeur = 1, { regle = false } = {}) {
   const dit = texte(quoi);
   if (!dit) return null;
+
+  // Dans une règle, la provenance se **déclare** : elle se pose en tête du
+  // bloc, comme les `const` d'une fonction, et le nom de la locale reste le
+  // type — `soit texte = …`, `soit document = …`. On sait ainsi d'où la règle
+  // sort avant de lire ce qu'elle fait, plutôt qu'après.
+  if (regle) return ligneDeLocale(texte(type) || PROVENANCE.TEXTE, dit, profondeur);
 
   return [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
@@ -528,9 +645,14 @@ export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, p
  * et le jour où une règle en portera plusieurs, on saura laquelle appuie
  * laquelle sans rien changer à la grammaire.
  */
-export function ligneDePreuve(citation = "", profondeur = 2) {
+export function ligneDePreuve(citation = "", profondeur = 2, { regle = false } = {}) {
   const dit = texte(citation).replace(/^[«"\u0027]\s*/, "").replace(/\s*[»"\u0027]$/, "");
   if (!dit) return null;
+
+  // Dans une règle, la preuve se déclare comme la provenance : en tête, et au
+  // même cran qu'elle. Indentée d'un de plus, elle paraissait appartenir à la
+  // ligne du dessus alors qu'elle fonde le bloc entier.
+  if (regle) return ligneDeLocale("parce que", dit, Math.max(1, profondeur));
 
   return [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
@@ -644,11 +766,12 @@ export function ligneDeZone(zone = TOUTES_ZONES, profondeur = 0) {
  *
  * ```
  * fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas) {
+ *    soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°";
+ *    soit parce que = "Troisième famille B : …";
+ *
  *    si (Logements superposés = oui)
  *    et (Hauteur du plancher bas <= 28 m)
  *    alors ("3e famille B");
- *    texte: arrêté du 31 janvier 1986 modifié, article 3, 3°
- *       parce que: "Troisième famille B : …"
  * }
  * ```
  *
@@ -667,6 +790,20 @@ export function blocDeRegle({
   const commeUneRegle = { regle: true };
 
   const corps = [];
+
+  // Les locales d'abord, comme les `const` d'une fonction : ce qui fonde la
+  // règle se lit avant ce qu'elle fait. Elles étaient en bas, après la
+  // conclusion — c'est-à-dire là où on ne les cherche plus.
+  const depuis = provenance ? ligneDeProvenance(provenance, dedans, commeUneRegle) : null;
+  if (depuis) corps.push(depuis);
+
+  const pourquoi = ligneDePreuve(preuve, dedans, commeUneRegle);
+  if (pourquoi) corps.push(pourquoi);
+
+  // Une ligne vide entre ce qu'on pose et ce qu'on en fait : sans elle, les
+  // deux se lisent comme une seule suite d'instructions.
+  if (corps.length) corps.push(ligneVide());
+
   (Array.isArray(conditions) ? conditions : []).forEach((condition, rang) => {
     corps.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, dedans, commeUneRegle));
   });
@@ -677,12 +814,6 @@ export function blocDeRegle({
   for (const exception of (Array.isArray(sauf) ? sauf : [sauf]).filter(Boolean)) {
     corps.push(ligneDeCondition("sauf si", exception, dedans, commeUneRegle));
   }
-
-  const depuis = provenance ? ligneDeProvenance(provenance, dedans) : null;
-  if (depuis) corps.push(depuis);
-
-  const pourquoi = ligneDePreuve(preuve, dedans + 1);
-  if (pourquoi) corps.push(pourquoi);
 
   const tete = [
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
