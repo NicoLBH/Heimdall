@@ -16,7 +16,7 @@ const VUE = {
       statut: "conclu", valeur: "3e famille B", exigence: true,
       conditions: [
         { fait: "logementsSuperposes", sujet: "Logements superposés", operateur: "=", valeur: "oui", unite: null, logique: true },
-        { fait: "hauteur", sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: 28, unite: "m", logique: false }
+        { fait: "hauteur", sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "<=", valeur: 28, unite: "m", logique: false }
       ],
       pourquoi: { article: "3", paragraphe: "3°)", citation: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes." }
     },
@@ -48,7 +48,7 @@ test("la règle porte le seuil du texte, jamais la cote du projet", () => {
   assert.equal(regle.alors, "3e famille B");
   assert.deepEqual(regle.conditions.map((c) => [c.sujet, c.operateur, c.valeur]), [
     ["Logements superposés", "=", ["oui"]],
-    ["Hauteur du plancher bas du logement le plus haut", "≤", ["28"]]
+    ["Hauteur du plancher bas du logement le plus haut", "<=", ["28"]]
   ]);
   assert.equal(regle.provenance.type, "texte");
   assert.match(regle.provenance.quoi, /article 3, 3°\)/);
@@ -58,27 +58,27 @@ test("le fichier de règles ne contient aucune valeur de ce projet", () => {
   const fichier = fichierDesRegles(VUE, { le: "7 septembre 2026" });
   const texte = texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons));
 
-  assert.equal(fichier.chemin, "referentiels/incendie-habitation.mdall");
+  assert.equal(fichier.chemin, "tout-l-ouvrage/incendie.ref");
   assert.equal(fichier.compte.regles, 2);
   assert.equal(texte.includes("statut"), false);
   assert.equal(texte.includes("retenu"), false);
   assert.equal(texte.includes("dépend de"), false);
   assert.match(texte, /si Logements superposés = oui/);
-  assert.match(texte, /et Hauteur du plancher bas du logement le plus haut ≤ 28 m/);
+  assert.match(texte, /et Hauteur du plancher bas du logement le plus haut <= 28 m/);
 });
 
 test("le fichier de projet renvoie à la règle sans la recopier", () => {
   const fichier = fichierDeLEtude(VUE, { le: "7 septembre 2026" });
   const texte = texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons));
 
-  assert.equal(fichier.chemin, "contraintes/incendie.mdall");
+  assert.equal(fichier.chemin, "tout-l-ouvrage/incendie.ctr");
   assert.deepEqual(fichier.compte, { affirmations: 2, sansObjet: 0, attente: 0 });
   assert.match(texte, /^Classement du bâtiment = "3e famille B"$/m);
-  assert.match(texte, /← règle Classement du bâtiment — arrêté/);
-  assert.match(texte, /statut retenu/);
+  assert.match(texte, /règle: Classement du bâtiment — arrêté/);
+  assert.match(texte, /statut: retenu/);
   // La règle est ailleurs : elle vaut pour mille bâtiments, cette valeur pour un.
   assert.equal(texte.includes("si "), false);
-  assert.equal(texte.includes("≤ 28"), false);
+  assert.equal(texte.includes("<= 28"), false);
 });
 
 test("une valeur sans exigence garde sa valeur : c'est le statut qui dit l'absence", () => {
@@ -94,8 +94,8 @@ test("une valeur sans exigence garde sa valeur : c'est le statut qui dit l'absen
   assert.equal(entree.nature, "sans-objet");
   // La valeur reste : « Voie-échelles » en dépend, et l'effacer casserait le graphe.
   assert.match(texte, /^Voie-engins = "non décrite"$/m);
-  assert.match(texte, /statut sans objet/);
-  assert.match(texte, /parce que "Les première et deuxième familles/);
+  assert.match(texte, /statut: sans objet/);
+  assert.match(texte, /parce que: "Les première et deuxième familles/);
 });
 
 test("ce qui attend une réponse s'écrit, avec ce qui le retient", () => {
@@ -106,8 +106,8 @@ test("ce qui attend une réponse s'écrit, avec ce qui le retient", () => {
 
   const texte = texteDesLignes(affirmationDuModule(module, "arrêté").lignes);
   assert.match(texte, /^Type d'escalier exigé$/m);
-  assert.match(texte, /statut en attente/);
-  assert.match(texte, /parce que "Il manque : Hauteur du dernier plancher\."/);
+  assert.match(texte, /statut: en attente/);
+  assert.match(texte, /parce que: "Il manque : Hauteur du dernier plancher\."/);
 });
 
 test("un référentiel non cité ne s'invente pas d'article", () => {
@@ -130,7 +130,7 @@ test("l'en-tête dit toujours ce qui a produit le fichier, et dans quelle écrit
   const fichier = fichierDeLEtude(VUE, { le: "7 septembre 2026" });
   const entete = fichier.enTete.map(enClair);
   assert.match(entete[1], /établi par l'utilitaire incendie — habitation, le 7 septembre 2026/);
-  assert.equal(entete[2], `¶ écriture Mdall v${ECRITURE}`);
+  assert.equal(entete[2], `note: écriture Mdall v${ECRITURE}`);
 });
 
 test("le graphe du référentiel se reconstruit depuis son texte", () => {

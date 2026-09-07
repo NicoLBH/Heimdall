@@ -30,7 +30,9 @@ import {
   blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
   PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
-import { phraseDuDossier, rangDuDossier } from "../services/memoire-rangement.js";
+import {
+  phraseDeLaZone, phraseDeLExtension, rangDeLaZone, rangDeLExtension
+} from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
   dernierVersementDe, versementsDeLaMemoire
@@ -51,19 +53,40 @@ const cleHtml = (valeur) => texte(valeur).replace(/[^\w-]+/g, "-");
  * à chaque rendu ferait trier trois cents affirmations à chaque frappe.
  */
 export function preparerLaMemoire(assertions = []) {
-  const dossiers = dossiersDeLaMemoire(assertions).sort(
-    (gauche, droite) => rangDuDossier(gauche.nom) - rangDuDossier(droite.nom)
-  );
-  const fichiers = fichiersDeLaMemoire(assertions);
+  const dossiers = dossiersDeLaMemoire(assertions)
+    .map((dossier) => ({ ...dossier, fichiers: dossier.fichiers.slice().sort(parLecture) }))
+    .sort((gauche, droite) => rangDeLaZone(gauche.nom) - rangDeLaZone(droite.nom)
+      || gauche.nom.localeCompare(droite.nom, "fr"));
 
-  return { dossiers, fichiers };
+  return { dossiers, fichiers: fichiersDeLaMemoire(assertions) };
+}
+
+/**
+ * L'ordre des fichiers d'une zone : les textes appliqués, puis ce qu'on en tire.
+ *
+ * On lit un `.ref` avant un `.ctr` pour la même raison qu'on lit l'arrêté avant
+ * la note de synthèse : la conclusion ne s'apprécie qu'une fois la règle connue.
+ */
+function parLecture(gauche, droite) {
+  return rangDeLExtension(gauche.extension) - rangDeLExtension(droite.extension)
+    || gauche.fichier.localeCompare(droite.fichier, "fr");
+}
+
+/**
+ * Le chemin d'un fichier, tel qu'on y navigue : `Escalier B/incendie.ctr`.
+ *
+ * L'extension fait partie de l'adresse. Sans elle, `Escalier B/Incendie`
+ * désignerait six fichiers à la fois, et l'écran en ouvrirait un au hasard.
+ */
+export function adresseDuFichier(fichier) {
+  return `${fichier.chemin.join("/")}.${fichier.extension}`;
 }
 
 /** Le fichier d'un chemin, s'il existe. */
 export function fichierDuChemin(memoire, chemin = []) {
   if (chemin.length < 2) return null;
-  const cle = chemin.slice(0, 2).join(" / ");
-  return (memoire.fichiers ?? []).find((fichier) => fichier.chemin.join(" / ") === cle) ?? null;
+  const cle = chemin.slice(0, 2).join("/");
+  return (memoire.fichiers ?? []).find((fichier) => adresseDuFichier(fichier) === cle) ?? null;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -100,15 +123,15 @@ export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte
             ? ""
             : dossier.fichiers
                 .map((fichier) => {
-                  const ici = chemin.join(" / ") === fichier.chemin.join(" / ");
+                  const ici = chemin.join("/") === adresseDuFichier(fichier);
                   return `
                     <div class="documents-tree__row${ici ? " is-active" : ""}">
                       <span class="documents-tree__indent"><span class="documents-tree__divider is-expanded"></span></span>
                       <span class="documents-tree__caret-spacer"></span>
                       <button type="button" class="documents-tree__item${ici ? " is-active" : ""}"
-                        data-memoire-aller="${escapeHtml(fichier.chemin.join("/"))}">
+                        data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
                         <span class="documents-tree__icon-slot">${svgIcon("file", { className: "octicon" })}</span>
-                        <span class="documents-tree__label">${escapeHtml(nomDeFichier(fichier.chemin))}</span>
+                        <span class="documents-tree__label">${escapeHtml(nomDeFichier(fichier.chemin, fichier.extension))}</span>
                         <span class="diff-tree__compte">${fichier.lignes.length}</span>
                       </button>
                     </div>
@@ -139,7 +162,8 @@ export function renderBarre({ chemin = [], query = "", ouverte = true, racine = 
     `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="">Mémoire</button>`,
     ...chemin.map((morceau, rang) => {
       const cible = chemin.slice(0, rang + 1);
-      const libelle = rang === 1 ? nomDeFichier(cible) : morceau;
+      // Le dernier morceau porte déjà son extension : « incendie.ctr ».
+      const libelle = morceau;
       return `<span class="documents-breadcrumb__sep">/</span>`
         + `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="${escapeHtml(cible.join("/"))}">${escapeHtml(libelle)}</button>`;
     })
@@ -193,7 +217,7 @@ export function renderDossiers(memoire, { assertions = [] } = {}) {
               <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
               <span class="memoire-entree__corps">
                 <span class="memoire-entree__nom">${escapeHtml(dossier.nom)}</span>
-                <span class="memoire-entree__phrase">${escapeHtml(phraseDuDossier(dossier.nom))}</span>
+                <span class="memoire-entree__phrase">${escapeHtml(phraseDeLaZone(dossier.nom))}</span>
               </span>
               <span class="memoire-entree__compte">${dossier.lignes} ligne${dossier.lignes > 1 ? "s" : ""}</span>
             </button>
@@ -226,10 +250,11 @@ export function renderFichiers(memoire, dossier, { auteurs = new Map(), proposit
         .map((fichier) => {
           const dernier = dernierVersementDe(fichier.lignes, { auteurs, propositions });
           return `
-            <button type="button" class="memoire-entree memoire-entree--fichier" data-memoire-aller="${escapeHtml(fichier.chemin.join("/"))}">
+            <button type="button" class="memoire-entree memoire-entree--fichier" data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
               <span class="memoire-entree__nom">
                 <span class="memoire-entree__icone">${svgIcon("file", { className: "octicon" })}</span>
-                ${escapeHtml(nomDeFichier(fichier.chemin))}
+                ${escapeHtml(nomDeFichier(fichier.chemin, fichier.extension))}
+                <span class="memoire-entree__quoi">${escapeHtml(phraseDeLExtension(fichier.extension))}</span>
               </span>
               <span class="memoire-entree__message">${escapeHtml(dernier?.message || "—")}</span>
               <span class="memoire-entree__date">${escapeHtml(dernier ? ilYA(dernier.quand) : "—")}</span>
@@ -429,7 +454,7 @@ function enClairDesJetons(jetons = []) {
 /** Le fichier, en clair — ce que le bouton met dans le presse-papiers. */
 export function fichierEnClair(fichier, { enClair } = {}) {
   const lignes = [
-    `§ ${cheminDeFichier(fichier.chemin)}`,
+    `fichier: ${cheminDeFichier(fichier.chemin, fichier.extension)}`,
     "",
     ...fichier.lignes.flatMap((assertion) =>
       lignesDeLAssertion(assertion).map((ligne) => enClair(ligne.jetons)))
@@ -491,13 +516,23 @@ export function lignesDeLAssertion(assertion = {}) {
     sujet: texte(payload.subject) || texte(assertion.subject_key),
     valeur: coupe.nombre,
     unite: coupe.unite,
-    zones: Array.isArray(assertion.zones) ? assertion.zones : (payload.zones ?? []),
+    // La date d'un constat : elle passe avant la provenance, parce qu'un
+    // constat se situe d'abord dans le temps.
+    le: texte(payload.le) || (texte(assertion.nature) === "constat" ? dateLisible(assertion.decided_at) : ""),
     provenance: provenanceDeLAssertion(assertion),
     preuve: texte(payload.citation),
     statut: statutDeLAssertion(assertion)
   });
 
   return lignes.map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
+}
+
+/** Une date, en clair. Un constat sans date ne vaut rien. */
+function dateLisible(valeur) {
+  const date = new Date(valeur);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
 /**

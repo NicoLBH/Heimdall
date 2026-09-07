@@ -2042,11 +2042,9 @@ function dessinerLEcriture(vue) {
   const zone = String(etat.zoneDuVersement ?? "").trim();
   const le = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
-  const regles = fichierDesRegles(vue, { le });
-  const projet = fichierDeLEtude(vue, {
-    chemin: ["Contraintes", zone ? `Incendie — ${zone}` : "Incendie"],
-    le
-  });
+  const ou = [zone || "Tout l'ouvrage", "Incendie"];
+  const regles = fichierDesRegles(vue, { chemin: ou, le });
+  const projet = fichierDeLEtude(vue, { chemin: ou, le });
 
   const compteDuProjet = [
     projet.compte.affirmations ? `${projet.compte.affirmations} exigence${projet.compte.affirmations > 1 ? "s" : ""}` : "",

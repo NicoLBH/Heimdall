@@ -19942,6 +19942,19 @@ body.proposition-merge-open{ overflow:hidden; }
 .mdall-mot-statut{ color:rgb(210,153,34); }
 .mdall-statut{ color:rgb(232,193,102); font-weight:600; }
 
+/* `fichier:` ouvre l'en-tête, `note:` le commente. Ce sont les deux seules
+   lignes qui parlent du fichier plutôt que du projet. */
+.mdall-mot-fichier{ color:rgb(255,166,87); }
+
+/* Les entrées d'une règle : de quoi elle a besoin, d'un coup d'œil. Plus
+   discrètes que le sujet — c'est lui qu'on cherche, elles ne font que
+   l'éclairer. */
+.mdall-entrees{ color:rgb(139,148,158); }
+
+/* Un constat sans date ne vaut rien : la date se voit. */
+.mdall-mot-date{ color:rgb(210,153,34); }
+.mdall-date{ color:rgb(232,193,102); }
+
 
 /* ── La mémoire, parcourue comme un dépôt ───────────────────────────────────
    Les mêmes gestes que l'onglet Documents — un chemin, un fil d'Ariane, une
@@ -20002,6 +20015,9 @@ body.proposition-merge-open{ overflow:hidden; }
 .memoire-entree__icone{ flex:0 0 auto; color:var(--muted); display:inline-flex; }
 .memoire-entree__corps{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 auto; }
 .memoire-entree__nom{ color:var(--text); font-size:14px; font-weight:600; }
+/* Ce que l'extension contient, à côté du nom : `.ctr` et `.ddb` se ressemblent
+   assez pour qu'on ouvre l'un en croyant l'autre. */
+.memoire-entree__quoi{ color:var(--muted); font-size:12px; font-weight:400; }
 .memoire-entree__phrase{ color:var(--muted); font-size:12px; }
 .memoire-entree__compte{ flex:0 0 auto; color:var(--muted); font-size:11px; white-space:nowrap; }
 

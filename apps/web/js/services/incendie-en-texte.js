@@ -23,8 +23,8 @@
  * les range là où elles valent :
  *
  * ```
- * referentiels/incendie-habitation.mdall   les règles, sans aucune valeur de projet
- * contraintes/incendie.mdall               ce que le projet retient, et de quelle règle
+ * escalier-b/incendie.ref   les règles appliquées, sans aucune valeur de projet
+ * escalier-b/incendie.ctr   ce que le projet retient, et de quelle règle
  * ```
  *
  * ## Ce qui s'écrit, et ce qui s'écrit aussi
@@ -200,7 +200,8 @@ export function affirmationDuModule(module = {}, referentiel = "") {
  * projet.
  */
 export function fichierDesRegles(vue, {
-  chemin = ["Référentiels", "Incendie — Habitation"],
+  chemin = ["Tout l'ouvrage", "Incendie"],
+  extension = "ref",
   referentiel = "arrêté du 31 janvier 1986 modifié",
   produitPar = "l'utilitaire incendie — habitation",
   le = ""
@@ -215,9 +216,9 @@ export function fichierDesRegles(vue, {
     })));
 
   return {
-    nom: nomDeFichier(chemin),
-    chemin: cheminDeFichier(chemin),
-    enTete: enTeteDeFichier({ chemin, produitPar, le }),
+    nom: nomDeFichier(chemin, extension),
+    chemin: cheminDeFichier(chemin, extension),
+    enTete: enTeteDeFichier({ chemin, extension, produitPar, le }),
     lignes: corps,
     compte: { regles: corps.filter((ligne) => ligne.nature === "donnee").length }
   };
@@ -238,7 +239,8 @@ export function fichierDesRegles(vue, {
  * @param {string} options.le la date, en clair
  */
 export function fichierDeLEtude(vue, {
-  chemin = ["Contraintes", "Incendie"],
+  chemin = ["Tout l'ouvrage", "Incendie"],
+  extension = "ctr",
   referentiel = "arrêté du 31 janvier 1986 modifié",
   produitPar = "l'utilitaire incendie — habitation",
   le = ""
@@ -257,9 +259,9 @@ export function fichierDeLEtude(vue, {
   const tetes = corps.filter((ligne) => ligne.nature !== "detail");
 
   return {
-    nom: nomDeFichier(chemin),
-    chemin: cheminDeFichier(chemin),
-    enTete: enTeteDeFichier({ chemin, produitPar, le }),
+    nom: nomDeFichier(chemin, extension),
+    chemin: cheminDeFichier(chemin, extension),
+    enTete: enTeteDeFichier({ chemin, extension, produitPar, le }),
     lignes: corps,
     // Ce que le fichier porte, en chiffres. Rien n'est estimé : ce sont des
     // comptes, et ils disent ce qu'on lira avant d'ouvrir.

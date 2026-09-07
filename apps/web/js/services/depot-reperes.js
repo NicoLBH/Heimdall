@@ -70,13 +70,20 @@ export const ETAT_SIGNES = {
 
 const clef = (repere) => texte(repere?.id);
 
-/** Les champs d'un repère, dans l'ordre où ils ont été donnés. */
+/**
+ * Les champs d'un repère, dans l'ordre où ils ont été donnés.
+ *
+ * Le nom vide est un nom : c'est celui de la **tête** du bloc, qui porte déjà le
+ * titre du repère et n'a donc rien à ajouter. L'écarter faisait disparaître la
+ * ligne de valeur du diff — celle qu'on regarde en premier.
+ *
+ * La valeur, elle, ne se rogne pas : elle porte son indentation, et
+ * l'indentation est ce qui dit à quelle ligne une ligne se rapporte.
+ */
 function champsDe(repere) {
   const champs = repere?.champs;
   if (!champs || typeof champs !== "object") return [];
-  return Object.entries(champs)
-    .map(([nom, valeur]) => [texte(nom), texte(valeur)])
-    .filter(([nom]) => nom);
+  return Object.entries(champs).map(([nom, valeur]) => [texte(nom), String(valeur ?? "")]);
 }
 
 /**
@@ -145,6 +152,10 @@ export function comparerDesReperes({ avant = [], apres = [] } = {}) {
       id,
       famille: texte(porteur?.famille),
       chemin: Array.isArray(porteur?.chemin) ? porteur.chemin.map(texte).filter(Boolean) : [],
+      // L'extension fait partie de l'adresse d'un fichier : deux repères du
+      // même chemin mais d'extensions différentes sont deux fichiers voisins,
+      // et les grouper ensemble mélangerait des règles et des contraintes.
+      extension: texte(porteur?.extension),
       titre: texte(porteur?.titre) || id,
       provenance: porteur?.provenance ?? null,
       etat,
@@ -172,8 +183,10 @@ export function arbreDesReperes(lignes = []) {
 
   for (const ligne of Array.isArray(lignes) ? lignes : []) {
     const chemin = ligne.chemin?.length ? ligne.chemin : ["Sans rubrique"];
-    const cle = chemin.join(" / ");
-    if (!groupes.has(cle)) groupes.set(cle, { cle, chemin, label: chemin[chemin.length - 1], lignes: [] });
+    const extension = texte(ligne.extension);
+    const nom = extension ? `${chemin[chemin.length - 1]}.${extension}` : chemin[chemin.length - 1];
+    const cle = extension ? `${chemin.join(" / ")}.${extension}` : chemin.join(" / ");
+    if (!groupes.has(cle)) groupes.set(cle, { cle, chemin, extension, label: nom, lignes: [] });
     groupes.get(cle).lignes.push(ligne);
   }
 
@@ -201,10 +214,9 @@ export function lignesNumerotees(groupe = {}) {
   let apres = 0;
 
   for (const ligne of groupe.lignes ?? []) {
-    const plusieurs = (ligne.champs ?? []).length > 1;
-
     for (const [rang, champ] of (ligne.champs ?? []).entries()) {
-      const nom = plusieurs ? `${ligne.titre} · ${champ.nom}` : ligne.titre;
+      // Le champ sans nom est la tête du bloc : il porte déjà le titre.
+      const nom = champ.nom ? `${ligne.titre} · ${champ.nom}` : ligne.titre;
       const commun = { ligne, champ, rang, nom };
 
       if (champ.etat === ETAT.INCHANGE) {

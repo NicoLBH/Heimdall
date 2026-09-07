@@ -55,16 +55,50 @@
  * mots de programmeur, et ils annonceraient un programme là où il n'y a qu'un
  * raisonnement transcrit.
  *
- * | marque | ce qu'elle dit |
+ * ## Tout se tape au clavier
+ *
+ * `§`, `¶`, `←`, `≤`, `≥`, `≠` étaient jolis et intapables. Un langage qu'un
+ * architecte doit pouvoir écrire à la main ne peut pas exiger une table de
+ * caractères : chaque marque est remplacée par un **mot suivi de deux points**,
+ * qui dit en plus ce qu'elle voulait dire.
+ *
+ * | ligne | ce qu'elle dit |
  * | --- | --- |
- * | `§` | le titre du fichier |
- * | `¶` | une note sur le fichier lui-même |
+ * | `fichier:` | le chemin du fichier |
+ * | `note:` | une note sur le fichier lui-même |
  * | `=` | ce que la donnée vaut |
- * | `@` | la portée, quand ce n'est pas l'ouvrage entier |
- * | `←` | d'où cela vient, typé par le mot qui suit |
+ * | `texte: · document: · calcul: · règle: · décision: · hypothèse:` | d'où cela vient |
  * | `si · et · ou · non · alors · sinon · sauf si` | la règle, dans les mots de l'arrêté |
- * | `parce que` | la preuve, citée entre guillemets |
- * | `statut` | l'état du raisonnement dans ce projet |
+ * | `parce que:` | la preuve, citée entre guillemets |
+ * | `statut:` | l'état du raisonnement dans ce projet |
+ * | `le:` | la date d'un constat |
+ *
+ * La provenance n'a plus de flèche **ni** de type derrière : le mot-clé **est**
+ * le type. Une ligne de moins à comprendre, et une de moins à écrire.
+ *
+ * ## Une règle se lit comme une fonction
+ *
+ * ```
+ * Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages)
+ *    si Habitation individuelle ou collective = "collective"
+ *    et Nombre d'étages <= 3
+ *    alors "2e famille"
+ * ```
+ *
+ * La parenthèse nomme les **entrées**, et c'est ce qui manquait le plus : on
+ * voit d'un coup d'œil de quoi la règle a besoin, sans lire ses conditions. Ce
+ * n'est pas une concession à l'informatique — un article d'arrêté commence lui
+ * aussi par dire de quoi il parle.
+ *
+ * Elle ne se stocke pas : les entrées **sont** les sujets des conditions. Une
+ * signature recopiée diverge le jour où quelqu'un ajoute une condition.
+ *
+ * ## La portée est le dossier, plus une marque sur la ligne
+ *
+ * `@ escalier B` a disparu. Les fichiers se rangent par zone — `escalier-b/
+ * incendie.ctr` — et une marque de portée en plus dirait deux fois la même
+ * chose. Une affirmation qui vaut pour deux zones apparaît dans les deux
+ * fichiers : c'est la même, vue de deux endroits.
  *
  * ## Trois lois de lecture
  *
@@ -97,21 +131,22 @@
 /**
  * La version de l'écriture. Elle change quand la façon d'écrire change.
  *
- * v3.0 — les cinq objets se séparent : la donnée, sa valeur, la règle, la
- * preuve, le statut. La règle quitte le fichier de projet pour un référentiel.
- * `dépend de` disparaît, il se déduit. Le langage se relit autant qu'il
- * s'écrit.
+ * v4.0 — tout se tape au clavier : les marques `§`, `¶`, `←`, `≤` deviennent
+ * des mots suivis de deux points. Une règle porte sa signature. Chaque nature
+ * a sa forme et son extension, et la portée est le dossier.
  */
-export const ECRITURE = "3.0";
+export const ECRITURE = "4.0";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
 
 /** Ce qu'un morceau de ligne est, pour qui le colore. */
 export const JETON = {
-  /** `§` — le titre d'un fichier. */
+  /** `fichier:` — le mot qui ouvre l'en-tête. */
+  MOT_FICHIER: "mot-fichier",
+  /** Le chemin du fichier, derrière `fichier:`. */
   SECTION: "section",
-  /** `¶` — une note sur le fichier : ce qui l'a produit, comment il s'écrit. */
+  /** `note:` et ce qui suit — une remarque sur le fichier, jamais interprétée. */
   NOTE: "note",
   /** Le sujet d'une donnée : « Hauteur du plancher bas du logement le plus haut ». */
   SUJET: "sujet",
@@ -129,18 +164,20 @@ export const JETON = {
   MOT_RAISON: "mot-raison",
   /** La preuve elle-même, citée. */
   RAISON: "raison",
-  /** `←` — la flèche de provenance. */
-  DEPUIS: "depuis",
-  /** Le type de provenance : texte, document, calcul, règle, décision, hypothèse. */
+  /** `texte:`, `document:`, `calcul:`… — le mot-clé **est** le type. */
   PROVENANCE: "provenance",
   /** Ce qui est désigné derrière le type : « arrêté …, article 6 ». */
   SOURCE: "source",
-  /** `statut` — le mot. */
+  /** `statut:` — le mot. */
   MOT_STATUT: "mot-statut",
   /** Son contenu : retenu, supposé, contesté, remplacé, écarté. */
   STATUT: "statut",
-  /** `@ escalier B` — la portée d'une affirmation. */
-  PORTEE: "portee",
+  /** `le:` — le mot qui ouvre la date d'un constat. */
+  MOT_DATE: "mot-date",
+  /** La date elle-même. */
+  DATE: "date",
+  /** Les entrées d'une règle, entre parenthèses. */
+  ENTREES: "entrees",
   /** Ce qui ne se colore pas : les espaces, les séparateurs. */
   NEUTRE: "neutre"
 };
@@ -218,14 +255,15 @@ export const STATUTS = Object.values(STATUT);
 /**
  * Les comparateurs, dans les signes qu'on lit.
  *
- * `≤` plutôt que `<=` : le premier s'écrit dans un CCTP, le second dans un
- * programme. Le langage se lit à voix haute en réunion.
+ * `<=` plutôt que `≤` : le second est plus joli et ne se tape pas. Un langage
+ * qu'un architecte doit pouvoir écrire à la main ne peut pas exiger une table
+ * de caractères. La lecture accepte les deux.
  */
 export const OPERATEUR = {
   EGAL: "=",
-  DIFFERENT: "≠",
-  AU_PLUS: "≤",
-  AU_MOINS: "≥",
+  DIFFERENT: "!=",
+  AU_PLUS: "<=",
+  AU_MOINS: ">=",
   MOINS_DE: "<",
   PLUS_DE: ">",
   PARMI: "parmi",
@@ -242,7 +280,11 @@ export const OPERATEURS = Object.values(OPERATEUR);
  * d'un sujet nommé « si ». C'est la seule subtilité de la grammaire, et elle
  * tient dans cet ordre.
  */
-export const MOTS = ["sauf si", "parce que", "statut", "si", "et", "ou", "non", "alors", "sinon"];
+export const MOTS = [
+  "sauf si", "parce que", "statut", "fichier", "note", "le",
+  "si", "et", "ou", "non", "alors", "sinon",
+  ...Object.values(PROVENANCE)
+];
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const jeton = (type, contenu) => ({ type, texte: contenu });
@@ -300,11 +342,11 @@ function jetonsDeValeur(valeur, unite = "") {
 /**
  * Une donnée et ce qu'elle vaut : la ligne de tête d'un bloc.
  *
- * `Sujet = valeur`, et la portée derrière l'arobase quand ce n'est pas
- * l'ouvrage entier. Rien d'autre : la règle, la preuve et le statut sont des
- * lignes indentées dessous, parce que ce sont des objets différents.
+ * `Sujet = valeur`, et rien d'autre. La provenance, la preuve et le statut sont
+ * des lignes indentées dessous, parce que ce sont des objets différents. La
+ * portée n'y est plus : c'est le dossier qui la porte.
  */
-export function ligneDAffirmation({ sujet = "", valeur = "", unite = "", zones = [] } = {}) {
+export function ligneDAffirmation({ sujet = "", valeur = "", unite = "" } = {}) {
   const jetons = [jeton(JETON.SUJET, texte(sujet))];
 
   const dit = texte(valeur);
@@ -313,28 +355,33 @@ export function ligneDAffirmation({ sujet = "", valeur = "", unite = "", zones =
     jetons.push(...jetonsDeValeur(dit, unite));
   }
 
-  // La portée fait partie de l'identité : le degré du bâtiment A ne dit rien de
-  // celui du bâtiment B, et les confondre ferait périmer l'un par l'autre.
-  const portees = (Array.isArray(zones) ? zones : [zones]).map(texte).filter(Boolean);
-  if (portees.length) {
-    jetons.push(espace("  "), jeton(JETON.PORTEE, `@ ${portees.join(", ")}`));
+  return jetons;
+}
+
+/**
+ * La tête d'une **règle** : la donnée, et ses entrées entre parenthèses.
+ *
+ * ```
+ * Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages)
+ * ```
+ *
+ * La signature ne se stocke pas : les entrées **sont** les sujets des
+ * conditions, et une signature recopiée diverge le jour où quelqu'un ajoute une
+ * condition. Elle se calcule ici, à l'écriture.
+ */
+export function ligneDeDonnee(sujet = "", entrees = []) {
+  const jetons = [jeton(JETON.SUJET, texte(sujet))];
+
+  const noms = [...new Set((Array.isArray(entrees) ? entrees : [entrees]).map(texte).filter(Boolean))];
+  if (noms.length) {
+    jetons.push(espace(), jeton(JETON.ENTREES, `(${noms.join(", ")})`));
   }
 
   return jetons;
 }
 
 /**
- * Le nom d'une donnée, seul : la ligne de tête d'une **règle**.
- *
- * Un référentiel ne dit pas ce que vaut la donnée dans un projet, il dit
- * comment elle se détermine. La tête d'un bloc de règle n'a donc pas de `=`.
- */
-export function ligneDeDonnee(sujet = "") {
-  return [jeton(JETON.SUJET, texte(sujet))];
-}
-
-/**
- * Une condition : `si Sujet ≤ 28 m`, `et Sujet = "collective"`.
+ * Une condition : `si Sujet <= 28 m`, `et Voie-engins parmi "a" ou "b"`.
  *
  * @param {string} mot `si`, `et`, `ou`, `non`, `sauf si`
  * @param {object} condition `{sujet, operateur, valeur, unite, logique}`
@@ -361,9 +408,7 @@ export function ligneDeCondition(mot, condition = {}, profondeur = 1) {
   // Une liste se sépare d'un « ou » : c'est ce que « parmi » veut dire, et le
   // lecteur ne doit pas avoir à le deviner d'une virgule.
   valeurs.map(texte).filter(Boolean).forEach((valeur, rang) => {
-    if (rang > 0) {
-      jetons.push(espace(), jeton(JETON.MOT_CONDITION, "ou"), espace());
-    }
+    if (rang > 0) jetons.push(espace(), jeton(JETON.MOT_CONDITION, "ou"), espace());
     // Un oui/non n'est pas un texte : il ne prend pas de guillemets.
     jetons.push(...(condition.logique === true
       ? [jeton(JETON.VALEUR, valeur)]
@@ -384,11 +429,11 @@ export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1)
 }
 
 /**
- * `← texte arrêté du 31 janvier 1986 modifié, article 6`
+ * `texte: arrêté du 31 janvier 1986 modifié, article 6`
  *
- * Le type derrière la flèche **est** l'origine de la valeur : rien à déclarer
- * en plus. Un type qu'on n'écrit pas n'est pas une provenance vide, c'est une
- * absence de provenance, et l'absence ne dessine pas de ligne creuse.
+ * Le mot-clé **est** le type, et le type **est** l'origine de la valeur : une
+ * ligne qui dit `règle:` est déduite, `document:` est lue, `calcul:` est
+ * calculée. Rien à déclarer en plus, et une flèche de moins à taper.
  */
 export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, profondeur = 1) {
   const dit = texte(quoi);
@@ -396,70 +441,93 @@ export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, p
 
   return [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
-    jeton(JETON.DEPUIS, "←"),
-    espace(),
-    jeton(JETON.PROVENANCE, texte(type) || PROVENANCE.TEXTE),
+    jeton(JETON.PROVENANCE, `${texte(type) || PROVENANCE.TEXTE}:`),
     espace(),
     jeton(JETON.SOURCE, dit)
   ];
 }
 
 /**
- * `parce que "…"` — la preuve, sous la provenance qu'elle appuie.
+ * `parce que: "…"` — la preuve, sous la provenance qu'elle appuie.
  *
- * Elle est indentée d'un cran de plus que la flèche : une preuve appartient à
- * une provenance, et le jour où une règle en portera plusieurs, on saura
- * laquelle appuie laquelle sans rien changer à la grammaire.
+ * Elle est indentée d'un cran de plus : une preuve appartient à une provenance,
+ * et le jour où une règle en portera plusieurs, on saura laquelle appuie
+ * laquelle sans rien changer à la grammaire.
  */
 export function ligneDePreuve(citation = "", profondeur = 2) {
-  const dit = texte(citation).replace(/^[«"']\s*/, "").replace(/\s*[»"']$/, "");
+  const dit = texte(citation).replace(/^[«"\u0027]\s*/, "").replace(/\s*[»"\u0027]$/, "");
   if (!dit) return null;
 
   return [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
-    jeton(JETON.MOT_RAISON, "parce que"),
+    jeton(JETON.MOT_RAISON, "parce que:"),
     espace(),
     jeton(JETON.RAISON, `"${dit}"`)
   ];
 }
 
-/** `statut retenu` — l'état du raisonnement dans ce projet. */
+/** `statut: retenu` — l'état du raisonnement dans ce projet. */
 export function ligneDeStatut(statut = "", profondeur = 1) {
   const dit = texte(statut);
   if (!dit) return null;
 
   return [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
-    jeton(JETON.MOT_STATUT, "statut"),
+    jeton(JETON.MOT_STATUT, "statut:"),
     espace(),
     jeton(JETON.STATUT, dit)
   ];
 }
 
+/**
+ * `le: 12 mars 2026` — quand un constat a été fait.
+ *
+ * Propre aux constats, et indispensable à eux : un constat sans date ne vaut
+ * rien. « L'escalier n'était pas encloisonné » — quand ? avant ou après la
+ * reprise ? Une observation qu'on ne peut pas situer dans le temps ne se
+ * conteste ni ne se lève.
+ */
+export function ligneDeDate(quand = "", profondeur = 1) {
+  const dit = texte(quand);
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_DATE, "le:"),
+    espace(),
+    jeton(JETON.DATE, dit)
+  ];
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
- * Les blocs
+ * Les blocs : une forme par nature
+ *
+ * Un constat ne se présente pas comme une règle, et une règle pas comme une
+ * contrainte. Chaque nature a sa forme, et son extension de fichier l'annonce —
+ * `.ref`, `.ctr`, `.ddb`, `.hyp`, `.cst`. On sait ce qu'on lit avant d'avoir lu.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * Une règle, telle qu'un référentiel la porte.
+ * Une règle, telle qu'un référentiel la porte. Fichier `.ref`.
  *
  * ```
- * Classement du bâtiment
+ * Classement du bâtiment (Logements superposés, Hauteur du plancher bas)
  *    si Logements superposés = oui
- *    et Hauteur du plancher bas du logement le plus haut ≤ 28 m
+ *    et Hauteur du plancher bas <= 28 m
  *    alors "3e famille B"
- *    ← texte arrêté du 31 janvier 1986 modifié, article 3, 3°)
- *       parce que "Troisième famille B : …"
+ *    texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)
+ *       parce que: "Troisième famille B : …"
  * ```
  *
  * Aucune valeur de projet n'y figure, et c'est tout l'intérêt : ce bloc vaut
- * pour mille bâtiments. Les dépendances ne s'écrivent pas — elles **sont** les
- * sujets des conditions.
+ * pour mille bâtiments. Aucun statut non plus — un référentiel n'a pas d'état
+ * dans un projet.
  */
 export function blocDeRegle({
   sujet = "", conditions = [], alors = "", sinon = "", sauf = [], provenance = null, preuve = ""
 } = {}) {
-  const lignes = [ligneDeDonnee(sujet)];
+  const toutes = [...(Array.isArray(conditions) ? conditions : []), ...(Array.isArray(sauf) ? sauf : [])];
+  const lignes = [ligneDeDonnee(sujet, toutes.map((condition) => condition?.sujet))];
 
   (Array.isArray(conditions) ? conditions : []).forEach((condition, rang) => {
     lignes.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition));
@@ -482,21 +550,25 @@ export function blocDeRegle({
 }
 
 /**
- * Une affirmation de projet : ce que le projet retient, et d'où cela vient.
+ * Une affirmation de projet. Fichiers `.ctr`, `.ddb`, `.hyp`.
  *
  * ```
- * Classement du bâtiment = "3e famille B"
- *    ← règle Classement du bâtiment, arrêté du 31 janvier 1986, article 3, 3°)
- *    statut retenu
+ * Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier"
+ *    règle: Colonne sèche — arrêté du 31 janvier 1986, article 98
+ *    statut: retenu
  * ```
  *
- * La règle n'est pas recopiée ici. On sait où elle est, on peut l'ouvrir, et
- * elle ne se réécrit pas à chaque projet.
+ * La règle n'est pas recopiée ici : elle a son fichier, à côté.
  */
 export function blocDAffirmation({
-  sujet = "", valeur = "", unite = "", zones = [], provenance = null, preuve = "", statut = ""
+  sujet = "", valeur = "", unite = "", provenance = null, preuve = "", statut = "", le = ""
 } = {}) {
-  const lignes = [ligneDAffirmation({ sujet, valeur, unite, zones })];
+  const lignes = [ligneDAffirmation({ sujet, valeur, unite })];
+
+  // La date passe avant la provenance : un constat se situe d'abord dans le
+  // temps, et c'est la première question qu'on lui pose.
+  const quand = ligneDeDate(le);
+  if (quand) lignes.push(quand);
 
   const depuis = provenance ? ligneDeProvenance(provenance) : null;
   if (depuis) lignes.push(depuis);
@@ -514,18 +586,40 @@ export function blocDAffirmation({
  * L'en-tête d'un fichier
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** « incendie.mdall » — le nom d'un fichier, depuis son chemin. */
-export function nomDeFichier(chemin = []) {
+/**
+ * Le nom d'un fichier : son sujet, et l'extension qui dit ce qu'il contient.
+ *
+ * ## Pourquoi une extension par nature
+ *
+ * Deux `incendie.mdall` à deux endroits de l'arborescence n'ont pas de sens, et
+ * c'est dangereux : on ouvre l'un en croyant l'autre. L'extension dit ce qu'on
+ * lit avant de l'avoir lu, comme `.html`, `.css` et `.js` disent trois choses
+ * différentes du même `app`.
+ *
+ * ```
+ * escalier-b/incendie.ref    les règles appliquées
+ * escalier-b/incendie.ctr    ce qui s'impose
+ * escalier-b/incendie.ddb    ce qui a été relevé
+ * escalier-b/incendie.hyp    ce qu'on suppose
+ * escalier-b/incendie.cst    ce qui a été constaté, à une date
+ * escalier-b/incendie.crp    ce qui est entré au dossier
+ * ```
+ *
+ * Même nom de base, extensions différentes : c'est le même sujet, vu sous cinq
+ * angles. Et chaque extension annonce une **forme** — une règle ne se présente
+ * pas comme un constat.
+ */
+export function nomDeFichier(chemin = [], extension = "mdall") {
   const morceaux = (Array.isArray(chemin) ? chemin : [chemin]).map(texte).filter(Boolean);
   const dernier = morceaux[morceaux.length - 1] ?? "memoire";
-  return `${normaliser(dernier)}.mdall`;
+  return `${normaliser(dernier)}.${texte(extension) || "mdall"}`;
 }
 
-/** « contraintes/incendie.mdall » — le chemin entier. */
-export function cheminDeFichier(chemin = []) {
+/** « escalier-b/incendie.ctr » — le chemin entier. */
+export function cheminDeFichier(chemin = [], extension = "mdall") {
   const morceaux = (Array.isArray(chemin) ? chemin : [chemin]).map(texte).filter(Boolean);
-  if (morceaux.length < 2) return nomDeFichier(morceaux);
-  return `${morceaux.slice(0, -1).map(normaliser).join("/")}/${nomDeFichier(morceaux)}`;
+  if (morceaux.length < 2) return nomDeFichier(morceaux, extension);
+  return `${morceaux.slice(0, -1).map(normaliser).join("/")}/${nomDeFichier(morceaux, extension)}`;
 }
 
 function normaliser(morceau) {
@@ -536,14 +630,18 @@ function normaliser(morceau) {
     .replace(/^-+|-+$/g, "") || "memoire";
 }
 
-/** `§ contraintes/incendie.mdall` */
-export function ligneDeSection(chemin = []) {
-  return [jeton(JETON.SECTION, "§"), espace(), jeton(JETON.SECTION, cheminDeFichier(chemin))];
+/** `fichier: escalier-b/incendie.ctr` */
+export function ligneDeSection(chemin = [], extension = "mdall") {
+  return [
+    jeton(JETON.MOT_FICHIER, "fichier:"),
+    espace(),
+    jeton(JETON.SECTION, cheminDeFichier(chemin, extension))
+  ];
 }
 
-/** `¶ une note` */
+/** `note: une remarque` */
 export function ligneDeNote(phrase = "") {
-  return [jeton(JETON.NOTE, "¶"), espace(), jeton(JETON.NOTE, texte(phrase))];
+  return [jeton(JETON.NOTE, "note:"), espace(), jeton(JETON.NOTE, texte(phrase))];
 }
 
 /**
@@ -553,8 +651,8 @@ export function ligneDeNote(phrase = "") {
  * lit une transcription et non un programme ; la seconde permet de distinguer,
  * six mois plus tard, un changement de valeur d'un changement de façon d'écrire.
  */
-export function enTeteDeFichier({ chemin = [], produitPar = "", le = "" } = {}) {
-  const lignes = [ligneDeSection(chemin)];
+export function enTeteDeFichier({ chemin = [], extension = "mdall", produitPar = "", le = "" } = {}) {
+  const lignes = [ligneDeSection(chemin, extension)];
 
   if (texte(produitPar)) {
     lignes.push(ligneDeNote(`établi par ${texte(produitPar)}${texte(le) ? `, le ${texte(le)}` : ""}`));
@@ -590,11 +688,12 @@ export function natureDeLaLigne(ligne = "") {
   // Les colonnes de numéros passent avant la marque : un extrait cité les
   // porte, et lire le tout premier caractère y trouvait un espace. La marque
   // est le premier caractère qui ne soit ni un blanc ni un chiffre.
-  const marque = String(ligne ?? "").replace(/^[\s\d]+/, "")[0] ?? "";
+  const nu = String(ligne ?? "").replace(/^[\s\d]+/, "");
+  const marque = nu[0] ?? "";
 
-  if (marque === "§") return "section";
-  if (marque === "¶") return "note";
   if (marque === "-") return "retire";
   if (marque === "+") return "ajoute";
+  if (/^fichier:/i.test(nu)) return "section";
+  if (/^note:/i.test(nu)) return "note";
   return "contexte";
 }

@@ -43,27 +43,31 @@
  * ferait entrer en mémoire un fichier amputé sans que personne ne le sache.
  */
 
-import { OPERATEUR, PROVENANCES, STATUTS, RETRAIT } from "./memoire-en-texte.js";
+import {
+  OPERATEUR, PROVENANCES, STATUTS, RETRAIT, JETON,
+  ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
+  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote
+} from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
 /**
  * Les comparateurs, écrits comme on veut.
  *
- * Un architecte tapera `<=` parce que c'est sur son clavier ; l'écriture rend
- * `≤` parce que c'est ce qu'on lit dans un CCTP. Les deux mènent au même
- * endroit.
+ * L'écriture rend `<=`, parce que c'est ce qu'un architecte peut taper. La
+ * lecture accepte aussi `≤`, parce qu'un fichier plus ancien en porte, et
+ * qu'une mémoire ne refuse pas ce qu'elle a elle-même écrit.
  */
 const COMPARATEURS = new Map([
   ["=", OPERATEUR.EGAL],
   ["==", OPERATEUR.EGAL],
-  ["≠", OPERATEUR.DIFFERENT],
   ["!=", OPERATEUR.DIFFERENT],
   ["<>", OPERATEUR.DIFFERENT],
-  ["≤", OPERATEUR.AU_PLUS],
+  ["≠", OPERATEUR.DIFFERENT],
   ["<=", OPERATEUR.AU_PLUS],
-  ["≥", OPERATEUR.AU_MOINS],
+  ["≤", OPERATEUR.AU_PLUS],
   [">=", OPERATEUR.AU_MOINS],
+  ["≥", OPERATEUR.AU_MOINS],
   ["<", OPERATEUR.MOINS_DE],
   [">", OPERATEUR.PLUS_DE],
   ["parmi", OPERATEUR.PARMI]
@@ -77,8 +81,18 @@ const CONSTATS = new Map([
   ["non renseigne", OPERATEUR.NON_RENSEIGNE]
 ]);
 
-/** Les mots de tête, du plus long au plus court : « sauf si » avant « si ». */
-const TETES = ["sauf si", "parce que", "statut", "alors", "sinon", "si", "et", "ou", "non"];
+/**
+ * Les mots de tête, du plus long au plus court : « sauf si » avant « si ».
+ *
+ * Les mots suivis de deux points se cherchent avec leur deux-points : `statut:`
+ * et non `statut`. Sans cela, une donnée nommée « Statut de la façade » se
+ * lirait comme un statut.
+ */
+const TETES = [
+  "sauf si", "parce que:", "statut:", "fichier:", "note:", "le:",
+  "alors", "sinon", "si", "et", "ou", "non",
+  ...PROVENANCES.map((type) => `${type}:`)
+];
 
 /** La profondeur d'indentation d'une ligne, en pas. */
 function retraitDe(ligne) {
@@ -94,6 +108,24 @@ export function teteDe(ligne = "") {
     if (nu.toLowerCase().startsWith(`${mot} `)) return { mot, reste: texte(nu.slice(mot.length)) };
   }
   return { mot: "", reste: nu };
+}
+
+/**
+ * La signature d'une règle : le sujet, et ses entrées entre parenthèses.
+ *
+ * Les entrées ne se conservent pas — ce sont les sujets des conditions, et une
+ * signature recopiée diverge. On les lit pour les jeter : ce qui compte, c'est
+ * que la parenthèse ne soit pas prise pour une partie du sujet.
+ */
+export function lireUneSignature(ligne = "") {
+  const dit = texte(ligne);
+  const signature = dit.match(/^(.*?)\s*\(([^()]*)\)$/);
+  if (!signature) return { sujet: dit, entrees: [] };
+
+  return {
+    sujet: texte(signature[1]),
+    entrees: signature[2].split(",").map(texte).filter(Boolean)
+  };
 }
 
 /**
@@ -163,19 +195,15 @@ export function lireUneTete(ligne = "") {
   const dit = texte(ligne);
   if (!dit) return null;
 
-  let corps = dit;
-  let zones = [];
-  const portee = corps.match(/^(.*?)\s+@\s*(.+)$/);
-  if (portee) {
-    corps = texte(portee[1]);
-    zones = portee[2].split(",").map(texte).filter(Boolean);
+  const egal = dit.match(/^(.*?)\s*=\s*(.*)$/);
+  // Pas de `=` : c'est la tête d'une règle, avec sa signature éventuelle.
+  if (!egal) {
+    const { sujet, entrees } = lireUneSignature(dit);
+    return { sujet, valeur: "", unite: "", entrees };
   }
 
-  const egal = corps.match(/^(.*?)\s*=\s*(.*)$/);
-  if (!egal) return { sujet: corps, valeur: "", unite: "", zones };
-
   const lue = lireUneValeur(egal[2]);
-  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, zones };
+  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [] };
 }
 
 /**
@@ -201,9 +229,11 @@ export function lireUnFichier(contenu = "") {
     const nu = texte(brute);
     if (!nu) return;
 
-    if (nu.startsWith("§")) { fermer(); chemin = texte(nu.slice(1)); return; }
+    const { mot, reste } = teteDe(nu);
+
+    if (mot === "fichier:") { fermer(); chemin = reste; return; }
     // Une note ne porte jamais de sens : elle ne rouvre ni ne ferme rien.
-    if (nu.startsWith("¶")) return;
+    if (mot === "note:") return;
 
     if (retraitDe(brute) === 0) {
       fermer();
@@ -213,8 +243,9 @@ export function lireUnFichier(contenu = "") {
         return;
       }
       courant = {
-        ...tete, conditions: [], alors: "", sinon: "", sauf: [],
-        provenance: null, preuve: "", statut: ""
+        sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite,
+        conditions: [], alors: "", sinon: "", sauf: [],
+        provenance: null, preuve: "", statut: "", le: ""
       };
       return;
     }
@@ -224,24 +255,19 @@ export function lireUnFichier(contenu = "") {
       return;
     }
 
-    if (nu.startsWith("←")) {
-      const suite = texte(nu.slice(1));
-      const coupe = suite.indexOf(" ");
-      const type = coupe === -1 ? suite : suite.slice(0, coupe);
-      if (!PROVENANCES.includes(type)) {
-        refus.push({ ligne: numero, texte: nu, raison: `« ${type} » n'est pas une provenance connue.` });
-        return;
-      }
-      courant.provenance = { type, quoi: coupe === -1 ? "" : texte(suite.slice(coupe)) };
+    // Le mot-clé de provenance **est** son type : `texte:`, `document:`, `calcul:`…
+    const type = mot.endsWith(":") ? mot.slice(0, -1) : "";
+    if (PROVENANCES.includes(type)) {
+      courant.provenance = { type, quoi: reste };
       return;
     }
 
-    const { mot, reste } = teteDe(nu);
+    if (mot === "parce que:") { courant.preuve = lireUneValeur(reste).valeur; return; }
 
-    if (mot === "parce que") { courant.preuve = lireUneValeur(reste).valeur; return; }
+    if (mot === "le:") { courant.le = reste; return; }
 
-    if (mot === "statut") {
-      const etat = texte(reste).toLowerCase();
+    if (mot === "statut:") {
+      const etat = reste.toLowerCase();
       if (!STATUTS.includes(etat)) {
         refus.push({ ligne: numero, texte: nu, raison: `« ${etat} » n'est pas un statut connu.` });
         return;
@@ -265,6 +291,14 @@ export function lireUnFichier(contenu = "") {
       if (mot === "sauf si") courant.sauf.push(condition);
       else if (mot === "si") courant.conditions.push(condition);
       else courant.conditions.push({ ...condition, joint: mot });
+      return;
+    }
+
+    // Un mot-clé en deux points qu'on ne connaît pas est presque toujours une
+    // provenance mal orthographiée : le dire aide plus que « mot inconnu ».
+    if (mot.endsWith(":") || /^[^\s:]+:\s/.test(nu)) {
+      const propose = mot.endsWith(":") ? mot.slice(0, -1) : nu.split(":")[0];
+      refus.push({ ligne: numero, texte: nu, raison: `« ${propose} » n'est pas une provenance connue.` });
       return;
     }
 
@@ -348,4 +382,71 @@ export function aRevoirSi(sujet = "", blocs = []) {
   }
 
   return touches;
+}
+
+/**
+ * Une ligne de texte, recolorée.
+ *
+ * ## Pourquoi elle passe par la lecture
+ *
+ * Le diff garde ses lignes en texte, parce que c'est ainsi qu'il les compare :
+ * deux chaînes égales sont deux lignes inchangées, et rien de plus subtil n'est
+ * nécessaire. Mais l'écran doit les **colorer**, et pour colorer il faut savoir
+ * de quelle espèce est chaque morceau.
+ *
+ * On relit donc la ligne, et on la réécrit. `lire(écrire(G)) = G` garantit que
+ * rien ne se perd au passage — c'est exactement à cela que sert cette loi. La
+ * seule autre solution serait de transporter les jetons à côté du texte, et
+ * deux représentations de la même ligne finiraient par diverger.
+ *
+ * @returns {{type: string, texte: string}[]}
+ */
+export function jetonsDeLaLigne(ligne = "") {
+  const brute = String(ligne ?? "");
+  const blancs = (brute.match(/^[\t ]*/) ?? [""])[0];
+  const nu = texte(brute);
+  if (!nu) return [];
+
+  const marge = blancs ? [{ type: JETON.NEUTRE, texte: blancs }] : [];
+  const { mot, reste } = teteDe(nu);
+
+  const type = mot.endsWith(":") ? mot.slice(0, -1) : "";
+  if (PROVENANCES.includes(type)) {
+    return [...marge, ...(ligneDeProvenance({ type, quoi: reste }, 0) ?? []).slice(1)];
+  }
+
+  if (mot === "fichier:") return [...marge, ...ligneDeSectionLue(reste)];
+  if (mot === "note:") return [...marge, ...ligneDeNote(reste)];
+  if (mot === "parce que:") return [...marge, ...(ligneDePreuve(lireUneValeur(reste).valeur, 0) ?? []).slice(1)];
+  if (mot === "statut:") return [...marge, ...(ligneDeStatut(reste, 0) ?? []).slice(1)];
+  if (mot === "le:") return [...marge, ...(ligneDeDate(reste, 0) ?? []).slice(1)];
+
+  if (mot === "alors" || mot === "sinon") {
+    const lue = lireUneValeur(reste);
+    return [...marge, ...ligneDeConsequence(mot, lue.valeur, lue.unite, 0).slice(1)];
+  }
+
+  if (mot === "si" || mot === "et" || mot === "ou" || mot === "non" || mot === "sauf si") {
+    const condition = lireUneCondition(reste);
+    if (condition) return [...marge, ...ligneDeCondition(mot, condition, 0).slice(1)];
+  }
+
+  // Une tête de bloc : une affirmation, ou une règle avec sa signature.
+  const tete = lireUneTete(nu);
+  if (tete?.entrees?.length) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees)];
+  if (tete?.valeur) return [...marge, ...ligneDAffirmation({ sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite })];
+  if (tete?.sujet) return [...marge, ...ligneDeDonnee(tete.sujet)];
+
+  // Ce qu'on ne sait pas lire s'affiche tel quel, sans couleur. Le taire serait
+  // pire : la ligne existe, et elle doit rester lisible.
+  return [...marge, { type: JETON.NEUTRE, texte: nu }];
+}
+
+/** `fichier: …` — le chemin se colore comme une section. */
+function ligneDeSectionLue(chemin) {
+  return [
+    { type: JETON.MOT_FICHIER, texte: "fichier:" },
+    { type: JETON.NEUTRE, texte: " " },
+    { type: JETON.SECTION, texte: texte(chemin) }
+  ];
 }

@@ -33,8 +33,11 @@
 
 import { ETAT } from "./depot-reperes.js";
 import { ITEM_TYPE, STATUS_LABELS } from "./proposition-review.js";
-import { cheminDeRangement } from "./memoire-rangement.js";
-import { enClair, ligneDeCondition } from "./memoire-en-texte.js";
+import { cheminDeRangement, extensionDeRangement } from "./memoire-rangement.js";
+import {
+  enClair, ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
+  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate
+} from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const lisible = (valeur) => STATUS_LABELS[texte(valeur)] ?? texte(valeur);
@@ -56,7 +59,7 @@ export function reperesDAvis(items = []) {
     const payload = item.payload ?? {};
     // Un avis est un constat : observé, à une date, par quelqu'un. Il suit la
     // même politique de rangement que le reste.
-    const chemin = cheminDeRangement({ nature: "constat", domain: payload.domain });
+    const chemin = cheminDeRangement({ domain: payload.domain, zones: payload.zones ?? [] });
     const titre = texte(payload.reference)
       ? `Avis ${texte(payload.reference)}${texte(payload.title) ? ` — ${texte(payload.title)}` : ""}`
       : texte(payload.title) || "Avis relevé sur une fiche";
@@ -94,6 +97,25 @@ export function reperesDAvis(items = []) {
 /**
  * Les affirmations que la proposition porte.
  *
+ * ## Un champ est une ligne du fichier, pas une case d'un tableau
+ *
+ * Les champs s'appelaient « Valeur », « Règle », « D'où », « Statut », et le
+ * diff les rendait tous de la même façon : `Sujet · Champ = valeur`. Une règle
+ * s'y lisait donc exactement comme une contrainte, et l'on ne voyait plus
+ * aucune règle.
+ *
+ * Chaque champ **est** maintenant une ligne du fichier, écrite dans la langue :
+ * `si Logements superposés = oui`, `texte: arrêté …`, `statut: retenu`. Le diff
+ * d'un `.ref` ressemble donc à un `.ref`, et celui d'un `.ctr` à un `.ctr` —
+ * ce qui est la moindre des choses, puisque c'est le même fichier.
+ *
+ * ## Le nom d'un champ est son identité, pas son rang
+ *
+ * Une condition se nomme par son **sujet** : `si Hauteur du plancher bas`. Deux
+ * conditions réordonnées ne produisent donc aucun changement, et une condition
+ * ajoutée produit exactement une ligne ajoutée. Numérotées, elles auraient
+ * toutes bougé au premier ajout.
+ *
  * Elles arrivent déjà comparées — le tableau avant / après les a mises face à
  * face, et il connaît le point délicat : sur une proposition fusionnée,
  * « avant » n'est pas l'état d'aujourd'hui mais ce que l'écriture a remplacé.
@@ -105,13 +127,15 @@ export function reperesDAffirmations(tableau = null) {
   const apres = [];
 
   for (const ligne of lignes) {
+    const referentiel = ligne.referentiel === true;
     const commun = {
       id: `affirmation:${texte(ligne.cle)}`,
       famille: "affirmation",
-      // Le rangement suit la **nature**, pas le domaine : les conclusions d'une
-      // étude incendie atterrissaient dans « données de base » alors que ce
-      // sont des contraintes. Voir `memoire-rangement.js`.
-      chemin: cheminDeRangement({ nature: ligne.nature, domain: ligne.domaine, referentiel: ligne.referentiel === true }),
+      // Zone puis domaine, et l'extension dit la nature. Voir
+      // `memoire-rangement.js` : on cherche par le morceau d'ouvrage qu'on a en
+      // tête, pas par la famille de l'information.
+      chemin: cheminDeRangement({ domain: ligne.domaine, zones: ligne.zones ?? [] }),
+      extension: extensionDeRangement({ nature: ligne.nature, referentiel }),
       titre: texte(ligne.sujet) || texte(ligne.cle),
       provenance: {
         source: texte(ligne.source) || null,
@@ -121,28 +145,19 @@ export function reperesDAffirmations(tableau = null) {
       }
     };
 
-    // La provenance et le statut font partie du repère : une valeur qui ne
-    // bouge pas mais dont la source change **est** un changement, et le diff
-    // doit le montrer.
     if (texte(ligne.avant)) {
-      avant.push({
-        ...commun,
-        champs: {
-          "Valeur": texte(ligne.avant),
-          ...champsDeRegle(ligne.regleAvant),
-          ...champsDeProvenance(ligne.provenanceAvant, ligne.statutAvant)
-        }
-      });
+      avant.push({ ...commun, champs: champsDuBloc({
+        sujet: commun.titre, valeur: ligne.avant, referentiel,
+        regle: ligne.regleAvant, provenance: ligne.provenanceAvant,
+        preuve: ligne.preuveAvant, statut: ligne.statutAvant, le: ligne.leAvant
+      }) });
     }
     if (texte(ligne.apres)) {
-      apres.push({
-        ...commun,
-        champs: {
-          "Valeur": texte(ligne.apres),
-          ...champsDeRegle(ligne.regle),
-          ...champsDeProvenance(ligne.provenance, ligne.statut)
-        }
-      });
+      apres.push({ ...commun, champs: champsDuBloc({
+        sujet: commun.titre, valeur: ligne.apres, referentiel,
+        regle: ligne.regle, provenance: ligne.provenance,
+        preuve: ligne.preuve, statut: ligne.statut, le: ligne.le
+      }) });
     }
   }
 
@@ -150,55 +165,44 @@ export function reperesDAffirmations(tableau = null) {
 }
 
 /**
- * Ce qu'une règle appliquée ajoute au repère : ses conditions, telles qu'on les
- * lit.
+ * Un bloc, découpé en lignes nommées — c'est ce que le diff compare.
  *
- * C'est le seul endroit où un changement de l'arrêté deviendra visible. Tant
- * que la règle n'était pas versée, un seuil qui passait de 28 à 30 m ne
- * produisait aucun diff nulle part : personne ne l'aurait vu.
- *
- * Les conditions se rendent dans l'écriture du langage — `si … et …` — parce
- * que c'est ainsi qu'on les relira, et qu'un JSON dans une cellule de diff ne
- * se compare pas à l'œil.
+ * La valeur d'un champ est la **ligne mdall entière**, sans son indentation :
+ * l'écran n'a plus qu'à la colorer, et il colore exactement ce que le fichier
+ * montre. Une ligne vide ne s'écrit pas : elle apparaîtrait comme un retrait le
+ * jour où une affirmation se met à porter sa source.
  */
-export function champsDeRegle(regle) {
-  if (!regle || typeof regle !== "object") return {};
-
+export function champsDuBloc({
+  sujet = "", valeur = "", referentiel = false,
+  regle = null, provenance = null, preuve = "", statut = "", le = ""
+} = {}) {
   const champs = {};
-  const conditions = (Array.isArray(regle.conditions) ? regle.conditions : [])
-    .map((condition, rang) => enClair(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition)).trim())
-    .filter(Boolean);
-  if (conditions.length) champs["Règle"] = conditions.join(" ");
+  // L'indentation reste : c'est elle qui dit à quelle ligne une ligne se
+  // rapporte, et le diff doit ressembler au fichier.
+  const poser = (nom, jetons) => { if (jetons) champs[nom] = enClair(jetons); };
 
-  if (texte(regle.sinon)) champs["Sinon"] = texte(regle.sinon);
+  const conditions = Array.isArray(regle?.conditions) ? regle.conditions : [];
+  const exceptions = Array.isArray(regle?.sauf) ? regle.sauf : [];
 
-  const exceptions = (Array.isArray(regle.sauf) ? regle.sauf : [])
-    .map((condition) => enClair(ligneDeCondition("sauf si", condition)).trim())
-    .filter(Boolean);
-  if (exceptions.length) champs["Exceptions"] = exceptions.join(" · ");
-
-  return champs;
-}
-
-/**
- * Ce que la provenance et le statut ajoutent au repère.
- *
- * Un champ vide ne s'écrit pas : il apparaîtrait comme un retrait le jour où
- * une ligne se met à porter sa source, alors qu'il ne s'est rien retiré.
- *
- * « D'où » porte le **type** de la provenance, et pas seulement ce qu'elle
- * désigne : passer d'une hypothèse à un document est le changement le plus
- * important qu'une ligne puisse connaître, et il serait invisible si le diff ne
- * comparait que le libellé.
- */
-export function champsDeProvenance(provenance, statut = "") {
-  const champs = {};
-
-  if (provenance && typeof provenance === "object" && texte(provenance.quoi)) {
-    champs["D'où"] = texte(provenance.type);
-    champs["Provenance"] = texte(provenance.quoi);
+  if (referentiel) {
+    // La tête d'une règle : la donnée et ses entrées, sans valeur de projet.
+    poser("", ligneDeDonnee(sujet, [...conditions, ...exceptions].map((c) => c?.sujet)));
+    conditions.forEach((condition, rang) => {
+      poser(`si ${texte(condition?.sujet)}`, ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition));
+    });
+    if (texte(valeur)) poser("alors", ligneDeConsequence("alors", texte(valeur)));
+    if (texte(regle?.sinon)) poser("sinon", ligneDeConsequence("sinon", texte(regle.sinon)));
+    for (const exception of exceptions) {
+      poser(`sauf si ${texte(exception?.sujet)}`, ligneDeCondition("sauf si", exception));
+    }
+  } else {
+    poser("", ligneDAffirmation({ sujet, valeur: texte(valeur) }));
+    if (texte(le)) poser("le", ligneDeDate(texte(le)));
   }
-  if (texte(statut)) champs["Statut"] = texte(statut);
+
+  if (provenance && texte(provenance.quoi)) poser("provenance", ligneDeProvenance(provenance));
+  if (texte(preuve)) poser("parce que", ligneDePreuve(texte(preuve)));
+  if (texte(statut)) poser("statut", ligneDeStatut(texte(statut)));
 
   return champs;
 }
@@ -221,7 +225,7 @@ export function reperesDeDocuments(items = []) {
     const repere = {
       id: `document:${texte(item.itemKey)}`,
       famille: "document",
-      chemin: cheminDeRangement({ nature: "intendance", domain: "" }),
+      chemin: cheminDeRangement({ domain: "" }),
       titre: texte(payload.name) || texte(item.itemKey) || "Document",
       champs: {
         "Nature": texte(payload.kindLabel) || "non reconnue",
@@ -254,7 +258,7 @@ export function reperesDeRattachements(items = []) {
       return {
         id: `rattachement:${texte(item.itemKey)}`,
         famille: "rattachement",
-        chemin: cheminDeRangement({ nature: "intendance", domain: "" }),
+        chemin: cheminDeRangement({ domain: "" }),
         titre: texte(payload.label) || texte(item.itemKey) || "Affaire",
         champs: { "Verdict": texte(payload.verdict), "Raison": texte(payload.reason) },
         provenance: null

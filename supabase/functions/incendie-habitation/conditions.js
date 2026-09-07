@@ -31,13 +31,19 @@
  * que le navigateur n'ait déjà.
  */
 
-/** Ce qu'un opérateur du moteur dit, dans les signes qu'on lit. */
+/**
+ * Ce qu'un opérateur du moteur dit, dans les signes qu'on tape.
+ *
+ * `<=` plutôt que `≤` : le second est plus joli et ne se tape pas. Le langage
+ * doit pouvoir s'écrire à la main, et une table de caractères n'est pas un
+ * clavier.
+ */
 const SIGNES = {
-  auPlus: "≤",
-  auMoins: "≥",
+  auPlus: "<=",
+  auMoins: ">=",
   plusDe: ">",
   moinsDe: "<",
-  differentDe: "≠",
+  differentDe: "!=",
   parmi: "parmi"
 };
 
