@@ -130,3 +130,58 @@ test("une date se lit en durée, pas en calendrier", () => {
   assert.equal(ilYA(jours(150)), "il y a 5 mois");
   assert.equal(ilYA("n'importe quoi"), "date inconnue");
 });
+
+test("une règle appliquée s'écrit comme une règle, pas comme un fait du projet", () => {
+  const texte = enTexte({
+    domain: "incendie",
+    payload: {
+      subject: "Classement du bâtiment", value: "3e famille B", referentiel: true,
+      regle: {
+        conditions: [
+          { sujet: "Logements superposés", operateur: "=", valeur: ["oui"], unite: "", logique: true },
+          { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: ["28"], unite: "m", joint: "et" }
+        ],
+        sinon: "3e famille A",
+        sauf: []
+      },
+      provenance: { type: PROVENANCE.TEXTE, quoi: "arrêté du 31 janvier 1986 modifié, article 3, 3°)" },
+      citation: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."
+    }
+  });
+
+  assert.equal(texte, [
+    "Classement du bâtiment",
+    "   si Logements superposés = oui",
+    "   et Hauteur du plancher bas du logement le plus haut ≤ 28 m",
+    '   alors "3e famille B"',
+    '   sinon "3e famille A"',
+    "   ← texte arrêté du 31 janvier 1986 modifié, article 3, 3°)",
+    '      parce que "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."'
+  ].join("\n"));
+
+  // Pas de `=` sur la tête : la règle ne dit pas ce que vaut la donnée ici.
+  assert.equal(texte.split("\n")[0].includes("="), false);
+  // Et pas de statut : un référentiel n'a pas d'état dans un projet.
+  assert.equal(texte.includes("statut"), false);
+});
+
+test("ce que la mémoire écrit d'une règle se relit sans perte", () => {
+  const assertion = {
+    domain: "incendie",
+    payload: {
+      subject: "Colonne sèche", value: "exigée", referentiel: true,
+      regle: {
+        conditions: [{ sujet: "Classement du bâtiment", operateur: "parmi", valeur: ["3e famille B", "4e famille"], unite: "", logique: false }],
+        sinon: "", sauf: []
+      },
+      provenance: { type: PROVENANCE.TEXTE, quoi: "arrêté du 31 janvier 1986 modifié, article 98" }
+    }
+  };
+
+  const { blocs, refus } = lireUnFichier(enTexte(assertion));
+  assert.deepEqual(refus, []);
+  assert.equal(blocs[0].sujet, "Colonne sèche");
+  assert.equal(blocs[0].valeur, "");
+  assert.equal(blocs[0].alors, "exigée");
+  assert.deepEqual(blocs[0].conditions[0].valeur, ["3e famille B", "4e famille"]);
+});

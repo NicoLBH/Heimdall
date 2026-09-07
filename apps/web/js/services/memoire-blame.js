@@ -53,7 +53,12 @@ export function fichiersDeLaMemoire(assertions = []) {
     // ligne, qui est l'endroit où on le cherche.
     if (texte(assertion?.superseded_by)) continue;
 
-    const chemin = cheminDeRangement({ nature: assertion?.nature, domain: assertion?.domain });
+    const chemin = cheminDeRangement({
+      nature: assertion?.nature,
+      domain: assertion?.domain,
+      // Une règle appliquée n'est pas un fait du projet : elle a son dossier.
+      referentiel: assertion?.payload?.referentiel === true
+    });
     const cle = chemin.join(" / ");
     if (!parFichier.has(cle)) {
       parFichier.set(cle, { chemin, fichier: cheminDeFichier(chemin), lignes: [], ecartees: [] });

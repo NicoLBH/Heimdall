@@ -56,7 +56,7 @@ import {
   REMISE_INCENDIE_ANNONCEE, planDeLaRemiseIncendie, etudeCompletee, nomDeLEtudeVenueDuCopilote
 } from "../../../services/incendie-remise.js";
 import {
-  conclusionsVersables, etatDuVersement, retenuesParDefaut, phraseDuVersement
+  conclusionsVersables, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables
 } from "../../../services/incendie-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
@@ -777,7 +777,9 @@ function affirmationsRetenues() {
   const retenues = retenuesCourantes(lignes);
   const portee = etat.zoneDuVersement ? [etat.zoneDuVersement] : [];
 
-  return lignes.filter((ligne) => retenues.has(ligne.id)).map((ligne) => ({
+  const prises = lignes.filter((ligne) => retenues.has(ligne.id));
+
+  const contraintes = prises.map((ligne) => ({
     sujet: ligne.sujet,
     valeur: ligne.valeur,
     nature: NATURE.CONTRAINTE,
@@ -791,6 +793,12 @@ function affirmationsRetenues() {
     zones: portee,
     atelier: "Incendie — Habitation"
   }));
+
+  // Les règles partent **avec** les valeurs qu'elles produisent. Sans elles,
+  // « ← règle Classement du bâtiment » pointerait vers rien, le graphe ne se
+  // reconstruirait pas, et un arrêté modifié plus tard réécrirait l'histoire
+  // sans que rien ne le signale. Voir `reglesVersables`.
+  return [...reglesVersables(prises, etat.zoneDuVersement), ...contraintes];
 }
 
 /** De quoi nommer ce qui sort de cette étude. */

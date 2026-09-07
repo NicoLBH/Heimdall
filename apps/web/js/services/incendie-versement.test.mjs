@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  conclusionsVersables, cleDuVersement, etatDuVersement, retenuesParDefaut, phraseDuVersement
-} from "./incendie-versement.js";
+  conclusionsVersables, cleDuVersement, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables } from "./incendie-versement.js";
 
 const VUE = {
   modules: [
@@ -104,4 +103,66 @@ test("la phrase dit ce qui partira", () => {
   assert.equal(phraseDuVersement(lignes, retenuesParDefaut(lignes)),
     "2 contraintes partiront — 1 nouvelle, 1 qui corrige la mémoire.");
   assert.equal(phraseDuVersement(lignes, new Set()), "Rien à proposer : aucune conclusion retenue.");
+});
+
+test("les règles appliquées partent avec les valeurs qu'elles produisent", () => {
+  const vue = {
+    texteDeReference: { source: "arrêté du 31 janvier 1986 modifié" },
+    modules: [{
+      id: "classement", titre: "Classement du bâtiment", statut: "conclu",
+      valeur: "3e famille B", exigence: true,
+      conditions: [
+        { sujet: "Logements superposés", operateur: "=", valeur: "oui", unite: null, logique: true },
+        { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: 28, unite: "m", logique: false }
+      ],
+      pourquoi: { article: "3", paragraphe: "3°)", citation: "Troisième famille B : …" }
+    }]
+  };
+
+  const conclusions = conclusionsVersables(vue);
+  const regles = reglesVersables(conclusions, "");
+
+  assert.equal(regles.length, 1);
+  const [regle] = regles;
+  assert.equal(regle.referentiel, true);
+  assert.equal(regle.sujet, "Classement du bâtiment");
+  // Ce que la règle conclut. `alors` n'est pas stocké deux fois : l'écriture le
+  // remet depuis la valeur.
+  assert.equal(regle.valeur, "3e famille B");
+  assert.deepEqual(regle.regle.conditions.map((c) => [c.sujet, c.operateur]), [
+    ["Logements superposés", "="],
+    ["Hauteur du plancher bas du logement le plus haut", "≤"]
+  ]);
+  // Le seuil du texte, jamais la cote du projet.
+  assert.deepEqual(regle.regle.conditions[1].valeur, ["28"]);
+  assert.equal(regle.regle.conditions[1].unite, "m");
+  assert.equal(regle.provenance.type, "texte");
+});
+
+test("une règle ne porte pas de portée : elle ne dépend d'aucun bâtiment", () => {
+  const vue = {
+    modules: [{
+      id: "m", titre: "Colonne sèche", statut: "conclu", valeur: "exigée", exigence: true,
+      conditions: [{ sujet: "Classement du bâtiment", operateur: "=", valeur: "3e famille B", unite: null, logique: false }],
+      pourquoi: { article: "98" }
+    }]
+  };
+
+  const [regle] = reglesVersables(conclusionsVersables(vue), "bâtiment A");
+  assert.deepEqual(regle.zones, []);
+});
+
+test("une règle sans condition reste une règle : elle s'applique toujours", () => {
+  const vue = {
+    modules: [{
+      id: "m", titre: "Conduit mettant en communication des niveaux différents",
+      statut: "conclu", valeur: "coffrage admis", exigence: true, conditions: [],
+      pourquoi: { article: "47" }
+    }]
+  };
+
+  const [regle] = reglesVersables(conclusionsVersables(vue), "");
+  assert.equal(regle.sujet, "Conduit mettant en communication des niveaux différents");
+  assert.deepEqual(regle.regle.conditions, []);
+  assert.match(regle.provenance.quoi, /article 47/);
 });

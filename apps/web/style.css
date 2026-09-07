@@ -16417,8 +16417,10 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   border-right:1px solid var(--border);
 }
 /* Le contenu s'écarte du rail au lieu de passer dessous. Il se recentre dans ce
-   qui reste, et retrouve donc sa largeur habituelle. */
-.project-simple-page--memory,
+   qui reste, et retrouve donc sa largeur habituelle.
+   La Mémoire fait exception : dès qu'on entre dans un dossier, elle prend la
+   largeur de l'écran, et une marge de deux cent trente-deux pixels décalait
+   tout le fichier vers la droite. */
 .project-simple-page--studio{ margin-left:var(--project-rail-width, 232px); }
 /* La coque de l'Atelier est un élément flex : sans largeur, elle se dimensionne
    sur son contenu, et un panneau vide la réduisait à trois cents pixels. On la
@@ -17187,7 +17189,6 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
     position:static; width:auto; flex-direction:row; align-items:center; flex-wrap:wrap;
     border-right:0; border-bottom:1px solid var(--border); padding:0 0 8px;
   }
-  .project-simple-page--memory,
   .project-simple-page--studio{ margin-left:0; }
   .project-rail__scroll{ flex-direction:row; flex-wrap:wrap; gap:4px; overflow:visible; }
   .project-rail__group{ flex-direction:row; }

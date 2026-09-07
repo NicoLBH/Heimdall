@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  cheminDeRangement, DOSSIERS, SANS_NATURE, SANS_DOMAINE, rangDuDossier, phraseDuDossier
-} from "./memoire-rangement.js";
+  cheminDeRangement, DOSSIERS, SANS_NATURE, SANS_DOMAINE, rangDuDossier, phraseDuDossier, REFERENTIELS } from "./memoire-rangement.js";
 import { cheminDeFichier } from "./memoire-en-texte.js";
 
 test("une conclusion d'étude incendie est une contrainte, pas une donnée de base", () => {
@@ -41,4 +40,18 @@ test("chaque dossier dit ce qu'on y range, sinon on y range au hasard", () => {
   assert.match(phraseDuDossier(DOSSIERS.contrainte), /pas de recours/);
   assert.match(phraseDuDossier(DOSSIERS["donnee-de-base"]), /ne se calcule pas/);
   assert.match(phraseDuDossier(SANS_NATURE), /ne devrait pas se remplir/);
+});
+
+test("une règle appliquée ne se range pas avec les faits du projet", () => {
+  assert.deepEqual(cheminDeRangement({ nature: "contrainte", domain: "incendie" }), ["Contraintes", "Incendie"]);
+  assert.deepEqual(cheminDeRangement({ nature: "contrainte", domain: "incendie", referentiel: true }),
+    [REFERENTIELS, "Incendie"]);
+  // Une règle n'a pas de nature : c'est un texte appliqué, pas un fait constaté.
+  assert.deepEqual(cheminDeRangement({ domain: "structure", referentiel: true }), [REFERENTIELS, "Structure"]);
+});
+
+test("les référentiels se lisent en premier : on applique un texte avant d'en tirer des valeurs", () => {
+  assert.equal(rangDuDossier(REFERENTIELS), 0);
+  assert.ok(rangDuDossier(REFERENTIELS) < rangDuDossier("Données de base"));
+  assert.match(phraseDuDossier(REFERENTIELS), /telles qu'elles étaient le jour où on les a appliquées/);
 });

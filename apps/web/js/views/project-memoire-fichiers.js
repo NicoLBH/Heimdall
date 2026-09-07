@@ -27,7 +27,7 @@ import { escapeHtml } from "../utils/escape-html.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import {
-  blocDAffirmation, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
+  blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
   PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import { phraseDuDossier, rangDuDossier } from "../services/memoire-rangement.js";
@@ -467,6 +467,25 @@ export function lignesDeLAssertion(assertion = {}) {
   const payload = assertion.payload ?? {};
   const brute = texte(payload.value) || texte(assertion.statement);
   const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
+
+  // Une règle appliquée s'écrit comme une règle : la donnée en tête, sans `=`,
+  // puis ses conditions. Écrite comme une affirmation, elle se lirait comme un
+  // fait de ce projet — et c'est justement ce qu'elle n'est pas.
+  //
+  // `alors` n'est pas stocké : c'est `payload.value`, et une valeur écrite à
+  // deux endroits finit par diverger. On la remet ici.
+  if (payload.regle) {
+    const regle = blocDeRegle({
+      sujet: texte(payload.subject) || texte(assertion.subject_key),
+      conditions: payload.regle.conditions ?? [],
+      alors: brute,
+      sinon: texte(payload.regle.sinon),
+      sauf: payload.regle.sauf ?? [],
+      provenance: provenanceDeLAssertion(assertion),
+      preuve: texte(payload.citation)
+    });
+    return regle.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
+  }
 
   const lignes = blocDAffirmation({
     sujet: texte(payload.subject) || texte(assertion.subject_key),

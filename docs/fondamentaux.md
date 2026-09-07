@@ -183,11 +183,13 @@ Classement du bâtiment = "3e famille B"
 
 Quatre conséquences pour le code :
 
-1. **La règle vit dans un référentiel, pas dans le projet.** Une règle vaut pour
-   mille bâtiments, une valeur pour un seul. Les garder ensemble produisait des
-   règles fabriquées à partir des cotes du projet — `si hauteur = 26` là où
-   l'arrêté dit `≤ 28 m` — qui ne capitalisaient rien et faisaient mentir le
-   diff dans les deux sens.
+1. **La règle a son propre dossier, et le projet en garde un instantané.** Une
+   règle vaut pour mille bâtiments, une valeur pour un seul : les mêler
+   produisait des règles fabriquées à partir des cotes du projet — `si hauteur =
+   26` là où l'arrêté dit `≤ 28 m`. Mais elle doit être **dans** le projet, sous
+   `Référentiels/`, sans quoi le renvoi `← règle …` pointe vers rien, le graphe
+   ne se reconstruit pas, et un arrêté modifié plus tard réécrirait l'histoire en
+   silence — ce que la règle 2 interdit.
 2. **Le type de la provenance est l'origine.** Une valeur qui renvoie à une
    règle est déduite, à un plan est lue, à un calcul est calculée. Un champ
    « origine » à côté redirait la même chose et finirait par la contredire
