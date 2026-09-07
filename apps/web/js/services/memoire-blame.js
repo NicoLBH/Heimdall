@@ -168,8 +168,33 @@ export function blameDeLaLigne(assertion = {}, auteurs = new Map()) {
     // l'origine est quelqu'un.
     intitule: numero ? `#P${numero}` : "déclarée à la main",
     quand: quand || null,
+    // L'identifiant en plus du nom : c'est lui qui mène au portrait, et un nom
+    // ne suffit pas à retrouver quelqu'un — deux personnes peuvent le partager.
+    quiId: texte(assertion?.decided_by) || "",
     qui: texte(auteurs.get?.(texte(assertion?.decided_by))) || ""
   };
+}
+
+/**
+ * Les gens qui ont écrit dans un fichier, du plus récent au plus ancien.
+ *
+ * On compte par **identifiant**, jamais par nom : deux personnes dont on ignore
+ * le nom sont deux personnes.
+ */
+export function contributeursDuFichier(lignes = [], auteurs = new Map()) {
+  const vus = new Map();
+
+  const triees = [...(Array.isArray(lignes) ? lignes : [])].sort(
+    (gauche, droite) => Date.parse(texte(droite?.decided_at)) - Date.parse(texte(gauche?.decided_at))
+  );
+
+  for (const ligne of triees) {
+    const id = texte(ligne?.decided_by);
+    if (!id || vus.has(id)) continue;
+    vus.set(id, { id, nom: texte(auteurs.get?.(id)) || "auteur inconnu" });
+  }
+
+  return [...vus.values()];
 }
 
 /**
@@ -265,13 +290,19 @@ export function histoireDeLaLigne(assertions = [], depuis = null) {
  * elle se lit sans y penser — sur une mémoire de projet, elle dit « ceci a été
  * décidé la semaine dernière, ceci tient depuis le début ».
  *
- * @returns {number} de 0 (le plus ancien du fichier) à 4 (le plus récent)
+ * Dix parts, et non cinq : une échelle se lit d'autant mieux qu'elle a de
+ * degrés, et dix tiennent dans une légende qu'on lit d'un coup d'œil.
+ *
+ * @returns {number} de 0 (le plus ancien du fichier) à 9 (le plus récent)
  */
+export const PARTS_DANCIENNETE = 10;
+
 export function chaleurDeLaLigne(assertion, { plusAncien = 0, plusRecent = 0 } = {}) {
+  const dernier = PARTS_DANCIENNETE - 1;
   const quand = Date.parse(texte(assertion?.decided_at));
-  if (!Number.isFinite(quand) || plusRecent <= plusAncien) return 4;
+  if (!Number.isFinite(quand) || plusRecent <= plusAncien) return dernier;
   const part = (quand - plusAncien) / (plusRecent - plusAncien);
-  return Math.max(0, Math.min(4, Math.round(part * 4)));
+  return Math.max(0, Math.min(dernier, Math.round(part * dernier)));
 }
 
 /** Les bornes de temps d'un fichier, pour en colorer la marge. */

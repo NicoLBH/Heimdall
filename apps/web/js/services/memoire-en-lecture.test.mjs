@@ -233,6 +233,34 @@ test("une accolade fermante de trop ne fait pas perdre le sens", () => {
   assert.equal(blocs[0].zone, "Bâtiment A");
 });
 
+test("une accolade fermante oubliée ne dérange pas le reste du fichier", () => {
+  // Le cas qui cassait tout : la première a perdu son `}`. Sans règle, elle
+  // avalait la seconde, puis l'accolade de la zone fermait ce bloc-là au lieu
+  // de la zone — et la zone suivante n'existait plus.
+  const { blocs, refus } = lireUnFichier([
+    "zone: Toutes zones {",
+    '   Colonne sèche = "exigée" {',
+    "      statut: retenu",
+    '   Degré coupe-feu = "CF 1 h" {',
+    "      statut: retenu",
+    "   }",
+    "}",
+    "",
+    "zone: Bâtiment A {",
+    '   Zone de neige = "E" {',
+    "      document: carte",
+    "   }",
+    "}"
+  ].join("\n"));
+
+  assert.deepEqual(refus, []);
+  assert.deepEqual(blocs.map((bloc) => [bloc.sujet, bloc.zone]), [
+    ["Colonne sèche", "Toutes zones"],
+    ["Degré coupe-feu", "Toutes zones"],
+    ["Zone de neige", "Bâtiment A"]
+  ]);
+});
+
 test("un architecte qui n'écrit pas d'accolades est lu quand même", () => {
   const { blocs, refus } = lireUnFichier([
     "zone: Bâtiment A",

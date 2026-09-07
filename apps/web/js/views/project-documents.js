@@ -27,8 +27,9 @@ import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesC
 import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renameDocumentFolder, moveDocumentFile, resolveCurrentBackendProjectId, syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 import {
-  preparerLaMemoire, fichierDuChemin, adresseDuFichier, lignesDArbreMemoire, renderPanneauDArbre,
-  renderBarre, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE
+  preparerLaMemoire, fichierDuChemin, adresseDuFichier, noeudsDeLaMemoire, renderLigneDArbre, renderPanneauDArbre,
+  renderFilDAriane, renderRechercheDuProjet, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE,
+  COLONNES_DU_TABLEAU, GABARIT_DU_TABLEAU
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
@@ -300,9 +301,9 @@ function syncDocumentsProjectViewHeader() {
   }
 }
 
-/** Les trois colonnes de la Mémoire : ce que c'est, ce qui lui est arrivé, quand. */
+/** Le gabarit vient d'un seul endroit : deux copies finiraient par se décaler. */
 function getDocumentsTableGridTemplate() {
-  return "minmax(280px, 1.2fr) minmax(220px, 1fr) minmax(200px, auto)";
+  return GABARIT_DU_TABLEAU;
 }
 
 function getFileExtension(value = "") {
@@ -1255,12 +1256,12 @@ function renderDocumentsActivityBanner() {
  * répondaient à une question que personne ne pose en cherchant un fichier.
  */
 function renderDocumentsTableHeadHtml() {
+  const classe = { nom: "name", message: "message", date: "date" };
   return renderDataTableHead({
-    columns: [
-      { className: "documents-repo__col documents-repo__col--name", label: "Fichier" },
-      { className: "documents-repo__col documents-repo__col--message", label: "Dernier versement" },
-      { className: "documents-repo__col documents-repo__col--date", label: "Date" }
-    ]
+    columns: COLONNES_DU_TABLEAU.map((colonne) => ({
+      className: `documents-repo__col documents-repo__col--${classe[colonne.cle]}`,
+      label: colonne.libelle
+    }))
   });
 }
 
@@ -1314,10 +1315,6 @@ function renderDocumentsMenu(selectedDocument) {
  */
 function renderDocumentsTopBar() {
   const enApercu = docsViewState.mode === "pdf-preview";
-  const toggleIcon = docsViewState.documentTreeOpen
-    ? svgIcon("sidebar-collapse", { className: "octicon octicon-sidebar-collapse" })
-    : svgIcon("sidebar-expand", { className: "octicon octicon-sidebar-expand" });
-
   const dansLesDocuments = docsViewState.branche === BRANCHE.DOCUMENTS;
   const gestes = dansLesDocuments
     ? `${renderProjectTableToolbarGroup({
@@ -1334,11 +1331,10 @@ function renderDocumentsTopBar() {
   return `
     <div class="documents-topbar">
       <div class="documents-topbar__left">
-        <button type="button" class="documents-tree__toggle" id="documentsTreeToggleBtn"
-          aria-label="${docsViewState.documentTreeOpen ? "Replier" : "Étendre"} la barre latérale">${toggleIcon}</button>
         ${renderDocumentsBreadcrumb()}
       </div>
       <div class="documents-topbar__right">
+        ${docsViewState.documentTreeOpen === false ? renderRechercheDuProjet(docsViewState.memoireQuery ?? "") : ""}
         ${gestes}
         ${
           // Ajouter, retirer, déplacer : des gestes sur des pièces déposées. Un
@@ -1382,11 +1378,16 @@ function renderDocumentsBreadcrumb() {
     ...(selectedDocument?.name ? [{ libelle: String(selectedDocument.name), cible: "" }] : [])
   ];
 
+  // Un répertoire garde son slash final, un fichier n'en a pas : « Fichiers /
+  // Documents / » se lit comme un endroit où l'on est, « … / plan.pdf » comme
+  // une chose qu'on regarde.
+  const surUnFichier = Boolean(selectedDocument?.name);
+
   const rendu = morceaux
     .map((morceau, rang) => (rang === morceaux.length - 1 ? ici(morceau.libelle) : lien(morceau.cible, morceau.libelle)))
     .join(sep);
 
-  return `<div class="documents-breadcrumb">${rendu}</div>`;
+  return `<div class="documents-breadcrumb">${rendu}${surUnFichier ? "" : sep}</div>`;
 }
 
 function renderRepoFolderRow(folder) {
@@ -1706,7 +1707,11 @@ function renderPdfPreviewView() {
   const previewErrorMessage = String(docsViewState.pdfPreview?.errorMessage || "").trim();
   const hasPdfBytes = docsViewState.pdfPreview?.bytes instanceof Uint8Array && docsViewState.pdfPreview.bytes.byteLength > 0;
 
-  const treeHtml = renderArbreDesFichiers({ memoire: preparerLaMemoire(docsViewState.memoireAssertions ?? []) });
+  const treeHtml = renderArbreDesFichiers({
+    memoire: preparerLaMemoire(docsViewState.memoireAssertions ?? []),
+    ouverte: docsViewState.documentTreeOpen !== false,
+    query: docsViewState.memoireQuery ?? ""
+  });
   const topBar = renderDocumentsTopBar();
   return `
     <section class="project-simple-page project-simple-page--documents">
@@ -1930,6 +1935,95 @@ async function chargerLaMemoire() {
 }
 
 /**
+ * Aller quelque part dans l'arbre.
+ *
+ * Une adresse, un préfixe, un endroit. `branche:memoire` ouvre une racine,
+ * `memoire:Incendie/incendie.ref` un fichier de la mémoire, `documents:<id>` un
+ * dossier déposé, `document:<id>` une pièce.
+ *
+ * ## Pourquoi une seule porte
+ *
+ * L'onglet avait deux navigations parallèles, une par matière. Elles se
+ * ressemblaient assez pour qu'on les croie identiques, et différaient assez
+ * pour que cliquer un fichier de mémoire depuis un dossier de documents ne
+ * fasse rien : l'écouteur changeait le chemin de la Mémoire, mais pas la
+ * branche affichée. Une seule porte ne peut pas avoir ce défaut-là.
+ */
+async function allerDansLArbre(root, adresse) {
+  const [prefixe, ...reste] = String(adresse ?? "").split(":");
+  const cible = reste.join(":");
+
+  // Aller quelque part ferme ce qu'on regardait. Un aperçu de PDF qui survit à
+  // la navigation oblige à le fermer à la main pour voir où l'on vient d'aller.
+  if (docsViewState.mode !== "list") docsViewState.mode = "list";
+  docsViewState.memoireQuery = "";
+
+  if (prefixe === "branche") {
+    docsViewState.branche = cible;
+    docsViewState.memoireChemin = [];
+    renderProjectDocumentsContent(root);
+    return;
+  }
+
+  if (prefixe === "memoire") {
+    docsViewState.branche = BRANCHE.MEMOIRE;
+    docsViewState.memoireChemin = cible ? cible.split("/").filter(Boolean) : [];
+    docsViewState.memoirePlies = new Set();
+    renderProjectDocumentsContent(root);
+    return;
+  }
+
+  if (prefixe === "documents") {
+    docsViewState.branche = BRANCHE.DOCUMENTS;
+    await loadCurrentDirectory({ forceFolderId: cible || null });
+    renderProjectDocumentsContent(root);
+    return;
+  }
+
+  if (prefixe === "document" && cible) {
+    docsViewState.branche = BRANCHE.DOCUMENTS;
+    await openPdfPreview(root, cible);
+  }
+}
+
+/**
+ * Plier un nœud de l'arbre.
+ *
+ * Plier n'est pas naviguer : on n'entre pas dans « Mémoire » en la dépliant, on
+ * y entre en la choisissant. Trois états de repli cohabitent — les racines, les
+ * dossiers de la Mémoire, ceux des Documents — parce qu'ils n'ont pas la même
+ * durée de vie : celui des Documents survit à la session, les autres non.
+ */
+function plierDansLArbre(root, adresse) {
+  const [prefixe, ...reste] = String(adresse ?? "").split(":");
+  const cible = reste.join(":");
+
+  const bascule = (ensemble, cle) => {
+    if (ensemble.has(cle)) ensemble.delete(cle);
+    else ensemble.add(cle);
+    return ensemble;
+  };
+
+  if (prefixe === "branche") {
+    docsViewState.racinesRepliees = bascule(docsViewState.racinesRepliees ?? new Set(), cible);
+  } else if (prefixe === "documents") {
+    const deplies = new Set(Array.isArray(docsViewState.treeExpandedFolderIds) ? docsViewState.treeExpandedFolderIds : []);
+    docsViewState.treeExpandedFolderIds = [...bascule(deplies, cible)];
+    try {
+      localStorage.setItem(DOCUMENTS_TREE_EXPANDED_STORAGE_KEY, JSON.stringify(docsViewState.treeExpandedFolderIds));
+    } catch {
+      // Un navigateur qui refuse le stockage replie tout à la prochaine visite.
+    }
+  } else if (prefixe === "dossier") {
+    // Un dossier de la Mémoire : son repli se nomme par son nom, qui est son
+    // identité — il n'a pas d'autre identifiant.
+    docsViewState.memoireReplies = bascule(docsViewState.memoireReplies ?? new Set(), cible);
+  }
+
+  renderProjectDocumentsContent(root);
+}
+
+/**
  * Les gestes de la branche Mémoire.
  *
  * Le même vocabulaire que la branche Documents — un chemin, un fil d'Ariane,
@@ -1939,23 +2033,29 @@ async function chargerLaMemoire() {
 function bindLaMemoire(root) {
   for (const bouton of root.querySelectorAll("[data-fichiers-branche]")) {
     bouton.addEventListener("click", () => {
-      docsViewState.branche = bouton.getAttribute("data-fichiers-branche") || "";
-      docsViewState.memoireChemin = [];
-      docsViewState.memoireQuery = "";
-      renderProjectDocumentsContent(root);
+      void allerDansLArbre(root, `branche:${bouton.getAttribute("data-fichiers-branche") || ""}`);
     });
   }
 
   for (const bouton of root.querySelectorAll("[data-memoire-aller]")) {
     bouton.addEventListener("click", () => {
-      const cible = bouton.getAttribute("data-memoire-aller") || "";
-      // Le fil d'Ariane remonte à « Mémoire » par une cible vide : c'est la
-      // racine de la branche, pas celle de l'onglet.
-      docsViewState.memoireChemin = cible ? cible.split("/").filter(Boolean) : [];
-      docsViewState.memoirePlies = new Set();
-      // Ouvrir un résultat ferme la recherche : on est allé quelque part.
-      docsViewState.memoireQuery = "";
-      renderProjectDocumentsContent(root);
+      void allerDansLArbre(root, `memoire:${bouton.getAttribute("data-memoire-aller") || ""}`);
+    });
+  }
+
+  // Un seul geste pour tout l'arbre : la Mémoire et les Documents ne sont plus
+  // deux navigations qui se ressemblent, avec chacune sa façon de rater.
+  for (const bouton of root.querySelectorAll("[data-arbre-aller]")) {
+    bouton.addEventListener("click", () => {
+      void allerDansLArbre(root, bouton.getAttribute("data-arbre-aller") || "");
+    });
+  }
+
+  for (const bouton of root.querySelectorAll("[data-arbre-plier]")) {
+    bouton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      plierDansLArbre(root, bouton.getAttribute("data-arbre-plier") || "");
     });
   }
 
@@ -2074,31 +2174,6 @@ function bindLaMemoire(root) {
     });
   }
 
-  // Plier une racine n'y navigue pas : on n'entre pas dans « Mémoire » en la
-  // dépliant, on y entre en la choisissant.
-  for (const bouton of root.querySelectorAll("[data-fichiers-plier]")) {
-    bouton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const branche = bouton.getAttribute("data-fichiers-plier") || "";
-      const repliees = docsViewState.racinesRepliees ?? new Set();
-      if (repliees.has(branche)) repliees.delete(branche);
-      else repliees.add(branche);
-      docsViewState.racinesRepliees = repliees;
-      renderProjectDocumentsContent(root);
-    });
-  }
-
-  for (const bouton of root.querySelectorAll("[data-memoire-plier]")) {
-    bouton.addEventListener("click", () => {
-      const nom = bouton.getAttribute("data-memoire-plier") || "";
-      const replies = docsViewState.memoireReplies ?? new Set();
-      if (replies.has(nom)) replies.delete(nom);
-      else replies.add(nom);
-      docsViewState.memoireReplies = replies;
-      renderProjectDocumentsContent(root);
-    });
-  }
-
   // Une seule poignée pour tout l'onglet : l'arbre est le même des deux côtés.
   bindSideResizer({
     handle: document.getElementById("fichiersTreeResize"),
@@ -2118,8 +2193,14 @@ function bindLaMemoire(root) {
     }
   });
 
-  root.querySelector("[data-memoire-replier]")?.addEventListener("click", () => {
-    docsViewState.memoireNavOuverte = docsViewState.memoireNavOuverte === false;
+  root.querySelector("[data-memoire-replier]")?.addEventListener("click", async () => {
+    docsViewState.documentTreeOpen = !docsViewState.documentTreeOpen;
+    if (docsViewState.documentTreeOpen) {
+      // L'arbre des Documents se lit à l'ouverture : il n'a pas de raison
+      // d'être à jour tant qu'on ne le regarde pas.
+      const projet = String(store.currentProject?.backendProjectId || store.currentProject?.id || store.currentProjectId || "");
+      docsViewState.moveModal.folders = await listDocumentFolders(projet);
+    }
     renderProjectDocumentsContent(root);
   });
 
@@ -2142,11 +2223,12 @@ function bindLaMemoire(root) {
       else plies.delete(cle);
       docsViewState.memoirePlies = plies;
 
-      for (const ligne of root.querySelectorAll(`[data-memoire-parent="${CSS.escape(cle)}"]`)) {
+      // L'accolade fermante reste : un bloc replié garde ses deux bornes.
+      const dedans = `[data-memoire-parent="${CSS.escape(cle)}"]:not([data-memoire-ferme="${CSS.escape(cle)}"])`;
+      for (const ligne of root.querySelectorAll(dedans)) {
         ligne.hidden = replie;
       }
-      // La tête porte la marque du repli : sans elle, son accolade ouvrante
-      // resterait seule et le bloc paraîtrait tronqué.
+      // La tête porte la marque du repli : l'icône dit qu'il y a du texte là.
       bouton.closest(".memoire-ligne")?.classList.toggle("memoire-ligne--plie", replie);
       bouton.setAttribute("aria-expanded", replie ? "false" : "true");
       bouton.setAttribute("aria-label", replie ? "Déplier ce bloc" : "Replier ce bloc");
@@ -2537,11 +2619,14 @@ function renderBrancheMemoire() {
   const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
   const chemin = docsViewState.memoireChemin ?? [];
   const racine = chemin.length === 0;
-  const ouverte = docsViewState.memoireNavOuverte !== false;
-  const largeur = ouverte ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth) || 280)) : 0;
+  // Un seul état de repli : deux — un par matière — laissaient la barre ouverte
+  // d'un côté et fermée de l'autre pour un seul et même panneau.
+  const ouverte = docsViewState.documentTreeOpen !== false;
+  const largeur = ouverte ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth) || 280)) : 48;
 
   const contexte = {
     auteurs: docsViewState.memoireAuteurs ?? new Map(),
+    avatars: docsViewState.memoireAvatars ?? new Map(),
     propositions: docsViewState.memoirePropositions ?? new Map()
   };
 
@@ -2555,7 +2640,7 @@ function renderBrancheMemoire() {
   const vue = query
     ? renderRecherche(memoire, query, { pieces: getProjectDocuments() })
     : racine
-    ? renderDossiers(memoire, { assertions: docsViewState.memoireAssertions ?? [] })
+    ? renderDossiers(memoire, contexte)
     : chemin.length === 1
       ? renderFichiers(memoire, chemin[0], contexte)
       : fichier
@@ -2574,11 +2659,17 @@ function renderBrancheMemoire() {
     <section class="project-simple-page project-simple-page--documents">
       <div class="documents-shell documents-shell--project-page">
         <main class="documents-main">
-          ${renderBarre({ chemin, query: docsViewState.memoireQuery ?? "", ouverte })}
           <div class="memoire-layout${ouverte ? "" : " memoire-layout--replie"} memoire-layout--pleine"
                style="--memoire-tree-width:${largeur}px">
-            ${renderArbreDesFichiers({ memoire, ouverte })}
-            <div class="memoire-corps">${vue}</div>
+            ${renderArbreDesFichiers({ memoire, ouverte, query: docsViewState.memoireQuery ?? "" })}
+            <div class="memoire-corps">
+              <div class="memoire-corps__tete">
+                ${renderFilDAriane({ chemin })}
+                <span class="memoire-corps__espace"></span>
+                ${ouverte ? "" : renderRechercheDuProjet(docsViewState.memoireQuery ?? "")}
+              </div>
+              ${vue}
+            </div>
           </div>
         </main>
       </div>
@@ -2597,39 +2688,41 @@ function renderBrancheMemoire() {
  * Les racines se plient comme des dossiers, mais leur libellé **navigue** : on
  * n'entre pas dans « Mémoire » en la dépliant, on y entre en la choisissant.
  */
-function renderArbreDesFichiers({ memoire, ouverte = true } = {}) {
+function renderArbreDesFichiers({ memoire, ouverte = true, query = "" } = {}) {
   const repliees = docsViewState.racinesRepliees ?? new Set();
-
-  const racine = (branche, nom, actif, corps) => {
-    const replie = repliees.has(branche);
-    return `
-      <div class="documents-tree__row${actif ? " is-active" : ""}">
-        <button type="button" class="documents-tree__caret" data-fichiers-plier="${escapeHtml(branche)}"
-          aria-expanded="${replie ? "false" : "true"}"
-          aria-label="${replie ? "Déplier" : "Replier"} ${escapeHtml(nom)}">
-          ${svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" })}
-        </button>
-        <button type="button" class="documents-tree__item${actif ? " is-active" : ""}"
-          data-fichiers-branche="${escapeHtml(branche)}">
-          <span class="documents-tree__icon-slot">${getFolderOpenIconSvg()}</span>
-          <span class="documents-tree__label">${escapeHtml(nom)}</span>
-        </button>
-      </div>
-      ${replie ? "" : corps}
-    `;
-  };
-
-  const dansLaMemoire = docsViewState.branche === BRANCHE.MEMOIRE;
   const chemin = docsViewState.memoireChemin ?? [];
 
-  return renderPanneauDArbre(
-    racine(BRANCHE.MEMOIRE, MEMOIRE, dansLaMemoire && chemin.length === 0,
-      lignesDArbreMemoire(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), profondeur: 1 }))
-    + racine(BRANCHE.DOCUMENTS, DOCUMENTS,
+  const racine = (branche, nom, actif, enfants) => {
+    const ouvert = !repliees.has(branche);
+    return [
+      {
+        aller: `branche:${branche}`,
+        plier: `branche:${branche}`,
+        libelle: nom,
+        profondeur: 0,
+        genre: "dossier",
+        ouvrable: enfants.length > 0,
+        ouvert,
+        actif
+      },
+      ...(ouvert ? enfants : [])
+    ];
+  };
+
+  const noeuds = [
+    ...racine(BRANCHE.MEMOIRE, MEMOIRE,
+      docsViewState.branche === BRANCHE.MEMOIRE && chemin.length === 0,
+      noeudsDeLaMemoire(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), profondeur: 1 })),
+    ...racine(BRANCHE.DOCUMENTS, DOCUMENTS,
       docsViewState.branche === BRANCHE.DOCUMENTS && !docsViewState.currentFolderId,
-      lignesDArbreDocuments()),
-    { ouverte, largeur: docsViewState.treeWidth }
-  );
+      noeudsDesDocuments({ profondeur: 1 }))
+  ];
+
+  return renderPanneauDArbre(noeuds.map(renderLigneDArbre).join(""), {
+    ouverte,
+    query,
+    largeur: docsViewState.treeWidth
+  });
 }
 
 function renderDocumentsListView() {
@@ -2641,7 +2734,11 @@ function renderDocumentsListView() {
   const isRoot = !docsViewState.currentFolderId;
   // L'arbre est là dès la racine des Documents : on doit pouvoir passer d'une
   // matière à l'autre sans revenir en arrière.
-  const treeHtml = renderArbreDesFichiers({ memoire: preparerLaMemoire(docsViewState.memoireAssertions ?? []) });
+  const treeHtml = renderArbreDesFichiers({
+    memoire: preparerLaMemoire(docsViewState.memoireAssertions ?? []),
+    ouverte: docsViewState.documentTreeOpen !== false,
+    query: docsViewState.memoireQuery ?? ""
+  });
   const topBar = renderDocumentsTopBar();
   const moveModalHtml = docsViewState.moveModal?.isOpen ? renderMoveFileModal() : "";
   const emptyTitle = isRoot ? "La racine est vide." : "Ce dossier est vide.";
@@ -2679,60 +2776,82 @@ function renderDocumentsListView() {
  * Des lignes, pas un panneau : l'arbre a deux racines et il n'y en a qu'un.
  * La racine « Documents » est posée par l'appelant, avec celle de la Mémoire.
  */
-function lignesDArbreDocuments() {
-  const folders = Array.isArray(docsViewState.moveModal?.folders) && docsViewState.moveModal.folders.length
+function noeudsDesDocuments({ profondeur = 1 } = {}) {
+  const dossiers = Array.isArray(docsViewState.moveModal?.folders) && docsViewState.moveModal.folders.length
     ? docsViewState.moveModal.folders
     : (Array.isArray(docsViewState.folders) ? docsViewState.folders : []);
-  const byParent = new Map();
-  folders.forEach((folder) => {
-    const parentKey = String(folder.parent_folder_id || "");
-    if (!byParent.has(parentKey)) byParent.set(parentKey, []);
-    byParent.get(parentKey).push(folder);
-  });
-  byParent.forEach((items) => items.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "fr")));
-  const docs = Array.isArray(getProjectDocuments()) ? getProjectDocuments() : [];
-  const filesByFolder = new Map();
-  docs.forEach((doc) => {
-    const key = String(doc?.folder_id || "");
-    if (!filesByFolder.has(key)) filesByFolder.set(key, []);
-    filesByFolder.get(key).push(doc);
-  });
-  const expandedSet = new Set(Array.isArray(docsViewState.treeExpandedFolderIds) ? docsViewState.treeExpandedFolderIds : []);
-  const walk = (parentKey = "", depth = 0) => {
-    const levelFolders = byParent.get(parentKey) || [];
-    const levelHasChevron = levelFolders.some((entry) => {
-      const entryId = String(entry.id || "");
-      const entryChildren = byParent.get(entryId) || [];
-      const entryFiles = filesByFolder.get(entryId) || [];
-      return entryChildren.length > 0 || entryFiles.length > 0;
-    });
-    return levelFolders.map((folder) => {
-    const id = String(folder.id || "");
-    const active = String(docsViewState.currentFolderId || "") === id;
-    const childFolders = byParent.get(id) || [];
-    const files = filesByFolder.get(id) || [];
-    const hasChildren = childFolders.length > 0 || files.length > 0;
-    const isExpanded = expandedSet.has(id);
-    const dividerStateClass = (hasChildren || levelHasChevron)
-      ? (isExpanded ? " is-expanded" : " is-collapsed")
-      : "";
-    const indentDividers = Array.from({ length: Math.max(0, depth) })
-      .map(() => `<span class="documents-tree__divider${dividerStateClass}" aria-hidden="true"></span>`)
-      .join("");
-    const caret = hasChildren ? `<button type="button" class="documents-tree__caret" data-tree-toggle-folder-id="${escapeHtml(id)}">${svgIcon(isExpanded ? "chevron-down" : "chevron-right", { className: isExpanded ? "octicon octicon-chevron-down" : "octicon octicon-chevron-right" })}</button>` : `<span class="documents-tree__caret-spacer"></span>`;
-    const row = `<div class="documents-tree__row${active ? " is-active" : ""}"><span class="documents-tree__indent">${indentDividers}</span>${caret}<button type="button" class="documents-tree__item${active ? " is-active" : ""}" data-tree-folder-id="${escapeHtml(id)}"><span class="documents-tree__icon-slot">${isExpanded ? getFolderOpenIconSvg() : getFolderClosedIconSvg()}</span> <span class="documents-tree__label">${escapeHtml(folder.name || "Dossier")}</span></button></div>`;
-    if (!isExpanded) return row;
-    const fileRows = files.map((file) => {
-      const fileIndentDividers = Array.from({ length: Math.max(0, depth + 1) })
-        .map(() => `<span class="documents-tree__divider${isExpanded ? " is-expanded" : ""}" aria-hidden="true"></span>`)
-        .join("");
-      const fileChevronSpacer = levelHasChevron ? `<span class="documents-tree__caret-spacer"></span>` : "";
-      return `<button type="button" class="documents-tree__file" data-tree-document-id="${escapeHtml(String(file?.id || ""))}"><span class="documents-tree__indent">${fileIndentDividers}</span>${fileChevronSpacer}<span class="documents-tree__icon-slot">${getDocumentIconSvg()}</span> <span class="documents-tree__label">${escapeHtml(file?.name || file?.original_filename || file?.filename || "Fichier")}</span></button>`;
-    }).join("");
-    return `${row}${walk(id, depth + 1).join("")}${fileRows}`;
-    });
+
+  const parParent = new Map();
+  for (const dossier of dossiers) {
+    const parent = String(dossier.parent_folder_id || "");
+    if (!parParent.has(parent)) parParent.set(parent, []);
+    parParent.get(parent).push(dossier);
+  }
+  for (const enfants of parParent.values()) {
+    enfants.sort((gauche, droite) => String(gauche.name || "").localeCompare(String(droite.name || ""), "fr"));
+  }
+
+  const piecesParDossier = new Map();
+  for (const piece of Array.isArray(getProjectDocuments()) ? getProjectDocuments() : []) {
+    const parent = String(piece?.folder_id || "");
+    if (!piecesParDossier.has(parent)) piecesParDossier.set(parent, []);
+    piecesParDossier.get(parent).push(piece);
+  }
+
+  const deplies = new Set(Array.isArray(docsViewState.treeExpandedFolderIds) ? docsViewState.treeExpandedFolderIds : []);
+  const documentOuvert = String(store.projectDocuments?.activeDocumentId || "").trim();
+
+  const parcourir = (parent, niveau) => {
+    const noeuds = [];
+
+    for (const dossier of parParent.get(parent) ?? []) {
+      const id = String(dossier.id || "");
+      const enfants = parParent.get(id) ?? [];
+      const pieces = piecesParDossier.get(id) ?? [];
+      const ouvert = deplies.has(id);
+
+      noeuds.push({
+        aller: `documents:${id}`,
+        libelle: String(dossier.name || "Dossier"),
+        profondeur: niveau,
+        genre: "dossier",
+        ouvrable: enfants.length > 0 || pieces.length > 0,
+        ouvert,
+        actif: String(docsViewState.currentFolderId || "") === id,
+        compte: pieces.length || ""
+      });
+
+      if (!ouvert) continue;
+
+      noeuds.push(...parcourir(id, niveau + 1));
+      for (const piece of pieces) {
+        noeuds.push({
+          aller: `document:${String(piece?.id || "")}`,
+          libelle: String(piece?.name || piece?.original_filename || piece?.filename || "Fichier"),
+          profondeur: niveau + 1,
+          genre: "fichier",
+          actif: documentOuvert === String(piece?.id || "")
+        });
+      }
+    }
+
+    return noeuds;
   };
-  return walk("", 1).join("");
+
+  // Les pièces déposées à la racine des Documents s'y voient aussi : rangées
+  // nulle part, elles disparaissaient de l'arbre.
+  const noeuds = parcourir("", profondeur);
+  for (const piece of piecesParDossier.get("") ?? []) {
+    noeuds.push({
+      aller: `document:${String(piece?.id || "")}`,
+      libelle: String(piece?.name || piece?.original_filename || piece?.filename || "Fichier"),
+      profondeur,
+      genre: "fichier",
+      actif: documentOuvert === String(piece?.id || "")
+    });
+  }
+
+  return noeuds;
 }
 
 function renderMoveFolderOption(folder, depth = 0) {
@@ -3570,48 +3689,6 @@ function bindDocumentsView(root) {
       key: docsViewState.mode === "pdf-preview" ? "documents-pdf-shell" : "documents-list-shell"
     });
   }
-  const treeToggleBtn = document.getElementById("documentsTreeToggleBtn");
-  if (treeToggleBtn) {
-    treeToggleBtn.addEventListener("click", async () => {
-      docsViewState.documentTreeOpen = !docsViewState.documentTreeOpen;
-      console.info("[documents-tree] toggle", { open: docsViewState.documentTreeOpen });
-      if (docsViewState.documentTreeOpen) {
-        const projectId = String(store.currentProject?.backendProjectId || store.currentProject?.id || store.currentProjectId || "");
-        console.info("[documents-tree] load.start", { projectId });
-        docsViewState.moveModal.folders = await listDocumentFolders(projectId);
-        console.info("[documents-tree] load.success", { count: docsViewState.moveModal.folders.length });
-      }
-      renderProjectDocumentsContent(root);
-    });
-  }
-  document.querySelectorAll("[data-tree-folder-id]").forEach((node) => {
-    node.addEventListener("click", async () => {
-      const folderId = node.getAttribute("data-tree-folder-id") || null;
-      console.info("[documents-tree] select-folder", { folderId: folderId || null });
-      await loadCurrentDirectory({ forceFolderId: folderId || null });
-      renderProjectDocumentsContent(root);
-    });
-  });
-  document.querySelectorAll("[data-tree-document-id]").forEach((node) => {
-    node.addEventListener("click", async () => {
-      const documentId = String(node.getAttribute("data-tree-document-id") || "").trim();
-      if (!documentId) return;
-      console.info("[documents-view] open-file", { documentId, source: "tree" });
-      await openPdfPreview(root, documentId);
-    });
-  });
-  document.querySelectorAll("[data-tree-toggle-folder-id]").forEach((node) => {
-    node.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const folderId = String(node.getAttribute("data-tree-toggle-folder-id") || "");
-      const set = new Set(Array.isArray(docsViewState.treeExpandedFolderIds) ? docsViewState.treeExpandedFolderIds : []);
-      if (set.has(folderId)) set.delete(folderId); else set.add(folderId);
-      docsViewState.treeExpandedFolderIds = Array.from(set);
-      try { localStorage.setItem(DOCUMENTS_TREE_EXPANDED_STORAGE_KEY, JSON.stringify(docsViewState.treeExpandedFolderIds)); } catch {}
-      renderProjectDocumentsContent(root);
-    });
-  });
   // Le même glisser-déposer que le rail de la Mémoire : un seul composant, une
   // seule façon de se tromper. Le code vivait ici en double, à deux endroits de
   // ce fichier.
@@ -4003,28 +4080,6 @@ export function renderProjectDocuments(root) {
       console.warn("syncProjectDocumentsFromSupabase failed", error);
     });
 }
-  const treeToggleBtn = document.getElementById("documentsTreeToggleBtn");
-  if (treeToggleBtn) {
-    treeToggleBtn.addEventListener("click", async () => {
-      docsViewState.documentTreeOpen = !docsViewState.documentTreeOpen;
-      console.info("[documents-tree] toggle", { open: docsViewState.documentTreeOpen });
-      if (docsViewState.documentTreeOpen) {
-        const projectId = String(store.currentProject?.backendProjectId || store.currentProject?.id || store.currentProjectId || "");
-        console.info("[documents-tree] load.start", { projectId });
-        docsViewState.moveModal.folders = await listDocumentFolders(projectId);
-        console.info("[documents-tree] load.success", { count: docsViewState.moveModal.folders.length });
-      }
-      renderProjectDocumentsContent(root);
-    });
-  }
-  document.querySelectorAll("[data-tree-folder-id]").forEach((node) => {
-    node.addEventListener("click", async () => {
-      const folderId = node.getAttribute("data-tree-folder-id") || null;
-      console.info("[documents-tree] select-folder", { folderId: folderId || null });
-      await loadCurrentDirectory({ forceFolderId: folderId || null });
-      renderProjectDocumentsContent(root);
-    });
-  });
   // Le même glisser-déposer que le rail de la Mémoire : un seul composant, une
   // seule façon de se tromper. Le code vivait ici en double, à deux endroits de
   // ce fichier.

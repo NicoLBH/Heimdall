@@ -265,6 +265,12 @@ export function lireUnFichier(contenu = "") {
 
     if (mot === "zone:") { fermer(); zone = reste; return; }
 
+    // Une ligne qui **ouvre** ferme celle qui l'était : deux blocs ne
+    // s'emboîtent pas. Sans cette règle, un bloc dont l'accolade fermante
+    // manque avalait le suivant, puis l'accolade de la zone fermait ce bloc-là
+    // au lieu de la zone — une borne oubliée dérangeait tout le fichier.
+    if (ouvre && courant) fermer();
+
     // Un bloc ouvert **sans** accolade se ferme à la première ligne non
     // indentée : c'est l'ancienne règle, et elle reste, parce qu'un architecte
     // qui tape à la main n'ajoutera pas toujours ses bornes.
