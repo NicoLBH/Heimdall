@@ -29,12 +29,12 @@ import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-
 import {
   preparerLaMemoire, fichierDuChemin, adresseDuFichier, noeudsDeLaMemoire, renderLigneDArbre, renderPanneauDArbre,
   renderFilDAriane, renderRechercheDuProjet, renderTeteDuContenu, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE,
-  COLONNES_DU_TABLEAU, GABARIT_DU_TABLEAU
+  COLONNES_DU_TABLEAU, GABARIT_DU_TABLEAU, lignesAffichables
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
 import { versementsDeLaMemoire } from "../services/memoire-blame.js";
-import { sujetsDeclares } from "../services/memoire-identifiants.js";
+import { sujetsDeclares, variablesDeLaMemoire, cleDuSujet } from "../services/memoire-identifiants.js";
 import {
   lireAPropos, ecrireAPropos, topicsDeLaSaisie, descriptionDeLaSaisie,
   DESCRIPTION_MAX, TOPICS_MAX
@@ -349,8 +349,11 @@ function pieceDesFichiers(documentId) {
 }
 
 function getSelectedPdfDocument() {
-  const activeDocumentId = String(store.projectDocuments?.activeDocumentId || "").trim();
-  return activeDocumentId ? pieceDesFichiers(activeDocumentId) : null;
+  // Celle que l'aperçu a ouverte d'abord : c'est lui qui sait ce qu'il montre.
+  // La sélection globale sert de repli — elle vaut pour l'arbre, qui surligne.
+  const ouverte = String(docsViewState.pdfPreview?.sourceDocumentId || "").trim();
+  const active = String(store.projectDocuments?.activeDocumentId || "").trim();
+  return pieceDesFichiers(ouverte || active);
 }
 
 function revokePdfPreviewObjectUrl() {
@@ -1715,7 +1718,16 @@ function renderPdfPreviewView() {
   const projectName = String(store.projectForm?.projectName || "Projet");
   const documentItem = decorateDocumentWithPhase(getSelectedPdfDocument());
 
+  // Retomber en silence sur la liste était le pire des retours : l'écran
+  // revenait exactement là où l'on avait cliqué, et le clic paraissait n'avoir
+  // rien fait. On dit ce qu'on ne sait pas afficher.
   if (!documentItem) {
+    docsViewState.activity = {
+      tone: "error",
+      title: "Ce fichier n'a pas pu être ouvert",
+      message: "La pièce n'est plus dans la liste des documents du projet. Rechargez l'onglet."
+    };
+    docsViewState.mode = "list";
     return renderDocumentsListView();
   }
 
@@ -2643,6 +2655,18 @@ function renderSaisieDAPropos() {
  * mémoire sont **calculés**, et les déplacer serait décider d'un rangement qui
  * n'appartient pas à celui qui lit.
  */
+/**
+ * Ce qu'on sait de chaque nom, indexé par sa clé.
+ *
+ * Une seule lecture par rendu : la recalculer pour chaque jeton ferait
+ * parcourir tous les fichiers à chaque mot d'un fichier de trois cents lignes.
+ */
+function contexteDesVariables(memoire) {
+  const fichiers = (memoire?.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
+  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
+  return new Map(variables.map((variable) => [cleDuSujet(variable.nom), variable]));
+}
+
 function renderBrancheMemoire() {
   const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
   const chemin = docsViewState.memoireChemin ?? [];
@@ -2659,7 +2683,10 @@ function renderBrancheMemoire() {
     // Ce que la mémoire **entière** déclare : un renvoi se cherche dans tout le
     // projet, pas dans le seul fichier qu'on regarde — une règle incendie
     // s'appuie sur une donnée de base, qui vit ailleurs.
-    declares: sujetsDeclares(docsViewState.memoireAssertions ?? [])
+    declares: sujetsDeclares(docsViewState.memoireAssertions ?? []),
+    // Et ce qu'on sait de chaque nom, pour le dire au survol : entre deux noms
+    // voisins on se trompe vite, et se tromper ne se voit pas.
+    variables: contexteDesVariables(memoire)
   };
 
   const fichier = chemin.length >= 2 ? fichierDuChemin(memoire, chemin) : null;

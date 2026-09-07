@@ -192,6 +192,12 @@ export function champsDuBloc({
 
     // La tête d'une règle : la donnée et ses entrées, sans valeur de projet.
     poser("", ligneDeDonnee(sujet, [...conditions, ...exceptions].map((c) => c?.sujet), commeUneRegle));
+
+    // Puis ses locales, comme dans le fichier : ce qui fonde la règle se lit
+    // avant ce qu'elle fait, ici comme là-bas.
+    if (provenance && texte(provenance.quoi)) poser("provenance", ligneDeProvenance(provenance, 1, commeUneRegle));
+    if (texte(preuve)) poser("parce que", ligneDePreuve(texte(preuve), 1, commeUneRegle));
+
     conditions.forEach((condition, rang) => {
       poser(`si ${texte(condition?.sujet)}`,
         ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, 1, commeUneRegle));
@@ -206,8 +212,12 @@ export function champsDuBloc({
     if (texte(le)) poser("le", ligneDeDate(texte(le)));
   }
 
-  if (provenance && texte(provenance.quoi)) poser("provenance", ligneDeProvenance(provenance));
-  if (texte(preuve)) poser("parce que", ligneDePreuve(texte(preuve)));
+  // Hors d'une règle, elles restent en bas : une contrainte se lit par sa
+  // valeur, et ce qui la fonde vient après.
+  if (!referentiel) {
+    if (provenance && texte(provenance.quoi)) poser("provenance", ligneDeProvenance(provenance));
+    if (texte(preuve)) poser("parce que", ligneDePreuve(texte(preuve)));
+  }
   if (texte(statut)) poser("statut", ligneDeStatut(texte(statut)));
 
   return champs;

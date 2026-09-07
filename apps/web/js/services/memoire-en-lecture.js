@@ -46,7 +46,7 @@
 import {
   OPERATEUR, PROVENANCES, STATUTS, RETRAIT, JETON,
   ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
-  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote
+  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote, ligneDeLocale
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -90,9 +90,38 @@ const CONSTATS = new Map([
  */
 const TETES = [
   "sauf si", "parce que:", "statut:", "fichier:", "note:", "le:", "zone:",
-  "fonction", "alors", "sinon", "si", "et", "ou", "non",
+  "fonction", "soit", "alors", "sinon", "si", "et", "ou", "non",
   ...PROVENANCES.map((type) => `${type}:`)
 ];
+
+/**
+ * Ce qu'on écrit pour soi, et que rien n'interprète.
+ *
+ * `//` jusqu'au bout de la ligne, `/* … *\/` sur une ou plusieurs. Une règle de
+ * quinze lignes a besoin qu'on dise **pourquoi** une condition existe, ce qui
+ * est autre chose que dire ce qu'elle teste.
+ */
+export function estUnCommentaire(ligne = "") {
+  const dit = texte(ligne);
+  return dit.startsWith("//") || dit.startsWith("/*") || dit.startsWith("*");
+}
+
+/**
+ * Une locale de règle : `soit texte = "…";`
+ *
+ * Le nom porte le sens — c'est le type de provenance, ou `parce que`. Rendre
+ * `null` quand la ligne ne s'y prête pas laisse l'appelant la refuser en la
+ * nommant, plutôt que d'inventer une locale vide.
+ */
+export function lireUneLocale(reste = "") {
+  const dit = texte(reste).replace(/;\s*$/, "");
+  const coupe = dit.match(/^(.*?)\s*=\s*([\s\S]*)$/);
+  if (!coupe) return null;
+
+  const nom = texte(coupe[1]);
+  const { valeur } = lireUneValeur(texte(coupe[2]));
+  return nom && valeur ? { nom, valeur } : null;
+}
 
 /**
  * Ce qu'une clause de règle dit, débarrassé de ses bornes.
@@ -285,6 +314,11 @@ export function lireUnFichier(contenu = "") {
       return;
     }
 
+    // Un commentaire ne dit rien au raisonnement : il ne ferme ni n'ouvre, et
+    // il ne se refuse jamais. Le refuser serait dire qu'écrire pour soi est une
+    // faute.
+    if (estUnCommentaire(corps)) return;
+
     const { mot, reste } = teteDe(corps);
 
     if (mot === "fichier:") { fermer(); chemin = reste; return; }
@@ -327,6 +361,20 @@ export function lireUnFichier(contenu = "") {
     }
 
     if (mot === "parce que:") { courant.preuve = lireUneValeur(reste).valeur; return; }
+
+    // `soit texte = "…";` — la même chose, écrite comme une locale de règle.
+    // Le nom **est** le concept : un type de provenance, ou « parce que ».
+    if (mot === "soit") {
+      const locale = lireUneLocale(reste);
+      if (!locale) {
+        refus.push({ ligne: numero, texte: corps, raison: "cette déclaration ne pose aucune valeur." });
+        return;
+      }
+      if (locale.nom.toLowerCase() === "parce que") { courant.preuve = locale.valeur; return; }
+      if (PROVENANCES.includes(locale.nom)) { courant.provenance = { type: locale.nom, quoi: locale.valeur }; return; }
+      refus.push({ ligne: numero, texte: corps, raison: `« ${locale.nom} » n'est pas une provenance connue.` });
+      return;
+    }
 
     if (mot === "le:") { courant.le = reste; return; }
 
@@ -472,6 +520,11 @@ export function jetonsDeLaLigne(ligne = "") {
   if (!nu) return [];
 
   const marge = blancs ? [{ type: JETON.NEUTRE, texte: blancs }] : [];
+
+  // Un commentaire se rend tel quel : rien à interpréter, donc rien à
+  // recomposer — et le rendre autrement le ferait mentir.
+  if (estUnCommentaire(nu)) return [...marge, { type: JETON.COMMENTAIRE, texte: nu }];
+
   const { mot, reste } = teteDe(nu);
 
   const type = mot.endsWith(":") ? mot.slice(0, -1) : "";
@@ -484,6 +537,13 @@ export function jetonsDeLaLigne(ligne = "") {
   if (mot === "parce que:") return [...marge, ...(ligneDePreuve(lireUneValeur(reste).valeur, 0) ?? []).slice(1)];
   if (mot === "statut:") return [...marge, ...(ligneDeStatut(reste, 0) ?? []).slice(1)];
   if (mot === "le:") return [...marge, ...(ligneDeDate(reste, 0) ?? []).slice(1)];
+
+  // `soit texte = "…";` — une locale de règle. Le nom porte le sens, la valeur
+  // se cite : on la relit pour la réécrire telle qu'elle était.
+  if (mot === "soit") {
+    const locale = lireUneLocale(reste);
+    if (locale) return [...marge, ...(ligneDeLocale(locale.nom, locale.valeur, 0) ?? []).slice(1)];
+  }
 
   if (mot === "alors" || mot === "sinon") {
     // Les bornes disent que la ligne vient d'un `.ref` : on les retire pour

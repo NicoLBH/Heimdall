@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  cleDAffirmation, itemsDeProposition, descriptionDeLaProposition, provenanceRetenue } from "./atelier-proposition.js";
+  cleDAffirmation, itemsDeProposition, descriptionDeLaProposition, provenanceRetenue,
+  sansDoublonDItems } from "./atelier-proposition.js";
 
 const DEGRE = {
   sujet: "Degré coupe-feu des planchers",
@@ -92,4 +93,44 @@ test("un type de provenance inventé n'entre pas", () => {
 test("un statut inconnu n'entre pas non plus", () => {
   const [item] = itemsDeProposition([{ sujet: "Zone de neige", valeur: "E", statut: "peut-être" }]);
   assert.equal(item.payload.statut, null);
+});
+
+test("deux fois le même sujet ne perd pas la proposition entière", () => {
+  // La base tient (proposition, type, clé) pour unique et écrit en un seul
+  // INSERT … ON CONFLICT : deux lignes de même clé font refuser l'envoi entier,
+  // pas seulement la seconde. La proposition s'ouvrait vide, et l'écran disait
+  // « Rien à comparer » sans que rien ne dise pourquoi.
+  const items = itemsDeProposition([
+    { sujet: "Classement du bâtiment", valeur: "3e famille B", nature: "donnee-de-base" },
+    { sujet: "Classement du bâtiment", valeur: "3e famille B", nature: "contrainte" },
+    { sujet: "Colonne sèche", valeur: "exigée", nature: "contrainte" }
+  ]);
+
+  assert.deepEqual(items.map((item) => item.itemKey), ["classement-du-batiment", "colonne-seche"]);
+  // La première écriture gagne : c'est celle que l'appelant a mise en tête.
+  assert.equal(items[0].payload.nature, "donnee-de-base");
+});
+
+test("une règle et la valeur qu'elle produit ne sont pas un doublon", () => {
+  // Elles portent le même sujet, et c'est exactement pour cela que la clé d'une
+  // règle est préfixée : verser l'une périmerait l'autre.
+  const items = itemsDeProposition([
+    { sujet: "Colonne sèche", valeur: "exigée", referentiel: true, regle: { conditions: [] } },
+    { sujet: "Colonne sèche", valeur: "exigée", nature: "contrainte" }
+  ]);
+
+  assert.deepEqual(items.map((item) => item.itemKey), ["regle:colonne-seche", "colonne-seche"]);
+});
+
+test("des items déjà construits se dédoublonnent aussi", () => {
+  const items = sansDoublonDItems([
+    { itemType: "base-datum", itemKey: "a", payload: { value: "1" } },
+    { itemType: "base-datum", itemKey: "a", payload: { value: "2" } },
+    { itemType: "document", itemKey: "a", payload: {} }
+  ]);
+
+  // Le type fait partie de la clé : un document et une affirmation peuvent
+  // porter le même nom sans se gêner.
+  assert.equal(items.length, 2);
+  assert.equal(items[0].payload.value, "1");
 });

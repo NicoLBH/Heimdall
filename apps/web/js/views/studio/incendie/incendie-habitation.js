@@ -61,6 +61,7 @@ import {
 } from "../../../services/incendie-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
+import { normalizeSubjectKey } from "../../../services/project-memory.js";
 import { fichierDeLEtude, fichierDesRegles } from "../../../services/incendie-en-texte.js";
 import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
 import { zoneChoices, ZONE_TOUT_LOUVRAGE } from "../../../services/project-zones.js";
@@ -807,10 +808,19 @@ function affirmationsRetenues() {
   // sans que rien ne le signale. Le classement part **avec** elles pour la même
   // raison, prise à l'envers : une règle qui dit « si le classement est 3e
   // famille B » ne vaut que si le projet dit quelque part quel est le sien.
+  const donnees = donneesDeBaseVersables(etat.vue, etat.zoneDuVersement);
+
+  // Un sujet ne se verse qu'une fois. Le classement figure dans les exigences
+  // du référentiel — il conclut comme les autres —, mais ce n'est pas une
+  // exigence : c'est la variable que les exigences citent. Versé des deux
+  // côtés, il portait deux fois la même clé, et la base refuse l'envoi entier
+  // plutôt que d'écrire un doublon : la proposition s'ouvrait vide.
+  const declares = new Set(donnees.map((donnee) => normalizeSubjectKey(donnee.sujet)));
+
   return [
     ...reglesVersables(prises, etat.zoneDuVersement),
-    ...donneesDeBaseVersables(etat.vue, etat.zoneDuVersement),
-    ...contraintes
+    ...donnees,
+    ...contraintes.filter((contrainte) => !declares.has(normalizeSubjectKey(contrainte.sujet)))
   ];
 }
 

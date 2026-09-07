@@ -28,17 +28,19 @@ import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import {
   blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
-  ligneDeZone, ligneFermante, PROVENANCE, STATUT
+  ligneDeZone, ligneFermante, ligneDeVariable, ligneDeCommentaire, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE
+  phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE,
+  MEMOIRE, EXTENSION_REGLE
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
   dernierVersementDe, contributeursDuFichier, PARTS_DANCIENNETE
 } from "../services/memoire-blame.js";
 import {
-  resolutionDuSujet, renvoisSansDeclaration, variablesDeLaMemoire
+  resolutionDuSujet, renvoisSansDeclaration, variablesDeLaMemoire, definitionsDesVariables,
+  cleDuSujet, typeDeLaValeur
 } from "../services/memoire-identifiants.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -61,7 +63,75 @@ export function preparerLaMemoire(assertions = []) {
     .sort((gauche, droite) => rangDuDossier(gauche.nom) - rangDuDossier(droite.nom)
       || gauche.nom.localeCompare(droite.nom, "fr"));
 
-  return { dossiers, fichiers: fichiersDeLaMemoire(assertions) };
+  // La racine porte ce qui ne relève d'aucun domaine et d'aucune nature : la
+  // liste des noms que le projet partage. Elle se calcule depuis les dossiers,
+  // et n'y figure donc pas elle-même — sinon chaque variable se déclarerait
+  // dans le fichier qui la liste, ce qui ne veut rien dire.
+  const racine = [fichierDesVariables(dossiers)].filter(Boolean);
+
+  return { dossiers, racine, fichiers: [...fichiersDeLaMemoire(assertions), ...racine] };
+}
+
+/** Le nom du fichier des variables. Il est à la racine, et il est unique. */
+export const FICHIER_DES_VARIABLES = "variables-du-projet.ref";
+
+/**
+ * `Mémoire/variables-du-projet.ref` — les noms que le projet partage.
+ *
+ * ## Pourquoi un fichier, et non un écran
+ *
+ * Parce qu'on l'ouvre au même endroit que les règles qui s'en servent. Un
+ * dictionnaire rangé ailleurs ne se consulte pas ; celui-ci est à un clic de la
+ * règle qu'on est en train de lire.
+ *
+ * ## Pourquoi il s'engendre
+ *
+ * Il est **entièrement déductible** des autres fichiers : les noms sont ceux
+ * que les blocs déclarent et que les conditions citent. Le verser en ferait une
+ * seconde vérité, qui divergerait au premier versement — voir
+ * `docs/fondamentaux.md`, règle 4. Il ne porte donc que ce qui se déduit : le
+ * nom, son type, son unité. Ce qu'une variable **vaut** n'y est pas : elle en
+ * prend plusieurs au fil d'un projet, et une définition qui en porterait une
+ * cesserait d'être vraie au premier versement.
+ *
+ * @returns {object|null} un fichier, ou `null` si le projet n'a encore aucun nom
+ */
+export function fichierDesVariables(dossiers = []) {
+  const fichiers = (Array.isArray(dossiers) ? dossiers : []).flatMap((dossier) => dossier.fichiers ?? []);
+  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
+  const definitions = definitionsDesVariables(variables);
+  if (!definitions.length) return null;
+
+  const lignesPretes = [
+    { nature: "commentaire", jetons: ligneDeCommentaire(
+      "Les noms que le projet partage. Une règle qui cite un nom absent d'ici s'appuie sur ce que personne n'a versé.") },
+    { nature: "commentaire", jetons: ligneDeCommentaire(
+      "Ce fichier s'engendre depuis les autres : il ne se verse pas, il se relit.") },
+    { nature: "vide", jetons: [] },
+    // Une déclaration par ligne, sans blanc entre elles : c'est une liste qu'on
+    // parcourt de l'œil, pas une suite de blocs qu'on lit.
+    ...definitions.map((definition) => ({ nature: "variable", jetons: ligneDeVariable(definition) }))
+  ];
+
+  return {
+    chemin: [MEMOIRE],
+    extension: EXTENSION_REGLE,
+    nom: FICHIER_DES_VARIABLES,
+    fichier: `${normaliserPourChemin(MEMOIRE)}/${FICHIER_DES_VARIABLES}`,
+    lignes: [],
+    ecartees: [],
+    sections: [],
+    lignesPretes
+  };
+}
+
+/** Le même passage en minuscules sans accents que `cheminDeFichier`. */
+function normaliserPourChemin(morceau) {
+  return texte(morceau)
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "memoire";
 }
 
 /**
@@ -85,7 +155,18 @@ export function adresseDuFichier(fichier) {
   // Relative à la branche : `Incendie/incendie.ctr`, et non `Mémoire/…`. La
   // racine est celle de l'onglet, pas un dossier où l'on entre.
   const dossier = fichier.chemin[fichier.chemin.length - 1];
-  return `${dossier}/${nomDeFichier(fichier.chemin, fichier.extension)}`;
+  return `${dossier}/${nomDuFichier(fichier)}`;
+}
+
+/**
+ * Le nom d'un fichier.
+ *
+ * Il se calcule d'ordinaire depuis le chemin — un dossier « Incendie » porte
+ * `incendie.ctr`. Un fichier engendré porte le sien : `variables-du-projet.ref`
+ * ne se déduit d'aucun dossier, il est ce qu'il est.
+ */
+export function nomDuFichier(fichier) {
+  return texte(fichier?.nom) || nomDeFichier(fichier.chemin, fichier.extension);
 }
 
 /** Le fichier d'un chemin, s'il existe. */
@@ -185,6 +266,20 @@ export function renderLigneDArbre(noeud) {
 export function noeudsDeLaMemoire(memoire, { chemin = [], replies = new Set(), profondeur = 1 } = {}) {
   const noeuds = [];
 
+  // Ce qui vit à la racine se lit avant les dossiers : c'est le dictionnaire du
+  // projet, et on l'ouvre avant d'entrer dans une discipline.
+  for (const fichier of memoire.racine ?? []) {
+    const adresse = adresseDuFichier(fichier);
+    noeuds.push({
+      aller: `memoire:${adresse}`,
+      libelle: nomDuFichier(fichier),
+      profondeur,
+      genre: "fichier",
+      actif: chemin.join("/") === adresse,
+      compte: (fichier.lignesPretes ?? []).filter((ligne) => ligne.nature === "variable").length
+    });
+  }
+
   for (const dossier of memoire.dossiers ?? []) {
     const replie = replies.has(dossier.nom);
     noeuds.push({
@@ -205,7 +300,7 @@ export function noeudsDeLaMemoire(memoire, { chemin = [], replies = new Set(), p
       const adresse = adresseDuFichier(fichier);
       noeuds.push({
         aller: `memoire:${adresse}`,
-        libelle: nomDeFichier(fichier.chemin, fichier.extension),
+        libelle: nomDuFichier(fichier),
         profondeur: profondeur + 1,
         genre: "fichier",
         actif: chemin.join("/") === adresse,
@@ -403,9 +498,19 @@ export function renderDossiers(memoire, { auteurs = new Map(), propositions = ne
   }
 
   return `
-    ${renderLesVariables(memoire)}
     <div class="memoire-liste memoire-liste--tableau">
       ${renderEnteteDuTableau()}
+      ${(memoire.racine ?? []).map((fichier) => `
+        <button type="button" class="memoire-entree memoire-entree--fichier"
+          data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
+          <span class="memoire-entree__nom">
+            <span class="memoire-entree__icone">${svgIcon("file", { className: "octicon" })}</span>
+            ${escapeHtml(nomDuFichier(fichier))}
+          </span>
+          <span class="memoire-entree__message">Les noms que le projet partage — engendré depuis les autres fichiers.</span>
+          <span class="memoire-entree__date">—</span>
+        </button>
+      `).join("")}
       ${memoire.dossiers
         .map((dossier) => {
           const dernier = dernierVersementDe(
@@ -428,75 +533,6 @@ export function renderDossiers(memoire, { auteurs = new Map(), propositions = ne
   `;
 }
 
-/**
- * Les variables du projet, et qui s'en sert.
- *
- * ## Ce qui manquait
- *
- * Un nom n'existait qu'aux endroits où il était écrit. « Hauteur du plancher
- * bas » se déclare dans un `.ddb` et se cite dans les conditions de trente
- * règles ; pour savoir ce qu'elle vaut, et ce qui tomberait si elle changeait,
- * il fallait ouvrir les fichiers un par un. C'est précisément la question qu'on
- * pose devant une mémoire, et la seule à laquelle elle ne savait pas répondre.
- *
- * ## Pourquoi en tête de la racine
- *
- * Parce que c'est ce qu'on vient voir. Les dossiers disent où les choses sont
- * rangées ; les variables disent de quoi le projet est fait. Un raisonnement se
- * lit par ses noms avant de se lire par ses fichiers.
- *
- * Ce qui est cité sans être déclaré y figure en rouge : c'est le trou du
- * raisonnement, et ne montrer que ce qui va bien serait pire que de ne rien
- * montrer.
- */
-export function renderLesVariables(memoire) {
-  const fichiers = (memoire.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
-  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
-  if (!variables.length) return "";
-
-  const manquantes = variables.filter((variable) => !variable.declaree).length;
-
-  const ligne = (variable) => `
-    <li class="memoire-variable${variable.declaree ? "" : " memoire-variable--inconnue"}">
-      <span class="memoire-variable__nom">${escapeHtml(variable.nom)}</span>
-      <span class="memoire-variable__valeur">${
-        variable.declaree
-          ? (variable.valeur ? escapeHtml(variable.valeur) : "—")
-          : "personne ne l'a versée"
-      }</span>
-      <span class="memoire-variable__ou">${
-        variable.declaree ? escapeHtml(variable.declarePar) : ""
-      }</span>
-      <span class="memoire-variable__usages" title="${escapeHtml(variable.citeePar.join(", "))}">${
-        variable.citeePar.length
-          ? `${variable.citeePar.length} usage${variable.citeePar.length > 1 ? "s" : ""}`
-          : "aucun usage"
-      }</span>
-    </li>
-  `;
-
-  return `
-    <section class="memoire-variables">
-      <header class="memoire-variables__tete">
-        <b>Variables du projet</b>
-        <span class="memoire-variables__compte">${variables.length}</span>
-        ${manquantes
-          ? `<span class="memoire-variables__manquantes">${manquantes} sans déclaration</span>`
-          : ""}
-      </header>
-      <p class="memoire-variables__quoi">
-        Les noms que les fichiers posent et que les règles citent. Ce sont eux
-        qu'on partage d'une discipline à l'autre : changer l'un d'eux change
-        tout ce qui s'y appuie.
-      </p>
-      <div class="memoire-variable memoire-variable--tete">
-        <span>Nom</span><span>Valeur</span><span>Déclarée dans</span><span>Citée par</span>
-      </div>
-      <ul class="memoire-variables__liste">${variables.map(ligne).join("")}</ul>
-    </section>
-  `;
-}
-
 /** Un dossier : ses fichiers. */
 export function renderFichiers(memoire, dossier, { auteurs = new Map(), propositions = new Map() } = {}) {
   const entree = (memoire.dossiers ?? []).find((candidat) => candidat.nom === dossier);
@@ -515,7 +551,7 @@ export function renderFichiers(memoire, dossier, { auteurs = new Map(), proposit
             <button type="button" class="memoire-entree memoire-entree--fichier" data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
               <span class="memoire-entree__nom">
                 <span class="memoire-entree__icone">${svgIcon("file", { className: "octicon" })}</span>
-                ${escapeHtml(nomDeFichier(fichier.chemin, fichier.extension))}
+                ${escapeHtml(nomDuFichier(fichier))}
                 <span class="memoire-entree__quoi">${escapeHtml(phraseDeLExtension(fichier.extension))}</span>
               </span>
               <span class="memoire-entree__message">${escapeHtml(dernier?.message || "—")}</span>
@@ -661,6 +697,22 @@ export function ilYA(quand) {
  * @returns {{rang, jetons, nature, bloc, ouvre, assertion, position}[]}
  */
 export function lignesAffichables(fichier) {
+  // Un fichier engendré porte ses lignes toutes faites : il n'y a pas
+  // d'affirmation derrière elles, et il n'y a rien à recomposer.
+  if (Array.isArray(fichier?.lignesPretes)) {
+    return fichier.lignesPretes.map((ligne, place) => ({
+      rang: place + 1,
+      jetons: ligne.jetons ?? [],
+      nature: ligne.nature ?? "detail",
+      profondeur: 0,
+      ancetres: [],
+      ouvre: null,
+      ferme: null,
+      assertion: null,
+      position: 0
+    }));
+  }
+
   const sorties = [];
   let rang = 0;
   let numeroDeBloc = 0;
@@ -817,7 +869,7 @@ export function ligneCachee(ligne, plies) {
  */
 export function renderFichier(fichier, {
   lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
-  propositions = new Map(), plies = new Set(), declares = null
+  propositions = new Map(), plies = new Set(), declares = null, variables = null
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
@@ -872,7 +924,7 @@ export function renderFichier(fichier, {
               : `<span class="memoire-ligne__caret" aria-hidden="true"></span>`
             : ""
         }
-        <span class="memoire-ligne__code">${renderJetons(ligne.jetons, { declares })}${
+        <span class="memoire-ligne__code">${renderJetons(ligne.jetons, { declares, variables })}${
           ligne.ouvre
             ? `<span class="memoire-ligne__replie" aria-hidden="true">${svgIcon("fold", { className: "octicon" })}</span>`
             : ""
@@ -1060,7 +1112,7 @@ export function renderRecherche(memoire, query = "", { pieces = [] } = {}) {
               <button type="button" class="memoire-recherche-resultats__fichier"
                 data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
                 ${svgIcon("file", { className: "octicon" })}
-                ${escapeHtml(nomDeFichier(fichier.chemin, fichier.extension))}
+                ${escapeHtml(nomDuFichier(fichier))}
               </button>
               <span class="memoire-fichier__mesure">${trouvees.length} ligne${trouvees.length > 1 ? "s" : ""}</span>
             </header>
@@ -1261,19 +1313,60 @@ export function jetonsDeLAssertion(assertion = {}) {
  * transforme la mémoire en quelque chose qui se vérifie en la lisant — une
  * condition qui porte sur une donnée jamais versée se voit sans la chercher.
  */
-function renderJetons(jetons = [], { declares = null } = {}) {
+function renderJetons(jetons = [], { declares = null, variables = null } = {}) {
   return jetons
     .map((entree) => {
       const resolution = entree.type === "sujet"
         ? resolutionDuSujet(entree.texte, { jetons, declares })
         : "";
       const classes = `mdall-${escapeHtml(entree.type)}${resolution ? ` mdall-sujet--${resolution}` : ""}`;
-      const dit = resolution === "inconnu"
-        ? ` title="Aucune ligne de la mémoire ne déclare « ${escapeHtml(entree.texte)} »."`
-        : "";
-      return `<span class="${classes}"${dit}>${escapeHtml(entree.texte)}</span>`;
+      const dit = entree.type === "sujet" ? contexteDuSujet(entree.texte, { resolution, variables }) : "";
+      return `<span class="${classes}"${dit ? ` title="${escapeHtml(dit)}"` : ""}>${escapeHtml(entree.texte)}</span>`;
     })
     .join("");
+}
+
+/**
+ * Ce qu'un nom dit de lui-même, au survol.
+ *
+ * ## Pourquoi cela ne peut pas attendre
+ *
+ * « Hauteur du plancher bas » et « Hauteur du dernier plancher » sont deux
+ * variables ; à la lecture d'une condition, on ne sait pas laquelle on regarde
+ * sans aller ouvrir le fichier qui la déclare. Se tromper entre deux noms
+ * voisins ne se voit pas : la règle reste vraie d'apparence, et fausse.
+ *
+ * Le survol donne donc ce que l'écran de suivi des variables donne — ce qu'elle
+ * vaut aujourd'hui, où elle est déclarée, combien de fois elle sert — sans
+ * quitter la ligne qu'on lit.
+ */
+export function contexteDuSujet(sujet, { resolution = "", variables = null } = {}) {
+  const nom = texte(sujet);
+  if (!nom) return "";
+
+  const variable = variables instanceof Map ? variables.get(cleDuSujet(nom)) : null;
+  if (!variable) {
+    return resolution === "inconnu"
+      ? `${nom}\nAucune ligne de la mémoire ne la déclare : ce renvoi ne mène nulle part.`
+      : "";
+  }
+
+  const lignes = [nom];
+  const { type, unite } = typeDeLaValeur(variable.valeur);
+  lignes.push([type, unite].filter(Boolean).join(" · "));
+
+  if (variable.declaree) {
+    lignes.push(`vaut ${variable.valeur || "—"}`);
+    lignes.push(`déclarée dans ${variable.declarePar}`);
+  } else {
+    lignes.push("personne ne l'a versée");
+  }
+
+  lignes.push(variable.citeePar.length
+    ? `${variable.citeePar.length} usage${variable.citeePar.length > 1 ? "s" : ""} — ${variable.citeePar.join(", ")}`
+    : "aucun usage");
+
+  return lignes.join("\n");
 }
 
 function formatDate(valeur) {

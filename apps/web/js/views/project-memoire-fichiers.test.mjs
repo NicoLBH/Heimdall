@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   lignesDeLAssertion, provenanceDeLAssertion, statutDeLAssertion,
-  jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee, grouperParVersement
+  jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee, grouperParVersement,
+  preparerLaMemoire, fichierDesVariables, adresseDuFichier, nomDuFichier, contexteDuSujet,
+  FICHIER_DES_VARIABLES
 } from "./project-memoire-fichiers.js";
 import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
 import { lireUnFichier } from "../services/memoire-en-lecture.js";
@@ -207,12 +209,13 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
 
   assert.equal(texte, [
     "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    '   soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°)";',
+    '   soit parce que = "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes.";',
+    "",
     "   si (Logements superposés = oui)",
     "   et (Hauteur du plancher bas du logement le plus haut <= 28 m)",
     '   alors ("3e famille B");',
     '   sinon ("3e famille A");',
-    "   texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)",
-    '      parce que: "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."',
     "}"
   ].join("\n"));
 
@@ -241,4 +244,70 @@ test("ce que la mémoire écrit d'une règle se relit sans perte", () => {
   assert.equal(blocs[0].valeur, "");
   assert.equal(blocs[0].alors, "exigée");
   assert.deepEqual(blocs[0].conditions[0].valeur, ["3e famille B", "4e famille"]);
+});
+
+/** Une affirmation de mémoire, telle que la base la rend. */
+const ligneDeMemoire = (sujet, valeur, extra = {}) => ({
+  id: `a-${sujet}`, subject_key: sujet, status: "assumed", superseded_by: null,
+  nature: "donnee-de-base", domain: null,
+  payload: { subject: sujet, value: valeur }, ...extra
+});
+
+test("la racine de la Mémoire porte le dictionnaire du projet", () => {
+  const memoire = preparerLaMemoire([
+    ligneDeMemoire("Hauteur du plancher bas", "26 m"),
+    ligneDeMemoire("Classement du bâtiment", "3e famille B", {
+      nature: null, domain: "incendie",
+      payload: {
+        subject: "Classement du bâtiment", value: "3e famille B", referentiel: true,
+        regle: { conditions: [{ sujet: "Hauteur du plancher bas", operateur: "<=", valeur: ["28"], unite: "m" }], sauf: [] }
+      }
+    })
+  ]);
+
+  const [variables] = memoire.racine;
+  assert.equal(nomDuFichier(variables), FICHIER_DES_VARIABLES);
+  // À la racine, pas dans un dossier : il ne relève d'aucune discipline.
+  assert.equal(adresseDuFichier(variables), `Mémoire/${FICHIER_DES_VARIABLES}`);
+
+  const texte = texteDesLignes(lignesAffichables(variables).map((ligne) => ligne.jetons));
+  assert.match(texte, /const Hauteur du plancher bas = \{ type: "mesure", unité: "m" \};/);
+  assert.match(texte, /const Classement du bâtiment = \{ type: "texte" \};/);
+  // Ce qu'une variable vaut n'y est pas : elle en prend plusieurs au fil d'un
+  // projet, et une définition qui en porterait une cesserait d'être vraie.
+  assert.equal(texte.includes("26 m"), false);
+});
+
+test("le dictionnaire ne se déclare pas lui-même", () => {
+  const memoire = preparerLaMemoire([ligneDeMemoire("Hauteur du plancher bas", "26 m")]);
+  const [variables] = memoire.racine;
+
+  // Il s'engendre depuis les autres fichiers : s'il entrait dans son propre
+  // calcul, chaque variable se déclarerait dans le fichier qui la liste.
+  assert.equal(memoire.dossiers.some((d) => d.fichiers.includes(variables)), false);
+});
+
+test("un projet sans mémoire n'a pas de dictionnaire", () => {
+  // Un fichier vide se lirait comme « ce projet n'a aucun nom », ce qui est
+  // vrai — mais un fichier pour le dire est du bruit.
+  assert.equal(fichierDesVariables([]), null);
+  assert.deepEqual(preparerLaMemoire([]).racine, []);
+});
+
+test("le survol d'un nom dit ce qu'il faut pour ne pas le confondre", () => {
+  const variables = new Map([["hauteur du plancher bas", {
+    nom: "Hauteur du plancher bas", valeur: "26 m", declaree: true,
+    declarePar: "memoire/donnees-de-base.ddb", citeePar: ["memoire/incendie.ref"]
+  }]]);
+
+  const dit = contexteDuSujet("Hauteur du plancher bas", { resolution: "connu", variables });
+  assert.match(dit, /mesure · m/);
+  assert.match(dit, /vaut 26 m/);
+  assert.match(dit, /déclarée dans memoire\/donnees-de-base\.ddb/);
+  assert.match(dit, /1 usage/);
+
+  // Sans table, on ne dit rien plutôt que d'inventer : une info-bulle vide vaut
+  // mieux qu'une info-bulle fausse.
+  assert.equal(contexteDuSujet("Hauteur du plancher bas", { resolution: "connu" }), "");
+  assert.match(contexteDuSujet("Autre chose", { resolution: "inconnu" }), /ne mène nulle part/);
 });

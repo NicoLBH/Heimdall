@@ -37,6 +37,8 @@
  * passer pour résolu un renvoi qui ne l'est pas.
  */
 
+import { couperLUnite, estMesuree } from "./memoire-en-texte.js";
+
 const texte = (valeur) => String(valeur ?? "").trim();
 
 /** Ce qu'une ligne fait d'un nom. */
@@ -260,4 +262,59 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
   }
 
   return [...variables.values()].sort((gauche, droite) => gauche.nom.localeCompare(droite.nom, "fr"));
+}
+
+/**
+ * Ce qu'une variable **est**, par opposition à ce qu'elle vaut.
+ *
+ * ## Pourquoi la définition et l'analyse ne se mélangent pas
+ *
+ * `variablesDeLaMemoire` répond à « qui déclare celle-ci, avec quelle valeur,
+ * et qui s'en sert ». C'est de l'analyse : cela change à chaque versement, et
+ * **une variable prend plusieurs valeurs** au fil d'une étude.
+ *
+ * Ici on ne garde que ce qui ne bouge pas : le nom, son type, son unité. C'est
+ * ce qu'on lit avant d'écrire une règle — pour réutiliser un nom qui existe
+ * plutôt que d'en inventer un voisin.
+ *
+ * ## Le type se déduit des valeurs, il ne se déclare pas encore
+ *
+ * « 26 m » est une mesure, « oui » une réponse, « 3e famille B » un texte. Le
+ * déduire vaut mieux que de le laisser vide : un type deviné faux se corrige en
+ * regardant la valeur, un type absent n'apprend rien. Le jour où quelqu'un
+ * versera une définition explicite, elle primera — et c'est pour cela que la
+ * liste porte `devine`.
+ *
+ * @returns {{nom: string, type: string, unite: string, devine: boolean}[]}
+ */
+export function definitionsDesVariables(variables = []) {
+  return (Array.isArray(variables) ? variables : [])
+    .map((variable) => {
+      const { type, unite } = typeDeLaValeur(variable?.valeur);
+      return { nom: texte(variable?.nom), type, unite, devine: true };
+    })
+    .filter((definition) => definition.nom);
+}
+
+/**
+ * Ce qu'une valeur écrite laisse voir de sa nature.
+ *
+ * Rien n'est inventé au-delà de ce que la forme montre : une valeur qu'on ne
+ * sait pas classer rend « inconnu », et c'est une réponse — pas un défaut.
+ */
+export function typeDeLaValeur(valeur) {
+  const dit = texte(valeur).replace(/^["\u00ab]\s*/, "").replace(/\s*["\u00bb]$/, "");
+  if (!dit) return { type: "inconnu", unite: "" };
+
+  if (/^(oui|non)$/i.test(dit)) return { type: "logique", unite: "" };
+
+  // La même coupe que l'écriture, et pour la même raison : « 3e famille B »
+  // commence par un chiffre sans être une mesure, et le prendre pour une
+  // donnerait une unité « e famille B ».
+  if (estMesuree(dit)) {
+    const { unite } = couperLUnite(dit);
+    return { type: "mesure", unite };
+  }
+
+  return { type: "texte", unite: "" };
 }

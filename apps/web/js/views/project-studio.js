@@ -37,6 +37,7 @@ import { renderIncendieHabitation } from "./studio/incendie/incendie-habitation.
 import { renderSolidityArkolia } from "./studio/socotec/socotec-enr-pv-hangard-neuf.js";
 import { renderSeismicGeneral } from "./studio/seismic/seismic-general.js";
 import { renderCtContinuityLab } from "./studio/dev/ct-continuity-lab.js";
+import { renderVariablesMutualisees } from "./studio/dev/variables-mutualisees.js";
 import { renderResolutionConflits } from "./studio/conflits/resolution-conflits.js";
 
 /**
@@ -193,6 +194,11 @@ function renderStudioNav() {
           dataAttributes: { "data-side-nav-target": "dev-ct-continuity-lab" },
           iconHtml: svgIcon("history", { className: "octicon octicon-history" }),
           trailing: "spike"
+        }),
+        renderNavListItem({
+          label: "Suivre les variables mutualisées",
+          dataAttributes: { "data-side-nav-target": "dev-variables" },
+          iconHtml: svgIcon("markdown-code", { className: "octicon octicon-code" })
         })
       ]
     })
@@ -267,6 +273,9 @@ function getRouterHtml() {
               <section class="project-studio-router__panel" data-side-nav-panel="dev-ct-continuity-lab">
                 <div id="projectStudioCtContinuityLabPanel"></div>
               </section>
+              <section class="project-studio-router__panel" data-side-nav-panel="dev-variables">
+                <div id="projectStudioVariablesPanel"></div>
+              </section>
             
             </div>
           </div>
@@ -299,6 +308,7 @@ export function renderProjectStudio(root) {
   const solidityArkoliaRoot = root.querySelector("#projectStudioSolidityArkoliaPanel");
   const seismicGeneralRoot = root.querySelector("#projectStudioSeismicGeneralPanel");
   const ctContinuityLabRoot = root.querySelector("#projectStudioCtContinuityLabPanel");
+  const variablesRoot = root.querySelector("#projectStudioVariablesPanel");
   const conflitsRoot = root.querySelector("#projectStudioConflitsPanel");
 
   if (copiloteRoot) renderCopilote(copiloteRoot);
@@ -309,6 +319,7 @@ export function renderProjectStudio(root) {
   if (solidityArkoliaRoot) renderSolidityArkolia(solidityArkoliaRoot);
   if (seismicGeneralRoot) renderSeismicGeneral(seismicGeneralRoot);
   if (ctContinuityLabRoot) renderCtContinuityLab(ctContinuityLabRoot);
+  if (variablesRoot) renderVariablesMutualisees(variablesRoot);
   if (conflitsRoot) renderResolutionConflits(conflitsRoot);
 
   const getScrollSource = () => root.querySelector("#projectStudioRouterScroll");
@@ -338,6 +349,9 @@ export function renderProjectStudio(root) {
       // un autre onglet, et un écran d'arbitrage qui montre un état périmé est
       // pire qu'un écran vide.
       if (targetId === "conflits-resolution" && conflitsRoot) renderResolutionConflits(conflitsRoot, { force: true });
+      // Les variables se relisent à chaque venue : la mémoire a pu bouger, et
+      // un nom qui n'existe plus se chercherait longtemps.
+      if (targetId === "dev-variables" && variablesRoot) renderVariablesMutualisees(variablesRoot, { force: true });
 
       panneauCourant = targetId || panneauCourant;
       marquerActif(root, targetId);

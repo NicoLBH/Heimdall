@@ -103,14 +103,17 @@ test("une règle ne porte aucune valeur de projet", () => {
     preuve: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."
   });
 
+  // Les locales d'abord, comme les `const` d'une fonction : ce qui fonde la
+  // règle se lit avant ce qu'elle fait.
   assert.deepEqual(lignes.map(clair), [
     "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    `${RETRAIT}soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°)";`,
+    `${RETRAIT}soit parce que = "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes.";`,
+    "",
     `${RETRAIT}si (Logements superposés = oui)`,
     `${RETRAIT}et (Hauteur du plancher bas du logement le plus haut <= 28 m)`,
     `${RETRAIT}alors ("3e famille B");`,
     `${RETRAIT}sinon ("3e famille A");`,
-    `${RETRAIT}texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)`,
-    `${RETRAIT}${RETRAIT}parce que: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."`,
     "}"
   ]);
 
@@ -173,14 +176,19 @@ test("l'extension dit ce que le fichier contient, le chemin où il vit", () => {
 });
 
 test("le langage n'emprunte à la programmation que ce qu'il exécute", () => {
-  // `fonction` est le seul mot emprunté, et il l'est parce qu'un `.ref` est
-  // exécutable : il ouvre une règle, et il en dit la nature avant tout le reste.
-  // Le reste du langage vient de l'écrit technique, et doit y rester : `const`
-  // ou `return` annonceraient un programme là où il n'y a qu'un raisonnement.
-  const interdits = ["const", "function", "return", "if", "else", "true", "false", "null", "//", "=>", "{", "}"];
+  // Trois mots empruntés, et ils vivent tous dans un `.ref` : `fonction` ouvre
+  // une règle, `soit` déclare ce qui la fonde, `const` définit un nom du projet.
+  // Un `.ref` est exécutable — c'est ce qui les justifie. Le reste du langage
+  // vient de l'écrit technique et doit y rester : `return` ou `else`
+  // annonceraient un programme là où il n'y a qu'un raisonnement transcrit.
+  const empruntes = new Set(["fonction", "soit", "const"]);
+  const interdits = ["function", "return", "if", "else", "true", "false", "null", "//", "=>", "{", "}"];
   for (const mot of MOTS) {
     assert.equal(interdits.includes(mot), false, `« ${mot} » vient de la programmation`);
   }
+  // Et la liste des emprunts ne s'allonge pas toute seule : chaque mot de plus
+  // rapproche le langage d'un langage de programmeur, ce qu'il n'est pas.
+  assert.deepEqual(MOTS.filter((mot) => empruntes.has(mot)).sort(), ["const", "fonction", "soit"]);
   // « sauf si » avant « si » : sans cet ordre, « sauf si » se lirait comme
   // « sauf » suivi d'un sujet nommé « si ».
   assert.ok(MOTS.indexOf("sauf si") < MOTS.indexOf("si"));
