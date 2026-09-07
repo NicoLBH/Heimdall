@@ -6462,7 +6462,10 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-move-modal__target{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;padding:8px 12px;text-align:left;cursor:pointer;}
 .documents-move-modal__target.is-active{border-color:#58a6ff;background:rgba(56,139,253,.15);}
 .documents-move-modal__actions{display:flex;justify-content:flex-end;margin-top:12px;}
-.documents-layout{display:grid;grid-template-columns:var(--documents-tree-width, auto) 1fr;align-items:start;gap:2px;}
+/* `align-items:stretch` et une hauteur plancher : sans elles, la colonne de
+   gauche s'arrête à sa dernière ligne et son filet paraît coupé au milieu de
+   l'écran — le même défaut que côté Mémoire. */
+.documents-layout{display:grid;grid-template-columns:var(--documents-tree-width, auto) 1fr;align-items:stretch;gap:2px;min-height:calc(100vh - var(--app-top) - 220px);}
 .documents-layout:has(.memoire-tree.is-collapsed){grid-template-columns:48px 1fr;}
 .documents-layout.is-root{grid-template-columns:minmax(0,1100px);justify-content:center;}
 .documents-main{min-width:0;max-height:var(--documents-content-height, calc(100vh - 120px));height:100%;z-index:2;background:var(--bg);padding-left:10px;}
@@ -20190,18 +20193,62 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   min-height:44px;
   padding:6px 8px;
 }
-.memoire-corps__tete{ padding:6px 0; }
-.memoire-corps__espace{ flex:1 1 auto; }
-.memoire-tree__tete .memoire-recherche{ min-width:0; flex:1 1 auto; }
+/* Le bouton seul sur sa ligne, à la hauteur du fil d'Ariane ; la recherche
+   dessous, sur toute la largeur du rail. Côte à côte, elle écrasait le champ
+   dans les 200 px qui restaient. */
+/* La tête du rail se colle comme celle du contenu : le bouton de repli doit
+   rester sous la main quand on fait défiler, et il est à la même hauteur que le
+   fil d'Ariane. */
+.memoire-tree__tete{
+  flex-wrap:wrap;
+  position:sticky;
+  top:0;
+  z-index:calc(var(--z-header) + 1);
+  background:var(--bgElev, var(--panel2));
+}
+.memoire-tree__tete .memoire-recherche{ flex:0 0 100%; min-width:0; }
 .memoire-tree__tete .memoire-recherche .gh-input{ width:100%; }
+/* La tête du contenu reste sous la main quand on fait défiler un fichier de
+   trois cents lignes : sans elle, on ne sait plus ce qu'on lit ni comment en
+   sortir. L'en-tête du projet s'efface pour lui laisser la place — deux barres
+   collées l'une sous l'autre mangent le tiers de l'écran.
+
+   Une seule barre pour les deux matières : `renderTeteDuContenu`. Deux
+   composants pour un même geste auraient demandé de tenir cette logique de
+   défilement à deux endroits. */
+.memoire-corps__tete{
+  padding:6px 0;
+  position:sticky;
+  top:0;
+  z-index:calc(var(--z-header) + 1);
+  background:var(--bg);
+}
+.memoire-corps__espace{ flex:1 1 auto; }
 .memoire-corps__tete .documents-breadcrumb{ margin:0; }
+.memoire-corps__tete .memoire-recherche{ flex:0 0 auto; }
+
+body.route--project.project-shell-compact.documents-local-chrome-compact #globalHeaderHost{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
 /* Le panneau descend jusqu'en bas, quoi qu'il porte. Réglé sur `auto`, il
    s'arrêtait à sa dernière ligne : un projet de trois fichiers laissait un
    filet vertical suspendu au milieu de l'écran, et la colonne de gauche
    n'existait plus qu'à moitié. */
+/* Le trait de séparation vit sur la **colonne**, qui s'étire avec la grille, et
+   non sur le panneau, dont la hauteur est celle de l'écran : sur un fichier de
+   trois cents lignes, il s'arrêtait au premier tiers et la page paraissait
+   coupée dès qu'on faisait défiler.
+   Le panneau, lui, se colle en haut : l'arborescence reste sous la main. */
+.memoire-tree{ border-right:1px solid var(--border); }
 .memoire-tree .documents-tree__panel{
-  min-height:var(--documents-content-height, calc(100vh - 180px));
-  height:var(--documents-content-height, calc(100vh - 180px));
+  border-right:0;
+  min-height:0;
+  height:auto;
+  max-height:calc(100vh - var(--app-top, 120px) - 60px);
+  position:sticky;
+  top:var(--memoire-colle, 88px);
 }
 /* Pas de marge en haut : la tête du contenu doit tomber à la même hauteur que
    celle du rail, sans quoi le bouton de repli et le fil d'Ariane ne sont pas
@@ -20332,7 +20379,17 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
 /* Un fichier ouvert. Le contenu est le même dans les deux lectures — c'est la
    marge qui change. Deux rendus du même fichier finiraient par ne plus montrer
    la même chose, et l'on ne saurait plus lequel croire. */
-.memoire-fichier{ border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+/* `overflow:hidden` arrondissait les coins — et cassait le `position:sticky` de
+   la tête, qu'aucun ancêtre coupé ne laisse tenir. `clip-path` arrondit sans
+   créer de conteneur de défilement. */
+.memoire-fichier{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  clip-path:inset(0 round var(--radius));
+}
+/* La tête du fichier — Code / Origine, sa taille, la copie — se colle juste
+   sous celle du contenu : c'est là qu'on change de lecture, et on doit pouvoir
+   le faire sans remonter trois cents lignes. */
 .memoire-fichier__tete{
   display:flex;
   align-items:center;
@@ -20340,6 +20397,9 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
   padding:8px 12px;
   border-bottom:1px solid var(--border);
   background:var(--panel2);
+  position:sticky;
+  top:44px;
+  z-index:var(--z-header);
 }
 .memoire-fichier__nom{
   color:var(--text);
@@ -20464,10 +20524,25 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   flex:0 0 190px;
   margin-right:10px;
   border-left:3px solid transparent;
+  /* La boîte est vide — le numéro de versement ne se répète pas — donc haute de
+     zéro, et un filet de 3 px sur une boîte sans hauteur ne se voit pas. La
+     bande d'ancienneté s'interrompait sous chaque tête de bloc, ce qui se
+     lisait comme un défaut d'affichage plutôt que comme une information. */
+  align-self:stretch;
 }
 /* Le bloc appartient à la ligne qu'il détaille : l'indentation le dit dans le
-   texte, un filet le dit à l'œil. */
-.memoire-ligne--detail .memoire-ligne__code{ box-shadow:inset 2px 0 0 0 rgba(110,118,129,.45); }
+   texte, un filet le dit à l'œil — et le filet **suit** l'indentation. Collé au
+   bord du code, il tombait à la hauteur de la balise de zone et laissait croire
+   que le détail appartenait à la zone, pas au bloc. */
+.memoire-ligne__code{ position:relative; }
+.memoire-ligne--detail .memoire-ligne__code::before{
+  content:"";
+  position:absolute;
+  top:0; bottom:0;
+  left:calc(var(--memoire-profondeur, 0) * 3ch + 1ch);
+  width:2px;
+  background:rgba(110,118,129,.45);
+}
 .memoire-blame__ref{ flex:0 0 auto; font-variant-numeric:tabular-nums; }
 .memoire-blame__date{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Dix degrés d'ancienneté, du plus ancien au plus récent. La même échelle sert

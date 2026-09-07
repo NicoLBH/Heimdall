@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   lignesDeLAssertion, provenanceDeLAssertion, statutDeLAssertion,
-  jetonsDeLAssertion, octets, ilYA
+  jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee
 } from "./project-memoire-fichiers.js";
 import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
 import { lireUnFichier } from "../services/memoire-en-lecture.js";
@@ -115,6 +115,38 @@ test("jetonsDeLAssertion rend la ligne de valeur, pas son détail", () => {
   });
   // Sans accolade : elle borne un bloc, et il n'y a pas de bloc hors contexte.
   assert.equal(enClair(jetons), "Zone de vent = 2");
+});
+
+test("replier une zone emporte tout ce qu'elle contient, pas seulement ses têtes", () => {
+  // Le défaut : replier la zone ne cachait que les têtes de bloc — leurs
+  // détails restaient à l'écran, orphelins, sous une zone fermée.
+  const fichier = {
+    lignes: [], ecartees: [],
+    sections: [{
+      zone: "Toutes zones",
+      lignes: [
+        { nature: "contrainte", payload: { subject: "Colonne sèche", value: "exigée", source: "arrêté" } },
+        { nature: "contrainte", payload: { subject: "Degré coupe-feu", value: "CF 1 h", source: "arrêté" } }
+      ]
+    }]
+  };
+
+  const lignes = lignesAffichables(fichier);
+  const zone = lignes[0].ouvre;
+  assert.ok(zone, "la zone ouvre un bloc");
+
+  const plies = new Set([zone]);
+  const visibles = lignes.filter((ligne) => !ligneCachee(ligne, plies));
+
+  // La tête de la zone et sa seule accolade fermante : rien d'autre.
+  assert.deepEqual(visibles.map((ligne) => enClair(ligne.jetons)), ["zone: Toutes zones {", "}"]);
+
+  // Replier un bloc ne touche pas au reste du fichier.
+  const bloc = lignes.find((ligne) => ligne.ouvre && ligne.ouvre !== zone).ouvre;
+  const apres = lignes.filter((ligne) => !ligneCachee(ligne, new Set([bloc])));
+  assert.equal(apres.length, lignes.length - 2, "seuls les deux détails du bloc se cachent");
+  // Sa fermeture reste : un bloc replié garde ses deux bornes.
+  assert.ok(apres.some((ligne) => ligne.ferme === bloc));
 });
 
 test("le poids d'un fichier se dit en octets, accents compris", () => {
