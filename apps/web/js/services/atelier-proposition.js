@@ -29,7 +29,7 @@
 import { normalizeSubjectKey } from "./project-memory.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { BASE_DATUM_KIND } from "./assertion-taxonomy.js";
-import { PROVENANCES, STATUTS } from "./memoire-en-texte.js";
+import { OPERATEURS, PROVENANCES, STATUTS } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -67,11 +67,62 @@ export function provenanceRetenue(provenance) {
   return { type, quoi };
 }
 
+/**
+ * Ce qu'on garde d'une règle : ses conditions, ce qu'elle pose, ce qui la borne.
+ *
+ * On ne stocke que ce que l'écriture Mdall rend. Le reste dormirait dans la
+ * base sans jamais s'afficher, et finirait par diverger de ce qui s'affiche.
+ *
+ * `alors` n'y est pas : c'est ce que la règle conclut, que `payload.value` porte
+ * déjà. Une valeur écrite à deux endroits finit par diverger — l'écriture la
+ * reconstruit à la lecture, comme elle le fait pour une affirmation.
+ *
+ * Les dépendances non plus : elles sont les sujets des conditions, et les
+ * recopier les laisserait diverger le jour où quelqu'un modifie la règle.
+ */
+export function regleRetenue(regle) {
+  if (!regle || typeof regle !== "object") return null;
+
+  const conditions = (Array.isArray(regle.conditions) ? regle.conditions : [])
+    .map(conditionRetenue).filter(Boolean);
+  const sauf = (Array.isArray(regle.sauf) ? regle.sauf : []).map(conditionRetenue).filter(Boolean);
+  const sinon = texte(regle.sinon);
+
+  if (!conditions.length && !sauf.length && !sinon) return null;
+  return { conditions, sinon, sauf };
+}
+
+/** Une condition : un sujet, un comparateur connu, ce à quoi il compare. */
+function conditionRetenue(condition) {
+  if (!condition || typeof condition !== "object") return null;
+
+  const sujet = texte(condition.sujet);
+  if (!sujet) return null;
+
+  const operateur = OPERATEURS.includes(texte(condition.operateur)) ? texte(condition.operateur) : "=";
+  const valeur = (Array.isArray(condition.valeur) ? condition.valeur : [condition.valeur])
+    .map(texte).filter(Boolean);
+
+  return {
+    sujet,
+    operateur,
+    valeur,
+    unite: texte(condition.unite),
+    logique: condition.logique === true,
+    ...(texte(condition.joint) ? { joint: texte(condition.joint) } : {})
+  };
+}
+
 /** La clé métier d'une affirmation, portée comprise. */
 export function cleDAffirmation(affirmation) {
   const base = normalizeSubjectKey(affirmation?.sujet ?? "");
   const portees = [...new Set((affirmation?.zones ?? []).map(normalizeZoneKey).filter(Boolean))].sort();
-  return portees.length ? `${base}@${portees.join("+")}` : base;
+  const cle = portees.length ? `${base}@${portees.join("+")}` : base;
+
+  // Une règle et la contrainte qu'elle produit portent le même sujet. Sans
+  // préfixe, elles partageraient la même clé, et verser l'une périmerait
+  // l'autre — la règle effacerait sa propre conclusion.
+  return affirmation?.referentiel === true ? `regle:${cle}` : cle;
 }
 
 /**
@@ -118,7 +169,13 @@ export function itemsDeProposition(affirmations = []) {
           // contesté. Ce n'est pas une propriété de la valeur, c'est ce que le
           // projet en fait — et les confondre fait qu'on ne sait plus ce qui
           // était acquis et ce qui restait à confirmer.
-          statut: STATUTS.includes(texte(affirmation.statut)) ? texte(affirmation.statut) : null
+          statut: STATUTS.includes(texte(affirmation.statut)) ? texte(affirmation.statut) : null,
+          // Une **règle appliquée**, quand c'en est une. Le projet en garde un
+          // instantané : sans lui, « ← règle Classement du bâtiment » pointerait
+          // vers rien, le graphe ne se reconstruirait pas, et un arrêté modifié
+          // six mois plus tard réécrirait l'histoire en silence.
+          referentiel: affirmation.referentiel === true ? true : null,
+          regle: regleRetenue(affirmation.regle)
         }
       };
     });

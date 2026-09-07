@@ -35,7 +35,8 @@
 import { normalizeSubjectKey } from "./project-memory.js";
 import { currentAssertions } from "./project-memory.js";
 import { zonesOf } from "./project-zones.js";
-import { sourceDuModule } from "./incendie-en-texte.js";
+import { DOMAIN } from "./assertion-taxonomy.js";
+import { sourceDuModule, regleDuModule } from "./incendie-en-texte.js";
 import { PROVENANCE, STATUT } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -62,17 +63,69 @@ export function conclusionsVersables(vue) {
         : module.article ? `article ${module.article}` : ""),
       citation: texte(module.pourquoi?.citation),
       // D'où la valeur sort : de la **règle** du référentiel, qui porte ses
-      // conditions et son article. La règle n'est pas recopiée dans le projet —
-      // elle vaut pour mille bâtiments, la valeur pour un seul — mais la ligne
-      // dit laquelle, et c'est par là qu'on remonte au texte.
+      // conditions et son article. La ligne dit laquelle, et c'est par là qu'on
+      // remonte au texte.
       provenance: {
         type: PROVENANCE.REGLE,
         quoi: [texte(module.titre), sourceDuModule(module, texte(vue?.texteDeReference?.source))]
           .filter(Boolean).join(" — ")
       },
-      statut: STATUT.RETENU
+      statut: STATUT.RETENU,
+      // Et la règle elle-même, pour que la proposition l'emporte à côté de la
+      // valeur. Voir `reglesVersables` : sans elle, le renvoi ci-dessus
+      // pointerait vers rien.
+      regle: regleDuModule(module, texte(vue?.texteDeReference?.source) || "arrêté du 31 janvier 1986 modifié")
     }))
     .filter((conclusion) => conclusion.sujet && conclusion.valeur);
+}
+
+/**
+ * Les règles appliquées, prêtes à partir avec les valeurs qu'elles produisent.
+ *
+ * ## Pourquoi elles partent, alors qu'elles ne sont pas des faits du projet
+ *
+ * Une contrainte versée dit « ← règle Classement du bâtiment ». Si la règle
+ * n'est nulle part dans le projet, trois choses cassent :
+ *
+ * - le renvoi pointe vers rien, et l'on ne peut plus relire ce qui a décidé ;
+ * - le graphe des dépendances ne se reconstruit pas, donc « la hauteur change,
+ *   qu'est-ce qui tombe ? » reste sans réponse ;
+ * - six mois plus tard l'arrêté aura peut-être bougé. Un renvoi vers un corpus
+ *   **vivant** réécrirait l'histoire en silence, alors que ce qui a été décidé
+ *   se conserve.
+ *
+ * Le projet garde donc un **instantané** des règles qu'il a appliquées. Ce
+ * n'est pas le corpus : les cent quatre modules, leur ordre, les branches non
+ * prises et le catalogue des questions restent au serveur. C'est la quarantaine
+ * de règles qui ont servi à ce bâtiment-ci, et c'est ce que le client a payé.
+ *
+ * Elles se rangent dans « Référentiels », jamais avec les contraintes : le
+ * texte n'a pas été décidé ici.
+ */
+export function reglesVersables(conclusions = [], zone = "") {
+  const portee = texte(zone) ? [texte(zone)] : [];
+
+  return (Array.isArray(conclusions) ? conclusions : [])
+    .filter((conclusion) => conclusion?.regle)
+    .map((conclusion) => ({
+      sujet: conclusion.regle.sujet,
+      // Ce que la règle conclut. `payload.value` le porte, et l'écriture le
+      // remet sur la ligne `alors` : une valeur écrite à deux endroits finit
+      // par diverger.
+      valeur: conclusion.regle.alors,
+      referentiel: true,
+      regle: { conditions: conclusion.regle.conditions, sinon: "", sauf: [] },
+      nature: null,
+      domaine: DOMAIN.INCENDIE,
+      provenance: conclusion.regle.provenance,
+      citation: conclusion.regle.preuve,
+      reference: `regle:${conclusion.id}`,
+      // Une règle ne dépend pas d'un bâtiment : elle ne porte pas de portée.
+      // Le jour où deux bâtiments appliquent la même règle, elle ne s'écrit
+      // qu'une fois.
+      zones: portee.length ? [] : [],
+      atelier: "Incendie — Habitation"
+    }));
 }
 
 /** La clé sous laquelle une conclusion se range, portée comprise. */

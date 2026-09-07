@@ -198,6 +198,12 @@ export function tableauAvantApres({ proposition = null, items = [], assertions =
       // « supposé » à un « retenu » est un changement même à valeur égale, et
       // une source qui change en est un aussi. Une provenance qu'on ne voit pas
       // bouger se cite encore six mois après qu'elle a cessé de valoir.
+      // Une règle appliquée se range à part, et son texte fait partie de ce qui
+      // peut changer : le jour où l'arrêté bouge, c'est le seul endroit où cela
+      // se verra.
+      referentiel: (item?.payload?.referentiel ?? apresPorteur?.payload?.referentiel) === true,
+      regle: item?.payload?.regle ?? apresPorteur?.payload?.regle ?? null,
+      regleAvant: avantPorteur?.payload?.regle ?? null,
       provenance: item?.payload?.provenance ?? apresPorteur?.payload?.provenance ?? null,
       provenanceAvant: avantPorteur?.payload?.provenance ?? null,
       statut: texte(item?.payload?.statut) || texte(apresPorteur?.payload?.statut) || "",

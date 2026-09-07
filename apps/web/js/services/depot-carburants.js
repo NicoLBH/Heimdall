@@ -34,6 +34,7 @@
 import { ETAT } from "./depot-reperes.js";
 import { ITEM_TYPE, STATUS_LABELS } from "./proposition-review.js";
 import { cheminDeRangement } from "./memoire-rangement.js";
+import { enClair, ligneDeCondition } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const lisible = (valeur) => STATUS_LABELS[texte(valeur)] ?? texte(valeur);
@@ -110,7 +111,7 @@ export function reperesDAffirmations(tableau = null) {
       // Le rangement suit la **nature**, pas le domaine : les conclusions d'une
       // étude incendie atterrissaient dans « données de base » alors que ce
       // sont des contraintes. Voir `memoire-rangement.js`.
-      chemin: cheminDeRangement({ nature: ligne.nature, domain: ligne.domaine }),
+      chemin: cheminDeRangement({ nature: ligne.nature, domain: ligne.domaine, referentiel: ligne.referentiel === true }),
       titre: texte(ligne.sujet) || texte(ligne.cle),
       provenance: {
         source: texte(ligne.source) || null,
@@ -126,18 +127,57 @@ export function reperesDAffirmations(tableau = null) {
     if (texte(ligne.avant)) {
       avant.push({
         ...commun,
-        champs: { "Valeur": texte(ligne.avant), ...champsDeProvenance(ligne.provenanceAvant, ligne.statutAvant) }
+        champs: {
+          "Valeur": texte(ligne.avant),
+          ...champsDeRegle(ligne.regleAvant),
+          ...champsDeProvenance(ligne.provenanceAvant, ligne.statutAvant)
+        }
       });
     }
     if (texte(ligne.apres)) {
       apres.push({
         ...commun,
-        champs: { "Valeur": texte(ligne.apres), ...champsDeProvenance(ligne.provenance, ligne.statut) }
+        champs: {
+          "Valeur": texte(ligne.apres),
+          ...champsDeRegle(ligne.regle),
+          ...champsDeProvenance(ligne.provenance, ligne.statut)
+        }
       });
     }
   }
 
   return { avant, apres };
+}
+
+/**
+ * Ce qu'une règle appliquée ajoute au repère : ses conditions, telles qu'on les
+ * lit.
+ *
+ * C'est le seul endroit où un changement de l'arrêté deviendra visible. Tant
+ * que la règle n'était pas versée, un seuil qui passait de 28 à 30 m ne
+ * produisait aucun diff nulle part : personne ne l'aurait vu.
+ *
+ * Les conditions se rendent dans l'écriture du langage — `si … et …` — parce
+ * que c'est ainsi qu'on les relira, et qu'un JSON dans une cellule de diff ne
+ * se compare pas à l'œil.
+ */
+export function champsDeRegle(regle) {
+  if (!regle || typeof regle !== "object") return {};
+
+  const champs = {};
+  const conditions = (Array.isArray(regle.conditions) ? regle.conditions : [])
+    .map((condition, rang) => enClair(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition)).trim())
+    .filter(Boolean);
+  if (conditions.length) champs["Règle"] = conditions.join(" ");
+
+  if (texte(regle.sinon)) champs["Sinon"] = texte(regle.sinon);
+
+  const exceptions = (Array.isArray(regle.sauf) ? regle.sauf : [])
+    .map((condition) => enClair(ligneDeCondition("sauf si", condition)).trim())
+    .filter(Boolean);
+  if (exceptions.length) champs["Exceptions"] = exceptions.join(" · ");
+
+  return champs;
 }
 
 /**

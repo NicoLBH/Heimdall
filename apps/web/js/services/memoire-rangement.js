@@ -36,6 +36,25 @@
  * qui nomme le calcul et ses entrées : c'est là que compte la différence, parce
  * que c'est là qu'on saura quoi refaire le jour où l'altitude change.
  *
+ * ## Les règles appliquées ont leur dossier
+ *
+ * Un référentiel n'est pas un fait de **ce** projet : c'est ce qu'on lui
+ * applique. Le ranger avec les contraintes ferait croire que le texte a été
+ * décidé ici.
+ *
+ * Mais il doit y être. Une contrainte dit « ← règle Classement du bâtiment » :
+ * si la règle n'est nulle part dans le projet, cette référence pointe vers rien,
+ * le graphe des dépendances ne se reconstruit pas, et l'on ne peut plus
+ * répondre à « la hauteur change, qu'est-ce qui tombe ? ». Pire : six mois plus
+ * tard l'arrêté aura peut-être bougé, et un renvoi vers un corpus vivant
+ * réécrirait l'histoire en silence — ce que la doctrine interdit.
+ *
+ * Le projet garde donc un **instantané** des règles qu'il a appliquées, à la
+ * version où il les a appliquées. Ce n'est pas le corpus : les cent quatre
+ * modules, leur ordre, les branches non prises et le catalogue des questions
+ * restent au serveur. C'est la quarantaine de règles qui ont servi à ce
+ * bâtiment-ci.
+ *
  * ## Ce qui n'a pas de nature
  *
  * Un fichier `non-classe/` plutôt qu'un rangement deviné. Une affirmation dont
@@ -48,6 +67,14 @@
 import { NATURE, DOMAIN, normalizeNature, normalizeDomain, domainLabel, natureLabel } from "./assertion-taxonomy.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
+
+/**
+ * Le dossier des règles appliquées.
+ *
+ * Il se lit en premier : on applique un texte avant d'en tirer des valeurs, et
+ * c'est dans cet ordre qu'on relit une étude.
+ */
+export const REFERENTIELS = "Référentiels";
 
 /** Le dossier de chaque nature. Le pluriel, parce qu'un dossier en contient. */
 export const DOSSIERS = {
@@ -70,10 +97,16 @@ export const SANS_DOMAINE = "Non classé";
  * @param {{nature?: string, domain?: string}} affirmation
  * @returns {string[]} `["Contraintes", "Incendie"]`
  */
-export function cheminDeRangement({ nature = "", domain = "" } = {}) {
-  const famille = normalizeNature(nature);
+export function cheminDeRangement({ nature = "", domain = "", referentiel = false } = {}) {
   const domaine = normalizeDomain(domain);
 
+  // Une règle n'est pas un fait du projet : elle se range à part, et c'est ce
+  // qui permet de la relire sans croire qu'elle a été décidée ici.
+  if (referentiel === true) {
+    return [REFERENTIELS, domaine ? domainLabel(domaine) : SANS_DOMAINE];
+  }
+
+  const famille = normalizeNature(nature);
   return [
     famille ? DOSSIERS[famille] : SANS_NATURE,
     domaine ? domainLabel(domaine) : SANS_DOMAINE
@@ -83,11 +116,13 @@ export function cheminDeRangement({ nature = "", domain = "" } = {}) {
 /**
  * Les dossiers de la mémoire, dans l'ordre où on les lit.
  *
- * Ce que le projet a relevé d'abord, ce qui s'impose ensuite, ce qu'on suppose,
- * ce qu'on a vu, ce qui est entré au dossier. C'est l'ordre de la confiance :
- * une donnée de base ne se discute pas, une hypothèse attend d'être confirmée.
+ * Les textes appliqués d'abord, puis ce que le projet a relevé, ce qui s'impose,
+ * ce qu'on suppose, ce qu'on a vu, ce qui est entré au dossier. C'est l'ordre de
+ * la confiance : un référentiel ne se discute pas du tout, une donnée de base ne
+ * se discute pas, une hypothèse attend d'être confirmée.
  */
 export const ORDRE_DES_DOSSIERS = [
+  REFERENTIELS,
   DOSSIERS[NATURE.DONNEE_BASE],
   DOSSIERS[NATURE.CONTRAINTE],
   DOSSIERS[NATURE.HYPOTHESE],
@@ -111,6 +146,10 @@ export function rangDuDossier(dossier) {
  * réécrite ici, elle est citée.
  */
 export function phraseDuDossier(dossier) {
+  if (texte(dossier) === REFERENTIELS) {
+    return "Les règles appliquées au projet, telles qu'elles étaient le jour où on les a appliquées.";
+  }
+
   const entree = Object.entries(DOSSIERS).find(([, nom]) => nom === texte(dossier));
   if (!entree) return "Ce que personne n'a encore classé. Ce dossier ne devrait pas se remplir.";
 

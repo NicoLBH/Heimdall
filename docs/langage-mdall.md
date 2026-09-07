@@ -128,6 +128,17 @@ Colonne sèche
 Aucune valeur de projet n'y figure. Ce fichier vaut pour mille bâtiments et ne
 change que si l'arrêté change.
 
+**Il est versé avec la proposition**, dans le dossier `Référentiels/`. Ce n'est
+pas une contradiction avec « une règle n'est pas un fait du projet » : le projet
+en garde un **instantané**, à la version où il l'a appliquée. Sans lui, trois
+choses cassent — le renvoi `← règle …` pointe vers rien, le graphe des
+dépendances ne se reconstruit pas, et un arrêté modifié six mois plus tard
+réécrirait l'histoire en silence.
+
+Ce qui reste au serveur, c'est le **corpus** : les cent quatre modules, leur
+ordre, les branches non prises, le catalogue des questions. Pas la quarantaine
+de règles qui ont servi à un bâtiment.
+
 ### Un projet — ce qu'il retient
 
 ```
@@ -142,8 +153,8 @@ Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier"
    statut retenu
 ```
 
-La règle n'est pas recopiée : on sait où elle est, on peut l'ouvrir, et elle ne
-se réécrit pas à chaque projet.
+La règle n'est pas recopiée dans la ligne : elle a son fichier, à côté, et le
+renvoi suffit à la retrouver.
 
 **Pourquoi cela compte.** Tant que la règle vivait dans le fichier du projet,
 elle était fabriquée à partir des valeurs conclues, et l'on écrivait `si Hauteur

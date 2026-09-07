@@ -211,3 +211,29 @@ test("un champ absent des deux côtés ne s'invente pas", () => {
   });
   assert.deepEqual(Object.keys(apres[0].champs), ["Valeur"]);
 });
+
+test("un seuil de l'arrêté qui bouge est le seul changement que le projet puisse voir", () => {
+  const regle = (seuil) => ({
+    conditions: [{ sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: [seuil], unite: "m" }],
+    sinon: "", sauf: []
+  });
+
+  const { avant, apres } = reperesDAffirmations({
+    lignes: [{
+      cle: "classement", sujet: "Classement du bâtiment", domaine: "incendie", referentiel: true,
+      avant: "3e famille B", apres: "3e famille B",
+      regleAvant: regle("28"), regle: regle("30")
+    }]
+  });
+
+  // Une règle se range dans « Référentiels », jamais avec les contraintes.
+  assert.deepEqual(apres[0].chemin, ["Référentiels", "Incendie"]);
+
+  const compare = comparerDesReperes({ avant, apres });
+  const ligne = compare.lignes.find((entree) => entree.id === "affirmation:classement");
+  const change = ligne.champs.find((champ) => champ.etat !== ETAT.INCHANGE);
+
+  assert.equal(change.nom, "Règle");
+  assert.match(change.avant, /≤ 28 m$/);
+  assert.match(change.apres, /≤ 30 m$/);
+});
