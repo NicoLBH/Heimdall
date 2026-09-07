@@ -98,6 +98,16 @@ function renderFenetre(zones, cochees) {
 }
 
 /**
+ * La question posée, s'il y en a une à l'écran.
+ *
+ * Deux fenêtres identiques superposées ne se distinguent pas : on répond à
+ * celle du dessus, elle disparaît, et celle du dessous donne l'impression que
+ * le clic n'a rien fait. Pire, chacune prépare sa proposition — un geste, deux
+ * propositions à relire.
+ */
+let questionOuverte = null;
+
+/**
  * Poser la question, et attendre la réponse.
  *
  * Le découpage se lit ici quand l'appelant ne l'a pas sous la main : chaque
@@ -111,6 +121,10 @@ function renderFenetre(zones, cochees) {
  *   `null` si l'on renonce
  */
 export async function demanderLesZones({ projectId = "", assertions = null } = {}) {
+  // Une question déjà posée n'en appelle pas une seconde : le deuxième appel
+  // renonce, et son geste s'arrête là. C'est ce qu'on veut d'un double
+  // déclenchement — un clic, une proposition.
+  if (questionOuverte) return null;
   // Une liste vide n'est pas une mémoire : c'est « je n'ai rien sous la main ».
   // Prise pour argent comptant, elle faisait conclure « pas de découpage » et
   // la question ne se posait jamais.
@@ -137,11 +151,22 @@ export async function demanderLesZones({ projectId = "", assertions = null } = {
     const hote = document.createElement("div");
     hote.innerHTML = renderFenetre(zones, []);
     document.body.appendChild(hote);
+    questionOuverte = hote;
 
     const fermer = (reponse) => {
       hote.remove();
+      questionOuverte = null;
       resoudre(reponse);
     };
+
+    // Échap renonce. Une fenêtre modale dont on ne connaît qu'un seul moyen de
+    // sortie se referme mal quand ce moyen défaille — et c'est arrivé.
+    const auClavier = (evenement) => {
+      if (evenement.key !== "Escape") return;
+      document.removeEventListener("keydown", auClavier);
+      fermer(null);
+    };
+    document.addEventListener("keydown", auClavier);
 
     const cochees = () => [...hote.querySelectorAll("[data-zone-choix]")]
       .filter((case_) => case_.checked && case_.getAttribute("data-zone-choix"))
@@ -166,14 +191,20 @@ export async function demanderLesZones({ projectId = "", assertions = null } = {
     }
 
     for (const bouton of hote.querySelectorAll("[data-zones-annuler]")) {
-      bouton.addEventListener("click", () => fermer(null));
+      bouton.addEventListener("click", () => {
+        document.removeEventListener("keydown", auClavier);
+        fermer(null);
+      });
     }
 
     // Un bouton, pas un `submit` : l'application écoute les formulaires
     // ailleurs, et une soumission interceptée laissait la fenêtre ouverte sur
     // une réponse déjà donnée.
-    hote.querySelector("[data-zones-valider]")?.addEventListener("click", () => {
-      fermer(porteeRetenue(cochees()));
-    });
+    for (const bouton of hote.querySelectorAll("[data-zones-valider]")) {
+      bouton.addEventListener("click", () => {
+        document.removeEventListener("keydown", auClavier);
+        fermer(porteeRetenue(cochees()));
+      });
+    }
   });
 }

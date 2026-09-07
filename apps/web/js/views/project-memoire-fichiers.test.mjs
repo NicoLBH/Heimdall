@@ -206,11 +206,11 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
   });
 
   assert.equal(texte, [
-    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
-    "   si Logements superposés = oui",
-    "   et Hauteur du plancher bas du logement le plus haut <= 28 m",
-    '   alors "3e famille B"',
-    '   sinon "3e famille A"',
+    "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    "   si (Logements superposés = oui)",
+    "   et (Hauteur du plancher bas du logement le plus haut <= 28 m)",
+    '   alors ("3e famille B");',
+    '   sinon ("3e famille A");',
     "   texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)",
     '      parce que: "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."',
     "}"

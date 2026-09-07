@@ -63,8 +63,8 @@ test("le fichier de règles ne contient aucune valeur de ce projet", () => {
   assert.equal(texte.includes("statut"), false);
   assert.equal(texte.includes("retenu"), false);
   assert.equal(texte.includes("dépend de"), false);
-  assert.match(texte, /si Logements superposés = oui/);
-  assert.match(texte, /et Hauteur du plancher bas du logement le plus haut <= 28 m/);
+  assert.match(texte, /si \(Logements superposés = oui\)/);
+  assert.match(texte, /et \(Hauteur du plancher bas du logement le plus haut <= 28 m\)/);
 });
 
 test("le fichier de projet renvoie à la règle sans la recopier", () => {

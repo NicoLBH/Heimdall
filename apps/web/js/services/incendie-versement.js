@@ -35,7 +35,7 @@
 import { normalizeSubjectKey } from "./project-memory.js";
 import { currentAssertions } from "./project-memory.js";
 import { zonesOf } from "./project-zones.js";
-import { DOMAIN } from "./assertion-taxonomy.js";
+import { DOMAIN, NATURE } from "./assertion-taxonomy.js";
 import { sourceDuModule, regleDuModule } from "./incendie-en-texte.js";
 import { PROVENANCE, STATUT } from "./memoire-en-texte.js";
 
@@ -128,6 +128,61 @@ export function reglesVersables(conclusions = [], zone = "") {
       zones: portee,
       atelier: "Incendie — Habitation"
     }));
+}
+
+/**
+ * Le classement, versé comme la variable qu'il est.
+ *
+ * ## Ce qui manquait
+ *
+ * Une étude incendie sortait ses **exigences** — un degré coupe-feu, une
+ * colonne sèche — et les règles qui les produisent. Le classement, lui, ne
+ * sortait pas : il n'est pas une exigence, donc `conclusionsVersables` l'écarte.
+ *
+ * Or c'est **le** point sur lequel tout le reste pend. Trente contraintes
+ * écrivaient « ← règle Classement du bâtiment » sans que le projet dise nulle
+ * part en quelle famille ce bâtiment est classé. Le renvoi ne menait à rien, et
+ * la seule façon de le savoir était de rouvrir l'utilitaire — c'est-à-dire de
+ * refaire l'étude.
+ *
+ * ## Pourquoi une donnée de base, et par zone
+ *
+ * C'est une **déclaration** : un nom posé une fois, cité partout ailleurs. Elle
+ * se range donc avec les autres variables du projet, dans `Données de base`, et
+ * non dans le dossier d'une discipline — la famille d'un bâtiment sert aussi à
+ * l'accessibilité et à la notice, et la dupliquer par domaine la ferait
+ * diverger (`docs/fondamentaux.md`, règle 4).
+ *
+ * La portée en fait partie : deux escaliers d'un même ouvrage peuvent être
+ * classés différemment, et un classement posé sans zone périmerait l'autre.
+ *
+ * @param {object} vue ce que le référentiel a conclu
+ * @param {string} zone la portée retenue, vide pour l'ensemble
+ * @returns {object[]} zéro ou une affirmation
+ */
+export function donneesDeBaseVersables(vue, zone = "") {
+  const classement = texte(vue?.faits?.classement);
+  // Hors champ, le classement n'est pas une famille : « hors champ — IGH » dit
+  // que ce référentiel ne s'applique pas. Le verser comme une valeur du projet
+  // ferait entrer en mémoire une phrase qui n'affirme rien.
+  if (!classement || classement.toLowerCase().startsWith("hors champ")) return [];
+
+  const source = texte(vue?.texteDeReference?.source) || "arrêté du 31 janvier 1986 modifié";
+  const portee = texte(zone) ? [texte(zone)] : [];
+
+  return [{
+    sujet: "Classement du bâtiment",
+    valeur: classement,
+    nature: NATURE.DONNEE_BASE,
+    domaine: DOMAIN.INCENDIE,
+    source,
+    article: "article 3",
+    provenance: { type: PROVENANCE.REGLE, quoi: `Classement du bâtiment — ${source}` },
+    statut: STATUT.RETENU,
+    reference: "classement",
+    zones: portee,
+    atelier: "Incendie — Habitation"
+  }];
 }
 
 /** La clé sous laquelle une conclusion se range, portée comprise. */

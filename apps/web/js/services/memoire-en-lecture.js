@@ -90,9 +90,32 @@ const CONSTATS = new Map([
  */
 const TETES = [
   "sauf si", "parce que:", "statut:", "fichier:", "note:", "le:", "zone:",
-  "alors", "sinon", "si", "et", "ou", "non",
+  "fonction", "alors", "sinon", "si", "et", "ou", "non",
   ...PROVENANCES.map((type) => `${type}:`)
 ];
+
+/**
+ * Ce qu'une clause de règle dit, débarrassé de ses bornes.
+ *
+ * Un `.ref` écrit `si (Hauteur du plancher bas <= 28 m)` et `alors ("3e famille
+ * B");` — les parenthèses et le point-virgule bornent, ils ne disent rien.
+ * On les retire pour lire, et on les remet pour écrire : ce qui est **déductible
+ * de la forme** ne se conserve pas, sans quoi il finirait par diverger d'elle.
+ *
+ * Un fichier écrit à la main sans elles se lit exactement pareil. C'est
+ * volontaire : la ponctuation rend la règle exécutable, elle ne la rend pas
+ * obligatoire.
+ *
+ * @returns {{corps: string, borne: boolean}} `borne` dit si les parenthèses y
+ *   étaient — c'est ce qui permet de réécrire la ligne telle qu'elle était.
+ */
+export function sansBornes(reste = "") {
+  const dit = texte(reste).replace(/;\s*$/, "");
+  const parentheses = dit.match(/^\(([\s\S]*)\)$/);
+  return parentheses
+    ? { corps: texte(parentheses[1]), borne: true }
+    : { corps: dit, borne: false };
+}
 
 /** Ce qu'une ligne ouvre ou ferme. L'accolade borne, elle ne dit rien d'autre. */
 function bornesDe(ligne) {
@@ -203,18 +226,23 @@ export function lireUneCondition(corps = "") {
 
 /** Une ligne de tête : `Sujet = valeur @ zone`, ou `Sujet` seul pour une règle. */
 export function lireUneTete(ligne = "") {
-  const dit = texte(ligne);
-  if (!dit) return null;
+  const brut = texte(ligne);
+  if (!brut) return null;
+
+  // `fonction` ouvre une règle. Le mot ne se conserve pas — il **est** le fait
+  // d'être une règle, et le garder à côté le laisserait diverger de lui.
+  const regle = /^fonction\s+/i.test(brut);
+  const dit = regle ? texte(brut.replace(/^fonction\s+/i, "")) : brut;
 
   const egal = dit.match(/^(.*?)\s*=\s*(.*)$/);
   // Pas de `=` : c'est la tête d'une règle, avec sa signature éventuelle.
   if (!egal) {
     const { sujet, entrees } = lireUneSignature(dit);
-    return { sujet, valeur: "", unite: "", entrees };
+    return { sujet, valeur: "", unite: "", entrees, regle: regle || entrees.length > 0 };
   }
 
   const lue = lireUneValeur(egal[2]);
-  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [] };
+  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [], regle };
 }
 
 /**
@@ -313,13 +341,13 @@ export function lireUnFichier(contenu = "") {
     }
 
     if (mot === "alors" || mot === "sinon") {
-      const lue = lireUneValeur(reste);
+      const lue = lireUneValeur(sansBornes(reste).corps);
       courant[mot] = lue.unite ? `${lue.valeur} ${lue.unite}` : lue.valeur;
       return;
     }
 
     if (mot === "si" || mot === "et" || mot === "ou" || mot === "non" || mot === "sauf si") {
-      const condition = lireUneCondition(reste);
+      const condition = lireUneCondition(sansBornes(reste).corps);
       if (!condition) {
         refus.push({ ligne: numero, texte: corps, raison: "cette condition ne compare rien." });
         return;
@@ -458,17 +486,22 @@ export function jetonsDeLaLigne(ligne = "") {
   if (mot === "le:") return [...marge, ...(ligneDeDate(reste, 0) ?? []).slice(1)];
 
   if (mot === "alors" || mot === "sinon") {
-    const lue = lireUneValeur(reste);
-    return [...marge, ...ligneDeConsequence(mot, lue.valeur, lue.unite, 0).slice(1)];
+    // Les bornes disent que la ligne vient d'un `.ref` : on les retire pour
+    // lire et on les remet pour écrire, à l'identique.
+    const { corps, borne } = sansBornes(reste);
+    const lue = lireUneValeur(corps);
+    return [...marge, ...ligneDeConsequence(mot, lue.valeur, lue.unite, 0, { regle: borne }).slice(1)];
   }
 
   if (mot === "si" || mot === "et" || mot === "ou" || mot === "non" || mot === "sauf si") {
-    const condition = lireUneCondition(reste);
-    if (condition) return [...marge, ...ligneDeCondition(mot, condition, 0).slice(1)];
+    const { corps, borne } = sansBornes(reste);
+    const condition = lireUneCondition(corps);
+    if (condition) return [...marge, ...ligneDeCondition(mot, condition, 0, { regle: borne }).slice(1)];
   }
 
   // Une tête de bloc : une affirmation, ou une règle avec sa signature.
   const tete = lireUneTete(nu);
+  if (tete?.regle) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees, { regle: /^fonction\s/i.test(nu) })];
   if (tete?.entrees?.length) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees)];
   if (tete?.valeur) return [...marge, ...ligneDAffirmation({ sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite })];
   if (tete?.sujet) return [...marge, ...ligneDeDonnee(tete.sujet)];

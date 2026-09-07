@@ -20069,11 +20069,25 @@ body.proposition-merge-open{ overflow:hidden; }
   cursor:help;
 }
 
-/* Une fonction : son nom est celui d'une fonction, ses entrées des paramètres,
-   ses branches des mots-clés. */
+/* Une fonction : `fonction` est le mot-clé, le nom est celui d'une fonction,
+   ses entrées sont des paramètres, et ce qui borne ne dit rien — donc ne
+   colore rien. C'est la palette d'un éditeur de code, et c'est voulu : un
+   `.ref` ne se lit pas, il s'exécute. */
+.mdall-mot-fonction{ color:rgb(255,123,114); }
+.mdall-parametre{ color:var(--text); }
+/* Les bornes et les séparateurs : blancs. Ils structurent la ligne, ils n'y
+   ajoutent rien — une parenthèse colorée se lirait comme un mot. */
+.mdall-ponctuation{ color:var(--text); }
+
 .memoire-fichier--regle .mdall-sujet--declaration{ color:rgb(210,168,255); font-weight:600; }
 .memoire-fichier--regle .mdall-entrees{ color:rgb(255,166,87); }
 .memoire-fichier--regle .mdall-valeur{ color:rgb(165,214,255); font-weight:400; }
+/* Le signe est un opérateur, pas un mot : il se lit en bleu, comme dans un
+   éditeur. Gris, il disparaissait au milieu de la condition. */
+.memoire-fichier--regle .mdall-operateur{ color:rgb(121,192,255); }
+/* Les accolades d'une règle bornent des blocs qu'on exécute : elles se voient,
+   contrairement à celles d'un énoncé, qui ne bornent qu'une liste de champs. */
+.memoire-fichier--regle .mdall-accolade{ color:var(--text); }
 
 /* Une déclaration : le nom d'abord — c'est lui qu'on cite ailleurs —, la valeur
    comme une chaîne. */
@@ -20089,6 +20103,62 @@ body.proposition-merge-open{ overflow:hidden; }
 .memoire-fichier--enonce .mdall-mot-statut,
 .memoire-fichier--enonce .mdall-mot-date,
 .memoire-fichier--enonce .mdall-mot-raison{ color:rgb(121,192,255); font-style:normal; }
+
+/* ── Les variables du projet ────────────────────────────────────────────────
+   Ce que le projet partage d'une discipline à l'autre : un nom déclaré quelque
+   part, cité ailleurs. La liste répond à « qu'est-ce qui tombe si celle-ci
+   change ? », qui est la question qu'on pose devant une mémoire. */
+.memoire-variables{
+  margin-bottom:16px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--panel);
+  overflow:hidden;
+}
+.memoire-variables__tete{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 14px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel2);
+  font-size:14px;
+}
+.memoire-variables__compte{
+  padding:0 6px; border-radius:999px;
+  background:var(--bg); color:var(--muted);
+  font-size:11px; font-variant-numeric:tabular-nums;
+}
+.memoire-variables__manquantes{ margin-left:auto; color:rgb(255,123,114); font-size:12px; }
+.memoire-variables__quoi{ margin:0; padding:8px 14px 0; color:var(--muted); font-size:12px; line-height:1.5; }
+.memoire-variables__liste{ list-style:none; margin:0; padding:0 0 8px; }
+/* La même grille que les lignes : deux grilles voisines qui se ressemblent
+   sans s'aligner se lisent comme deux tableaux. */
+.memoire-variable--tete{
+  padding-top:8px; padding-bottom:4px;
+  color:var(--muted); font-family:var(--font); font-size:11px;
+  text-transform:uppercase; letter-spacing:.04em;
+}
+.memoire-variable--tete:hover{ background:none; }
+.memoire-variable{
+  display:grid;
+  grid-template-columns:minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  align-items:baseline; gap:12px;
+  padding:4px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;
+}
+.memoire-variable:hover{ background:var(--panel2); }
+.memoire-variable__nom{ color:rgb(121,192,255); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.memoire-variable__valeur{ color:rgb(165,214,255); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.memoire-variable__ou,
+.memoire-variable__usages{ color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Une variable que personne n'a versée : c'est le trou du raisonnement, et il
+   se voit sans qu'on le cherche. */
+.memoire-variable--inconnue .memoire-variable__nom{
+  color:rgb(255,123,114);
+  text-decoration:underline wavy rgba(248,81,73,.65);
+  text-underline-offset:3px;
+}
+.memoire-variable--inconnue .memoire-variable__valeur{ color:rgb(255,123,114); font-style:italic; }
 
 /* Ce sur quoi le fichier s'appuie sans que personne l'ait versé. Une couleur
    suffit à le voir ligne à ligne ; une phrase en tête dit combien il y en a,
@@ -20515,8 +20585,8 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
   font-size:10px;
   font-weight:600;
 }
-.memoire-versement__qui{ flex:0 0 auto; color:var(--text); font-weight:600; }
-.memoire-versement__message{ min-width:0; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.memoire-versement__qui{ flex:0 0 auto; color:var(--text); font-size:14px; font-weight:600; }
+.memoire-versement__message{ min-width:0; color:var(--muted); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .memoire-versement__espace{ flex:1 1 auto; }
 .memoire-versement__sep,
 .memoire-versement__date{ flex:0 0 auto; color:var(--muted); }
@@ -20586,7 +20656,7 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
   background:transparent;
   color:var(--muted);
   font:inherit;
-  font-size:12px;
+  font-size:14px;
   cursor:pointer;
 }
 .memoire-lecture.is-active{ background:var(--btn-bg); color:var(--text); }

@@ -56,7 +56,8 @@ import {
   REMISE_INCENDIE_ANNONCEE, planDeLaRemiseIncendie, etudeCompletee, nomDeLEtudeVenueDuCopilote
 } from "../../../services/incendie-remise.js";
 import {
-  conclusionsVersables, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables
+  conclusionsVersables, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables,
+  donneesDeBaseVersables
 } from "../../../services/incendie-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
@@ -794,11 +795,23 @@ function affirmationsRetenues() {
     atelier: "Incendie — Habitation"
   }));
 
-  // Les règles partent **avec** les valeurs qu'elles produisent. Sans elles,
+  // Trois matières, trois fichiers — et c'est l'extension qui le dit :
+  //
+  //   incendie.ref              les règles appliquées, avec leurs conditions
+  //   donnees-de-base.ddb       le classement, la variable que tout cite
+  //   incendie.ctr              ce qui s'impose au projet
+  //
+  // Les règles partent **avec** les valeurs qu'elles produisent : sans elles,
   // « ← règle Classement du bâtiment » pointerait vers rien, le graphe ne se
   // reconstruirait pas, et un arrêté modifié plus tard réécrirait l'histoire
-  // sans que rien ne le signale. Voir `reglesVersables`.
-  return [...reglesVersables(prises, etat.zoneDuVersement), ...contraintes];
+  // sans que rien ne le signale. Le classement part **avec** elles pour la même
+  // raison, prise à l'envers : une règle qui dit « si le classement est 3e
+  // famille B » ne vaut que si le projet dit quelque part quel est le sien.
+  return [
+    ...reglesVersables(prises, etat.zoneDuVersement),
+    ...donneesDeBaseVersables(etat.vue, etat.zoneDuVersement),
+    ...contraintes
+  ];
 }
 
 /** De quoi nommer ce qui sort de cette étude. */

@@ -48,12 +48,28 @@
  * - **`on retient` / `on suppose`** — un geste n'est pas un préfixe, c'est une
  *   provenance : `← décision`, `← hypothèse`.
  *
- * ## L'identité de l'écriture
+ * ## L'identité de l'écriture, et pourquoi elle a bougé
  *
- * Les marques viennent de l'écrit technique et juridique, jamais d'un langage
- * de programmation. Rien de `const`, de `function` ni de `//` : ce sont des
- * mots de programmeur, et ils annonceraient un programme là où il n'y a qu'un
- * raisonnement transcrit.
+ * Ce fichier a longtemps refusé les marques de programmeur : rien de `const`,
+ * de `function` ni de `//`, au motif qu'elles annonceraient un programme là où
+ * il n'y a qu'un raisonnement transcrit.
+ *
+ * Cela tenait tant que la mémoire ne faisait que **se lire**. Un `.ref` ne se
+ * lit pas : il s'**exécute**. Ses conditions se composent, sa conclusion se
+ * pose, et le jour où on l'écrira à la main il faudra savoir, sans ambiguïté,
+ * où une clause commence et où une instruction finit. Trois conditions
+ * enchaînées sans parenthèses ne se relisent déjà pas ; elles ne se parseraient
+ * pas du tout.
+ *
+ * Les fichiers de règles portent donc, **et eux seuls**, la ponctuation qui les
+ * rend exécutables : `fonction`, les parenthèses de chaque clause, le
+ * point-virgule qui termine ce que la règle pose. Ce ne sont pas des mots de
+ * programmeur empruntés pour faire sérieux : ce sont les bornes sans lesquelles
+ * un raisonnement composé ne se relit pas.
+ *
+ * Les autres fichiers ne bougent pas. Un `.ctr` énonce des paires, un `.ddb`
+ * déclare : ni l'un ni l'autre n'a de clause à borner, et leur mettre des
+ * parenthèses ne dirait rien de plus.
  *
  * ## Tout se tape au clavier
  *
@@ -79,10 +95,11 @@
  * ## Une règle se lit comme une fonction
  *
  * ```
- * Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages)
- *    si Habitation individuelle ou collective = "collective"
- *    et Nombre d'étages <= 3
- *    alors "2e famille"
+ * fonction Classement du bâtiment(Habitation individuelle ou collective, Nombre d'étages) {
+ *    si (Habitation individuelle ou collective = "collective")
+ *    et (Nombre d'étages <= 3)
+ *    alors ("2e famille");
+ * }
  * ```
  *
  * La parenthèse nomme les **entrées**, et c'est ce qui manquait le plus : on
@@ -134,8 +151,12 @@
  * v4.0 — tout se tape au clavier : les marques `§`, `¶`, `←`, `≤` deviennent
  * des mots suivis de deux points. Une règle porte sa signature. Chaque nature
  * a sa forme et son extension, et la portée est le dossier.
+ *
+ * v4.1 — un `.ref` s'écrit comme il s'exécute : `fonction` ouvre la règle, ses
+ * entrées sont ses paramètres, chaque clause porte ses parenthèses et ce qu'elle
+ * pose se termine par un point-virgule. Les autres fichiers ne changent pas.
  */
-export const ECRITURE = "4.0";
+export const ECRITURE = "4.1";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
@@ -178,6 +199,12 @@ export const JETON = {
   DATE: "date",
   /** Les entrées d'une règle, entre parenthèses. */
   ENTREES: "entrees",
+  /** `fonction` — le mot qui ouvre une règle. */
+  MOT_FONCTION: "mot-fonction",
+  /** Un paramètre de la règle : une entrée, nommée. */
+  PARAMETRE: "parametre",
+  /** `(`, `)`, `,`, `;` — ce qui borne et sépare, sans rien dire. */
+  PONCTUATION: "ponctuation",
   /** `{` et `}` — les bornes d'un bloc. */
   ACCOLADE: "accolade",
   /** `zone:` — le mot qui ouvre une section de portée. */
@@ -288,6 +315,10 @@ export const OPERATEURS = Object.values(OPERATEUR);
  */
 export const MOTS = [
   "sauf si", "parce que", "statut", "fichier", "note", "le", "zone",
+  // `fonction` ouvre une règle, et c'est le seul mot emprunté à un langage de
+  // programmation. Il l'est parce qu'un `.ref` en est un : il s'exécute. Voir
+  // l'en-tête, « L'identité de l'écriture, et pourquoi elle a bougé ».
+  "fonction",
   "si", "et", "ou", "non", "alors", "sinon",
   ...Object.values(PROVENANCE)
 ];
@@ -378,10 +409,26 @@ export function ligneDAffirmation({ sujet = "", valeur = "", unite = "" } = {}) 
  * conditions, et une signature recopiée diverge le jour où quelqu'un ajoute une
  * condition. Elle se calcule ici, à l'écriture.
  */
-export function ligneDeDonnee(sujet = "", entrees = []) {
-  const jetons = [jeton(JETON.SUJET, texte(sujet))];
+export function ligneDeDonnee(sujet = "", entrees = [], { regle = false } = {}) {
+  const jetons = regle
+    ? [jeton(JETON.MOT_FONCTION, "fonction"), espace(), jeton(JETON.SUJET, texte(sujet))]
+    : [jeton(JETON.SUJET, texte(sujet))];
 
   const noms = [...new Set((Array.isArray(entrees) ? entrees : [entrees]).map(texte).filter(Boolean))];
+
+  // Une règle porte toujours sa parenthèse, même vide : `Colonne sèche()` se
+  // lit comme une fonction sans entrée, `Colonne sèche` comme un nom. La
+  // différence compte le jour où l'on écrira ces fichiers à la main.
+  if (regle) {
+    jetons.push(jeton(JETON.PONCTUATION, "("));
+    noms.forEach((nom, rang) => {
+      if (rang > 0) jetons.push(jeton(JETON.PONCTUATION, ","), espace());
+      jetons.push(jeton(JETON.PARAMETRE, nom));
+    });
+    jetons.push(jeton(JETON.PONCTUATION, ")"));
+    return jetons;
+  }
+
   if (noms.length) {
     jetons.push(espace(), jeton(JETON.ENTREES, `(${noms.join(", ")})`));
   }
@@ -395,19 +442,28 @@ export function ligneDeDonnee(sujet = "", entrees = []) {
  * @param {string} mot `si`, `et`, `ou`, `non`, `sauf si`
  * @param {object} condition `{sujet, operateur, valeur, unite, logique}`
  */
-export function ligneDeCondition(mot, condition = {}, profondeur = 1) {
+export function ligneDeCondition(mot, condition = {}, profondeur = 1, { regle = false } = {}) {
   const cle = texte(mot);
   const jetons = [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
     jeton(cle === "sauf si" ? JETON.MOT_EXCEPTION : JETON.MOT_CONDITION, cle),
-    espace(),
-    jeton(JETON.SUJET, texte(condition.sujet))
+    espace()
   ];
+
+  // Dans une règle, chaque clause porte ses propres parenthèses : `si (…)`,
+  // `et (…)`. Une seule parenthèse ouverte sur la première condition et fermée
+  // sur la dernière ferait bouger deux lignes dès qu'on en ajoute une, et le
+  // diff ne dirait plus « une condition de plus ».
+  if (regle) jetons.push(jeton(JETON.PONCTUATION, "("));
+  jetons.push(jeton(JETON.SUJET, texte(condition.sujet)));
+
+  const fermer = () => { if (regle) jetons.push(jeton(JETON.PONCTUATION, ")")); };
 
   const operateur = texte(condition.operateur) || OPERATEUR.EGAL;
   // « renseigné » se suffit : il ne compare rien, il constate qu'on a répondu.
   if (operateur === OPERATEUR.RENSEIGNE || operateur === OPERATEUR.NON_RENSEIGNE) {
     jetons.push(espace(), jeton(JETON.OPERATEUR, operateur));
+    fermer();
     return jetons;
   }
 
@@ -424,17 +480,26 @@ export function ligneDeCondition(mot, condition = {}, profondeur = 1) {
       : jetonsDeValeur(valeur, condition.unite)));
   });
 
+  fermer();
   return jetons;
 }
 
 /** `alors …` ou `sinon …` — ce que la règle pose. */
-export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1) {
-  return [
+export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1, { regle = false } = {}) {
+  const jetons = [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
     jeton(JETON.MOT_CONDITION, texte(mot)),
-    espace(),
-    ...jetonsDeValeur(valeur, unite)
+    espace()
   ];
+
+  // `alors ("3e famille B");` — ce qui **conclut** est une instruction, et une
+  // instruction se termine. C'est ce qui dit, à la lecture comme à la relecture
+  // par une machine, où s'arrête ce que la règle pose.
+  if (regle) jetons.push(jeton(JETON.PONCTUATION, "("));
+  jetons.push(...jetonsDeValeur(valeur, unite));
+  if (regle) jetons.push(jeton(JETON.PONCTUATION, ")"), jeton(JETON.PONCTUATION, ";"));
+
+  return jetons;
 }
 
 /**
@@ -578,11 +643,11 @@ export function ligneDeZone(zone = TOUTES_ZONES, profondeur = 0) {
  * Une règle, telle qu'un référentiel la porte. Fichier `.ref`.
  *
  * ```
- * Classement du bâtiment (Logements superposés, Hauteur du plancher bas) {
- *    si Logements superposés = oui
- *    et Hauteur du plancher bas <= 28 m
- *    alors "3e famille B"
- *    texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)
+ * fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas) {
+ *    si (Logements superposés = oui)
+ *    et (Hauteur du plancher bas <= 28 m)
+ *    alors ("3e famille B");
+ *    texte: arrêté du 31 janvier 1986 modifié, article 3, 3°
  *       parce que: "Troisième famille B : …"
  * }
  * ```
@@ -599,16 +664,18 @@ export function blocDeRegle({
   const dedans = profondeur + 1;
   const toutes = [...(Array.isArray(conditions) ? conditions : []), ...(Array.isArray(sauf) ? sauf : [])];
 
+  const commeUneRegle = { regle: true };
+
   const corps = [];
   (Array.isArray(conditions) ? conditions : []).forEach((condition, rang) => {
-    corps.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, dedans));
+    corps.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, dedans, commeUneRegle));
   });
 
-  if (texte(alors)) corps.push(ligneDeConsequence("alors", alors, "", dedans));
-  if (texte(sinon)) corps.push(ligneDeConsequence("sinon", sinon, "", dedans));
+  if (texte(alors)) corps.push(ligneDeConsequence("alors", alors, "", dedans, commeUneRegle));
+  if (texte(sinon)) corps.push(ligneDeConsequence("sinon", sinon, "", dedans, commeUneRegle));
 
   for (const exception of (Array.isArray(sauf) ? sauf : [sauf]).filter(Boolean)) {
-    corps.push(ligneDeCondition("sauf si", exception, dedans));
+    corps.push(ligneDeCondition("sauf si", exception, dedans, commeUneRegle));
   }
 
   const depuis = provenance ? ligneDeProvenance(provenance, dedans) : null;
@@ -619,7 +686,7 @@ export function blocDeRegle({
 
   const tete = [
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
-    ...ligneDeDonnee(sujet, toutes.map((condition) => condition?.sujet))
+    ...ligneDeDonnee(sujet, toutes.map((condition) => condition?.sujet), commeUneRegle)
   ];
 
   return corps.length

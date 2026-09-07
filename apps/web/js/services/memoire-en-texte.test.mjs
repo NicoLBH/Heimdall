@@ -104,11 +104,11 @@ test("une règle ne porte aucune valeur de projet", () => {
   });
 
   assert.deepEqual(lignes.map(clair), [
-    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
-    `${RETRAIT}si Logements superposés = oui`,
-    `${RETRAIT}et Hauteur du plancher bas du logement le plus haut <= 28 m`,
-    `${RETRAIT}alors "3e famille B"`,
-    `${RETRAIT}sinon "3e famille A"`,
+    "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    `${RETRAIT}si (Logements superposés = oui)`,
+    `${RETRAIT}et (Hauteur du plancher bas du logement le plus haut <= 28 m)`,
+    `${RETRAIT}alors ("3e famille B");`,
+    `${RETRAIT}sinon ("3e famille A");`,
     `${RETRAIT}texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)`,
     `${RETRAIT}${RETRAIT}parce que: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."`,
     "}"
@@ -150,7 +150,7 @@ test("une exception se lit sous la règle, dans les mots du texte", () => {
     sauf: [{ sujet: "Unités de passage", operateur: OPERATEUR.EGAL, valeur: "1" }]
   });
 
-  assert.equal(clair(lignes[3]), `${RETRAIT}sauf si Unités de passage = 1`);
+  assert.equal(clair(lignes[3]), `${RETRAIT}sauf si (Unités de passage = 1)`);
 });
 
 test("l'en-tête porte la version de l'écriture, pas seulement la date", () => {
@@ -172,7 +172,11 @@ test("l'extension dit ce que le fichier contient, le chemin où il vit", () => {
   assert.equal(cheminDeFichier(["Tout l'ouvrage", "Incendie — Habitation"], "ref"), "tout-l-ouvrage/incendie-habitation.ref");
 });
 
-test("aucun mot du langage n'est emprunté à un langage de programmation", () => {
+test("le langage n'emprunte à la programmation que ce qu'il exécute", () => {
+  // `fonction` est le seul mot emprunté, et il l'est parce qu'un `.ref` est
+  // exécutable : il ouvre une règle, et il en dit la nature avant tout le reste.
+  // Le reste du langage vient de l'écrit technique, et doit y rester : `const`
+  // ou `return` annonceraient un programme là où il n'y a qu'un raisonnement.
   const interdits = ["const", "function", "return", "if", "else", "true", "false", "null", "//", "=>", "{", "}"];
   for (const mot of MOTS) {
     assert.equal(interdits.includes(mot), false, `« ${mot} » vient de la programmation`);
