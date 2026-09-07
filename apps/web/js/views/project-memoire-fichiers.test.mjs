@@ -18,9 +18,10 @@ test("une valeur mesurée s'écrit nue, avec sa provenance dessous", () => {
   });
 
   assert.deepEqual(lignes.map(clair), [
-    "Altitude du site = 490,03 m",
+    "Altitude du site = 490,03 m {",
     "   document: Zonages réglementaires",
-    "   statut: retenu"
+    "   statut: retenu",
+    "}"
   ]);
   assert.equal(lignes[0].nature, "affirmation");
   assert.equal(lignes[1].nature, "detail");
@@ -65,9 +66,10 @@ test("une hypothèse se dit supposée, et sa provenance dit qui doit la confirme
   });
 
   assert.equal(texte, [
-    "Portance du sol = 0,2 MPa",
+    "Portance du sol = 0,2 MPa {",
     "   hypothèse: à confirmer par le G2",
-    "   statut: supposé"
+    "   statut: supposé",
+    "}"
   ].join("\n"));
 });
 
@@ -111,6 +113,7 @@ test("jetonsDeLAssertion rend la ligne de valeur, pas son détail", () => {
   const jetons = jetonsDeLAssertion({
     payload: { subject: "Zone de vent", value: "2", provenance: { type: PROVENANCE.DOCUMENT, quoi: "carte" } }
   });
+  // Sans accolade : elle borne un bloc, et il n'y a pas de bloc hors contexte.
   assert.equal(enClair(jetons), "Zone de vent = 2");
 });
 
@@ -148,17 +151,18 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
   });
 
   assert.equal(texte, [
-    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut)",
+    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
     "   si Logements superposés = oui",
     "   et Hauteur du plancher bas du logement le plus haut <= 28 m",
     '   alors "3e famille B"',
     '   sinon "3e famille A"',
     "   texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)",
-    '      parce que: "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."'
+    '      parce que: "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes."',
+    "}"
   ].join("\n"));
 
   // Pas de `=` sur la tête : la règle ne dit pas ce que vaut la donnée ici.
-  assert.equal(texte.split("\n")[0].includes("="), false);
+  assert.equal(texte.split("\n")[0].includes(" = "), false);
   // Et pas de statut : un référentiel n'a pas d'état dans un projet.
   assert.equal(texte.includes("statut"), false);
 });

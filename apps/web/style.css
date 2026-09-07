@@ -19955,6 +19955,16 @@ body.proposition-merge-open{ overflow:hidden; }
 .mdall-mot-date{ color:rgb(210,153,34); }
 .mdall-date{ color:rgb(232,193,102); }
 
+/* Les accolades bornent, elles ne parlent pas : elles se voient sans se lire.
+   Sans elles, la fin d'un bloc de sept lignes ne se marquait que par un retour
+   au niveau zéro, ce qui se relit mal et se plie encore plus mal. */
+.mdall-accolade{ color:rgb(139,148,158); }
+
+/* La zone ouvre une section du fichier. Elle porte la couleur des sections,
+   parce que c'en est une. */
+.mdall-mot-zone{ color:rgb(255,166,87); }
+.mdall-zone{ color:rgb(255,166,87); font-weight:600; }
+
 
 /* ── La mémoire, parcourue comme un dépôt ───────────────────────────────────
    Les mêmes gestes que l'onglet Documents — un chemin, un fil d'Ariane, une
@@ -20180,6 +20190,28 @@ body.proposition-merge-open{ overflow:hidden; }
 /* Le numéro porte son écart : en mode Blame la gouttière tombe à zéro — la
    marge du blâme a la sienne —, et le numéro se collait au code. */
 .memoire-ligne__num{ flex:0 0 40px; padding-right:12px; text-align:right; color:var(--muted); font-size:11px; user-select:none; }
+
+/* Le caret de pliage, entre les numéros et le code. Il n'existe qu'en lecture
+   Code : en lecture Origine on cherche qui a décidé, et replier un bloc y
+   cacherait précisément ce qu'on est venu voir.
+
+   La colonne existe sur **toutes** les lignes, même celles qui ne plient rien :
+   sinon le code se décalerait d'une ligne à l'autre. */
+.memoire-ligne__caret{
+  flex:0 0 16px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:1.4em;
+  padding:0;
+  border:0;
+  border-radius:4px;
+  background:transparent;
+  color:transparent;
+  cursor:default;
+}
+button.memoire-ligne__caret{ color:var(--muted); cursor:pointer; }
+button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(--text); }
 .memoire-ligne__code{ min-width:0; }
 .memoire-ligne--ecartee .memoire-ligne__code{ opacity:.55; text-decoration:line-through; }
 

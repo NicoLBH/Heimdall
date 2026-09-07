@@ -176,9 +176,12 @@ le statut. Le langage les sépare, et `docs/langage-mdall.md` en porte la
 grammaire entière.
 
 ```
-Classement du bâtiment = "3e famille B"
-   règle: Classement du bâtiment — arrêté du 31 janvier 1986, article 3, 3°)
-   statut: retenu
+zone: Bâtiment A {
+   Classement du bâtiment = "3e famille B" {
+      règle: Classement du bâtiment — arrêté du 31 janvier 1986, article 3, 3°)
+      statut: retenu
+   }
+}
 ```
 
 Quatre conséquences pour le code :
@@ -227,3 +230,27 @@ grammaire entière est dans `docs/langage-mdall.md`.
 Ce qui n'est pas compris n'est jamais avalé en silence. La lecture rend la
 ligne, son numéro et la raison du refus — un fichier amputé qui entrerait sans
 bruit en mémoire serait pire qu'un fichier refusé.
+
+---
+
+## 8. Les sources vivent dans Fichiers, la mémoire s'exécute
+
+L'onglet **Fichiers** porte les **sources** du projet, et elles sont de même
+nature qu'elles viennent d'un PDF ou de l'application : un plan déposé, une
+valeur relevée, une règle appliquée, une décision signée sont toutes des choses
+à partir desquelles le projet se reconstruit. Deux racines, et pas une de plus :
+`Mémoire/` pour ce que l'application écrit, `Documents/` pour ce que
+l'utilisateur dépose.
+
+L'onglet **Mémoire** ne stocke rien. Il *exécute* ces sources comme un
+navigateur exécute le dépôt : il cherche, il croise, il remonte les
+dépendances, il exporte. Tout ce qu'il montre se recalcule depuis les fichiers
+— ce qui est exactement la règle 2, appliquée à l'écran.
+
+Deux conséquences pour le code :
+
+1. **Ce qui agit sur les documents ne s'affiche que sur les documents.** Le
+   menu et le bouton « Déplacer » n'apparaissent pas dans `Mémoire/` : on ne
+   déplace pas à la main un fichier que l'application écrit.
+2. **Aucun écran de la mémoire n'a d'état à lui.** Un pliage de bloc, un
+   chemin, un mode de lecture sont des vues ; les effacer ne perd rien.

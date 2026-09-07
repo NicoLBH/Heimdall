@@ -28,7 +28,7 @@
  * le reste ferait lire comme acquis ce que quelqu'un a refusé.
  */
 
-import { cheminsDeRangement, extensionDeRangement } from "./memoire-rangement.js";
+import { cheminDeRangement, extensionDeRangement, zonesDeRangement, rangDeLaZone } from "./memoire-rangement.js";
 import { cheminDeFichier } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -55,31 +55,53 @@ export function fichiersDeLaMemoire(assertions = []) {
 
     const referentiel = assertion?.payload?.referentiel === true;
     const extension = extensionDeRangement({ nature: assertion?.nature, referentiel });
+    const chemin = cheminDeRangement({ nature: assertion?.nature, domain: assertion?.domain, referentiel });
 
-    // Une affirmation qui vaut pour deux zones se lit dans les deux fichiers.
-    // Ce n'est pas une copie : c'est la même, vue de deux endroits, et l'effacer
-    // de l'une la cacherait à qui ouvre cette zone-là.
-    for (const chemin of cheminsDeRangement({ domain: assertion?.domain, zones: zonesLisibles(assertion) })) {
-      const cle = `${chemin.join(" / ")}.${extension}`;
-      if (!parFichier.has(cle)) {
-        parFichier.set(cle, {
-          chemin, extension,
-          fichier: cheminDeFichier(chemin, extension),
-          lignes: [], ecartees: []
-        });
-      }
-
-      const entree = parFichier.get(cle);
-      if (texte(assertion?.status) === VAUT.REJECTED) entree.ecartees.push(assertion);
-      else entree.lignes.push(assertion);
+    const cle = `${chemin.join(" / ")}.${extension}`;
+    if (!parFichier.has(cle)) {
+      parFichier.set(cle, {
+        chemin, extension,
+        fichier: cheminDeFichier(chemin, extension),
+        lignes: [], ecartees: []
+      });
     }
+
+    const entree = parFichier.get(cle);
+    if (texte(assertion?.status) === VAUT.REJECTED) entree.ecartees.push(assertion);
+    else entree.lignes.push(assertion);
   }
 
   return [...parFichier.values()].map((fichier) => ({
     ...fichier,
     lignes: fichier.lignes.sort(parSujet),
-    ecartees: fichier.ecartees.sort(parSujet)
+    ecartees: fichier.ecartees.sort(parSujet),
+    // Les sections du fichier : « Toutes zones » d'abord, puis le découpage du
+    // projet. Une affirmation qui vaut pour deux zones ouvre les deux.
+    sections: sectionsDuFichier(fichier.lignes)
   }));
+}
+
+/**
+ * Les sections d'un fichier, une par zone.
+ *
+ * Une affirmation qui vaut pour deux zones apparaît dans les deux sections. Ce
+ * n'est pas une copie : c'est la même, vue de deux endroits, et l'effacer de
+ * l'une la cacherait à qui lit cette zone-là.
+ */
+export function sectionsDuFichier(lignes = []) {
+  const parZone = new Map();
+
+  for (const assertion of Array.isArray(lignes) ? lignes : []) {
+    for (const zone of zonesDeRangement({ zones: zonesLisibles(assertion) })) {
+      if (!parZone.has(zone)) parZone.set(zone, { zone, lignes: [] });
+      parZone.get(zone).lignes.push(assertion);
+    }
+  }
+
+  return [...parZone.values()]
+    .map((section) => ({ ...section, lignes: section.lignes.slice().sort(parSujet) }))
+    .sort((gauche, droite) => rangDeLaZone(gauche.zone) - rangDeLaZone(droite.zone)
+      || gauche.zone.localeCompare(droite.zone, "fr"));
 }
 
 /**
