@@ -6469,10 +6469,8 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-layout:has(.memoire-tree.is-collapsed){grid-template-columns:48px 1fr;}
 .documents-layout.is-root{grid-template-columns:minmax(0,1100px);justify-content:center;}
 .documents-main{min-width:0;max-height:var(--documents-content-height, calc(100vh - 120px));height:100%;z-index:2;background:var(--bg);padding-left:10px;}
-.documents-topbar{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 0px;}
-.documents-topbar__left{display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 auto;}
-.documents-topbar__right{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
-.documents-topbar .documents-breadcrumb{margin:0;white-space:nowrap;overflow:auto;}
+/* `.documents-topbar` a disparu du balisage : les deux matières partagent
+   `.memoire-corps__tete`. Ses règles ne visaient plus rien. */
 .documents-tree{position:relative;width:var(--documents-tree-width);z-index:1;}
 .documents-tree.is-collapsed .documents-tree__panel,.documents-tree.is-collapsed .documents-tree__resize-handle,.documents-tree.is-collapsed .documents-tree__resize-guide{display:none;}
 .documents-tree__toggle{width:32px;height:32px;border:solid 1px transparent;background:var(--bgElev);color:var(--muted);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;}
@@ -6499,21 +6497,36 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-tree__file:hover{background:rgba(110,118,129,.16);}
 .documents-tree__file:hover .documents-tree__label{color:#58a6ff;text-decoration:underline;}
 .documents-tree__row,.documents-tree__file{position:relative;}
+/* ─────────────────────────────────────────────────────────────────────────────
+   Le lecteur de PDF.
+
+   ## Un seul ascenseur
+
+   La page défilait **et** le corps du PDF défilait. Deux ascenseurs pour un
+   seul geste : la molette agissait tantôt sur l'un, tantôt sur l'autre, et les
+   barres du haut sautaient au gré de celui qui gagnait. En lecture, l'écran ne
+   bouge plus : la colonne remplit la fenêtre, les deux barres sont posées en
+   haut par la mise en page, et le seul endroit qui défile est la page du
+   document.
+
+   Les règles précédentes visaient `.documents-topbar`, qui n'existe plus : les
+   deux matières partagent maintenant une seule barre, `.memoire-corps__tete`.
+   Elles ne s'appliquaient donc plus à rien, et la barre du lecteur se collait
+   à une hauteur calculée pour une barre absente.
+   ───────────────────────────────────────────────────────────────────────── */
 .documents-pdf-sticky-mode .project-shell__body{
   position:relative;
   top:auto;
-  overflow:visible;
+  overflow:hidden;
   z-index:auto;
 }
-body.route--project.documents-pdf-sticky-mode.project-shell-compact #globalHeaderHost,
-body.route--project.documents-pdf-sticky-mode.project-shell-compact .gh-header.gh-header--project{
-  transform:translateY(-100%);
+/* En lecture, l'en-tête du projet laisse la place au document. */
+body.route--project.documents-pdf-sticky-mode #globalHeaderHost{
   opacity:0;
+  visibility:hidden;
   pointer-events:none;
-  transition:transform .16s ease, opacity .16s ease;
 }
 .documents-shell--pdf-preview{
-  --documents-pdf-topbar-h:49px;
   --documents-pdf-toolbar-h:52px;
   width:100%;
   max-width:none;
@@ -6521,42 +6534,43 @@ body.route--project.documents-pdf-sticky-mode.project-shell-compact .gh-header.g
 }
 .documents-shell--pdf-preview .documents-main{
   min-width:0;
-  height:auto;
+  display:flex;
+  flex-direction:column;
+  /* La hauteur vient de ce que l'écran **mesure**, pas d'une constante :
+     `--documents-content-height` est posée au rendu depuis la position réelle
+     du contenu. Calculée depuis `--app-top`, elle ignorait la barre d'onglets
+     et dépassait de sa hauteur exacte — d'où un ascenseur de page en trop,
+     qui se disputait la molette avec celui du document. */
+  height:var(--documents-content-height, calc(100dvh - var(--app-top)));
   max-height:none;
-  overflow:visible;
+  overflow:hidden;
 }
-.documents-shell .documents-topbar{
-  position:sticky;
-  top:var(--app-top);
-  /* Au-dessus de la barre du lecteur PDF (`- 2`), qui vient juste en dessous.
-     Un `z-index` sur un élément positionné crée un contexte d'empilement : le
-     menu du kebab, si haut soit-il, ne monte jamais plus haut que sa barre —
-     il passait donc sous les boutons du PDF, et on ne lisait qu'une moitié de
-     menu. */
-  z-index:calc(var(--z-header) - 1);
+.documents-shell--pdf-preview .documents-report,
+.documents-shell--pdf-preview .documents-report-table--pdf{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  flex:1 1 auto;
 }
-body.route--project.project-shell-compact .documents-shell .documents-topbar,
-body.documents-local-chrome-compact .documents-shell .documents-topbar,
-.documents-shell.project-local-chrome--compact .documents-topbar{
-  top:0;
-  background: var(--headbgtight);
-  border: solid 1px var(--border);
-  border-top:none;
+/* Les deux barres se touchent : celle du chemin, puis celle du lecteur. */
+.documents-shell--pdf-preview .memoire-corps__tete{
+  flex:0 0 auto;
+  padding:6px 12px;
+  background:var(--panel2);
+  border:1px solid var(--border);
+  border-top:0;
+  border-radius:0 0 var(--radius) var(--radius);
 }
 .documents-shell--pdf-preview .documents-report-table__header--pdf-preview{
-  position:sticky;
-  top:calc(var(--app-top) + var(--documents-pdf-topbar-h, 44px));
-  z-index:calc(var(--z-header) - 2);
+  position:static;
+  flex:0 0 auto;
   background:var(--headbgtight);
 }
-body.route--project.project-shell-compact .documents-shell--pdf-preview .documents-report-table__header--pdf-preview,
-body.documents-local-chrome-compact .documents-shell--pdf-preview .documents-report-table__header--pdf-preview,
-.documents-shell--pdf-preview.project-local-chrome--compact .documents-report-table__header--pdf-preview{
-  top:var(--documents-pdf-topbar-h, 49px);
-}
 .documents-shell--pdf-preview .documents-report-table__body--pdf{
+  /* Le seul ascenseur de l'écran : il prend ce que les deux barres laissent. */
   min-height:0;
-  height:calc(100dvh - var(--documents-pdf-topbar-h, 44px) - var(--documents-pdf-toolbar-h, 52px));
+  flex:1 1 auto;
+  height:auto;
   overflow:auto;
   overflow-x:auto;
   overflow-y:auto;
@@ -20204,7 +20218,6 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   position:sticky;
   top:0;
   z-index:calc(var(--z-header) + 1);
-  background:var(--bgElev, var(--panel2));
 }
 .memoire-tree__tete .memoire-recherche{ flex:0 0 100%; min-width:0; }
 .memoire-tree__tete .memoire-recherche .gh-input{ width:100%; }
@@ -20222,6 +20235,18 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   top:0;
   z-index:calc(var(--z-header) + 1);
   background:var(--bg);
+  border:1px solid transparent;
+  border-top:0;
+  border-radius:0 0 var(--radius) var(--radius);
+  transition:background .12s ease, border-color .12s ease;
+}
+/* Collée, elle prend le fond et les bords de la tête du fichier : les deux
+   barres se lisent alors comme une seule pièce, et non comme un texte qui
+   flotte au-dessus d'une carte. Déroulée, elle n'a pas de bords à montrer. */
+body.documents-local-chrome-compact .memoire-corps__tete{
+  padding:6px 12px;
+  background:var(--panel2);
+  border-color:var(--border);
 }
 .memoire-corps__espace{ flex:1 1 auto; }
 .memoire-corps__tete .documents-breadcrumb{ margin:0; }
@@ -20541,7 +20566,9 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   top:0; bottom:0;
   left:calc(var(--memoire-profondeur, 0) * 3ch + 1ch);
   width:2px;
-  background:rgba(110,118,129,.45);
+  /* Transparente : la gouttière garde sa place — on saura peut-être quoi en
+     faire — sans encombrer la lecture aujourd'hui. */
+  background:transparent;
 }
 .memoire-blame__ref{ flex:0 0 auto; font-variant-numeric:tabular-nums; }
 .memoire-blame__date{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
