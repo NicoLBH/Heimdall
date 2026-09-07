@@ -30,6 +30,7 @@ import { MODULES_CONDUITS } from "./modules-conduits.js";
 import { MODULES_FOYERS } from "./modules-foyers.js";
 import { MODULES_PARCS } from "./modules-parcs.js";
 import { QUESTIONS, questionDe } from "./questions.js";
+import { conditionsMontrables, sujetsDesFaits, unitesDesFaits } from "./conditions.js";
 import { articleDe, ARTICLES_PORTES } from "./articles.js";
 import { figuresDe } from "./figures.js";
 import { expliquerModule } from "./inspection.js";
@@ -183,6 +184,11 @@ export function consulter(reponses = {}) {
   const { faits, conclusions } = raisonner(CORPUS, reponses);
   const graphe = grapheDu(CORPUS);
 
+  // Les sujets se calculent une fois : cent quatre modules qui reconstruiraient
+  // chacun la table des noms coûteraient cent quatre parcours du corpus.
+  const sujets = sujetsDesFaits(CORPUS, QUESTIONS);
+  const unites = unitesDesFaits(QUESTIONS, CORPUS);
+
   const modules = conclusions.map((c) => ({
     id: c.module.id,
     titre: c.module.titre,
@@ -199,6 +205,11 @@ export function consulter(reponses = {}) {
     sansObjet: c.sansObjet,
     // La branche empruntée, et elle seule. Les autres restent au serveur.
     pourquoi: c.regle ? sourceMontrable(c.regle.source) : null,
+    // Et ses conditions, en clair : le fait, l'opérateur, le seuil. Sans elles
+    // l'écriture Mdall fabriquait la règle à partir des valeurs du projet — elle
+    // écrivait « si hauteur = 26 » là où l'arrêté dit « au plus 28 m ». Voir
+    // `conditions.js` pour ce que cela ouvre, et ce que cela n'ouvre pas.
+    conditions: c.regle ? conditionsMontrables(c.regle.si, sujets, unites) : [],
     // Quand plusieurs branches menaient au même endroit, on le dit : le lecteur
     // saurait sinon que des conditions n'ont pas été tranchées, sans savoir
     // pourquoi cela n'a pas empêché de conclure.

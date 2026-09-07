@@ -27,7 +27,8 @@ import { escapeHtml } from "../utils/escape-html.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import {
-  ligneDAffirmation, blocDeRaisonnement, cheminDeFichier, nomDeFichier, GESTE
+  blocDAffirmation, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
+  PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import { phraseDuDossier, rangDuDossier } from "../services/memoire-rangement.js";
 import {
@@ -349,7 +350,7 @@ export function renderFichier(fichier, {
         rang += 1;
         return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
-        ligne.nature === "raisonnement" ? " memoire-ligne--raisonnement" : ""
+        ligne.nature === "detail" ? " memoire-ligne--detail" : ""
       }">
         ${
           lecture === LECTURE.BLAME
@@ -443,68 +444,98 @@ export function fichierEnClair(fichier, { enClair } = {}) {
 }
 
 /**
- * Une affirmation de la mémoire, en une ou plusieurs lignes.
+ * Une affirmation de la mémoire, en un bloc.
  *
- * ## Pourquoi une affirmation n'est plus une ligne
+ * ## Ce qu'un bloc porte, et ce qu'il ne porte plus
  *
- * Une mémoire de projet ne garde pas que des valeurs. Elle garde ce qu'on a
- * **décidé**, ce qu'on **suppose**, le raisonnement qui a mené là, la raison
- * qui le fonde, ses exceptions, et ce dont il dépend. Écrit en une ligne, tout
- * cela se perd : il reste un chiffre, et six mois plus tard personne ne sait
- * plus si on pouvait en discuter.
+ * La donnée et sa valeur en tête ; d'où elle vient, indentée dessous ; la
+ * preuve sous sa provenance ; le statut en dernier. Quatre objets, quatre
+ * lignes, et l'indentation dit à quoi chacune se rapporte.
  *
- * L'affirmation vient d'abord ; son raisonnement s'indente dessous, comme un
- * alinéa sous l'article qu'il précise. C'est l'indentation qui dit à quoi la
- * ligne se rapporte : écrit au-dessus, le bloc flottait, et « dépend de Commune
- * du projet » en tête de fichier ne se rattachait visiblement à rien.
+ * **La règle n'y est plus.** Une règle vaut pour mille projets, une valeur pour
+ * un seul : elle vit dans un fichier de référentiel, et la ligne dit seulement
+ * de laquelle la valeur sort. La recopier ici en produisait des fausses — « si
+ * hauteur = 26 » — vraies d'un bâtiment et d'aucun autre.
+ *
+ * **`dépend de` n'y est plus** non plus : la dépendance se déduit des
+ * conditions de la règle, et une dépendance recopiée diverge le jour où
+ * quelqu'un modifie la règle sans y penser.
  *
  * @returns {{jetons: object[], nature: string}[]}
  */
 export function lignesDeLAssertion(assertion = {}) {
   const payload = assertion.payload ?? {};
-  const valeur = texte(payload.value) || texte(assertion.statement);
+  const brute = texte(payload.value) || texte(assertion.statement);
+  const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
 
-  const affirmation = {
-    nature: "affirmation",
-    jetons: ligneDAffirmation({
-      sujet: texte(payload.subject) || texte(assertion.subject_key),
-      valeur,
-      zones: Array.isArray(assertion.zones) ? assertion.zones : (payload.zones ?? []),
-      deduitDe: payload.deduitDe ?? null,
-      source: [texte(payload.source), texte(payload.article)].filter(Boolean).join(", "),
-      geste: gesteDeLAssertion(assertion)
-    })
-  };
+  const lignes = blocDAffirmation({
+    sujet: texte(payload.subject) || texte(assertion.subject_key),
+    valeur: coupe.nombre,
+    unite: coupe.unite,
+    zones: Array.isArray(assertion.zones) ? assertion.zones : (payload.zones ?? []),
+    provenance: provenanceDeLAssertion(assertion),
+    preuve: texte(payload.citation),
+    statut: statutDeLAssertion(assertion)
+  });
 
-  const raisonnement = payload.raisonnement ?? null;
-  if (!raisonnement) return [affirmation];
-
-  // `alors` et `retenu` ne sont pas stockés : ils *sont* la valeur, et une
-  // valeur écrite à deux endroits finit par diverger. On les reconstruit ici.
-  const bloc = blocDeRaisonnement({
-    condition: texte(raisonnement.condition),
-    alors: texte(raisonnement.condition) ? valeur : "",
-    sinon: texte(raisonnement.sinon),
-    retenu: texte(raisonnement.condition) ? valeur : "",
-    parceQue: texte(raisonnement.parceQue),
-    saufSi: raisonnement.saufSi ?? [],
-    dependDe: raisonnement.dependDe ?? []
-  }).map((jetons) => ({ nature: "raisonnement", jetons }));
-
-  return [affirmation, ...bloc];
+  return lignes.map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
 }
 
 /**
- * Le geste : constaté, retenu, supposé.
+ * D'où une valeur vient, et donc comment elle a été obtenue.
  *
- * Il vient de l'utilitaire quand celui-ci le dit. Sinon il se lit sur la
- * nature : une hypothèse **se suppose**, et l'écrire comme un fait est
- * exactement l'erreur que cette mémoire existe pour éviter.
+ * Le **type de la provenance est l'origine** : une ligne qui renvoie à une
+ * règle est déduite, une ligne qui renvoie à un plan est lue, une ligne qui
+ * renvoie à un calcul est calculée. Rien de plus à déclarer — un champ
+ * « origine » à côté redirait la même chose, et finirait par la contredire.
+ *
+ * L'ordre de lecture n'est pas arbitraire : le calcul l'emporte sur la règle,
+ * qui l'emporte sur le texte. Une valeur calculée à partir d'une règle se
+ * refait en refaisant le calcul, et c'est cela qu'on veut savoir en premier.
  */
-export function gesteDeLAssertion(assertion = {}) {
-  const dit = texte(assertion?.payload?.geste);
+export function provenanceDeLAssertion(assertion = {}) {
+  const payload = assertion.payload ?? {};
+  const declaree = payload.provenance ?? null;
+  if (declaree && texte(declaree.type) && texte(declaree.quoi)) {
+    return { type: texte(declaree.type), quoi: texte(declaree.quoi) };
+  }
+
+  const calcul = payload.deduitDe ?? null;
+  if (calcul && texte(calcul.calcul)) {
+    const entrees = (calcul.entrees ?? [])
+      .map((entree) => [texte(entree?.sujet), texte(entree?.valeur)].filter(Boolean).join(" = "))
+      .filter(Boolean);
+    return { type: PROVENANCE.CALCUL, quoi: `${texte(calcul.calcul)}${entrees.length ? ` (${entrees.join(" ; ")})` : ""}` };
+  }
+
+  const texteApplique = [texte(payload.source), texte(payload.article)].filter(Boolean).join(", ");
+  if (!texteApplique) return null;
+
+  // Une contrainte sort d'un texte appliqué ; une donnée de base est relevée
+  // dans une pièce du projet. C'est la nature qui le dit, et elle le sait.
+  return {
+    type: texte(assertion?.nature) === "contrainte" ? PROVENANCE.TEXTE : PROVENANCE.DOCUMENT,
+    quoi: texteApplique
+  };
+}
+
+/**
+ * L'état du raisonnement dans ce projet.
+ *
+ * Il vient de l'utilitaire quand celui-ci le dit. Sinon il se lit sur ce que la
+ * mémoire sait déjà : une hypothèse **se suppose**, une affirmation remplacée
+ * n'est plus l'état, un refus n'est pas une valeur du projet. Écrire une
+ * hypothèse comme un fait est exactement l'erreur que cette mémoire existe
+ * pour éviter.
+ */
+export function statutDeLAssertion(assertion = {}) {
+  const dit = texte(assertion?.payload?.statut);
   if (dit) return dit;
-  return texte(assertion?.nature) === "hypothese" ? GESTE.HYPOTHESE : GESTE.FAIT;
+
+  if (texte(assertion?.status) === "rejected") return STATUT.ECARTE;
+  if (texte(assertion?.superseded_by)) return STATUT.REMPLACE;
+  if (texte(assertion?.nature) === "hypothese") return STATUT.SUPPOSE;
+  return STATUT.RETENU;
 }
 
 /** Une affirmation, sur sa seule ligne de valeur — sans son raisonnement. */

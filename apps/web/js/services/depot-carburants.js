@@ -120,20 +120,19 @@ export function reperesDAffirmations(tableau = null) {
       }
     };
 
-    // Le raisonnement fait partie du repère : une valeur qui ne bouge pas mais
-    // dont la raison change **est** un changement, et le diff doit le montrer.
-    // Une raison qu'on ne voit pas changer se cite encore en réunion six mois
-    // après qu'elle a cessé de valoir.
+    // La provenance et le statut font partie du repère : une valeur qui ne
+    // bouge pas mais dont la source change **est** un changement, et le diff
+    // doit le montrer.
     if (texte(ligne.avant)) {
       avant.push({
         ...commun,
-        champs: { "Valeur": texte(ligne.avant), ...champsDuRaisonnement(ligne.raisonnementAvant, ligne.gesteAvant) }
+        champs: { "Valeur": texte(ligne.avant), ...champsDeProvenance(ligne.provenanceAvant, ligne.statutAvant) }
       });
     }
     if (texte(ligne.apres)) {
       apres.push({
         ...commun,
-        champs: { "Valeur": texte(ligne.apres), ...champsDuRaisonnement(ligne.raisonnement, ligne.geste) }
+        champs: { "Valeur": texte(ligne.apres), ...champsDeProvenance(ligne.provenance, ligne.statut) }
       });
     }
   }
@@ -142,27 +141,24 @@ export function reperesDAffirmations(tableau = null) {
 }
 
 /**
- * Ce qu'un raisonnement ajoute au repère, quand il y en a un.
+ * Ce que la provenance et le statut ajoutent au repère.
  *
  * Un champ vide ne s'écrit pas : il apparaîtrait comme un retrait le jour où
- * une ligne se met à porter sa raison, alors qu'il ne s'est rien retiré.
+ * une ligne se met à porter sa source, alors qu'il ne s'est rien retiré.
+ *
+ * « D'où » porte le **type** de la provenance, et pas seulement ce qu'elle
+ * désigne : passer d'une hypothèse à un document est le changement le plus
+ * important qu'une ligne puisse connaître, et il serait invisible si le diff ne
+ * comparait que le libellé.
  */
-export function champsDuRaisonnement(raisonnement, geste = "") {
+export function champsDeProvenance(provenance, statut = "") {
   const champs = {};
-  if (texte(geste)) champs["Geste"] = texte(geste);
-  if (!raisonnement || typeof raisonnement !== "object") return champs;
 
-  const liste = (valeur) => (Array.isArray(valeur) ? valeur : [valeur]).map(texte).filter(Boolean);
-
-  if (texte(raisonnement.condition)) champs["Condition"] = texte(raisonnement.condition);
-  if (texte(raisonnement.sinon)) champs["Sinon"] = texte(raisonnement.sinon);
-  if (texte(raisonnement.parceQue)) champs["Raison"] = texte(raisonnement.parceQue);
-
-  const exceptions = liste(raisonnement.saufSi);
-  if (exceptions.length) champs["Exceptions"] = exceptions.join(" · ");
-
-  const socles = liste(raisonnement.dependDe);
-  if (socles.length) champs["Dépend de"] = socles.join(" · ");
+  if (provenance && typeof provenance === "object" && texte(provenance.quoi)) {
+    champs["D'où"] = texte(provenance.type);
+    champs["Provenance"] = texte(provenance.quoi);
+  }
+  if (texte(statut)) champs["Statut"] = texte(statut);
 
   return champs;
 }

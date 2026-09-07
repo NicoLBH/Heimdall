@@ -2,66 +2,118 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  lignesDeLAssertion, gesteDeLAssertion, jetonsDeLAssertion, octets, ilYA
+  lignesDeLAssertion, provenanceDeLAssertion, statutDeLAssertion,
+  jetonsDeLAssertion, octets, ilYA
 } from "./project-memoire-fichiers.js";
-import { enClair, GESTE } from "../services/memoire-en-texte.js";
+import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
+import { lireUnFichier } from "../services/memoire-en-lecture.js";
 
 const clair = (ligne) => enClair(ligne.jetons);
+const enTexte = (assertion) => texteDesLignes(lignesDeLAssertion(assertion).map((ligne) => ligne.jetons));
 
-test("une valeur sans raisonnement reste une seule ligne", () => {
+test("une valeur mesurée s'écrit nue, avec sa provenance dessous", () => {
   const lignes = lignesDeLAssertion({
-    payload: { subject: "Zone de neige", value: "A1", source: "Zonages réglementaires" }
+    nature: "donnee-de-base",
+    payload: { subject: "Altitude du site", value: "490,03 m", source: "Zonages réglementaires" }
   });
 
-  assert.equal(lignes.length, 1);
+  assert.deepEqual(lignes.map(clair), [
+    "Altitude du site = 490,03 m",
+    "   ← document Zonages réglementaires",
+    "   statut retenu"
+  ]);
   assert.equal(lignes[0].nature, "affirmation");
-  assert.match(clair(lignes[0]), /^Zone de neige {2}A1 {2}← Zonages réglementaires$/);
+  assert.equal(lignes[1].nature, "detail");
 });
 
-test("le raisonnement s'indente sous l'affirmation qu'il justifie", () => {
-  const lignes = lignesDeLAssertion({
+test("le type de la provenance est l'origine : rien de plus à déclarer", () => {
+  // Un calcul l'emporte : une valeur calculée se refait en refaisant le calcul.
+  assert.deepEqual(
+    provenanceDeLAssertion({ payload: { deduitDe: { calcul: "hors gel", entrees: [{ sujet: "altitude", valeur: "490 m" }] } } }),
+    { type: PROVENANCE.CALCUL, quoi: "hors gel (altitude = 490 m)" }
+  );
+  // Une contrainte sort d'un texte appliqué…
+  assert.deepEqual(
+    provenanceDeLAssertion({ nature: "contrainte", payload: { source: "arrêté du 31 janvier 1986", article: "article 6" } }),
+    { type: PROVENANCE.TEXTE, quoi: "arrêté du 31 janvier 1986, article 6" }
+  );
+  // …une donnée de base est relevée dans une pièce du projet.
+  assert.equal(provenanceDeLAssertion({ nature: "donnee-de-base", payload: { source: "plan R+3" } }).type, PROVENANCE.DOCUMENT);
+  // Ce que l'utilitaire a déclaré l'emporte sur tout le reste.
+  assert.deepEqual(
+    provenanceDeLAssertion({ nature: "contrainte", payload: { provenance: { type: "règle", quoi: "Colonne sèche" }, source: "arrêté" } }),
+    { type: PROVENANCE.REGLE, quoi: "Colonne sèche" }
+  );
+  assert.equal(provenanceDeLAssertion({ payload: {} }), null);
+});
+
+test("le statut se lit sur ce que la mémoire sait déjà, faute d'être déclaré", () => {
+  assert.equal(statutDeLAssertion({ payload: { statut: STATUT.CONTESTE } }), STATUT.CONTESTE);
+  assert.equal(statutDeLAssertion({ status: "rejected" }), STATUT.ECARTE);
+  assert.equal(statutDeLAssertion({ superseded_by: "a-1" }), STATUT.REMPLACE);
+  assert.equal(statutDeLAssertion({ nature: "hypothese" }), STATUT.SUPPOSE);
+  assert.equal(statutDeLAssertion({ nature: "contrainte" }), STATUT.RETENU);
+});
+
+test("une hypothèse se dit supposée, et sa provenance dit qui doit la confirmer", () => {
+  const texte = enTexte({
+    nature: "hypothese",
     payload: {
-      subject: "Degré coupe-feu des planchers",
-      value: "CF 1 h",
-      raisonnement: {
-        condition: "Classement du bâtiment = 3e famille B",
-        parceQue: "« …coupe-feu de degré une heure… »",
-        saufSi: ["le bâtiment ne comporte qu'une seule unité de passage"],
-        dependDe: ["Classement du bâtiment"]
-      }
+      subject: "Portance du sol", value: "0,2 MPa",
+      provenance: { type: PROVENANCE.HYPOTHESE, quoi: "à confirmer par le G2" }
     }
   });
 
-  const textes = lignes.map(clair);
-  assert.equal(lignes[0].nature, "affirmation");
-  assert.equal(lignes[1].nature, "raisonnement");
-  assert.deepEqual(textes, [
-    "Degré coupe-feu des planchers  CF 1 h",
-    "   si Classement du bâtiment = 3e famille B",
-    "      alors CF 1 h  ✓ retenu",
-    "   parce que « …coupe-feu de degré une heure… »",
-    "   sauf si le bâtiment ne comporte qu'une seule unité de passage",
-    "   dépend de Classement du bâtiment"
-  ]);
+  assert.equal(texte, [
+    "Portance du sol = 0,2 MPa",
+    "   ← hypothèse à confirmer par le G2",
+    "   statut supposé"
+  ].join("\n"));
 });
 
-test("une hypothèse se suppose, une décision se retient", () => {
-  assert.equal(gesteDeLAssertion({ nature: "hypothese" }), GESTE.HYPOTHESE);
-  assert.equal(gesteDeLAssertion({ nature: "constat" }), GESTE.FAIT);
-  assert.equal(gesteDeLAssertion({ payload: { geste: GESTE.DECISION } }), GESTE.DECISION);
-
-  const supposee = lignesDeLAssertion({
-    nature: "hypothese",
-    payload: { subject: "Portance du sol", value: "0,2 MPa" }
+test("la mémoire ne recopie plus la règle, et n'écrit plus de dépendances", () => {
+  const texte = enTexte({
+    nature: "contrainte",
+    payload: {
+      subject: "Colonne sèche", value: "exigée",
+      provenance: { type: PROVENANCE.REGLE, quoi: "Colonne sèche — arrêté du 31 janvier 1986, article 98" },
+      citation: "Les habitations de la 3ème famille B doivent comporter une colonne sèche."
+    }
   });
-  assert.equal(clair(supposee[0]), "on suppose Portance du sol  0,2 MPa");
+
+  assert.equal(texte.includes("si "), false);
+  assert.equal(texte.includes("dépend de"), false);
+  assert.match(texte, /parce que "Les habitations de la 3ème famille B/);
 });
 
-test("jetonsDeLAssertion rend la ligne de valeur, pas le raisonnement", () => {
+test("ce que la mémoire écrit se relit sans perte", () => {
+  const assertion = {
+    nature: "contrainte",
+    zones: ["bâtiment A"],
+    payload: {
+      subject: "Degré coupe-feu des planchers", value: "CF 1 h",
+      provenance: { type: PROVENANCE.REGLE, quoi: "Degré coupe-feu des planchers — article 6" },
+      citation: "habitations de la 3ème famille : 1 heure ;",
+      statut: STATUT.RETENU
+    }
+  };
+
+  const { blocs, refus } = lireUnFichier(enTexte(assertion));
+  assert.deepEqual(refus, []);
+  assert.equal(blocs.length, 1);
+  assert.equal(blocs[0].sujet, "Degré coupe-feu des planchers");
+  assert.equal(blocs[0].valeur, "CF 1 h");
+  assert.deepEqual(blocs[0].zones, ["bâtiment A"]);
+  assert.deepEqual(blocs[0].provenance, assertion.payload.provenance);
+  assert.equal(blocs[0].preuve, assertion.payload.citation);
+  assert.equal(blocs[0].statut, STATUT.RETENU);
+});
+
+test("jetonsDeLAssertion rend la ligne de valeur, pas son détail", () => {
   const jetons = jetonsDeLAssertion({
-    payload: { subject: "Zone de vent", value: "2", raisonnement: { dependDe: ["Commune du projet"] } }
+    payload: { subject: "Zone de vent", value: "2", provenance: { type: PROVENANCE.DOCUMENT, quoi: "carte" } }
   });
-  assert.equal(enClair(jetons), "Zone de vent  2");
+  assert.equal(enClair(jetons), "Zone de vent = 2");
 });
 
 test("le poids d'un fichier se dit en octets, accents compris", () => {

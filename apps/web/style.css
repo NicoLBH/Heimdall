@@ -19817,8 +19817,6 @@ body.proposition-merge-open{ overflow:hidden; }
 .mdall-source{ color:rgb(139,148,158); font-style:italic; }
 .mdall-section{ color:rgb(255,166,87); font-weight:600; }
 .mdall-note{ color:rgb(139,148,158); font-style:italic; }
-.mdall-mot{ color:rgb(255,123,114); }
-.mdall-marque{ color:rgb(63,185,80); }
 .mdall-neutre{ white-space:pre; }
 
 /* Un extrait cité dans une discussion. Le même dessin que le diff dont il
@@ -19858,6 +19856,18 @@ body.proposition-merge-open{ overflow:hidden; }
    l'écriture montre ce que le projet retiendra, dans la forme où il le
    retiendra — la même page que celle qu'on relira dans le diff d'une
    proposition. */
+/* Les deux fichiers de l'Atelier : les règles appliquées, et ce que le projet
+   retient. Côte à côte tant que la place le permet — c'est la meilleure façon
+   de faire voir que ce sont deux choses. */
+.mdall-deux-fichiers{ display:grid; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); gap:16px; align-items:start; }
+.mdall-fichier__phrase{
+  margin:0;
+  padding:8px 14px;
+  border-bottom:1px solid var(--border2);
+  color:var(--muted);
+  font-size:12px;
+}
+
 .mdall-fichier{
   border:1px solid var(--border);
   border-radius:var(--radius);
@@ -19887,54 +19897,50 @@ body.proposition-merge-open{ overflow:hidden; }
   line-height:1.9;
   overflow-x:auto;
 }
-.mdall-ligne{ padding:0 14px; white-space:pre; min-height:1.9em; }
+/* La ligne prend la largeur de son texte, jamais celle du cadre : sinon le
+   corps déclare `overflow-x:auto` et ne défile pas, faute d'une ligne assez
+   longue pour le déborder — une citation se coupait au bord. */
+.mdall-ligne{
+  padding:0 14px;
+  white-space:pre;
+  min-height:1.9em;
+  width:max-content;
+  min-width:100%;
+}
 .mdall-ligne:hover{ background:rgba(110,118,129,.08); }
 .mdall-ligne--vide{ color:var(--muted); font-style:italic; white-space:normal; }
 /* Le bloc appartient à la ligne qu'il détaille : l'indentation le dit dans le
    texte, un filet le dit à l'œil. Sans lui, quatre lignes indentées entre deux
    affirmations flottent. */
-.mdall-ligne--raisonnement{ box-shadow:inset 16px 0 0 -14px rgba(110,118,129,.45); }
-/* « sans objet » et « en attente » sont des conclusions, pas des trous : elles
-   portent leur couleur, plus discrète que celle d'une exigence. */
-.mdall-sans-objet{ color:rgb(139,148,158); font-style:italic; }
-.mdall-attente{ color:rgb(210,153,34); }
-
-/* Deux flèches, deux choses différentes, et les confondre coûte cher :
-   `←` je l'ai lu ici — une valeur qui tient toute seule ;
-   `⇐` je l'ai calculé — une valeur qui ne tient que tant que ses entrées
-   tiennent. La seconde porte donc sa propre couleur, et le calcul qui la suit
-   se lit comme un appel : c'est bien de cela qu'il s'agit. */
-.mdall-deduit{ color:rgb(210,168,255); }
-.mdall-calcul{ color:rgb(210,168,255); opacity:.8; }
+.mdall-ligne--detail,
+.mdall-ligne--regle{ box-shadow:inset 16px 0 0 -14px rgba(110,118,129,.45); }
 /* La portée fait partie de l'identité : deux études sur deux zones produisent
    deux affirmations, et rien ne le disait. */
 .mdall-portee{ color:rgb(255,166,87); }
 
-/* Ce que la mémoire garde en plus des valeurs : le geste qui pose la ligne, le
-   raisonnement appliqué, la raison qui le fonde, l'exception qui le borne, les
-   socles dont il dépend.
+/* Chaque objet du langage a sa teinte, mot-clé compris — comme un éditeur ne
+   colore pas `if` et `import` pareil. C'est la couleur du mot qui dit de quelle
+   espèce est la ligne, et c'est ce qui permet de survoler un bloc sans le lire.
 
-   Chaque construction a **sa** teinte, mot-clé compris, comme un éditeur de code
-   ne colore pas `if` et `import` pareil : c'est la couleur du mot qui dit de
-   quelle espèce est la ligne, et c'est ce qui permet de survoler un bloc sans le
-   lire. Écrites toutes en rouge, les quatre se lisaient comme une seule prose.
-
-      si / alors / sinon   rouge      le raisonnement appliqué
-      parce que            vert       ce qui le fonde
-      sauf si              orange     ce qui le limite
-      dépend de            violet     ce qui l'oblige à être refait */
-.mdall-geste{ color:rgb(210,153,34); font-weight:600; }
+      si / et / ou / alors / sinon   rouge     la règle appliquée
+      sauf si                        orange    ce qui la borne
+      parce que                      vert      ce qui la fonde
+      ← <type>                       violet    d'où la valeur vient
+      statut                         ambre     l'état du raisonnement ici */
+.mdall-operateur{ color:rgb(139,148,158); }
 
 .mdall-mot-condition{ color:rgb(255,123,114); }
+
+.mdall-mot-exception{ color:rgb(219,109,40); }
 
 .mdall-mot-raison{ color:rgb(63,185,80); }
 .mdall-raison{ color:rgb(126,231,135); opacity:.85; }
 
-.mdall-mot-exception{ color:rgb(219,109,40); }
-.mdall-exception{ color:rgb(240,166,86); opacity:.9; }
+.mdall-provenance{ color:rgb(188,140,255); font-style:italic; }
 
-.mdall-mot-dependance{ color:rgb(188,140,255); }
-.mdall-dependance{ color:rgb(210,168,255); opacity:.85; }
+.mdall-mot-statut{ color:rgb(210,153,34); }
+.mdall-statut{ color:rgb(232,193,102); font-weight:600; }
+
 
 /* ── La mémoire, parcourue comme un dépôt ───────────────────────────────────
    Les mêmes gestes que l'onglet Documents — un chemin, un fil d'Ariane, une
@@ -20192,7 +20198,7 @@ body.proposition-merge-open{ overflow:hidden; }
 }
 /* Le bloc appartient à la ligne qu'il détaille : l'indentation le dit dans le
    texte, un filet le dit à l'œil. */
-.memoire-ligne--raisonnement .memoire-ligne__code{ box-shadow:inset 2px 0 0 0 rgba(110,118,129,.45); }
+.memoire-ligne--detail .memoire-ligne__code{ box-shadow:inset 2px 0 0 0 rgba(110,118,129,.45); }
 .memoire-blame__ref{ flex:0 0 auto; font-variant-numeric:tabular-nums; }
 .memoire-blame__date{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .memoire-blame--chaleur-0{ border-left-color:rgba(88,166,255,.15); }

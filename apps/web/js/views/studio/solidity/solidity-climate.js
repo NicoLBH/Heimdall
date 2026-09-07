@@ -7,7 +7,7 @@ import { resolveCurrentBackendProjectId } from "../../../services/project-supaba
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
 import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
 import { NATURE, DOMAIN } from "../../../services/assertion-taxonomy.js";
-import { GESTE } from "../../../services/memoire-en-texte.js";
+import { PROVENANCE, STATUT } from "../../../services/memoire-en-texte.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
 import { renderProjectLocationMapCard } from "../../shared/project-location-map-card.js";
 
@@ -87,55 +87,64 @@ function affirmationsClimatiques() {
   // est une **contrainte déduite** : elle s'impose comme si elle sortait d'un
   // texte, mais elle ne tient que tant que ses entrées tiennent — d'où la
   // double flèche qui nomme le calcul, sur sa propre ligne.
-  // Ce dont dépend une lecture de carte : la commune, et rien d'autre. Le jour
-  // où quelqu'un corrige l'adresse du projet, c'est cette ligne qui dit quoi
-  // refaire — sans elle, on relit les cartes au hasard.
-  const surLaCommune = { dependDe: ["Commune du projet"] };
+  // Un calcul nomme ses entrées : c'est ce qui permettra, le jour où l'une
+  // change, de savoir quoi refaire sans chercher.
+  const entreesDuGel = [
+    h0 ? `H0 du département = ${h0}` : "",
+    altitude ? `altitude du site = ${altitude}` : ""
+  ].filter(Boolean);
+  const calculHorsGel = `hors gel${entreesDuGel.length ? ` (${entreesDuGel.join(" ; ")})` : ""}`;
 
+  // Chaque valeur dit d'où elle vient, et le **type** de la provenance dit
+  // comment elle a été obtenue : une carte se lit, une formule se calcule, une
+  // fourchette se tranche. Rien de plus à déclarer — un champ « origine » à
+  // côté redirait la même chose et finirait par la contredire.
   return [
-    { sujet: "Zone de neige", valeur: String(neige?.snow_zone || "").trim(),
-      nature: NATURE.DONNEE_BASE, source: `${source} (NF EN 1991-1-3 / annexe nationale)`,
-      raisonnement: { ...surLaCommune, parceQue: "La zone se lit sur la carte annexée à la NF EN 1991-1-3." } },
-    { sujet: "Zone de vent", valeur: String(vent?.wind_zone || "").trim(),
-      nature: NATURE.DONNEE_BASE, source: `${source} (NF EN 1991-1-4 / annexe nationale)`,
-      raisonnement: { ...surLaCommune, parceQue: "La zone se lit sur la carte annexée à la NF EN 1991-1-4." } },
-    { sujet: "Altitude du site", valeur: altitude, nature: NATURE.DONNEE_BASE, source,
-      raisonnement: surLaCommune },
+    {
+      sujet: "Zone de neige", valeur: String(neige?.snow_zone || "").trim(),
+      nature: NATURE.DONNEE_BASE,
+      source: `${source} (NF EN 1991-1-3 / annexe nationale)`,
+      provenance: { type: PROVENANCE.DOCUMENT, quoi: `carte annexée à la NF EN 1991-1-3 — ${commune || "commune inconnue"}` },
+      citation: "La zone se lit sur la carte annexée à la NF EN 1991-1-3."
+    },
+    {
+      sujet: "Zone de vent", valeur: String(vent?.wind_zone || "").trim(),
+      nature: NATURE.DONNEE_BASE,
+      source: `${source} (NF EN 1991-1-4 / annexe nationale)`,
+      provenance: { type: PROVENANCE.DOCUMENT, quoi: `carte annexée à la NF EN 1991-1-4 — ${commune || "commune inconnue"}` },
+      citation: "La zone se lit sur la carte annexée à la NF EN 1991-1-4."
+    },
+    {
+      sujet: "Altitude du site", valeur: altitude, nature: NATURE.DONNEE_BASE, source,
+      provenance: { type: PROVENANCE.DOCUMENT, quoi: `zonages réglementaires — ${commune || "commune inconnue"}` }
+    },
     {
       sujet: "Profondeur hors gel", valeur: nombre(gel?.frost_depth_m, 3, "m"),
       nature: NATURE.CONTRAINTE,
       source: `${source} (NF DTU 13.1)`,
-      deduitDe: {
-        calcul: "hors gel",
-        entrees: [
-          { sujet: "H0 du département", valeur: h0 },
-          { sujet: "altitude du site", valeur: altitude }
-        ].filter((entree) => entree.valeur)
-      },
       // La formule est écrite dans le DTU ; elle ne se discute pas. Ce qui se
       // discute, c'est l'altitude : sans elle, la cote a été calculée à 150 m,
-      // ce qui n'est vrai nulle part en particulier. C'est une exception, et
-      // elle doit se lire sur la ligne, pas dans une note de bas de page.
-      geste: altitude ? GESTE.FAIT : GESTE.HYPOTHESE,
-      raisonnement: {
-        parceQue: "NF DTU 13.1 : H = H0 + (altitude − 150) / 4000",
-        saufSi: altitude ? [] : ["l'altitude du site n'est pas connue : la cote a été calculée à 150 m"],
-        dependDe: ["H0 retenu pour le département", "Altitude du site"]
-      }
+      // ce qui n'est vrai nulle part en particulier. La ligne le dit — une
+      // hypothèse écrite comme un fait est l'erreur que cette mémoire existe
+      // pour éviter.
+      provenance: { type: PROVENANCE.CALCUL, quoi: calculHorsGel },
+      citation: altitude
+        ? "NF DTU 13.1 : H = H0 + (altitude − 150) / 4000"
+        : "NF DTU 13.1 : H = H0 + (altitude − 150) / 4000. L'altitude du site n'est pas connue : la cote a été calculée à 150 m.",
+      statut: altitude ? STATUT.RETENU : STATUT.SUPPOSE
     },
     {
       sujet: "H0 retenu pour le département", valeur: h0,
       nature: NATURE.CONTRAINTE,
       source: `${source} (NF DTU 13.1)`,
-      deduitDe: { calcul: "abaque H0", entrees: [{ sujet: "département", valeur: departementDe(state.location) }] },
-      // Quand le département offre une fourchette, quelqu'un a **retenu** une
-      // valeur. Ce n'est pas un constat, et l'écrire comme un constat ferait
-      // passer une décision pour un relevé.
-      geste: GESTE.DECISION,
-      raisonnement: {
-        parceQue: "La table départementale du NF DTU 13.1 donne H0.",
-        dependDe: ["Département du projet"]
-      }
+      // Quand le département offre une fourchette, quelqu'un a **tranché**.
+      // Une décision n'est pas un relevé, et les écrire pareil fait rediscuter
+      // six mois plus tard un chiffre qu'on croyait mesuré.
+      provenance: {
+        type: PROVENANCE.DECISION,
+        quoi: `table départementale du NF DTU 13.1 — département ${departementDe(state.location) || "inconnu"}`
+      },
+      citation: "La table départementale du NF DTU 13.1 donne H0."
     }
   ]
     .filter((affirmation) => affirmation.valeur)

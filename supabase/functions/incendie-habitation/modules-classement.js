@@ -522,6 +522,11 @@ export const hauteurLogementLePlusHaut = {
   titre: "Hauteur du plancher bas du logement le plus haut",
   repond: "À quelle hauteur se trouve le plancher bas du logement le plus haut ?",
   produit: "hauteurPlancherBasLogementLePlusHaut",
+  // Un fait mesuré porte son unité : « ≤ 28 » et « ≤ 28 m » ne se relisent pas
+  // pareil, et un seuil sans unité oblige à rouvrir le texte pour savoir de
+  // quoi on parle. Les questions la déclarent déjà ; un module qui produit une
+  // mesure la déclare aussi.
+  unite: "m",
   source: { article: "3", paragraphe: "3°) et 5°)" },
   regles: [
     {

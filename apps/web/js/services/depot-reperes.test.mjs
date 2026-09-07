@@ -185,22 +185,24 @@ test("le nom d'une ligne ne porte le champ que si le repère en a plusieurs", ()
   assert.deepEqual(noms, ["un", "deux · État", "deux · Appréciation"]);
 });
 
-test("une raison qui change est un changement, même à valeur égale", () => {
+test("une hypothèse qui devient un relevé est un changement, même à valeur égale", () => {
   const { avant, apres } = reperesDAffirmations({
     lignes: [{
-      cle: "planchers", sujet: "Degré coupe-feu des planchers",
-      nature: "contrainte", domaine: "incendie",
-      avant: "CF 1 h", apres: "CF 1 h",
-      raisonnementAvant: { parceQue: "article 5" },
-      raisonnement: { parceQue: "article 6", dependDe: ["Classement du bâtiment"] }
+      cle: "gel", sujet: "Profondeur hors gel",
+      nature: "contrainte", domaine: "structure",
+      avant: "0,935 m", apres: "0,935 m",
+      provenanceAvant: { type: "hypothèse", quoi: "altitude inconnue, calcul à 150 m" },
+      statutAvant: "supposé",
+      provenance: { type: "calcul", quoi: "hors gel (altitude du site = 490,03 m)" },
+      statut: "retenu"
     }]
   });
 
   const compare = comparerDesReperes({ avant, apres });
-  const ligne = compare.lignes.find((entree) => entree.id === "affirmation:planchers");
+  const ligne = compare.lignes.find((entree) => entree.id === "affirmation:gel");
   const changes = ligne.champs.filter((champ) => champ.etat !== ETAT.INCHANGE).map((champ) => champ.nom);
 
-  assert.deepEqual(changes.sort(), ["Dépend de", "Raison"]);
+  assert.deepEqual(changes.sort(), ["D'où", "Provenance", "Statut"]);
 });
 
 test("un champ absent des deux côtés ne s'invente pas", () => {

@@ -1,65 +1,113 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { fichierDeLEtude, ligneDuModule, sourceDuModule, raisonnementDuModule } from "./incendie-en-texte.js";
-import { enClair, ECRITURE } from "./memoire-en-texte.js";
+import {
+  fichierDeLEtude, fichierDesRegles, regleDuModule, affirmationDuModule,
+  conditionsDuModule, sourceDuModule
+} from "./incendie-en-texte.js";
+import { enClair, ECRITURE, texteDesLignes } from "./memoire-en-texte.js";
+import { lireUnFichier, grapheDesBlocs, aRevoirSi } from "./memoire-en-lecture.js";
 
+/** Ce que le corpus renvoie, en petit : trois modules, dont un enchaîné. */
 const VUE = {
   modules: [
-    { id: "classement", titre: "Classement du bâtiment", statut: "conclu", exigence: true, valeur: "3e famille B",
-      pourquoi: { article: "3", paragraphe: "3°" } },
-    { id: "planchers", titre: "Degré coupe-feu des planchers", statut: "conclu", exigence: true, valeur: "CF 1 h",
-      pourquoi: { article: "6" } },
-    { id: "circulation", titre: "Circulation horizontale protégée", statut: "conclu", exigence: true,
-      valeur: null, sansObjet: "aucune circulation protégée n'est exigée" },
-    { id: "conduits", titre: "Conduits", statut: "enAttente", exigence: true, valeur: null,
-      manque: ["diamètre du conduit"] },
-    { id: "sousSol", titre: "Sous-sol du bâtiment", statut: "conclu", exigence: false, valeur: "avec sous-sol" }
+    {
+      id: "classement", titre: "Classement du bâtiment", produit: "classement",
+      statut: "conclu", valeur: "3e famille B", exigence: true,
+      conditions: [
+        { fait: "logementsSuperposes", sujet: "Logements superposés", operateur: "=", valeur: "oui", unite: null, logique: true },
+        { fait: "hauteur", sujet: "Hauteur du plancher bas du logement le plus haut", operateur: "≤", valeur: 28, unite: "m", logique: false }
+      ],
+      pourquoi: { article: "3", paragraphe: "3°)", citation: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes." }
+    },
+    {
+      id: "colonne", titre: "Colonne sèche", produit: "colonne",
+      statut: "conclu", valeur: "exigée", exigence: true,
+      conditions: [
+        { fait: "classement", sujet: "Classement du bâtiment", operateur: "parmi", valeur: ["3e famille B", "4e famille"], unite: null, logique: false }
+      ],
+      pourquoi: { article: "98", paragraphe: "premier alinéa", citation: "Les habitations de la 3ème famille B et de la 4ème famille doivent comporter une colonne sèche de 65 mm par escalier." }
+    },
+    {
+      id: "sous-sol", titre: "Le bâtiment comporte un sous-sol", produit: "sousSol",
+      statut: "conclu", valeur: "avec sous-sol", exigence: false, conditions: []
+    }
   ]
 };
 
-const clair = (fichier) => fichier.lignes.map((ligne) => enClair(ligne.jetons));
-
-test("une conclusion s'écrit avec l'article qui la fonde", () => {
-  const fichier = fichierDeLEtude(VUE);
-  assert.equal(clair(fichier)[0],
-    "Classement du bâtiment  3e famille B  ← arrêté du 31 janvier 1986 modifié, article 3, 3°");
+test("une reformulation du cas n'est ni une règle ni une exigence", () => {
+  const reformulation = VUE.modules[2];
+  assert.equal(regleDuModule(reformulation, "arrêté"), null);
+  assert.equal(affirmationDuModule(reformulation, "arrêté"), null);
 });
 
-test("« sans objet » est une conclusion, pas une valeur manquante : elle s'écrit", () => {
-  const fichier = fichierDeLEtude(VUE);
-  assert.equal(clair(fichier)[2],
-    "Circulation horizontale protégée  sans objet  — aucune circulation protégée n'est exigée"
-    + "  ← arrêté du 31 janvier 1986 modifié");
-  assert.equal(fichier.compte.sansObjet, 1);
-});
+test("la règle porte le seuil du texte, jamais la cote du projet", () => {
+  const regle = regleDuModule(VUE.modules[0], "arrêté du 31 janvier 1986 modifié");
 
-test("ce qui attend une réponse le dit, et nomme ce qui manque", () => {
-  const fichier = fichierDeLEtude(VUE);
-  assert.equal(clair(fichier)[3], "Conduits  en attente  — il manque diamètre du conduit");
-  assert.equal(fichier.compte.attente, 1);
-});
-
-test("une reformulation du cas n'entre pas dans un fichier d'exigences", () => {
-  assert.equal(ligneDuModule({ titre: "Sous-sol du bâtiment", statut: "conclu", exigence: false, valeur: "avec sous-sol" }), null);
-  assert.equal(fichierDeLEtude(VUE).lignes.length, 4);
-});
-
-test("le fichier porte un nom, un chemin, et dit ce qui l'a produit", () => {
-  const fichier = fichierDeLEtude(VUE, { chemin: ["Incendie", "Habitation"], le: "6 septembre 2026" });
-
-  assert.equal(fichier.nom, "habitation.mdall");
-  assert.equal(fichier.chemin, "incendie/habitation.mdall");
-  assert.deepEqual(fichier.enTete.map(enClair), [
-    "§ Incendie · Habitation",
-    "¶ établi par l'utilitaire incendie — habitation, le 6 septembre 2026",
-    `¶ écriture Mdall v${ECRITURE}`
+  assert.equal(regle.sujet, "Classement du bâtiment");
+  assert.equal(regle.alors, "3e famille B");
+  assert.deepEqual(regle.conditions.map((c) => [c.sujet, c.operateur, c.valeur]), [
+    ["Logements superposés", "=", ["oui"]],
+    ["Hauteur du plancher bas du logement le plus haut", "≤", ["28"]]
   ]);
+  assert.equal(regle.provenance.type, "texte");
+  assert.match(regle.provenance.quoi, /article 3, 3°\)/);
 });
 
-test("un module sans titre ne fabrique pas une ligne vide", () => {
-  assert.equal(ligneDuModule({ statut: "conclu", exigence: true, valeur: "x" }), null);
-  assert.equal(ligneDuModule({ titre: "Sans valeur", statut: "conclu", exigence: true, valeur: "" }), null);
+test("le fichier de règles ne contient aucune valeur de ce projet", () => {
+  const fichier = fichierDesRegles(VUE, { le: "7 septembre 2026" });
+  const texte = texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons));
+
+  assert.equal(fichier.chemin, "referentiels/incendie-habitation.mdall");
+  assert.equal(fichier.compte.regles, 2);
+  assert.equal(texte.includes("statut"), false);
+  assert.equal(texte.includes("retenu"), false);
+  assert.equal(texte.includes("dépend de"), false);
+  assert.match(texte, /si Logements superposés = oui/);
+  assert.match(texte, /et Hauteur du plancher bas du logement le plus haut ≤ 28 m/);
+});
+
+test("le fichier de projet renvoie à la règle sans la recopier", () => {
+  const fichier = fichierDeLEtude(VUE, { le: "7 septembre 2026" });
+  const texte = texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons));
+
+  assert.equal(fichier.chemin, "contraintes/incendie.mdall");
+  assert.deepEqual(fichier.compte, { affirmations: 2, sansObjet: 0, attente: 0 });
+  assert.match(texte, /^Classement du bâtiment = "3e famille B"$/m);
+  assert.match(texte, /← règle Classement du bâtiment — arrêté/);
+  assert.match(texte, /statut retenu/);
+  // La règle est ailleurs : elle vaut pour mille bâtiments, cette valeur pour un.
+  assert.equal(texte.includes("si "), false);
+  assert.equal(texte.includes("≤ 28"), false);
+});
+
+test("une valeur sans exigence garde sa valeur : c'est le statut qui dit l'absence", () => {
+  const module = {
+    id: "voie", titre: "Voie-engins", statut: "conclu", valeur: "non décrite", exigence: true,
+    sansObjet: "Les première et deuxième familles ne sont soumises à aucune prescription d'accès.",
+    conditions: [], pourquoi: { article: "4" }
+  };
+
+  const entree = affirmationDuModule(module, "arrêté du 31 janvier 1986 modifié");
+  const texte = texteDesLignes(entree.lignes);
+
+  assert.equal(entree.nature, "sans-objet");
+  // La valeur reste : « Voie-échelles » en dépend, et l'effacer casserait le graphe.
+  assert.match(texte, /^Voie-engins = "non décrite"$/m);
+  assert.match(texte, /statut sans objet/);
+  assert.match(texte, /parce que "Les première et deuxième familles/);
+});
+
+test("ce qui attend une réponse s'écrit, avec ce qui le retient", () => {
+  const module = {
+    id: "escalier", titre: "Type d'escalier exigé", statut: "enAttente", exigence: true,
+    manque: ["Hauteur du dernier plancher"], conditions: [], pourquoi: { article: "26" }
+  };
+
+  const texte = texteDesLignes(affirmationDuModule(module, "arrêté").lignes);
+  assert.match(texte, /^Type d'escalier exigé$/m);
+  assert.match(texte, /statut en attente/);
+  assert.match(texte, /parce que "Il manque : Hauteur du dernier plancher\."/);
 });
 
 test("un référentiel non cité ne s'invente pas d'article", () => {
@@ -67,50 +115,37 @@ test("un référentiel non cité ne s'invente pas d'article", () => {
   assert.equal(sourceDuModule({ pourquoi: { article: "6" } }, "arrêté"), "arrêté, article 6");
 });
 
-test("une étude vide rend un fichier vide, pas une erreur", () => {
-  const fichier = fichierDeLEtude(null);
-  assert.deepEqual(fichier.lignes, []);
-  assert.deepEqual(fichier.compte, { affirmations: 0, sansObjet: 0, attente: 0, raisonnements: 0 });
+test("des conditions absentes ne produisent pas un si vide", () => {
+  assert.deepEqual(conditionsDuModule({}), []);
+  assert.deepEqual(conditionsDuModule({ conditions: [{ sujet: "" }] }), []);
 });
 
-test("un raisonnement se lit dans le graphe : condition, raison, socles", () => {
-  const vue = {
-    graphe: { liens: [{ de: "m-classement", vers: "m-planchers", fait: "famille" }] },
-    modules: [
-      { id: "m-classement", titre: "Classement du bâtiment", statut: "conclu",
-        valeur: "3e famille B", exigence: false },
-      { id: "m-planchers", titre: "Degré coupe-feu des planchers", statut: "conclu",
-        valeur: "CF 1 h", exigence: true,
-        pourquoi: { article: "6", citation: "Les planchers sont coupe-feu de degré une heure." } }
-    ]
-  };
-
-  const raisonnement = raisonnementDuModule(vue.modules[1], vue);
-  assert.equal(raisonnement.condition, "Classement du bâtiment = 3e famille B");
-  assert.equal(raisonnement.alors, "CF 1 h");
-  assert.equal(raisonnement.retenu, "CF 1 h");
-  assert.equal(raisonnement.parceQue, "« Les planchers sont coupe-feu de degré une heure. »");
-  assert.deepEqual(raisonnement.dependDe, ["Classement du bâtiment"]);
+test("une étude vide rend deux fichiers vides, pas une erreur", () => {
+  assert.deepEqual(fichierDeLEtude(null).lignes, []);
+  assert.deepEqual(fichierDeLEtude(null).compte, { affirmations: 0, sansObjet: 0, attente: 0 });
+  assert.deepEqual(fichierDesRegles(null).lignes, []);
 });
 
-test("le raisonnement s'indente sous la valeur qu'il justifie", () => {
-  const vue = {
-    graphe: { liens: [{ de: "m-classement", vers: "m-planchers" }] },
-    modules: [
-      { id: "m-classement", titre: "Classement du bâtiment", statut: "conclu",
-        valeur: "3e famille B", exigence: false },
-      { id: "m-planchers", titre: "Degré coupe-feu des planchers", statut: "conclu",
-        valeur: "CF 1 h", exigence: true, pourquoi: { article: "6", citation: "…une heure…" } }
-    ]
-  };
-
-  const fichier = fichierDeLEtude(vue);
-  const natures = fichier.lignes.map((ligne) => ligne.nature);
-  assert.deepEqual(natures, ["affirmation", "raisonnement", "raisonnement", "raisonnement", "raisonnement"]);
-  assert.equal(fichier.compte.affirmations, 1);
-  assert.equal(fichier.compte.raisonnements, 4);
+test("l'en-tête dit toujours ce qui a produit le fichier, et dans quelle écriture", () => {
+  const fichier = fichierDeLEtude(VUE, { le: "7 septembre 2026" });
+  const entete = fichier.enTete.map(enClair);
+  assert.match(entete[1], /établi par l'utilitaire incendie — habitation, le 7 septembre 2026/);
+  assert.equal(entete[2], `¶ écriture Mdall v${ECRITURE}`);
 });
 
-test("sans amont ni citation, une conclusion reste une simple ligne", () => {
-  assert.equal(raisonnementDuModule({ id: "seul", titre: "x", valeur: "y" }, { modules: [], graphe: {} }), null);
+test("le graphe du référentiel se reconstruit depuis son texte", () => {
+  const fichier = fichierDesRegles(VUE);
+  const { blocs, refus } = lireUnFichier(texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons)));
+
+  assert.deepEqual(refus, []);
+  const graphe = grapheDesBlocs(blocs);
+  assert.deepEqual(graphe.produits, ["Classement du bâtiment", "Colonne sèche"]);
+  assert.deepEqual(graphe.entrees, ["Hauteur du plancher bas du logement le plus haut", "Logements superposés"]);
+
+  // La question qui fait tout l'intérêt de la mémoire : « la hauteur change,
+  // qu'est-ce qui tombe ? »
+  assert.deepEqual(
+    aRevoirSi("Hauteur du plancher bas du logement le plus haut", blocs),
+    ["Classement du bâtiment", "Colonne sèche"]
+  );
 });

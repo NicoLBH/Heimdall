@@ -2,151 +2,196 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  ECRITURE, JETON, ligneDAffirmation, ligneDeSection, ligneDeNote, enTeteDeFichier,
-  lignesDeDecision, blocDeRaisonnement, GESTE, enClair, couperLUnite, natureDeLaLigne
+  ECRITURE, JETON, MOTS, RETRAIT, OPERATEUR, PROVENANCE, STATUT,
+  ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
+  ligneDeProvenance, ligneDePreuve, ligneDeStatut,
+  blocDeRegle, blocDAffirmation,
+  enTeteDeFichier, nomDeFichier, cheminDeFichier, enClair, texteDesLignes,
+  natureDeLaLigne, couperLUnite, estMesuree
 } from "./memoire-en-texte.js";
 
-const typeDe = (jetons, type) => jetons.filter((j) => j.type === type).map((j) => j.texte);
+const clair = (jetons) => enClair(jetons);
 
-test("une affirmation s'écrit sujet, valeur, puis ce qui la fonde", () => {
-  const jetons = ligneDAffirmation({
-    sujet: "altitude du site", valeur: "490,03 m", source: "relevé IGN, feuille 3430 OT"
-  });
-
-  assert.equal(enClair(jetons), "altitude du site  490,03 m  ← relevé IGN, feuille 3430 OT");
-  assert.deepEqual(typeDe(jetons, JETON.SUJET), ["altitude du site"]);
-  assert.deepEqual(typeDe(jetons, JETON.VALEUR), ["490,03"]);
-  assert.deepEqual(typeDe(jetons, JETON.UNITE), ["m"]);
-  assert.deepEqual(typeDe(jetons, JETON.DEPUIS), ["←"]);
+test("une mesure s'écrit nue, un texte entre guillemets", () => {
+  assert.equal(clair(ligneDAffirmation({ sujet: "Altitude du site", valeur: "490,03", unite: "m" })),
+    "Altitude du site = 490,03 m");
+  assert.equal(clair(ligneDAffirmation({ sujet: "Classement du bâtiment", valeur: "3e famille B" })),
+    'Classement du bâtiment = "3e famille B"');
+  // « CF 1/2 h » n'est pas une mesure : c'est un degré, et le couper produirait
+  // « CF » suivi de « 1/2 h ».
+  assert.equal(clair(ligneDAffirmation({ sujet: "Planchers", valeur: "CF 1/2 h" })),
+    'Planchers = "CF 1/2 h"');
 });
 
-test("une valeur sans provenance n'écrit pas de flèche vide", () => {
-  const jetons = ligneDAffirmation({ sujet: "zone de vent", valeur: "2" });
-  assert.equal(enClair(jetons), "zone de vent  2");
-  assert.deepEqual(typeDe(jetons, JETON.DEPUIS), []);
-});
-
-test("ce qui n'a pas d'unité reste d'un bloc : on n'en invente pas une", () => {
-  assert.deepEqual(couperLUnite("A2"), { nombre: "A2", unite: "" });
-  assert.deepEqual(couperLUnite("3e famille A"), { nombre: "3e famille A", unite: "" });
+test("estMesuree distingue une cote d'une catégorie", () => {
+  assert.equal(estMesuree("26 m"), true);
+  assert.equal(estMesuree("490,03"), true);
+  assert.equal(estMesuree("3e famille B"), false);
+  assert.equal(estMesuree("CF 1 h"), false);
   assert.deepEqual(couperLUnite("490,03 m"), { nombre: "490,03", unite: "m" });
-  assert.deepEqual(couperLUnite("0,80 m"), { nombre: "0,80", unite: "m" });
 });
 
-test("l'en-tête dit ce qui a produit le fichier, et comment il s'écrit", () => {
-  const lignes = enTeteDeFichier({
-    chemin: ["Données de base", "Structure"],
-    produitPar: "l'utilitaire neige-vent-gel v3",
-    le: "6 septembre 2026"
+test("la portée se pose derrière l'arobase, et fait partie de l'identité", () => {
+  assert.equal(
+    clair(ligneDAffirmation({ sujet: "Degré coupe-feu", valeur: "CF 1 h", zones: ["bâtiment A", "bâtiment B"] })),
+    'Degré coupe-feu = "CF 1 h"  @ bâtiment A, bâtiment B'
+  );
+});
+
+test("une condition porte son opérateur et son unité", () => {
+  assert.equal(
+    clair(ligneDeCondition("si", { sujet: "Hauteur du plancher bas", operateur: OPERATEUR.AU_PLUS, valeur: "28", unite: "m" })),
+    `${RETRAIT}si Hauteur du plancher bas ≤ 28 m`
+  );
+  assert.equal(
+    clair(ligneDeCondition("et", { sujet: "Logements superposés", operateur: OPERATEUR.EGAL, valeur: "oui", logique: true })),
+    `${RETRAIT}et Logements superposés = oui`
+  );
+  assert.equal(
+    clair(ligneDeCondition("si", { sujet: "Voie-engins", operateur: OPERATEUR.PARMI, valeur: ["non conforme", "non décrite"] })),
+    `${RETRAIT}si Voie-engins parmi "non conforme" ou "non décrite"`
+  );
+});
+
+test("« renseigné » ne compare rien : il ferme la ligne", () => {
+  assert.equal(
+    clair(ligneDeCondition("si", { sujet: "Classement du bâtiment", operateur: OPERATEUR.RENSEIGNE })),
+    `${RETRAIT}si Classement du bâtiment renseigné`
+  );
+});
+
+test("une provenance dit son type, et le type est l'origine", () => {
+  assert.equal(clair(ligneDeProvenance({ type: PROVENANCE.TEXTE, quoi: "arrêté du 31 janvier 1986, article 6" })),
+    `${RETRAIT}← texte arrêté du 31 janvier 1986, article 6`);
+  assert.equal(clair(ligneDeProvenance({ type: PROVENANCE.HYPOTHESE, quoi: "à confirmer par le G2" })),
+    `${RETRAIT}← hypothèse à confirmer par le G2`);
+  // Ce qui manque n'apparaît pas, plutôt que d'apparaître creux.
+  assert.equal(ligneDeProvenance({ type: PROVENANCE.TEXTE, quoi: "" }), null);
+});
+
+test("la preuve s'indente sous la provenance qu'elle appuie", () => {
+  assert.equal(clair(ligneDePreuve("Les planchers sont coupe-feu de degré une heure.")),
+    `${RETRAIT}${RETRAIT}parce que "Les planchers sont coupe-feu de degré une heure."`);
+  // Les guillemets d'origine ne se doublent pas.
+  assert.equal(clair(ligneDePreuve("« déjà cité »")), `${RETRAIT}${RETRAIT}parce que "déjà cité"`);
+  assert.equal(ligneDePreuve(""), null);
+});
+
+test("le statut est l'état du raisonnement dans ce projet, pas une propriété de la valeur", () => {
+  assert.equal(clair(ligneDeStatut(STATUT.SUPPOSE)), `${RETRAIT}statut supposé`);
+  assert.equal(clair(ligneDeStatut(STATUT.SANS_OBJET)), `${RETRAIT}statut sans objet`);
+  assert.equal(ligneDeStatut(""), null);
+});
+
+test("une règle ne porte aucune valeur de projet", () => {
+  const lignes = blocDeRegle({
+    sujet: "Classement du bâtiment",
+    conditions: [
+      { sujet: "Logements superposés", operateur: OPERATEUR.EGAL, valeur: "oui", logique: true },
+      { sujet: "Hauteur du plancher bas du logement le plus haut", operateur: OPERATEUR.AU_PLUS, valeur: "28", unite: "m" }
+    ],
+    alors: "3e famille B",
+    sinon: "3e famille A",
+    provenance: { type: PROVENANCE.TEXTE, quoi: "arrêté du 31 janvier 1986 modifié, article 3, 3°)" },
+    preuve: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."
   });
 
-  assert.deepEqual(lignes.map(enClair), [
-    "§ Données de base · Structure",
-    "¶ établi par l'utilitaire neige-vent-gel v3, le 6 septembre 2026",
+  assert.deepEqual(lignes.map(clair), [
+    "Classement du bâtiment",
+    `${RETRAIT}si Logements superposés = oui`,
+    `${RETRAIT}et Hauteur du plancher bas du logement le plus haut ≤ 28 m`,
+    `${RETRAIT}alors "3e famille B"`,
+    `${RETRAIT}sinon "3e famille A"`,
+    `${RETRAIT}← texte arrêté du 31 janvier 1986 modifié, article 3, 3°)`,
+    `${RETRAIT}${RETRAIT}parce que "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."`
+  ]);
+
+  // Aucune valeur de projet, et surtout aucun « ✓ retenu » : la branche prise
+  // est un fait de projet, pas une propriété de la règle.
+  assert.equal(texteDesLignes(lignes).includes("retenu"), false);
+  assert.equal(texteDesLignes(lignes).includes("dépend de"), false);
+});
+
+test("une affirmation de projet ne recopie pas la règle", () => {
+  const lignes = blocDAffirmation({
+    sujet: "Colonne sèche",
+    valeur: "exigée, une colonne sèche de 65 mm par escalier",
+    provenance: { type: PROVENANCE.REGLE, quoi: "Colonne sèche — arrêté du 31 janvier 1986, article 98" },
+    statut: STATUT.RETENU
+  });
+
+  assert.deepEqual(lignes.map(clair), [
+    'Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier"',
+    `${RETRAIT}← règle Colonne sèche — arrêté du 31 janvier 1986, article 98`,
+    `${RETRAIT}statut retenu`
+  ]);
+  assert.equal(texteDesLignes(lignes).includes("si "), false);
+});
+
+test("une exception se lit sous la règle, dans les mots du texte", () => {
+  const lignes = blocDeRegle({
+    sujet: "Escalier protégé",
+    conditions: [{ sujet: "Hauteur du dernier plancher", operateur: OPERATEUR.PLUS_DE, valeur: "8", unite: "m" }],
+    alors: "exigé",
+    sauf: [{ sujet: "Unités de passage", operateur: OPERATEUR.EGAL, valeur: "1" }]
+  });
+
+  assert.equal(clair(lignes[3]), `${RETRAIT}sauf si Unités de passage = 1`);
+});
+
+test("l'en-tête porte la version de l'écriture, pas seulement la date", () => {
+  const lignes = enTeteDeFichier({ chemin: ["Contraintes", "Incendie"], produitPar: "un utilitaire", le: "7 septembre 2026" });
+  assert.deepEqual(lignes.map(clair), [
+    "§ contraintes/incendie.mdall",
+    "¶ établi par un utilitaire, le 7 septembre 2026",
     `¶ écriture Mdall v${ECRITURE}`
   ]);
 });
 
-test("un fichier sans producteur connu ne l'invente pas, mais dit son écriture", () => {
-  const lignes = enTeteDeFichier({ chemin: ["Avis", "Incendie"] });
-  assert.deepEqual(lignes.map(enClair), ["§ Avis · Incendie", `¶ écriture Mdall v${ECRITURE}`]);
+test("un chemin devient un nom de fichier sans accent ni espace", () => {
+  assert.equal(nomDeFichier(["Données de base", "Structure"]), "structure.mdall");
+  assert.equal(cheminDeFichier(["Données de base", "Structure"]), "donnees-de-base/structure.mdall");
+  assert.equal(cheminDeFichier(["Référentiels", "Incendie — Habitation"]), "referentiels/incendie-habitation.mdall");
 });
 
-test("une décision s'écrit dans les mots de l'arrêté, et marque la branche prise", () => {
-  const lignes = lignesDeDecision({
-    condition: "hauteur du dernier plancher > 8 m",
-    alors: "escalier encloisonné",
-    sinon: "escalier à l'air libre",
-    retenu: "escalier encloisonné"
-  });
-
-  assert.deepEqual(lignes.map(enClair), [
-    "   si hauteur du dernier plancher > 8 m",
-    "      alors escalier encloisonné  ✓ retenu",
-    "      sinon escalier à l'air libre"
-  ]);
-});
-
-test("aucun mot n'est emprunté à un langage de programmation", () => {
-  const tout = [
-    ...enTeteDeFichier({ chemin: ["A"], produitPar: "x" }),
-    ligneDAffirmation({ sujet: "s", valeur: "1 m", source: "t" }),
-    ...lignesDeDecision({ condition: "c", alors: "a", sinon: "b", retenu: "a" })
-  ].map(enClair).join("\n");
-
-  for (const emprunt of ["const", "function", "return", "=>", "//", "{", "}", ";"]) {
-    assert.equal(tout.includes(emprunt), false, `« ${emprunt} » n'a rien à faire dans l'écriture Mdall`);
+test("aucun mot du langage n'est emprunté à un langage de programmation", () => {
+  const interdits = ["const", "function", "return", "if", "else", "true", "false", "null", "//", "=>", "{", "}"];
+  for (const mot of MOTS) {
+    assert.equal(interdits.includes(mot), false, `« ${mot} » vient de la programmation`);
   }
+  // « sauf si » avant « si » : sans cet ordre, « sauf si » se lirait comme
+  // « sauf » suivi d'un sujet nommé « si ».
+  assert.ok(MOTS.indexOf("sauf si") < MOTS.indexOf("si"));
 });
 
-test("l'écriture n'aligne jamais avec des espaces : un sujet plus long ne bouge rien", () => {
-  const courte = enClair(ligneDAffirmation({ sujet: "h0", valeur: "0,9 m" }));
-  const longue = enClair(ligneDAffirmation({ sujet: "profondeur hors gel retenue", valeur: "0,80 m" }));
-
-  // Deux espaces entre le sujet et la valeur, quelle que soit la longueur du
-  // sujet : sinon, déposer une affirmation au nom plus long réécrirait toutes
-  // les lignes du fichier.
-  assert.equal(courte, "h0  0,9 m");
-  assert.equal(longue, "profondeur hors gel retenue  0,80 m");
+test("la nature d'une ligne se lit à sa marque, numéros de colonne compris", () => {
+  assert.equal(natureDeLaLigne("§ contraintes/incendie.mdall"), "section");
+  assert.equal(natureDeLaLigne("¶ écriture Mdall v3.0"), "note");
+  assert.equal(natureDeLaLigne("  12  - Zone de neige"), "retire");
+  assert.equal(natureDeLaLigne("  12  + Zone de neige"), "ajoute");
+  assert.equal(natureDeLaLigne("Zone de neige = \"E\""), "contexte");
 });
 
-test("la nature d'une ligne se relit à sa marque de tête", () => {
-  assert.equal(natureDeLaLigne("§ Données de base"), "section");
-  assert.equal(natureDeLaLigne("¶ écriture Mdall v1.0"), "note");
-  assert.equal(natureDeLaLigne("- zone de neige  A1"), "retire");
-  assert.equal(natureDeLaLigne("+ zone de neige  A2"), "ajoute");
-  assert.equal(natureDeLaLigne("  zone de vent  2"), "contexte");
-});
+test("chaque jeton porte un type que la feuille de style sait colorer", () => {
+  const types = new Set(Object.values(JETON));
+  const lignes = [
+    ...blocDeRegle({
+      sujet: "Classement du bâtiment",
+      conditions: [{ sujet: "Hauteur", operateur: OPERATEUR.AU_PLUS, valeur: "28", unite: "m" }],
+      alors: "3e famille B",
+      sauf: [{ sujet: "Dérogation", operateur: OPERATEUR.EGAL, valeur: "oui", logique: true }],
+      provenance: { type: PROVENANCE.TEXTE, quoi: "arrêté, article 3" },
+      preuve: "citation"
+    }),
+    ...blocDAffirmation({ sujet: "Colonne sèche", valeur: "exigée", zones: ["A"], statut: STATUT.RETENU }),
+    ...enTeteDeFichier({ chemin: ["Contraintes", "Incendie"] }),
+    ligneDeDonnee("Une donnée"),
+    ligneDeConsequence("alors", "12", "m")
+  ];
 
-test("une section sans chemin se nomme plutôt que de rester vide", () => {
-  assert.equal(enClair(ligneDeSection([])), "§ Sans rubrique");
-  assert.equal(enClair(ligneDeNote("quelque chose")), "¶ quelque chose");
-});
-
-test("la marque se lit après les colonnes de numéros d'un extrait cité", () => {
-  assert.equal(natureDeLaLigne("      1  + altitude du site  490,03 m"), "ajoute");
-  assert.equal(natureDeLaLigne("  1      - zone de neige  A1"), "retire");
-  assert.equal(natureDeLaLigne("  2   3    zone de vent  1"), "contexte");
-});
-
-test("un geste précède le sujet : une décision ne se lit pas comme une mesure", () => {
-  assert.equal(enClair(ligneDAffirmation({ geste: GESTE.DECISION, sujet: "hauteur retenue", valeur: "8,00 m" })),
-    "on retient hauteur retenue  8,00 m");
-  assert.equal(enClair(ligneDAffirmation({ geste: GESTE.HYPOTHESE, sujet: "portance du sol", valeur: "0,2 MPa" })),
-    "on suppose portance du sol  0,2 MPa");
-  // Un relevé n'annonce rien : c'est le cas ordinaire.
-  assert.equal(enClair(ligneDAffirmation({ sujet: "altitude", valeur: "490 m" })), "altitude  490 m");
-});
-
-test("un raisonnement porte sa raison, son exception et ses dépendances", () => {
-  const lignes = blocDeRaisonnement({
-    condition: "hauteur du dernier plancher > 8 m",
-    alors: "escalier protégé", sinon: "aucun escalier protégé exigé", retenu: "escalier protégé",
-    parceQue: "au-delà de 8 m l'échelle des secours n'atteint plus les baies",
-    saufSi: ["le bâtiment ne comporte qu'une seule unité de passage"],
-    dependDe: ["hauteur du dernier plancher", "classement du bâtiment"]
-  });
-
-  assert.deepEqual(lignes.map(enClair), [
-    "   si hauteur du dernier plancher > 8 m",
-    "      alors escalier protégé  ✓ retenu",
-    "      sinon aucun escalier protégé exigé",
-    "   parce que au-delà de 8 m l'échelle des secours n'atteint plus les baies",
-    "   sauf si le bâtiment ne comporte qu'une seule unité de passage",
-    "   dépend de hauteur du dernier plancher · classement du bâtiment"
-  ]);
-});
-
-test("ce qu'un raisonnement n'a pas ne s'écrit pas en creux", () => {
-  const lignes = blocDeRaisonnement({ condition: "c", alors: "a", retenu: "a" });
-  assert.deepEqual(lignes.map(enClair), ["   si c", "      alors a  ✓ retenu"]);
-});
-
-test("les dépendances se séparent d'un point médian : un sujet peut porter une virgule", () => {
-  const lignes = blocDeRaisonnement({ condition: "c", alors: "a", dependDe: ["hauteur, mesurée", "classement"] });
-  assert.match(lignes.map(enClair).join("\n"), /dépend de hauteur, mesurée · classement/);
-});
-
-test("l'écriture a changé de version : le diff doit pouvoir le dire", () => {
-  assert.equal(ECRITURE, "2.0");
+  for (const ligne of lignes) {
+    for (const jeton of ligne) {
+      assert.ok(types.has(jeton.type), `type inconnu : ${jeton.type}`);
+    }
+  }
 });
