@@ -221,7 +221,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);ove
 .gh-brand__name{font-weight:700;}
 .gh-brand__sep{color:var(--muted);}
 .gh-brand__repo{color:var(--muted);} 
-.gh-brand__name,  .gh-brand__sep,  .gh-brand__repo{cursor:pointer;font-size:13px;}
+.gh-brand__name,  .gh-brand__sep,  .gh-brand__repo{cursor:pointer;font-size:14px;}
 .gh-brand__compact-tab{
   display:none;
   align-items:center;
@@ -4324,6 +4324,7 @@ body.drilldown-open .drilldown__inner,
 .project-tabs__label{
   display:inline-block;
   color:var(--project-tabs-label-color);
+  font-size:14px;
 }
 
 .project-tabs__counter{
@@ -4530,7 +4531,7 @@ body.route--project .project-shell{
 .gh-header--compact .gh-brand__name, 
 .gh-header--compact .gh-brand__repo, 
 .gh-header--compact .gh-brand__sep{
-  font-size:13px;
+  font-size:14px;
 }
 
 .gh-header, 
@@ -4712,7 +4713,7 @@ body.route--project:not(.project-shell-compact) [data-chrome-visibility="compact
 
 .gh-header--global{border-bottom:1px solid var(--border);}
 .gh-header--project{border-bottom:none;}
-.gh-header--project .gh-brand__name{font-weight:400;font-size:13px;}
+.gh-header--project .gh-brand__name{font-weight:400;font-size:14px;}
 .gh-header--project .gh-brand__repo{opacity:.92;}
 
 
@@ -6334,6 +6335,8 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   min-width:0;
 }
 
+.documents-repo__cell--date{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.documents-repo__geste{ flex:0 0 auto; }
 .documents-repo__cell--name{
   display:flex;
   align-items:center;
@@ -6350,8 +6353,7 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 }
 
 .documents-repo__cell--message, 
-.documents-repo__cell--date,
-.documents-repo__cell--stats{
+.documents-repo__cell--date{
   color:var(--muted);
   font-size:13px;
   white-space:nowrap;
@@ -6369,8 +6371,11 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-repo__icon--document{
   color:var(--fg);
 }
+/* Un dossier est gris, dans le dépôt comme dans la Mémoire. Le bleu disait
+   « ceci est un lien » là où tout l'est déjà, et les deux moitiés de l'onglet
+   ne se ressemblaient plus. */
 .documents-repo__icon--folder{
-  color:#58a6ff;
+  color:rgb(145, 152, 161);
 }
 .documents-breadcrumb{
   display:flex;
@@ -7167,6 +7172,7 @@ body.documents-local-chrome-compact .documents-shell--pdf-preview .documents-rep
 
 .workflow-runs__title{
   font-weight:600;
+  font-size:14px;
   color:var(--text);
   white-space:nowrap;
   overflow:hidden;
@@ -15804,6 +15810,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 
 .workflow-runs__title--link{
   appearance:none;
+  font-size:14px;
   background:none;
   border:0;
   padding:0;
@@ -17102,7 +17109,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .nav-list__visual svg{ fill:currentColor; }
 .nav-list__item[data-active="true"] .nav-list__visual,
 .nav-list__content:hover .nav-list__visual{ color:var(--text); }
-.nav-list__label{ min-width:0; flex:1 1 auto; }
+.nav-list__label{ min-width:0; flex:1 1 auto; font-size:14px; }
 .nav-list__trailing{ color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
 /* Un intitulé de discussion peut être long : il se coupe plutôt que d'élargir
    le rail — c'est l'utilisateur qui décide de sa largeur, pas son historique. */
@@ -19984,7 +19991,7 @@ body.proposition-merge-open{ overflow:hidden; }
   padding:0 0 14px; margin-bottom:16px;
   border-bottom:1px solid var(--border);
 }
-.fichiers-racine__titre{ margin:0; font-size:20px; font-weight:600; color:var(--text); }
+.fichiers-racine__titre{ margin:0; padding:16px 0; font-size:20px; font-weight:600; color:var(--text); }
 .fichiers-racine__avatar{
   flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
   width:28px; height:28px; border-radius:50%;
@@ -19992,6 +19999,7 @@ body.proposition-merge-open{ overflow:hidden; }
   font-size:11px; font-weight:600; letter-spacing:.02em;
 }
 .fichiers-racine__avatar--petit{ width:20px; height:20px; font-size:9px; }
+img.fichiers-racine__avatar{ object-fit:cover; background:none; }
 .fichiers-racine__avatar .ui-icon{ color:var(--muted); }
 .fichiers-racine__avatar--petit .ui-icon{ width:12px; height:12px; }
 .fichiers-racine__pastille{
@@ -20045,7 +20053,7 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 .fichiers-racine__ligne:first-of-type{ border-top:0; }
 .fichiers-racine__ligne:hover{ background:rgba(110,118,129,.08); }
 .fichiers-racine__nom{ display:inline-flex; align-items:center; gap:8px; font-weight:500; }
-.fichiers-racine__nom .ui-icon{ color:var(--accent-fg, #4493f8); }
+.fichiers-racine__nom .ui-icon{ color:rgb(145, 152, 161); }
 .fichiers-racine__phrase,
 .fichiers-racine__date{ color:var(--muted); font-size:12px; }
 .fichiers-racine__phrase{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -20062,20 +20070,58 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   background:rgba(110,118,129,.2); color:var(--muted); font-size:11px; font-weight:600;
 }
 .fichiers-meta__vide{ margin:0; color:var(--muted); font-size:12px; }
+.fichiers-meta__titre{ display:flex; align-items:center; gap:6px; }
+.fichiers-meta__reglage{
+  margin-left:auto; padding:2px; border:0; border-radius:4px;
+  background:none; color:var(--muted); cursor:pointer; line-height:0;
+}
+.fichiers-meta__reglage:hover{ background:rgba(110,118,129,.16); color:var(--text); }
+.fichiers-meta__description{ margin:0 0 10px; color:var(--text); font-size:13px; line-height:1.5; }
+.fichiers-meta__topics{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+.fichiers-meta__topics li{
+  padding:1px 10px; border-radius:2em;
+  background:rgba(56,139,253,.15); color:var(--blueLink);
+  font-size:12px; line-height:20px;
+}
+
+/* La saisie de la présentation : elle n'existe que pendant qu'on écrit. */
+.fichiers-saisie{
+  position:fixed; inset:0; z-index:60;
+  display:flex; align-items:center; justify-content:center;
+  padding:24px; background:rgba(1,4,9,.7);
+}
+.fichiers-saisie__boite{
+  width:min(560px, 100%);
+  display:flex; flex-direction:column; gap:16px;
+  padding:16px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bgElev); box-shadow:0 16px 48px rgba(1,4,9,.6);
+}
+.fichiers-saisie__tete{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.fichiers-saisie__fermer{ padding:2px; border:0; border-radius:4px; background:none; color:var(--muted); cursor:pointer; line-height:0; }
+.fichiers-saisie__fermer:hover{ background:rgba(110,118,129,.16); color:var(--text); }
+.fichiers-saisie__champ{ display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.fichiers-saisie__champ > span{ font-weight:600; }
+.fichiers-saisie__champ small{ color:var(--muted); font-size:12px; }
+.fichiers-saisie__champ textarea{ resize:vertical; font:inherit; }
+.fichiers-saisie__trop{ color:var(--dangerFg, #f85149); }
+.fichiers-saisie__echec{ margin:0; color:var(--dangerFg, #f85149); font-size:12px; }
+.fichiers-saisie__pied{ display:flex; justify-content:flex-end; gap:8px; }
 .fichiers-meta__gens{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
 .fichiers-meta__gens li{ display:flex; align-items:center; gap:8px; font-size:13px; }
-/* La barre des langages : les parts, dans l'ordre, comme un dépôt les montre. */
-.fichiers-meta__barre{ display:flex; height:8px; border-radius:4px; overflow:hidden; margin-bottom:10px; background:rgba(110,118,129,.2); }
-.fichiers-meta__barre span:nth-child(1){ background:#4493f8; }
-.fichiers-meta__barre span:nth-child(2){ background:#3fb950; }
-.fichiers-meta__barre span:nth-child(3){ background:#d29922; }
-.fichiers-meta__barre span:nth-child(4){ background:#a371f7; }
-.fichiers-meta__barre span:nth-child(5){ background:#db6d28; }
-.fichiers-meta__barre span:nth-child(n+6){ background:#6e7681; }
-.fichiers-meta__langages{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
-.fichiers-meta__langages li{ display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; }
-.fichiers-meta__langages code{ color:var(--text); }
-.fichiers-meta__langages span{ color:var(--muted); }
+/* La barre des langages, et sa légende : la même couleur porte la part et sa
+   pastille, sinon on ne sait pas laquelle est laquelle. Quatre nommés, puis
+   « Autre » — une légende de quinze entrées ne se lit pas. */
+.fichiers-meta__barre{ display:flex; height:8px; border-radius:4px; overflow:hidden; margin-bottom:12px; background:rgba(110,118,129,.2); }
+.fichiers-langage--0{ background:#4493f8; }
+.fichiers-langage--1{ background:#f1e05a; }
+.fichiers-langage--2{ background:#a371f7; }
+.fichiers-langage--3{ background:#3fb950; }
+.fichiers-langage--autre{ background:#8b949e; }
+.fichiers-meta__langages{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:6px 14px; }
+.fichiers-meta__langages li{ display:flex; align-items:center; gap:6px; font-size:12px; }
+.fichiers-meta__pastille{ flex:0 0 auto; width:8px; height:8px; border-radius:50%; }
+.fichiers-meta__langage{ color:var(--text); font-weight:500; }
+.fichiers-meta__part{ color:var(--muted); }
 
 .memoire-recherche{ display:inline-flex; align-items:center; gap:6px; color:var(--muted); }
 .memoire-recherche .gh-input{ width:min(280px, 40vw); }
@@ -20115,7 +20161,14 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 .memoire-layout--racine .memoire-corps{ padding-left:0; }
 .memoire-tree{ width:var(--memoire-tree-width, 280px); align-self:stretch; }
 .memoire-tree.is-collapsed{ display:none; }
-.memoire-tree .documents-tree__panel{ min-height:100%; height:auto; }
+/* Le panneau descend jusqu'en bas, quoi qu'il porte. Réglé sur `auto`, il
+   s'arrêtait à sa dernière ligne : un projet de trois fichiers laissait un
+   filet vertical suspendu au milieu de l'écran, et la colonne de gauche
+   n'existait plus qu'à moitié. */
+.memoire-tree .documents-tree__panel{
+  min-height:var(--documents-content-height, calc(100vh - 180px));
+  height:var(--documents-content-height, calc(100vh - 180px));
+}
 .memoire-corps{ min-width:0; padding:20px 0 20px 20px; }
 
 /* La liste d'un dossier, ou de la racine. Chaque dossier porte sa phrase :
@@ -20199,12 +20252,11 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
   gap:10px;
   padding:10px 16px;
   border:1px solid var(--border);
-  border-bottom:0;
-  border-radius:var(--radius) var(--radius) 0 0;
-  background:var(--panel2);
+  border-radius:var(--radius);
+  margin-bottom:16px;
   font-size:12px;
 }
-.memoire-versement + .memoire-liste{ border-radius:0 0 var(--radius) var(--radius); }
+.memoire-versement + .memoire-liste{ border-radius:var(--radius); }
 .memoire-fichier .memoire-versement{ border:0; border-bottom:1px solid var(--border); border-radius:0; }
 .memoire-versement__avatar{
   flex:0 0 auto;

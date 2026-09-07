@@ -193,16 +193,24 @@ export function renderBarre({ chemin = [], query = "", ouverte = true } = {}) {
   //
   // « Mémoire » est la racine de la branche, pas un dossier : elle se cible par
   // une adresse vide, et le chemin qui suit est relatif.
-  const miettes = [
-    `<button type="button" class="documents-breadcrumb__link" data-fichiers-branche="">Fichiers</button>`,
-    `<span class="documents-breadcrumb__sep">/</span>`,
-    `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="">Mémoire</button>`,
-    ...chemin.map((morceau, rang) => {
-      const cible = chemin.slice(0, rang + 1).join("/");
-      return `<span class="documents-breadcrumb__sep">/</span>`
-        + `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="${escapeHtml(cible)}">${escapeHtml(morceau)}</button>`;
-    })
-  ].join("");
+  //
+  // Le dernier morceau est là où l'on se trouve : il s'écrit en clair, il ne se
+  // clique pas. Un lien vers l'endroit où l'on est déjà ne mène nulle part.
+  const morceaux = [
+    { libelle: "Fichiers", cible: `data-fichiers-branche=""` },
+    { libelle: "Mémoire", cible: `data-memoire-aller=""` },
+    ...chemin.map((morceau, rang) => ({
+      libelle: morceau,
+      cible: `data-memoire-aller="${escapeHtml(chemin.slice(0, rang + 1).join("/"))}"`
+    }))
+  ];
+
+  const miettes = morceaux
+    .map((morceau, rang) =>
+      rang === morceaux.length - 1
+        ? `<span class="documents-breadcrumb__current">${escapeHtml(morceau.libelle)}</span>`
+        : `<button type="button" class="documents-breadcrumb__link" ${morceau.cible}>${escapeHtml(morceau.libelle)}</button>`)
+    .join(`<span class="documents-breadcrumb__sep">/</span>`);
 
   return `
     <div class="documents-topbar memoire-barre memoire-barre--pleine">
@@ -218,7 +226,7 @@ export function renderBarre({ chemin = [], query = "", ouverte = true } = {}) {
         <label class="memoire-recherche">
           ${svgIcon("search", { className: "octicon" })}
           <input type="search" class="gh-input" data-memoire-query value="${escapeHtml(query)}"
-            placeholder="Chercher dans la mémoire">
+            placeholder="Chercher dans le projet">
         </label>
       </div>
     </div>
@@ -592,28 +600,76 @@ export function lignesTrouvees(memoire, query = "") {
 }
 
 /**
+ * Les pièces déposées dont le nom porte les mots cherchés.
+ *
+ * Un PDF n'a pas de texte que l'écran montre : on cherche donc son **nom**, et
+ * on le dit. Prétendre chercher dans son contenu alors qu'on n'y a pas accès
+ * ferait conclure qu'il n'y est pas.
+ */
+export function piecesTrouvees(pieces = [], query = "") {
+  const mots = pourChercher(query).split(/\s+/).filter(Boolean);
+  if (!mots.length) return [];
+
+  return (Array.isArray(pieces) ? pieces : []).filter((piece) => {
+    const nom = pourChercher(piece?.name || piece?.original_filename || piece?.filename || "");
+    return nom && mots.every((mot) => nom.includes(mot));
+  });
+}
+
+/** Les pièces trouvées, en tête des résultats : elles s'ouvrent, elles ne se lisent pas ici. */
+function renderPiecesTrouvees(pieces = []) {
+  if (!pieces.length) return "";
+
+  return `
+    <p class="memoire-recherche-resultats__compte">
+      <b>${pieces.length} pièce${pieces.length > 1 ? "s" : ""} déposée${pieces.length > 1 ? "s" : ""}</b>
+      — cherchée${pieces.length > 1 ? "s" : ""} par leur nom
+    </p>
+    <div class="memoire-liste memoire-liste--tableau">
+      ${pieces
+        .map((piece) => `
+          <button type="button" class="memoire-entree memoire-entree--fichier"
+            data-tree-document-id="${escapeHtml(String(piece?.id || ""))}">
+            <span class="memoire-entree__nom">
+              <span class="memoire-entree__icone">${svgIcon("file", { className: "octicon" })}</span>
+              ${escapeHtml(String(piece?.name || piece?.original_filename || piece?.filename || "Document"))}
+            </span>
+            <span class="memoire-entree__message">Documents</span>
+            <span class="memoire-entree__date">${escapeHtml(
+              piece?.updated_at || piece?.updatedAt ? ilYA(piece.updated_at || piece.updatedAt) : "—"
+            )}</span>
+          </button>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
+/**
  * Ce que la recherche a trouvé, fichier par fichier.
  *
  * La ligne garde **son numéro** : c'est ce qui permet de la retrouver dans le
  * fichier une fois ouvert, et une liste de résultats renumérotée de 1 à n
  * n'aiderait personne à y revenir.
  */
-export function renderRecherche(memoire, query = "") {
+export function renderRecherche(memoire, query = "", { pieces = [] } = {}) {
   const trouvailles = lignesTrouvees(memoire, query);
+  const deposees = piecesTrouvees(pieces, query);
 
-  if (!trouvailles.length) {
+  if (!trouvailles.length && !deposees.length) {
     return `<div class="propositions-empty"><b>Rien ne porte ces mots</b>
-      <p>La mémoire ne dit rien de « ${escapeHtml(query)} ». Ce n'est pas qu'elle l'a écarté : elle ne l'a jamais reçu.</p></div>`;
+      <p>Le projet ne dit rien de « ${escapeHtml(query)} », et n'a rien reçu qui s'appelle ainsi.</p></div>`;
   }
 
   const lignes = trouvailles.reduce((total, trouvaille) => total + trouvaille.lignes.length, 0);
 
   return `
     <div class="memoire-recherche-resultats">
-      <p class="memoire-recherche-resultats__compte">
+      ${renderPiecesTrouvees(deposees)}
+      ${!lignes ? "" : `<p class="memoire-recherche-resultats__compte">
         <b>${lignes} ligne${lignes > 1 ? "s" : ""}</b> dans
-        ${trouvailles.length} fichier${trouvailles.length > 1 ? "s" : ""}
-      </p>
+        ${trouvailles.length} fichier${trouvailles.length > 1 ? "s" : ""} de la mémoire
+      </p>`}
       ${trouvailles
         .map(({ fichier, lignes: trouvees }) => `
           <section class="memoire-fichier memoire-fichier--trouvaille">
