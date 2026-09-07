@@ -1668,32 +1668,43 @@ function renderContent(root) {
   }
 
   const resume = summarizeMemory(view.assertions);
-
-  // La recherche traverse les dossiers : c'est le geste qu'on fait quand on ne
-  // sait pas où c'est rangé, et un navigateur qui refuserait de chercher
-  // obligerait à ouvrir cinq dossiers pour trouver une ligne.
-  const cherche = String(view.query ?? "").trim().length > 0;
+  // Le vocabulaire se compte sur **ce qui vaut aujourd'hui**, pas sur toute
+  // l'histoire : « 40 sans domaine » doit dire quarante affirmations à classer,
+  // pas quarante états successifs de quatre d'entre elles.
+  const vocabulaire = summarizeTaxonomy(currentAssertions(view.assertions));
+  const lignes = lignesVisibles();
+  const enAttente = pendingReviews(currentAssertions(view.assertions)).length;
 
   // Le navigateur de fichiers a déménagé dans l'onglet Fichiers : les PDF et
-  // les fichiers de mémoire sont la même matière — les **sources** du projet —
-  // et le besoin de les parcourir était le même.
+  // les fichiers de mémoire sont la même matière — les **sources** du projet.
   //
-  // Ce qui reste ici sont les gestes sur la mémoire entière : la sortir, y
-  // faire entrer, y déclarer une hypothèse. Cet onglet deviendra celui qui
-  // **exécute** la mémoire — chercher, tracer un graphe de décision, dire ce qui
-  // tombe si une donnée change. Rien de ce qu'il montrera ne se stockera : tout
-  // se recalcule depuis les fichiers.
+  // Ce qui reste ici **exécute** la mémoire plutôt que de la ranger : les
+  // lectures du rail sont des filtres pré-sélectionnés — « les hypothèses »,
+  // « ce qui s'impose », « ce qui a été constaté » —, et le tableau montre ce
+  // qu'elles retiennent. Rien ne s'y stocke : tout se recalcule depuis les
+  // fichiers.
   root.innerHTML = `
-    <section class="project-simple-page project-simple-page--memory">
+    <section class="project-simple-page project-simple-page--memory"
+      style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
       <div class="propositions-shell">
         ${renderMemoryHead(resume, { busy: view.busy })}
-        ${view.notice ? `<div class="propositions-empty propositions-empty--warn"><p>${escapeHtml(view.notice)}</p></div>` : ""}
-        ${renderHypothesisForm()}
-        ${
-          cherche
-            ? `<div class="memory-table">${renderTableHead()}${renderList(lignesVisibles(), view.page)}</div>`
-            : ""
-        }
+
+        <div class="project-rail-layout${view.navCollapsed ? " project-rail-layout--collapsed" : ""}">
+          ${renderMemoryNav()}
+
+          <div class="project-rail-layout__content">
+            ${renderHypothesisForm()}
+
+            ${view.notice ? `<div class="propositions-empty propositions-empty--warn"><p>${escapeHtml(view.notice)}</p></div>` : ""}
+
+            ${renderCounts(resume, vocabulaire, enAttente)}
+            ${renderSearch()}
+            <div class="memory-table">
+              ${renderTableHead()}
+              ${renderList(lignes, view.page)}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   `;
