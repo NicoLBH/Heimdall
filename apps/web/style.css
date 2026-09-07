@@ -143,6 +143,24 @@
   flex:0 0 auto;
 }
 
+/* Ce qui se pose avant le titre : un geste qui porte sur ce qu'on lit, et non
+   sur ce qu'il y a dedans. La barre compactée recouvre celle du contenu, et
+   sans cette place ses gestes disparaissaient au moment précis où l'on en a
+   besoin — sur trois cents lignes de code. */
+.overlay-chrome__lead{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex:0 0 auto;
+}
+
+/* Dépliée, la barre du contenu porte déjà ces deux gestes : les montrer deux
+   fois à l'écran ferait douter qu'ils fassent la même chose. */
+.details-head--expanded .overlay-chrome__lead,
+.details-head--expanded .overlay-chrome__actions [data-diff-comment-open]{
+  display:none;
+}
+
 .overlay-chrome__body{
   flex:1 1 auto;
   min-height:0;
@@ -6527,8 +6545,19 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
    En lecture il quitte la mise en page — `display:none` et non `visibility` :
    la page ne défile pas, alors un en-tête invisible mais présent laisserait sa
    bande vide en haut de l'écran, et les barres ne remonteraient pas. */
-body.route--project.documents-pdf-sticky-mode.documents-local-chrome-compact #globalHeaderHost{
+body.route--project.documents-pdf-sticky-mode.documents-local-chrome-compact #globalHeaderHost,
+/* La barre d'onglets s'efface avec lui : elle porte quarante-quatre pixels de
+   plus, et c'est exactement ce qui empêchait les deux barres du lecteur de
+   remonter en haut de l'écran. */
+body.route--project.documents-pdf-sticky-mode.documents-local-chrome-compact .project-context-header{
   display:none;
+}
+/* `#app` réserve la hauteur de l'en-tête en marge haute : cachée sans elle, la
+   barre laissait une bande vide de sa propre hauteur, et les deux barres du
+   lecteur ne remontaient pas jusqu'au bord. */
+body.route--project.documents-pdf-sticky-mode.documents-local-chrome-compact #app{
+  padding-top:0;
+  min-height:100dvh;
 }
 .documents-shell--pdf-preview{
   --documents-pdf-toolbar-h:52px;
@@ -19687,9 +19716,14 @@ body.proposition-merge-open{ overflow:hidden; }
 .diff-groupe{
   border:1px solid var(--border);
   border-radius:var(--radius);
-  overflow:hidden;
+  /* `clip-path` plutôt qu'`overflow:hidden` : il arrondit sans créer de
+     conteneur de défilement, qu'aucun `position:sticky` ne traverse. */
+  clip-path:inset(0 round var(--radius));
   scroll-margin-top:calc(var(--app-top) + 16px);
 }
+/* Le nom du fichier reste sous la main : sur trois cents lignes de code, on ne
+   sait plus ce qu'on lit ni de quel fichier il vient. Il se colle sous la barre
+   de titre de la proposition — d'où la hauteur, celle de cette barre. */
 .diff-groupe__tete{
   display:flex;
   align-items:center;
@@ -19698,6 +19732,12 @@ body.proposition-merge-open{ overflow:hidden; }
   border-bottom:1px solid var(--border);
   background:var(--panel2);
   font-size:12px;
+  position:sticky;
+  /* La hauteur se mesure — voir `collerLesTetesDeGroupe` : elle dépend du titre
+     porté et de l'effacement ou non de l'en-tête global. L'écrire en dur
+     laisserait soit un blanc, soit un nom de fichier recouvert. */
+  top:var(--diff-tete-collee, 0px);
+  z-index:2;
 }
 .diff-groupe__caret{
   display:inline-flex;
@@ -19807,6 +19847,12 @@ body.proposition-merge-open{ overflow:hidden; }
 .diff-ligne--ajoute .diff-ligne__signe{ color:rgb(63,185,80); }
 .diff-ligne--retire{ background:rgba(248,81,73,.1); }
 .diff-ligne--retire .diff-ligne__signe{ color:rgb(248,81,73); }
+
+/* Les deux cellules de numéros portent la couleur de ce qui est arrivé à la
+   ligne : le fond du code reste discret — c'est le texte qu'on lit —, et la
+   gouttière dit à elle seule ce qui a été ajouté et ce qui a été retiré. */
+.diff-ligne--ajoute .diff-ligne__num{ background:rgba(63,185,80,.3); color:#fff; }
+.diff-ligne--retire .diff-ligne__num{ background:rgba(248,81,73,.3); color:#fff; }
 .diff-ligne--inchange{ background:transparent; }
 
 /* ── Écrire depuis le diff ──────────────────────────────────────────────────
@@ -19996,6 +20042,66 @@ body.proposition-merge-open{ overflow:hidden; }
    Sans elles, la fin d'un bloc de sept lignes ne se marquait que par un retour
    au niveau zéro, ce qui se relit mal et se plie encore plus mal. */
 .mdall-accolade{ color:rgb(139,148,158); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Trois langages, trois façons de lire — les couleurs de GitHub
+
+   Ce qui distingue deux fichiers n'est pas leur suffixe, c'est ce que leurs
+   lignes font. Voir `langageDeLExtension` :
+
+     .ref              une fonction        les couleurs du JavaScript
+     .ddb  .hyp        une déclaration     celles d'un `const`
+     .ctr  .cst  .crp  un énoncé           celles du JSON
+
+   Une palette par extension ferait croire à six langages là où il y en a trois,
+   et raterait le point : distinguer un nom **posé** d'un nom **cité**.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Ce qu'un nom vaut. C'est la seule couleur qui apprend quelque chose plutôt
+   que d'organiser la lecture : un renvoi qui ne mène nulle part se voit sans
+   le chercher, et le fichier devient vérifiable en le lisant. */
+.mdall-sujet--declaration{ color:rgb(121,192,255); }
+.mdall-sujet--connu{ color:rgb(121,192,255); }
+.mdall-sujet--inconnu{
+  color:rgb(255,123,114);
+  text-decoration:underline wavy rgba(248,81,73,.65);
+  text-underline-offset:3px;
+  cursor:help;
+}
+
+/* Une fonction : son nom est celui d'une fonction, ses entrées des paramètres,
+   ses branches des mots-clés. */
+.memoire-fichier--regle .mdall-sujet--declaration{ color:rgb(210,168,255); font-weight:600; }
+.memoire-fichier--regle .mdall-entrees{ color:rgb(255,166,87); }
+.memoire-fichier--regle .mdall-valeur{ color:rgb(165,214,255); font-weight:400; }
+
+/* Une déclaration : le nom d'abord — c'est lui qu'on cite ailleurs —, la valeur
+   comme une chaîne. */
+.memoire-fichier--declaration .mdall-sujet--declaration{ color:rgb(121,192,255); font-weight:600; }
+.memoire-fichier--declaration .mdall-valeur{ color:rgb(165,214,255); font-weight:400; }
+
+/* Un énoncé : une clé, une valeur. Les mots de provenance sont des clés eux
+   aussi — `texte:`, `document:`, `statut:` se lisent comme les champs d'un
+   objet, et c'est exactement ce qu'ils sont. */
+.memoire-fichier--enonce .mdall-sujet--declaration{ color:rgb(121,192,255); }
+.memoire-fichier--enonce .mdall-valeur{ color:rgb(165,214,255); font-weight:400; }
+.memoire-fichier--enonce .mdall-provenance,
+.memoire-fichier--enonce .mdall-mot-statut,
+.memoire-fichier--enonce .mdall-mot-date,
+.memoire-fichier--enonce .mdall-mot-raison{ color:rgb(121,192,255); font-style:normal; }
+
+/* Ce sur quoi le fichier s'appuie sans que personne l'ait versé. Une couleur
+   suffit à le voir ligne à ligne ; une phrase en tête dit combien il y en a,
+   ce qu'on ne saurait pas sans parcourir trois cents lignes. */
+.memoire-fichier__manquants{
+  display:flex; align-items:baseline; gap:8px;
+  margin:0; padding:8px 16px;
+  border-bottom:1px solid var(--border);
+  background:rgba(248,81,73,.08);
+  color:var(--muted); font-size:12px;
+}
+.memoire-fichier__manquants b{ color:rgb(255,123,114); }
+.memoire-fichier__manquants .ui-icon{ flex:0 0 auto; color:rgb(255,123,114); align-self:center; }
 
 /* La zone ouvre une section du fichier. Elle porte la couleur des sections,
    parce que c'en est une. */
@@ -20446,6 +20552,7 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
   gap:8px;
   padding:8px 12px;
   border-bottom:1px solid var(--border);
+  border-radius:var(--radius) var(--radius) 0 0;
   background:var(--panel2);
   position:sticky;
   top:44px;

@@ -554,7 +554,13 @@ function renderReviewHead(proposition, review) {
     // centré au-dessus d'un diff pleine largeur laisse deux gouttières vides
     // et donne l'impression de deux pages superposées.
     headClassName: `review-head${view.tab === "changes" ? " review-head--pleine" : ""}`,
-    actionsHtml: `${renderMergeStateButton(proposition, review)}${renderExportButton()}`
+    // Sur les Changements, la barre compacte reprend les deux gestes de la
+    // barre du diff : replier la colonne de gauche, et commenter. Compactée,
+    // elle recouvre celle du diff — les gestes disparaissaient au moment
+    // précis où l'on en a besoin, c'est-à-dire en cours de lecture.
+    titleLeadHtml: view.tab === "changes" ? renderDiffReplieBouton() : "",
+    actionsHtml: `${view.tab === "changes" ? renderDiffCommentBouton() : ""}${
+      renderMergeStateButton(proposition, review)}${renderExportButton()}`
   });
 }
 
@@ -2658,15 +2664,9 @@ function renderChanges(proposition, review) {
 
   return `
     <div class="diff-barre">
-      <button type="button" class="documents-tree__toggle" data-diff-tree-toggle
-        aria-label="${escapeHtml(ouverte ? "Replier la barre latérale" : "Étendre la barre latérale")}"
-        title="${escapeHtml(ouverte ? "Replier la barre latérale" : "Étendre la barre latérale")}">
-        ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
-      </button>
+      ${renderDiffReplieBouton()}
       <span class="diff-barre__resume">${escapeHtml(resumeDuDiff(diff.compte))}</span>
-      <button type="button" class="gh-btn gh-btn--primary gh-btn--sm" data-diff-comment-open>
-        Soumettre un commentaire
-      </button>
+      ${renderDiffCommentBouton()}
     </div>
 
     <div class="diff-layout${ouverte ? "" : " diff-layout--replie"}" style="--diff-tree-width:${largeur}px">
@@ -2676,6 +2676,33 @@ function renderChanges(proposition, review) {
       </div>
     </div>
     ${renderDiffCommentBox(proposition, review)}
+  `;
+}
+
+/**
+ * Replier la colonne de gauche du diff.
+ *
+ * Écrit une fois, rendu à deux endroits — la barre du diff et la barre de titre
+ * compactée. Deux boutons écrits deux fois finiraient par ne plus dire la même
+ * chose ; les gestes, eux, passent par une délégation qui les traite tous.
+ */
+function renderDiffReplieBouton() {
+  const ouverte = view.diffTreeOpen !== false;
+  const dit = ouverte ? "Replier la barre latérale" : "Étendre la barre latérale";
+  return `
+    <button type="button" class="documents-tree__toggle" data-diff-tree-toggle
+      aria-label="${escapeHtml(dit)}" title="${escapeHtml(dit)}">
+      ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
+    </button>
+  `;
+}
+
+/** Commenter le diff. Même raison, même forme. */
+function renderDiffCommentBouton() {
+  return `
+    <button type="button" class="gh-btn gh-btn--primary gh-btn--sm" data-diff-comment-open>
+      Soumettre un commentaire
+    </button>
   `;
 }
 
@@ -3241,6 +3268,27 @@ function setTopCompact(on) {
   document.body.classList.toggle("project-proposition-details-top-compact", !!on);
 }
 
+/**
+ * Sous quoi le nom d'un fichier vient se coller.
+ *
+ * La barre de titre compactée se colle en haut de l'écran ; les têtes de
+ * groupe doivent s'arrêter juste dessous. Sa hauteur dépend de ce qu'elle
+ * porte — un titre long passe sur deux lignes — et l'endroit où elle se colle
+ * change selon que l'en-tête global s'est effacé ou non. Une valeur écrite en
+ * dur laisserait donc soit un blanc, soit un nom de fichier recouvert : on la
+ * mesure là où elle est, plutôt que de la prédire.
+ */
+function collerLesTetesDeGroupe(root, compact) {
+  const tete = root.querySelector("#propositionsDetailsTitle");
+  const bas = compact && tete ? Math.max(0, Math.round(tete.getBoundingClientRect().bottom)) : 0;
+
+  for (const corps of root.querySelectorAll(".diff-corps")) {
+    // Déplié, la barre de titre défile avec le contenu : il ne reste que
+    // l'en-tête global sous lequel se ranger.
+    corps.style.setProperty("--diff-tete-collee", compact ? `${bas}px` : "var(--app-top, 0px)");
+  }
+}
+
 function bindReviewCompact(root) {
   const sync = bindOverlayChromeCompact(
     document.documentElement,
@@ -3253,7 +3301,10 @@ function bindReviewCompact(root) {
       // l'intérieur ne peut pas monter au-dessus d'un élément extérieur, et la
       // barre se dessinait derrière l'en-tête, donc invisible. Les sujets
       // masquent l'en-tête par cette même bascule depuis le début.
-      onCompactChange: (scrolled) => setTopCompact(scrolled)
+      onCompactChange: (scrolled) => {
+        setTopCompact(scrolled);
+        collerLesTetesDeGroupe(root, scrolled);
+      }
     }
   );
 
@@ -3442,11 +3493,16 @@ function bindDiffTreeResize(root) {
  * proposition est ouverte, après le procès-verbal une fois qu'elle est close.
  */
 function bindDiffComment(root) {
-  root.querySelector("[data-diff-comment-open]")?.addEventListener("click", () => {
-    view.diffComment = true;
-    view.diffPreview = false;
-    renderContent(root);
-  });
+  // Une délégation, pas un `querySelector` : le bouton existe en deux exemplaires
+  // — la barre du diff et la barre de titre compactée — et n'en brancher qu'un
+  // laissait l'autre inerte.
+  for (const bouton of root.querySelectorAll("[data-diff-comment-open]")) {
+    bouton.addEventListener("click", () => {
+      view.diffComment = true;
+      view.diffPreview = false;
+      renderContent(root);
+    });
+  }
 
   // Commenter une ligne : le champ s'ouvre **sous elle**, et l'extrait part
   // avec le message sans qu'on ait à le recopier — c'est précisément ce qu'on
@@ -3648,10 +3704,12 @@ function bindReview(root) {
 
   // La barre latérale du diff se replie, comme celle des Documents : sur un
   // dépôt de trois cents repères on veut la voir, sur trois on veut la place.
-  root.querySelector("[data-diff-tree-toggle]")?.addEventListener("click", () => {
-    view.diffTreeOpen = view.diffTreeOpen === false;
-    renderContent(root);
-  });
+  for (const bouton of root.querySelectorAll("[data-diff-tree-toggle]")) {
+    bouton.addEventListener("click", () => {
+      view.diffTreeOpen = view.diffTreeOpen === false;
+      renderContent(root);
+    });
+  }
 
   for (const bouton of root.querySelectorAll("[data-diff-tree-fold]")) {
     bouton.addEventListener("click", () => {

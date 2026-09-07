@@ -857,7 +857,7 @@ async function proposerDepuisLEtude(root) {
   // exigence posée plus large qu'elle ne vaut se lit comme acquise là où elle
   // ne l'est pas, et personne ne va vérifier ce qui paraît déjà décidé.
   const { demanderLesZones } = await import("../../ui/choix-des-zones.js");
-  const zones = await demanderLesZones({ assertions: etat.affirmations ?? [] });
+  const zones = await demanderLesZones({ projectId: projetEnBase, assertions: etat.affirmations });
   if (zones === null) return;
 
   etat.versementEnCours = true;

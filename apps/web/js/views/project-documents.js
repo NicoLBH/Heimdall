@@ -34,6 +34,7 @@ import {
 import { enClair } from "../services/memoire-en-texte.js";
 import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
 import { versementsDeLaMemoire } from "../services/memoire-blame.js";
+import { sujetsDeclares } from "../services/memoire-identifiants.js";
 import {
   lireAPropos, ecrireAPropos, topicsDeLaSaisie, descriptionDeLaSaisie,
   DESCRIPTION_MAX, TOPICS_MAX
@@ -2632,7 +2633,11 @@ function renderBrancheMemoire() {
   const contexte = {
     auteurs: docsViewState.memoireAuteurs ?? new Map(),
     avatars: docsViewState.memoireAvatars ?? new Map(),
-    propositions: docsViewState.memoirePropositions ?? new Map()
+    propositions: docsViewState.memoirePropositions ?? new Map(),
+    // Ce que la mémoire **entière** déclare : un renvoi se cherche dans tout le
+    // projet, pas dans le seul fichier qu'on regarde — une règle incendie
+    // s'appuie sur une donnée de base, qui vit ailleurs.
+    declares: sujetsDeclares(docsViewState.memoireAssertions ?? [])
   };
 
   const fichier = chemin.length >= 2 ? fichierDuChemin(memoire, chemin) : null;

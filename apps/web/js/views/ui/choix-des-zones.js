@@ -74,7 +74,7 @@ function renderFenetre(zones, cochees) {
 
   return `
     <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Portée de la proposition">
-      <form class="fichiers-saisie__boite zones-choix" data-zones-form>
+      <div class="fichiers-saisie__boite zones-choix">
         <header class="fichiers-saisie__tete">
           <b>À quelles zones cela s'applique-t-il ?</b>
           <button type="button" class="fichiers-saisie__fermer" data-zones-annuler
@@ -90,9 +90,9 @@ function renderFenetre(zones, cochees) {
 
         <footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn" data-zones-annuler>Annuler</button>
-          <button type="submit" class="gh-btn gh-btn--primary" data-zones-valider>Continuer</button>
+          <button type="button" class="gh-btn gh-btn--primary" data-zones-valider>Continuer</button>
         </footer>
-      </form>
+      </div>
     </div>
   `;
 }
@@ -111,7 +111,10 @@ function renderFenetre(zones, cochees) {
  *   `null` si l'on renonce
  */
 export async function demanderLesZones({ projectId = "", assertions = null } = {}) {
-  let memoire = Array.isArray(assertions) ? assertions : null;
+  // Une liste vide n'est pas une mémoire : c'est « je n'ai rien sous la main ».
+  // Prise pour argent comptant, elle faisait conclure « pas de découpage » et
+  // la question ne se posait jamais.
+  let memoire = Array.isArray(assertions) && assertions.length ? assertions : null;
 
   if (!memoire && texte(projectId)) {
     try {
@@ -166,8 +169,10 @@ export async function demanderLesZones({ projectId = "", assertions = null } = {
       bouton.addEventListener("click", () => fermer(null));
     }
 
-    hote.querySelector("[data-zones-form]")?.addEventListener("submit", (event) => {
-      event.preventDefault();
+    // Un bouton, pas un `submit` : l'application écoute les formulaires
+    // ailleurs, et une soumission interceptée laissait la fenêtre ouverte sur
+    // une réponse déjà donnée.
+    hote.querySelector("[data-zones-valider]")?.addEventListener("click", () => {
       fermer(porteeRetenue(cochees()));
     });
   });

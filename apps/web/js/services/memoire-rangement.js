@@ -138,6 +138,39 @@ export const ORDRE_DES_EXTENSIONS = [
   SANS_NATURE
 ];
 
+/**
+ * Le langage d'une extension : trois formes, trois façons de lire.
+ *
+ * ## Pourquoi trois, et pas une par extension
+ *
+ * Ce qui distingue deux fichiers, ce n'est pas leur suffixe, c'est **ce que
+ * leurs lignes font** :
+ *
+ * - **`regle`** — un `.ref` est de la logique : des conditions, des branches,
+ *   un résultat. Il se lit comme une fonction, et se colore comme du
+ *   JavaScript.
+ * - **`declaration`** — un `.ddb` ou un `.hyp` **déclare** : ces sujets-là sont
+ *   les variables du projet, écrites une fois et citées partout ailleurs. Ce
+ *   sont des `const`, et c'est ce qui permet à une règle de les nommer sans les
+ *   recopier.
+ * - **`enonce`** — un `.ctr`, un `.cst`, un `.crp` énoncent des paires : un
+ *   sujet, une valeur, sa provenance. C'est du JSON, et rien de plus.
+ *
+ * Une couleur par extension ferait croire à six langages là où il y en a trois,
+ * et surtout elle raterait le point : ce qui compte est de distinguer un nom
+ * **posé** d'un nom **cité**.
+ */
+export const LANGAGES = { REGLE: "regle", DECLARATION: "declaration", ENONCE: "enonce" };
+
+export function langageDeLExtension(extension) {
+  const dit = texte(extension);
+  if (dit === EXTENSION_REGLE) return LANGAGES.REGLE;
+  if (dit === EXTENSIONS[NATURE.DONNEE_BASE] || dit === EXTENSIONS[NATURE.HYPOTHESE]) {
+    return LANGAGES.DECLARATION;
+  }
+  return LANGAGES.ENONCE;
+}
+
 /** Le rang d'une extension, pour trier. Les inconnues en dernier. */
 export function rangDeLExtension(extension) {
   const rang = ORDRE_DES_EXTENSIONS.indexOf(texte(extension));
