@@ -104,13 +104,14 @@ test("une règle ne porte aucune valeur de projet", () => {
   });
 
   assert.deepEqual(lignes.map(clair), [
-    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut)",
+    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
     `${RETRAIT}si Logements superposés = oui`,
     `${RETRAIT}et Hauteur du plancher bas du logement le plus haut <= 28 m`,
     `${RETRAIT}alors "3e famille B"`,
     `${RETRAIT}sinon "3e famille A"`,
     `${RETRAIT}texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)`,
-    `${RETRAIT}${RETRAIT}parce que: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."`
+    `${RETRAIT}${RETRAIT}parce que: "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes."`,
+    "}"
   ]);
 
   // Aucune valeur de projet, et surtout aucun « ✓ retenu » : la branche prise
@@ -128,10 +129,16 @@ test("une affirmation de projet ne recopie pas la règle", () => {
   });
 
   assert.deepEqual(lignes.map(clair), [
-    'Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier"',
+    'Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier" {',
     `${RETRAIT}règle: Colonne sèche — arrêté du 31 janvier 1986, article 98`,
-    `${RETRAIT}statut: retenu`
+    `${RETRAIT}statut: retenu`,
+    "}"
   ]);
+
+  // Une affirmation qui ne porte rien d'autre que sa valeur ne s'entoure pas
+  // d'accolades : une paire de bornes autour de rien serait du bruit.
+  assert.deepEqual(blocDAffirmation({ sujet: "Zone de neige", valeur: "E" }).map(clair),
+    ['Zone de neige = "E"']);
   assert.equal(texteDesLignes(lignes).includes("si "), false);
 });
 

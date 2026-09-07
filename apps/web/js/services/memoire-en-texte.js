@@ -178,6 +178,12 @@ export const JETON = {
   DATE: "date",
   /** Les entrées d'une règle, entre parenthèses. */
   ENTREES: "entrees",
+  /** `{` et `}` — les bornes d'un bloc. */
+  ACCOLADE: "accolade",
+  /** `zone:` — le mot qui ouvre une section de portée. */
+  MOT_ZONE: "mot-zone",
+  /** Le nom de la zone. */
+  ZONE: "zone",
   /** Ce qui ne se colore pas : les espaces, les séparateurs. */
   NEUTRE: "neutre"
 };
@@ -281,10 +287,13 @@ export const OPERATEURS = Object.values(OPERATEUR);
  * tient dans cet ordre.
  */
 export const MOTS = [
-  "sauf si", "parce que", "statut", "fichier", "note", "le",
+  "sauf si", "parce que", "statut", "fichier", "note", "le", "zone",
   "si", "et", "ou", "non", "alors", "sinon",
   ...Object.values(PROVENANCE)
 ];
+
+/** La zone de ce qui vaut partout. Le premier bloc d'un fichier, toujours. */
+export const TOUTES_ZONES = "Toutes zones";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const jeton = (type, contenu) => ({ type, texte: contenu });
@@ -508,76 +517,190 @@ export function ligneDeDate(quand = "", profondeur = 1) {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
+ * Une accolade, seule sur sa ligne.
+ *
+ * ## Pourquoi des accolades, alors que l'indentation suffisait
+ *
+ * Elle suffisait à la machine, pas à l'œil. Un bloc de sept lignes dont la
+ * fin ne se marque que par un retour au niveau zéro se relit mal sur un écran,
+ * et se relit très mal quand deux blocs se suivent. L'accolade dit où le bloc
+ * finit, sans qu'il faille compter les espaces.
+ *
+ * Elle n'est pas un mot de programmeur : c'est une **borne**, et un CCTP en
+ * emploie d'autres pour la même raison. Elle rend en outre le pliage possible,
+ * qui est ce qui rend un fichier de cent affirmations lisible.
+ *
+ * On ne dépend donc plus de la seule mise en forme du rendu : le texte brut,
+ * copié dans un éditeur quelconque, garde sa structure.
+ */
+export function ligneOuvrante(profondeur = 0) {
+  return [espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.ACCOLADE, "{")];
+}
+
+export function ligneFermante(profondeur = 0) {
+  return [espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.ACCOLADE, "}")];
+}
+
+/** Une ligne vide, qui sépare deux blocs. */
+export function ligneVide() {
+  return [];
+}
+
+/**
+ * `zone: Bâtiment A {` — l'ouverture d'une section de portée.
+ *
+ * ## Pourquoi la zone est dans le fichier, et non dans l'arborescence
+ *
+ * L'unité de production est le **domaine** : une étude incendie touche
+ * plusieurs zones d'un coup. Avec la zone en répertoire, une seule étude se
+ * dispersait en autant de fichiers, donc autant de groupes dans le diff, pour
+ * un seul acte.
+ *
+ * La zone est une **facette**, pas un lieu. Le fichier s'organise comme on
+ * produit ; la Mémoire s'organise comme on consulte, et c'est là que la vue par
+ * zone a sa place, sans coûter un répertoire.
+ *
+ * « Toutes zones » vient toujours en premier : ce qui vaut partout se lit avant
+ * ce qui ne vaut qu'ici.
+ */
+export function ligneDeZone(zone = TOUTES_ZONES, profondeur = 0) {
+  return [
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.MOT_ZONE, "zone:"),
+    espace(),
+    jeton(JETON.ZONE, texte(zone) || TOUTES_ZONES),
+    espace(),
+    jeton(JETON.ACCOLADE, "{")
+  ];
+}
+
+/**
  * Une règle, telle qu'un référentiel la porte. Fichier `.ref`.
  *
  * ```
- * Classement du bâtiment (Logements superposés, Hauteur du plancher bas)
+ * Classement du bâtiment (Logements superposés, Hauteur du plancher bas) {
  *    si Logements superposés = oui
  *    et Hauteur du plancher bas <= 28 m
  *    alors "3e famille B"
  *    texte: arrêté du 31 janvier 1986 modifié, article 3, 3°)
  *       parce que: "Troisième famille B : …"
+ * }
  * ```
  *
  * Aucune valeur de projet n'y figure, et c'est tout l'intérêt : ce bloc vaut
  * pour mille bâtiments. Aucun statut non plus — un référentiel n'a pas d'état
  * dans un projet.
+ *
+ * @param {number} profondeur le cran d'indentation du bloc, dans sa zone
  */
 export function blocDeRegle({
   sujet = "", conditions = [], alors = "", sinon = "", sauf = [], provenance = null, preuve = ""
-} = {}) {
+} = {}, profondeur = 0) {
+  const dedans = profondeur + 1;
   const toutes = [...(Array.isArray(conditions) ? conditions : []), ...(Array.isArray(sauf) ? sauf : [])];
-  const lignes = [ligneDeDonnee(sujet, toutes.map((condition) => condition?.sujet))];
 
+  const corps = [];
   (Array.isArray(conditions) ? conditions : []).forEach((condition, rang) => {
-    lignes.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition));
+    corps.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, dedans));
   });
 
-  if (texte(alors)) lignes.push(ligneDeConsequence("alors", alors));
-  if (texte(sinon)) lignes.push(ligneDeConsequence("sinon", sinon));
+  if (texte(alors)) corps.push(ligneDeConsequence("alors", alors, "", dedans));
+  if (texte(sinon)) corps.push(ligneDeConsequence("sinon", sinon, "", dedans));
 
   for (const exception of (Array.isArray(sauf) ? sauf : [sauf]).filter(Boolean)) {
-    lignes.push(ligneDeCondition("sauf si", exception));
+    corps.push(ligneDeCondition("sauf si", exception, dedans));
   }
 
-  const depuis = provenance ? ligneDeProvenance(provenance) : null;
-  if (depuis) lignes.push(depuis);
+  const depuis = provenance ? ligneDeProvenance(provenance, dedans) : null;
+  if (depuis) corps.push(depuis);
 
-  const pourquoi = ligneDePreuve(preuve);
-  if (pourquoi) lignes.push(pourquoi);
+  const pourquoi = ligneDePreuve(preuve, dedans + 1);
+  if (pourquoi) corps.push(pourquoi);
 
-  return lignes;
+  const tete = [
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    ...ligneDeDonnee(sujet, toutes.map((condition) => condition?.sujet))
+  ];
+
+  return corps.length
+    ? [[...tete, espace(), jeton(JETON.ACCOLADE, "{")], ...corps, ligneFermante(profondeur)]
+    : [tete];
 }
 
 /**
- * Une affirmation de projet. Fichiers `.ctr`, `.ddb`, `.hyp`.
+ * Une affirmation de projet. Fichiers `.ctr`, `.ddb`, `.hyp`, `.cst`.
  *
  * ```
- * Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier"
+ * Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier" {
  *    règle: Colonne sèche — arrêté du 31 janvier 1986, article 98
  *    statut: retenu
+ * }
  * ```
  *
  * La règle n'est pas recopiée ici : elle a son fichier, à côté.
+ *
+ * Une affirmation qui ne porte rien d'autre que sa valeur ne s'entoure pas
+ * d'accolades : une paire de bornes autour de rien serait du bruit.
  */
 export function blocDAffirmation({
   sujet = "", valeur = "", unite = "", provenance = null, preuve = "", statut = "", le = ""
-} = {}) {
-  const lignes = [ligneDAffirmation({ sujet, valeur, unite })];
+} = {}, profondeur = 0) {
+  const dedans = profondeur + 1;
+  const corps = [];
 
   // La date passe avant la provenance : un constat se situe d'abord dans le
   // temps, et c'est la première question qu'on lui pose.
-  const quand = ligneDeDate(le);
-  if (quand) lignes.push(quand);
+  const quand = ligneDeDate(le, dedans);
+  if (quand) corps.push(quand);
 
-  const depuis = provenance ? ligneDeProvenance(provenance) : null;
-  if (depuis) lignes.push(depuis);
+  const depuis = provenance ? ligneDeProvenance(provenance, dedans) : null;
+  if (depuis) corps.push(depuis);
 
-  const pourquoi = ligneDePreuve(preuve);
-  if (pourquoi) lignes.push(pourquoi);
+  const pourquoi = ligneDePreuve(preuve, dedans + 1);
+  if (pourquoi) corps.push(pourquoi);
 
-  const etat = ligneDeStatut(statut);
-  if (etat) lignes.push(etat);
+  const etat = ligneDeStatut(statut, dedans);
+  if (etat) corps.push(etat);
+
+  const tete = [
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    ...ligneDAffirmation({ sujet, valeur, unite })
+  ];
+
+  return corps.length
+    ? [[...tete, espace(), jeton(JETON.ACCOLADE, "{")], ...corps, ligneFermante(profondeur)]
+    : [tete];
+}
+
+/**
+ * Un fichier entier : ses zones, et les blocs de chacune.
+ *
+ * ## L'ordre, et le blanc entre les blocs
+ *
+ * « Toutes zones » d'abord : ce qui vaut partout se lit avant ce qui ne vaut
+ * qu'ici. Puis les zones dans l'ordre où le projet les a découpées.
+ *
+ * Une ligne vide sépare deux blocs. Ce n'est pas de l'ornement : sans elle,
+ * l'accolade fermante d'un bloc et la tête du suivant se collent, et l'œil ne
+ * voit plus où l'un finit.
+ *
+ * @param {{zone: string, blocs: object[][]}[]} sections
+ */
+export function corpsDuFichier(sections = []) {
+  const lignes = [];
+
+  const rangees = (Array.isArray(sections) ? sections : []).filter((section) => section?.blocs?.length);
+  rangees.forEach((section, rang) => {
+    if (rang > 0) lignes.push(ligneVide());
+    lignes.push(ligneDeZone(section.zone));
+
+    section.blocs.forEach((bloc, position) => {
+      if (position > 0) lignes.push(ligneVide());
+      lignes.push(...bloc);
+    });
+
+    lignes.push(ligneFermante(0));
+  });
 
   return lignes;
 }

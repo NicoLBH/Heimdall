@@ -46,7 +46,10 @@ export function isProjectTabAllowedForUser() {
 export const PROJECT_TABS = [
   {
     id: PROJECT_TAB_IDS.DOCUMENTS,
-    label: "Documents",
+    // « Fichiers » et non « Documents » : l'onglet porte les deux matières du
+    // projet, les pièces déposées **et** ce que le projet sait. Ce sont les
+    // mêmes sources — celles à partir desquelles il se reconstruit.
+    label: "Fichiers",
     icon: svgIcon("file", { className: "octicon octicon-file" })
   },
   {

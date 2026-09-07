@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  blocDeRegle, blocDAffirmation, enTeteDeFichier, texteDesLignes,
-  PROVENANCE, STATUT, OPERATEUR
+  blocDeRegle, blocDAffirmation, enTeteDeFichier, corpsDuFichier, texteDesLignes,
+  PROVENANCE, STATUT, OPERATEUR, TOUTES_ZONES
 } from "./memoire-en-texte.js";
 import {
   lireUnFichier, lireUneCondition, lireUneValeur, lireUneTete,
@@ -192,4 +192,60 @@ test("un corpus circulaire ne fait pas boucler la lecture", () => {
     { sujet: "B", conditions: [{ sujet: "A" }], sauf: [] }
   ];
   assert.deepEqual(aRevoirSi("A", blocs), ["B"]);
+});
+
+test("lire(écrire(G)) = G — un fichier entier, zones et accolades comprises", () => {
+  const sections = [
+    { zone: TOUTES_ZONES, blocs: [blocDeRegle(REGLES[0], 1)] },
+    { zone: "Bâtiment A", blocs: [blocDeRegle(REGLES[1], 1)] }
+  ];
+
+  const texte = texteDesLignes([
+    ...enTeteDeFichier({ chemin: ["Mémoire", "Incendie"], extension: "ref" }),
+    [],
+    ...corpsDuFichier(sections)
+  ]);
+
+  const { chemin, blocs, refus } = lireUnFichier(texte);
+  assert.deepEqual(refus, []);
+  assert.equal(chemin, "memoire/incendie.ref");
+  assert.equal(blocs.length, 2);
+
+  // La zone se lit sur chaque bloc : c'est la section qui la porte, pas la ligne.
+  assert.equal(blocs[0].zone, TOUTES_ZONES);
+  assert.equal(blocs[1].zone, "Bâtiment A");
+  assert.deepEqual(blocs.map(commeEcrit), REGLES);
+});
+
+test("une accolade fermante de trop ne fait pas perdre le sens", () => {
+  const { blocs, refus } = lireUnFichier([
+    "zone: Bâtiment A {",
+    '   Colonne sèche = "exigée" {',
+    "      statut: retenu",
+    "   }",
+    "}",
+    "}"
+  ].join("\n"));
+
+  assert.deepEqual(refus, []);
+  assert.equal(blocs.length, 1);
+  assert.equal(blocs[0].statut, "retenu");
+  assert.equal(blocs[0].zone, "Bâtiment A");
+});
+
+test("un architecte qui n'écrit pas d'accolades est lu quand même", () => {
+  const { blocs, refus } = lireUnFichier([
+    "zone: Bâtiment A",
+    'Portance du sol = 0,2 MPa',
+    "   hypothèse: à confirmer par le G2",
+    "   statut: supposé",
+    'Zone de neige = "E"',
+    "   document: carte NF EN 1991-1-3"
+  ].join("\n"));
+
+  assert.deepEqual(refus, []);
+  assert.equal(blocs.length, 2);
+  assert.equal(blocs[0].statut, "supposé");
+  assert.equal(blocs[1].provenance.type, "document");
+  assert.equal(blocs[1].zone, "Bâtiment A");
 });

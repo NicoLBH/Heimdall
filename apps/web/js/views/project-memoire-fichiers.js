@@ -28,10 +28,10 @@ import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import {
   blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
-  PROVENANCE, STATUT
+  ligneDeZone, ligneFermante, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDeLaZone, phraseDeLExtension, rangDeLaZone, rangDeLExtension
+  phraseDeLaRacine, phraseDeLExtension, rangDeLaRacine, rangDeLExtension
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
@@ -55,7 +55,7 @@ const cleHtml = (valeur) => texte(valeur).replace(/[^\w-]+/g, "-");
 export function preparerLaMemoire(assertions = []) {
   const dossiers = dossiersDeLaMemoire(assertions)
     .map((dossier) => ({ ...dossier, fichiers: dossier.fichiers.slice().sort(parLecture) }))
-    .sort((gauche, droite) => rangDeLaZone(gauche.nom) - rangDeLaZone(droite.nom)
+    .sort((gauche, droite) => rangDeLaRacine(gauche.nom) - rangDeLaRacine(droite.nom)
       || gauche.nom.localeCompare(droite.nom, "fr"));
 
   return { dossiers, fichiers: fichiersDeLaMemoire(assertions) };
@@ -157,15 +157,18 @@ export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte
  * La barre : fil d'Ariane, et la recherche à droite
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export function renderBarre({ chemin = [], query = "", ouverte = true, racine = false } = {}) {
+export function renderBarre({
+  chemin = [], query = "", ouverte = true, racine = false,
+  libelle = "Mémoire", prefixe = []
+} = {}) {
   const miettes = [
-    `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="">Mémoire</button>`,
+    `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="">${escapeHtml(libelle)}</button>`,
     ...chemin.map((morceau, rang) => {
-      const cible = chemin.slice(0, rang + 1);
-      // Le dernier morceau porte déjà son extension : « incendie.ctr ».
-      const libelle = morceau;
+      // La cible porte le préfixe de la branche : le fil affiche « Mémoire /
+      // Incendie.ctr », mais l'adresse reste celle du fichier.
+      const cible = [...prefixe, ...chemin.slice(0, rang + 1)];
       return `<span class="documents-breadcrumb__sep">/</span>`
-        + `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="${escapeHtml(cible.join("/"))}">${escapeHtml(libelle)}</button>`;
+        + `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="${escapeHtml(cible.join("/"))}">${escapeHtml(morceau)}</button>`;
     })
   ].join("");
 
@@ -217,7 +220,7 @@ export function renderDossiers(memoire, { assertions = [] } = {}) {
               <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
               <span class="memoire-entree__corps">
                 <span class="memoire-entree__nom">${escapeHtml(dossier.nom)}</span>
-                <span class="memoire-entree__phrase">${escapeHtml(phraseDeLaZone(dossier.nom))}</span>
+                <span class="memoire-entree__phrase">${escapeHtml(phraseDeLaRacine(dossier.nom))}</span>
               </span>
               <span class="memoire-entree__compte">${dossier.lignes} ligne${dossier.lignes > 1 ? "s" : ""}</span>
             </button>
@@ -346,41 +349,118 @@ export function ilYA(quand) {
 }
 
 /**
+ * Les lignes d'un fichier, prêtes à s'afficher : numérotées, et pliables.
+ *
+ * ## Pourquoi le pliage a besoin d'accolades
+ *
+ * Un fichier de cent affirmations fait cinq cents lignes. Replié sur ses têtes,
+ * il en fait cent, et l'on retrouve la lecture qu'on avait perdue. Mais pour
+ * plier, il faut savoir où un bloc finit : c'est ce que l'accolade dit, et
+ * qu'aucune indentation ne dit aussi sûrement.
+ *
+ * Chaque ligne porte donc son bloc d'appartenance. Le caret ouvre et ferme, la
+ * numérotation ne bouge pas — c'est ce que fait un dépôt, et c'est ce qu'on
+ * attend.
+ *
+ * @returns {{rang, jetons, nature, bloc, ouvre, assertion, position}[]}
+ */
+export function lignesAffichables(fichier) {
+  const sorties = [];
+  let rang = 0;
+  let numeroDeBloc = 0;
+
+  for (const section of fichier.sections ?? [{ zone: "", lignes: fichier.lignes ?? [] }]) {
+    const zone = texte(section.zone);
+    const dedans = zone ? 1 : 0;
+    numeroDeBloc += 1;
+    const blocDeZone = `z${numeroDeBloc}`;
+
+    if (zone) {
+      rang += 1;
+      sorties.push({
+        rang, jetons: ligneDeZone(zone), nature: "zone",
+        bloc: blocDeZone, ouvre: blocDeZone, parent: null, assertion: null, position: 0
+      });
+    }
+
+    section.lignes.forEach((assertion, place) => {
+      // Un blanc entre deux blocs : sans lui, l'accolade fermante de l'un et la
+      // tête du suivant se collent, et l'œil ne voit plus où l'un finit.
+      if (place > 0) {
+        rang += 1;
+        sorties.push({ rang, jetons: [], nature: "vide", bloc: null, ouvre: null, parent: blocDeZone, assertion: null, position: 0 });
+      }
+
+      numeroDeBloc += 1;
+      const cle = `b${numeroDeBloc}`;
+      const lignes = lignesDeLAssertion(assertion, dedans);
+
+      lignes.forEach((ligne, position) => {
+        rang += 1;
+        sorties.push({
+          rang, jetons: ligne.jetons, nature: ligne.nature,
+          bloc: cle,
+          // Seule la tête porte le caret, et seulement si le bloc a un corps.
+          ouvre: position === 0 && lignes.length > 1 ? cle : null,
+          parent: position === 0 ? blocDeZone : cle,
+          assertion, position
+        });
+      });
+    });
+
+    if (zone) {
+      rang += 1;
+      sorties.push({
+        rang, jetons: ligneFermante(0), nature: "accolade",
+        bloc: blocDeZone, ouvre: null, parent: blocDeZone, assertion: null, position: 1
+      });
+    }
+  }
+
+  return sorties;
+}
+
+/**
  * Un fichier : ce qu'il dit, ou qui l'a écrit.
  *
  * Le contenu est le même dans les deux lectures — c'est la marge qui change.
  * Deux rendus différents du même fichier finiraient par ne plus montrer la même
  * chose, et l'on ne saurait plus lequel croire.
  *
+ * ## Le caret ne s'affiche qu'en lecture Code
+ *
+ * En lecture Origine, on cherche **qui a décidé** : replier un bloc y cacherait
+ * précisément ce qu'on est venu voir. La colonne du caret n'existe donc que
+ * dans Code, à droite des numéros de ligne.
+ *
  * ## Une affirmation, plusieurs lignes
  *
- * Depuis que la mémoire garde les raisonnements, une affirmation occupe un
- * bloc. La marge du Blame ne se répète pas sur chacune de ses lignes : elles
+ * La marge du Blame ne se répète pas sur chacune des lignes d'un bloc : elles
  * viennent toutes du même versement, et répéter le même numéro quatre fois
  * ferait croire à quatre décisions.
  */
 export function renderFichier(fichier, {
-  lecture = LECTURE.CODE, auteurs = new Map(), propositions = new Map()
+  lecture = LECTURE.CODE, auteurs = new Map(), propositions = new Map(), plies = new Set()
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
+  const lignes = lignesAffichables(fichier);
+  const pliable = lecture === LECTURE.CODE;
 
-  let rang = 0;
-  const bloc = (assertion) => {
-    const blame = blameDeLaLigne(assertion, auteurs);
-    const lignes = lignesDeLAssertion(assertion);
+  const corps = lignes.map((ligne) => {
+    const blame = ligne.assertion ? blameDeLaLigne(ligne.assertion, auteurs) : null;
+    const replie = pliable && ligne.ouvre && plies.has(ligne.ouvre);
+    // Une ligne dont le bloc parent est replié se cache. La tête, elle, reste.
+    const cachee = pliable && ligne.parent && ligne.parent !== ligne.ouvre && plies.has(ligne.parent);
 
-    return lignes
-      .map((ligne, position) => {
-        rang += 1;
-        return `
+    return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
-      }">
+      }" data-memoire-parent="${escapeHtml(ligne.parent ?? "")}"${cachee ? " hidden" : ""}>
         ${
           lecture === LECTURE.BLAME
-            ? position === 0
-              ? `<button type="button" class="memoire-blame memoire-blame--chaleur-${chaleurDeLaLigne(assertion, bornes)}"
+            ? blame && ligne.position === 0
+              ? `<button type="button" class="memoire-blame memoire-blame--chaleur-${chaleurDeLaLigne(ligne.assertion, bornes)}"
                    ${blame.propositionId ? `data-memoire-proposition="${escapeHtml(blame.propositionId)}"` : "disabled"}
                    title="${escapeHtml([blame.qui, blame.quand ? formatDate(blame.quand) : ""].filter(Boolean).join(" · ") || "origine inconnue")}">
                    <span class="memoire-blame__ref">${escapeHtml(blame.intitule)}</span>
@@ -389,15 +469,22 @@ export function renderFichier(fichier, {
               : `<span class="memoire-blame memoire-blame--suite" aria-hidden="true"></span>`
             : ""
         }
-        <span class="memoire-ligne__num">${rang}</span>
+        <span class="memoire-ligne__num">${ligne.rang}</span>
+        ${
+          pliable
+            ? ligne.ouvre
+              ? `<button type="button" class="memoire-ligne__caret" data-memoire-plier-bloc="${escapeHtml(ligne.ouvre)}"
+                   aria-expanded="${replie ? "false" : "true"}"
+                   aria-label="${replie ? "Déplier ce bloc" : "Replier ce bloc"}">
+                   ${svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" })}
+                 </button>`
+              : `<span class="memoire-ligne__caret" aria-hidden="true"></span>`
+            : ""
+        }
         <span class="memoire-ligne__code">${renderJetons(ligne.jetons)}</span>
       </div>
     `;
-      })
-      .join("");
-  };
-
-  const corps = fichier.lignes.map(bloc).join("");
+  }).join("");
 
   return `
     <section class="memoire-fichier">
@@ -410,7 +497,7 @@ export function renderFichier(fichier, {
             `)
             .join("")}
         </span>
-        <span class="memoire-fichier__mesure">${rang} ligne${rang > 1 ? "s" : ""} · ${octets(clair)}</span>
+        <span class="memoire-fichier__mesure">${lignes.length} ligne${lignes.length > 1 ? "s" : ""} · ${octets(clair)}</span>
         <span class="memoire-fichier__espace"></span>
         <button type="button" class="memoire-fichier__copier" data-memoire-copier
           title="Copier le fichier dans le presse-papiers" aria-label="Copier le fichier dans le presse-papiers">
@@ -419,8 +506,7 @@ export function renderFichier(fichier, {
       </header>
       ${renderDernierVersement(fichier.lignes, { auteurs, propositions })}
       <div class="memoire-fichier__corps">
-        ${corps
-          || `<p class="review-empty-note">Ce fichier ne porte plus aucune valeur : tout ce qu'il contenait a été remplacé ou écarté.</p>`}
+        ${corps || `<p class="review-empty-note">Ce fichier ne porte plus aucune valeur : tout ce qu'il contenait a été remplacé ou écarté.</p>`}
       </div>
       ${
         fichier.ecartees.length
@@ -456,8 +542,7 @@ export function fichierEnClair(fichier, { enClair } = {}) {
   const lignes = [
     `fichier: ${cheminDeFichier(fichier.chemin, fichier.extension)}`,
     "",
-    ...fichier.lignes.flatMap((assertion) =>
-      lignesDeLAssertion(assertion).map((ligne) => enClair(ligne.jetons)))
+    ...lignesAffichables(fichier).map((ligne) => enClair(ligne.jetons))
   ];
 
   if (fichier.ecartees.length) {
@@ -488,7 +573,7 @@ export function fichierEnClair(fichier, { enClair } = {}) {
  *
  * @returns {{jetons: object[], nature: string}[]}
  */
-export function lignesDeLAssertion(assertion = {}) {
+export function lignesDeLAssertion(assertion = {}, profondeur = 0) {
   const payload = assertion.payload ?? {};
   const brute = texte(payload.value) || texte(assertion.statement);
   const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
@@ -508,7 +593,7 @@ export function lignesDeLAssertion(assertion = {}) {
       sauf: payload.regle.sauf ?? [],
       provenance: provenanceDeLAssertion(assertion),
       preuve: texte(payload.citation)
-    });
+    }, profondeur);
     return regle.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
   }
 
@@ -522,7 +607,7 @@ export function lignesDeLAssertion(assertion = {}) {
     provenance: provenanceDeLAssertion(assertion),
     preuve: texte(payload.citation),
     statut: statutDeLAssertion(assertion)
-  });
+  }, profondeur);
 
   return lignes.map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
 }
@@ -592,9 +677,17 @@ export function statutDeLAssertion(assertion = {}) {
   return STATUT.RETENU;
 }
 
-/** Une affirmation, sur sa seule ligne de valeur — sans son raisonnement. */
+/**
+ * Une affirmation, sur sa seule ligne de valeur — sans son détail.
+ *
+ * L'accolade tombe : elle borne un bloc, et il n'y a pas de bloc quand la ligne
+ * est citée seule. Une ouvrante sans fermante se lirait comme une faute.
+ */
 export function jetonsDeLAssertion(assertion = {}) {
-  return lignesDeLAssertion(assertion)[0].jetons;
+  const tete = lignesDeLAssertion(assertion)[0].jetons.filter((jeton) => jeton.texte !== "{");
+  // L'espace qui précédait l'accolade n'a plus rien à séparer.
+  while (tete.length && !tete[tete.length - 1].texte.trim()) tete.pop();
+  return tete;
 }
 
 function renderJetons(jetons = []) {

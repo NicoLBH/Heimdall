@@ -21,7 +21,7 @@ test("un fichier ne contient que ce qui vaut aujourd'hui", () => {
   ]);
 
   assert.equal(fichiers.length, 1);
-  assert.equal(fichiers[0].fichier, "tout-l-ouvrage/incendie.ctr");
+  assert.equal(fichiers[0].fichier, "memoire/incendie.ctr");
   assert.deepEqual(fichiers[0].lignes.map((l) => l.payload.value), ["CF 1 h", "3e famille B"]);
 });
 
@@ -35,36 +35,45 @@ test("ce qui a été écarté a sa section, il ne se lit pas comme acquis", () =
   assert.deepEqual(fichiers[0].ecartees.map((l) => l.subject_key), ["desenfumage"]);
 });
 
-test("le rangement suit la zone, et l'extension dit la nature", () => {
+test("ce qui est observé est transversal, ce qui est déduit est par domaine", () => {
   const fichiers = fichiersDeLaMemoire([
     assertion("a1", "zone-neige", "A2", { nature: "donnee-de-base", domain: "structure" }),
     assertion("a2", "hors-gel", "0,80 m", { nature: "contrainte", domain: "structure" })
   ]);
 
-  // Même zone, même domaine, deux natures : deux fichiers voisins, comme
-  // `app.css` et `app.js`.
+  // Une mesure appartient au bâtiment, pas à une discipline : elle porte le nom
+  // de sa nature. Une contrainte vient d'un corpus : elle porte son domaine.
   assert.deepEqual(fichiers.map((f) => f.fichier).sort(),
-    ["tout-l-ouvrage/structure.ctr", "tout-l-ouvrage/structure.ddb"]);
+    ["memoire/donnees-de-base.ddb", "memoire/structure.ctr"]);
 });
 
-test("une affirmation qui vaut pour deux zones se lit dans les deux fichiers", () => {
+test("une affirmation qui vaut pour deux zones ouvre les deux sections du même fichier", () => {
   const fichiers = fichiersDeLaMemoire([
     assertion("a1", "degre-cf", "CF 1 h", {
       nature: "contrainte", domain: "incendie",
       payload: { subject: "Degré coupe-feu", value: "CF 1 h", zones: ["Escalier A", "Escalier B"] }
+    }),
+    assertion("a2", "champ", "dans le champ", {
+      nature: "contrainte", domain: "incendie",
+      payload: { subject: "Champ d'application", value: "dans le champ" }
     })
   ]);
 
-  assert.deepEqual(fichiers.map((f) => f.fichier).sort(),
-    ["escalier-a/incendie.ctr", "escalier-b/incendie.ctr"]);
+  // Un seul fichier : la zone est une section, pas un répertoire.
+  assert.deepEqual(fichiers.map((f) => f.fichier), ["memoire/incendie.ctr"]);
+
+  // Ce qui vaut partout se lit en premier.
+  const sections = fichiers[0].sections;
+  assert.deepEqual(sections.map((s) => s.zone), ["Toutes zones", "Escalier A", "Escalier B"]);
   // La même affirmation, vue de deux endroits : même identifiant des deux côtés.
-  assert.deepEqual(fichiers.map((f) => f.lignes[0].id), ["a1", "a1"]);
+  assert.deepEqual(sections[1].lignes.map((l) => l.id), ["a1"]);
+  assert.deepEqual(sections[2].lignes.map((l) => l.id), ["a1"]);
 });
 
 test("un dossier vide ne s'affiche pas : un projet neuf n'a rien perdu", () => {
   assert.deepEqual(dossiersDeLaMemoire([]), []);
   const dossiers = dossiersDeLaMemoire([assertion("a1", "degre-cf", "CF 1 h")]);
-  assert.deepEqual(dossiers.map((d) => d.nom), ["Tout l'ouvrage"]);
+  assert.deepEqual(dossiers.map((d) => d.nom), ["Mémoire"]);
   assert.equal(dossiers[0].lignes, 1);
 });
 

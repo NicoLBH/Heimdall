@@ -1,68 +1,64 @@
 /**
- * Où une affirmation se range, et sous quel nom.
+ * Où un fichier de mémoire vit, et sous quel nom.
  *
- * ## L'arborescence suit la zone, puis le domaine
+ * ## Deux racines : ce qu'on dépose, ce qu'on écrit
  *
- * Elle suivait la nature, puis le domaine : `contraintes/incendie`,
- * `donnees-de-base/structure`. C'était logique pour qui range, pas pour qui
- * cherche. Sur un chantier on ne dit pas « les données de base de l'incendie,
- * pour l'escalier B » : on dit **« l'escalier B, l'incendie, ce qui a été
- * relevé »**. On part du morceau d'ouvrage qu'on a en tête.
+ * L'onglet Fichiers porte les deux matières du projet, et elles sont de même
+ * nature : ce sont les **sources**, celles à partir desquelles le projet se
+ * reconstruit. Les PDF ne suffisent pas — qui a dit, quand, qui assume sont
+ * aussi des sources, et l'application les produit.
  *
  * ```
- * Escalier B/incendie.ref     les règles appliquées à cet escalier
- * Escalier B/incendie.ctr     ce qui s'y impose
- * Escalier B/incendie.ddb     ce qui y a été relevé
- * Escalier A/incendie.ref     et ce ne sont pas les mêmes règles
+ * Mémoire/     ce que le projet sait, écrit en mdall
+ * Documents/   les pièces déposées, rangées comme l'utilisateur veut
  * ```
  *
- * Le gain est double. L'arborescence est **plus courte** — deux niveaux au lieu
- * de trois — parce que la nature descend dans l'extension. Et tout ce qui
- * concerne une zone se lit d'un seul endroit, ce qui est exactement le geste
- * qu'on fait quand on travaille sur cette zone.
+ * ## Ce qui est observé est transversal, ce qui est déduit est par domaine
  *
- * Ce qu'on y perd : « montre-moi toutes les hypothèses du projet » demande
- * maintenant la recherche plutôt qu'un dossier. C'est le bon échange — la
- * première question se pose tous les jours, la seconde une fois par mois.
+ * Une mesure appartient au bâtiment, pas à une discipline : « nombre d'étages »
+ * sert l'incendie, la structure et l'acoustique, et la dupliquer par domaine
+ * violerait la règle 4 des fondamentaux. Une règle et une contrainte, elles,
+ * viennent d'un corpus, donc d'un domaine.
+ *
+ * ```
+ * Mémoire/donnees-de-base.ddb    ce que le bâtiment est
+ * Mémoire/hypotheses.hyp         ce qu'on suppose en attendant mieux
+ * Mémoire/corpus.crp             ce qui est entré au dossier
+ * Mémoire/incendie.ref           les règles appliquées
+ * Mémoire/incendie.ctr           ce qui s'impose
+ * Mémoire/incendie.cst           ce qui a été constaté, à une date
+ * Mémoire/structure.ctr
+ * ```
+ *
+ * Un constat reste par domaine : il observe un manquement **au regard d'une
+ * exigence**, donc d'une discipline.
+ *
+ * ## La zone est dans le fichier, pas dans l'arborescence
+ *
+ * L'unité de production est le domaine : une étude incendie touche plusieurs
+ * zones d'un coup. Avec la zone en répertoire, une seule étude se dispersait en
+ * autant de fichiers, donc autant de groupes dans le diff, pour un seul acte.
+ *
+ * La zone est une **facette**, pas un lieu : elle ouvre une section dans le
+ * fichier — `zone: Bâtiment A { … }` — et la Mémoire, qui interroge, offrira la
+ * vue par zone sans qu'elle coûte un répertoire.
  *
  * ## L'extension dit ce que le fichier contient
  *
  * Deux `incendie.mdall` à deux endroits n'ont pas de sens, et c'est dangereux :
  * on ouvre l'un en croyant l'autre. Comme `app.html`, `app.css` et `app.js`
- * disent trois choses du même `app`, l'extension dit la **nature** — et chaque
+ * disent trois choses du même `app`, l'extension dit la nature — et chaque
  * nature a sa forme d'écriture.
- *
- * ```
- * .ref   des règles          Sujet (entrées) / si / alors / texte: / parce que:
- * .ctr   des contraintes     Sujet = valeur / règle: / statut:
- * .ddb   des données de base Sujet = valeur / document: / parce que:
- * .hyp   des hypothèses      Sujet = valeur / hypothèse: / statut: supposé
- * .cst   des constats        Sujet = valeur / le: / document: / parce que:
- * .crp   le corpus           ce qui est entré au dossier
- * ```
- *
- * ## Une règle appartient à une zone
- *
- * Le texte de l'arrêté est universel ; **les règles appliquées ne le sont
- * pas**. L'escalier A classé en 3ᵉ famille B et l'escalier B classé en 2ᵉ
- * famille ne suivent pas les mêmes articles. Une règle se range donc dans la
- * zone où elle a été appliquée, comme tout le reste.
- *
- * ## Ce qui n'a pas de zone
- *
- * Ce qui vaut pour tout l'ouvrage. Ce n'est pas un manque, c'est une portée —
- * et c'est le cas le plus fréquent au début d'un projet.
  *
  * ## Ce qui n'a pas de nature
  *
- * Une extension `.mdall` plutôt qu'un rangement deviné. Une affirmation dont on
- * ignore la nature ne devient pas une donnée de base parce que c'est la plus
- * courante : ne pas savoir n'autorise pas à prétendre (fondamentaux, règle 5),
- * et un fichier qui se remplit tout seul dit qu'un utilitaire a oublié de se
- * prononcer.
+ * Une extension `.mdall` plutôt qu'un rangement deviné. Ne pas savoir
+ * n'autorise pas à prétendre (fondamentaux, règle 5), et un fichier qui se
+ * remplit tout seul dit qu'un utilitaire a oublié de se prononcer.
  */
 
-import { NATURE, DOMAIN, normalizeNature, normalizeDomain, domainLabel, natureLabel } from "./assertion-taxonomy.js";
+import { NATURE, normalizeNature, normalizeDomain, domainLabel } from "./assertion-taxonomy.js";
+import { TOUTES_ZONES } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -86,8 +82,23 @@ export const EXTENSION_REGLE = "ref";
 /** Ce dont on ignore la nature. Cette extension ne devrait pas se rencontrer. */
 export const SANS_NATURE = "mdall";
 
-/** La zone de ce qui vaut pour l'ouvrage entier. Une portée, pas un manque. */
-export const TOUT_LOUVRAGE = "Tout l'ouvrage";
+/** La racine de ce que le projet écrit. */
+export const MEMOIRE = "Mémoire";
+
+/** La racine de ce qu'il dépose. L'utilisateur y range comme il veut. */
+export const DOCUMENTS = "Documents";
+
+/**
+ * Les natures qui n'appartiennent à aucune discipline.
+ *
+ * Une mesure appartient au bâtiment : « nombre d'étages » sert l'incendie, la
+ * structure et l'acoustique. La ranger par domaine la dupliquerait.
+ */
+export const TRANSVERSALES = {
+  [NATURE.DONNEE_BASE]: "Données de base",
+  [NATURE.HYPOTHESE]: "Hypothèses",
+  [NATURE.INTENDANCE]: "Corpus"
+};
 
 /** Là où va ce dont on ignore le domaine. */
 export const SANS_DOMAINE = "Non classé";
@@ -155,52 +166,48 @@ export function extensionDeRangement({ nature = "", referentiel = false } = {}) 
  * @param {{nature?: string, domain?: string, zones?: string[], referentiel?: boolean}} affirmation
  * @returns {string[]} `["Escalier B", "Incendie"]`
  */
-export function cheminDeRangement({ domain = "", zones = [] } = {}) {
+export function cheminDeRangement({ nature = "", domain = "", referentiel = false } = {}) {
+  const famille = normalizeNature(nature);
+
+  // Ce qui est observé ne dépend d'aucune discipline : il porte le nom de sa
+  // nature, une seule fois pour tout le projet.
+  if (referentiel !== true && famille && TRANSVERSALES[famille]) {
+    return [MEMOIRE, TRANSVERSALES[famille]];
+  }
+
   const domaine = normalizeDomain(domain);
-  const portees = (Array.isArray(zones) ? zones : [zones]).map(texte).filter(Boolean);
-
-  return [
-    // La première zone nomme le fichier. Une affirmation qui vaut pour deux
-    // zones apparaît dans les deux : voir `cheminsDeRangement`.
-    portees[0] || TOUT_LOUVRAGE,
-    domaine ? domainLabel(domaine) : SANS_DOMAINE
-  ];
+  return [MEMOIRE, domaine ? domainLabel(domaine) : SANS_DOMAINE];
 }
 
 /**
- * Tous les chemins d'une affirmation — un par zone où elle vaut.
+ * La zone d'une affirmation, telle qu'elle ouvre sa section.
  *
- * Une contrainte qui vaut pour l'escalier A **et** pour l'escalier B se lit dans
- * les deux fichiers. Ce n'est pas une copie : c'est la même affirmation, vue de
- * deux endroits, et elle porte le même identifiant dans les deux.
+ * Une affirmation sans portée vaut partout, et « Toutes zones » se lit en
+ * premier dans un fichier : ce qui vaut partout se lit avant ce qui ne vaut
+ * qu'ici.
  *
- * L'alternative — un dossier « A + B » — cacherait la contrainte à qui ouvre
- * l'escalier A, ce qui est exactement l'erreur qu'on veut éviter.
+ * Une affirmation qui vaut pour deux zones ouvre les deux sections. Ce n'est
+ * pas une copie : c'est la même, vue de deux endroits, et elle porte le même
+ * identifiant dans les deux.
  */
-export function cheminsDeRangement({ domain = "", zones = [] } = {}) {
+export function zonesDeRangement({ zones = [] } = {}) {
   const portees = [...new Set((Array.isArray(zones) ? zones : [zones]).map(texte).filter(Boolean))];
-  if (!portees.length) return [cheminDeRangement({ domain })];
-  return portees.map((zone) => cheminDeRangement({ domain, zones: [zone] }));
+  return portees.length ? portees : [TOUTES_ZONES];
 }
 
-/**
- * Les zones, dans l'ordre où on les lit.
- *
- * « Tout l'ouvrage » d'abord : ce qui vaut partout se lit avant ce qui ne vaut
- * qu'ici, et c'est aussi ce qui existe en premier dans un projet.
- */
+/** L'ordre des zones dans un fichier. « Toutes zones » d'abord. */
 export function rangDeLaZone(zone) {
-  return texte(zone) === TOUT_LOUVRAGE ? 0 : 1;
+  return texte(zone) === TOUTES_ZONES ? 0 : 1;
 }
 
-/**
- * Ce qu'une zone dit d'elle-même, en une phrase.
- *
- * Un dossier nommé sans être expliqué se remplit de travers, et « Tout
- * l'ouvrage » se confond avec « je n'ai pas su où le mettre ».
- */
-export function phraseDeLaZone(zone) {
-  return texte(zone) === TOUT_LOUVRAGE
-    ? "Ce qui vaut pour l'ensemble du projet, sans distinction de bâtiment ni de cage."
-    : `Ce que le projet retient pour ${texte(zone)}, et rien d'autre.`;
+/** L'ordre des deux racines : ce que le projet sait, puis ce qu'il a reçu. */
+export function rangDeLaRacine(racine) {
+  return texte(racine) === MEMOIRE ? 0 : 1;
+}
+
+/** Ce qu'une racine dit d'elle-même, en une phrase. */
+export function phraseDeLaRacine(racine) {
+  return texte(racine) === MEMOIRE
+    ? "Ce que le projet sait, et comment il l'a su. Écrit par l'application, jamais déplaçable."
+    : "Les pièces déposées : plans, notes, comptes rendus. Rangez-les comme vous voulez.";
 }

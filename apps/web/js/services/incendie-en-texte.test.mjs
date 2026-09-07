@@ -58,7 +58,7 @@ test("le fichier de règles ne contient aucune valeur de ce projet", () => {
   const fichier = fichierDesRegles(VUE, { le: "7 septembre 2026" });
   const texte = texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons));
 
-  assert.equal(fichier.chemin, "tout-l-ouvrage/incendie.ref");
+  assert.equal(fichier.chemin, "memoire/incendie.ref");
   assert.equal(fichier.compte.regles, 2);
   assert.equal(texte.includes("statut"), false);
   assert.equal(texte.includes("retenu"), false);
@@ -71,9 +71,10 @@ test("le fichier de projet renvoie à la règle sans la recopier", () => {
   const fichier = fichierDeLEtude(VUE, { le: "7 septembre 2026" });
   const texte = texteDesLignes(fichier.lignes.map((ligne) => ligne.jetons));
 
-  assert.equal(fichier.chemin, "tout-l-ouvrage/incendie.ctr");
+  assert.equal(fichier.chemin, "memoire/incendie.ctr");
   assert.deepEqual(fichier.compte, { affirmations: 2, sansObjet: 0, attente: 0 });
-  assert.match(texte, /^Classement du bâtiment = "3e famille B"$/m);
+  assert.match(texte, /^\s+Classement du bâtiment = "3e famille B" \{$/m);
+  assert.match(texte, /^zone: Toutes zones \{$/m);
   assert.match(texte, /règle: Classement du bâtiment — arrêté/);
   assert.match(texte, /statut: retenu/);
   // La règle est ailleurs : elle vaut pour mille bâtiments, cette valeur pour un.
@@ -88,12 +89,12 @@ test("une valeur sans exigence garde sa valeur : c'est le statut qui dit l'absen
     conditions: [], pourquoi: { article: "4" }
   };
 
-  const entree = affirmationDuModule(module, "arrêté du 31 janvier 1986 modifié");
+  const entree = affirmationDuModule(module, "arrêté du 31 janvier 1986 modifié", 0);
   const texte = texteDesLignes(entree.lignes);
 
   assert.equal(entree.nature, "sans-objet");
   // La valeur reste : « Voie-échelles » en dépend, et l'effacer casserait le graphe.
-  assert.match(texte, /^Voie-engins = "non décrite"$/m);
+  assert.match(texte, /^Voie-engins = "non décrite" \{$/m);
   assert.match(texte, /statut: sans objet/);
   assert.match(texte, /parce que: "Les première et deuxième familles/);
 });
@@ -104,8 +105,8 @@ test("ce qui attend une réponse s'écrit, avec ce qui le retient", () => {
     manque: ["Hauteur du dernier plancher"], conditions: [], pourquoi: { article: "26" }
   };
 
-  const texte = texteDesLignes(affirmationDuModule(module, "arrêté").lignes);
-  assert.match(texte, /^Type d'escalier exigé$/m);
+  const texte = texteDesLignes(affirmationDuModule(module, "arrêté", 0).lignes);
+  assert.match(texte, /^Type d'escalier exigé \{$/m);
   assert.match(texte, /statut: en attente/);
   assert.match(texte, /parce que: "Il manque : Hauteur du dernier plancher\."/);
 });

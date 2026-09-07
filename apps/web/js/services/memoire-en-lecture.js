@@ -89,10 +89,21 @@ const CONSTATS = new Map([
  * lirait comme un statut.
  */
 const TETES = [
-  "sauf si", "parce que:", "statut:", "fichier:", "note:", "le:",
+  "sauf si", "parce que:", "statut:", "fichier:", "note:", "le:", "zone:",
   "alors", "sinon", "si", "et", "ou", "non",
   ...PROVENANCES.map((type) => `${type}:`)
 ];
+
+/** Ce qu'une ligne ouvre ou ferme. L'accolade borne, elle ne dit rien d'autre. */
+function bornesDe(ligne) {
+  const nu = texte(ligne);
+  return {
+    ferme: nu === "}",
+    ouvre: nu.endsWith("{"),
+    // Le contenu, une fois l'accolade retirée.
+    corps: nu.endsWith("{") ? texte(nu.slice(0, -1)) : nu
+  };
+}
 
 /** La profondeur d'indentation d'une ligne, en pas. */
 function retraitDe(ligne) {
@@ -220,38 +231,57 @@ export function lireUnFichier(contenu = "") {
   const blocs = [];
   const refus = [];
   let chemin = "";
+  let zone = "";
   let courant = null;
 
-  const fermer = () => { if (courant) blocs.push(courant); courant = null; };
+  const fermer = () => {
+    if (courant) {
+      // `accolade` sert à la lecture, pas au sens : elle ne ressort pas.
+      const { accolade, ...bloc } = courant;
+      blocs.push(bloc);
+    }
+    courant = null;
+  };
 
   lignes.forEach((brute, rang) => {
     const numero = rang + 1;
-    const nu = texte(brute);
-    if (!nu) return;
+    const { ferme, ouvre, corps } = bornesDe(brute);
+    if (!corps && !ferme) return;
 
-    const { mot, reste } = teteDe(nu);
+    // Une accolade seule ferme ce qui est ouvert : le bloc courant s'il y en a
+    // un, la zone sinon. On ne la refuse jamais — une borne en trop est une
+    // faute d'écriture, pas une perte de sens.
+    if (ferme) {
+      if (courant) fermer();
+      else zone = "";
+      return;
+    }
+
+    const { mot, reste } = teteDe(corps);
 
     if (mot === "fichier:") { fermer(); chemin = reste; return; }
     // Une note ne porte jamais de sens : elle ne rouvre ni ne ferme rien.
     if (mot === "note:") return;
 
-    if (retraitDe(brute) === 0) {
-      fermer();
-      const tete = lireUneTete(nu);
+    if (mot === "zone:") { fermer(); zone = reste; return; }
+
+    // Un bloc ouvert **sans** accolade se ferme à la première ligne non
+    // indentée : c'est l'ancienne règle, et elle reste, parce qu'un architecte
+    // qui tape à la main n'ajoutera pas toujours ses bornes.
+    if (courant && !courant.accolade && retraitDe(brute) === 0) fermer();
+
+    if (!courant) {
+      const tete = lireUneTete(corps);
       if (!tete?.sujet) {
-        refus.push({ ligne: numero, texte: nu, raison: "cette ligne n'ouvre aucune donnée." });
+        refus.push({ ligne: numero, texte: corps, raison: "cette ligne n'ouvre aucune donnée." });
         return;
       }
       courant = {
-        sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite,
+        sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite, zone,
+        accolade: ouvre,
         conditions: [], alors: "", sinon: "", sauf: [],
         provenance: null, preuve: "", statut: "", le: ""
       };
-      return;
-    }
-
-    if (!courant) {
-      refus.push({ ligne: numero, texte: nu, raison: "cette ligne est indentée sous rien." });
       return;
     }
 
@@ -269,7 +299,7 @@ export function lireUnFichier(contenu = "") {
     if (mot === "statut:") {
       const etat = reste.toLowerCase();
       if (!STATUTS.includes(etat)) {
-        refus.push({ ligne: numero, texte: nu, raison: `« ${etat} » n'est pas un statut connu.` });
+        refus.push({ ligne: numero, texte: corps, raison: `« ${etat} » n'est pas un statut connu.` });
         return;
       }
       courant.statut = etat;
@@ -285,7 +315,7 @@ export function lireUnFichier(contenu = "") {
     if (mot === "si" || mot === "et" || mot === "ou" || mot === "non" || mot === "sauf si") {
       const condition = lireUneCondition(reste);
       if (!condition) {
-        refus.push({ ligne: numero, texte: nu, raison: "cette condition ne compare rien." });
+        refus.push({ ligne: numero, texte: corps, raison: "cette condition ne compare rien." });
         return;
       }
       if (mot === "sauf si") courant.sauf.push(condition);
@@ -296,13 +326,13 @@ export function lireUnFichier(contenu = "") {
 
     // Un mot-clé en deux points qu'on ne connaît pas est presque toujours une
     // provenance mal orthographiée : le dire aide plus que « mot inconnu ».
-    if (mot.endsWith(":") || /^[^\s:]+:\s/.test(nu)) {
-      const propose = mot.endsWith(":") ? mot.slice(0, -1) : nu.split(":")[0];
-      refus.push({ ligne: numero, texte: nu, raison: `« ${propose} » n'est pas une provenance connue.` });
+    if (mot.endsWith(":") || /^[^\s:]+:\s/.test(corps)) {
+      const propose = mot.endsWith(":") ? mot.slice(0, -1) : corps.split(":")[0];
+      refus.push({ ligne: numero, texte: corps, raison: `« ${propose} » n'est pas une provenance connue.` });
       return;
     }
 
-    refus.push({ ligne: numero, texte: nu, raison: "aucun mot de la langue n'ouvre cette ligne." });
+    refus.push({ ligne: numero, texte: corps, raison: "aucun mot de la langue n'ouvre cette ligne." });
   });
 
   fermer();

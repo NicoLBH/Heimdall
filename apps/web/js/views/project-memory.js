@@ -106,10 +106,6 @@ import {
   verdictLabel
 } from "../services/hypothesis-acts.js";
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
-import {
-  LECTURE, preparerLaMemoire, fichierDuChemin, fichierEnClair,
-  renderArbre, renderBarre, renderDossiers, renderFichiers, renderFichier
-} from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 
@@ -252,17 +248,6 @@ const view = {
   /** Les socles cochés, en attente de déclaration. */
   dependsDraft: [],
   navWidth: largeurRetenue(),
-  /**
-   * Où l'on est dans la mémoire, comme dans Documents.
-   *
-   * `[]` la racine et ses dossiers, `["Contraintes"]` un dossier et ses
-   * fichiers, `["Contraintes", "Incendie"]` un fichier et son contenu.
-   */
-  chemin: [],
-  /** Les dossiers repliés dans le rail. */
-  replies: new Set(),
-  /** « Code » ou « Blame » — deux questions, pas deux affichages. */
-  lecture: LECTURE.CODE,
   /** Les noms des signataires, pour la marge du Blame. */
   auteurs: new Map(),
   /** Les propositions du projet, pour repérer celles qui n'ont rien versé. */
@@ -1683,38 +1668,32 @@ function renderContent(root) {
   }
 
   const resume = summarizeMemory(view.assertions);
-  const memoire = preparerLaMemoire(view.assertions);
-  // La racine n'a pas de rail : le rail sert à passer d'un fichier à l'autre, et
-  // à la racine il redirait mot pour mot ce que la page montre déjà. Un dépôt
-  // ouvre de la même façon.
-  const racine = view.chemin.length === 0;
-  const ouverte = !racine && view.navCollapsed !== true;
-  const largeur = ouverte ? Math.max(220, Math.min(520, Number(view.navWidth) || 280)) : 0;
 
   // La recherche traverse les dossiers : c'est le geste qu'on fait quand on ne
   // sait pas où c'est rangé, et un navigateur qui refuserait de chercher
   // obligerait à ouvrir cinq dossiers pour trouver une ligne.
   const cherche = String(view.query ?? "").trim().length > 0;
 
+  // Le navigateur de fichiers a déménagé dans l'onglet Fichiers : les PDF et
+  // les fichiers de mémoire sont la même matière — les **sources** du projet —
+  // et le besoin de les parcourir était le même.
+  //
+  // Ce qui reste ici sont les gestes sur la mémoire entière : la sortir, y
+  // faire entrer, y déclarer une hypothèse. Cet onglet deviendra celui qui
+  // **exécute** la mémoire — chercher, tracer un graphe de décision, dire ce qui
+  // tombe si une donnée change. Rien de ce qu'il montrera ne se stockera : tout
+  // se recalcule depuis les fichiers.
   root.innerHTML = `
     <section class="project-simple-page project-simple-page--memory">
       <div class="propositions-shell">
         ${renderMemoryHead(resume, { busy: view.busy })}
         ${view.notice ? `<div class="propositions-empty propositions-empty--warn"><p>${escapeHtml(view.notice)}</p></div>` : ""}
         ${renderHypothesisForm()}
-
-        ${renderBarre({ chemin: view.chemin, query: view.query, ouverte, racine })}
-
-        <div class="memoire-layout${ouverte ? "" : " memoire-layout--replie"}${racine ? " memoire-layout--racine" : " memoire-layout--pleine"}" style="--memoire-tree-width:${largeur}px">
-          ${racine ? "" : renderArbre(memoire, { chemin: view.chemin, replies: view.replies, ouverte })}
-          <div class="memoire-corps">
-            ${
-              cherche
-                ? `<div class="memory-table">${renderTableHead()}${renderList(lignesVisibles(), view.page)}</div>`
-                : renderVue(memoire)
-            }
-          </div>
-        </div>
+        ${
+          cherche
+            ? `<div class="memory-table">${renderTableHead()}${renderList(lignesVisibles(), view.page)}</div>`
+            : ""
+        }
       </div>
     </section>
   `;
@@ -1722,129 +1701,9 @@ function renderContent(root) {
   bind(root);
 }
 
-/**
- * L'écran qui correspond au chemin : la racine, un dossier, ou un fichier.
- *
- * Un chemin qui ne mène nulle part se dit plutôt que de retomber en silence sur
- * la racine — on saurait qu'on a cliqué, on ne saurait pas pourquoi il ne s'est
- * rien passé.
- */
-function renderVue(memoire) {
-  const contexte = { auteurs: view.auteurs ?? new Map(), propositions: propositionsParId() };
-
-  if (view.chemin.length === 0) return renderDossiers(memoire, { assertions: view.assertions ?? [] });
-  if (view.chemin.length === 1) return renderFichiers(memoire, view.chemin[0], contexte);
-
-  const fichier = fichierDuChemin(memoire, view.chemin);
-  if (!fichier) {
-    return `<div class="propositions-empty"><b>Ce fichier n'existe plus</b>
-      <p>Rien ne s'y range aujourd'hui. Il réapparaîtra dès qu'une proposition y versera une ligne.</p></div>`;
-  }
-
-  return renderFichier(fichier, { lecture: view.lecture, ...contexte });
-}
-
 /** Les propositions, retrouvables par leur identifiant — pour les intitulés. */
 function propositionsParId() {
   return new Map((view.propositions ?? []).map((proposition) => [String(proposition.id), proposition]));
-}
-
-/**
- * Les gestes du navigateur : aller, plier, changer de lecture, copier.
- *
- * Le même vocabulaire que l'onglet Documents — un chemin, un fil d'Ariane, une
- * arborescence repliable et redimensionnable — parce que ce sont les mêmes
- * gestes, et qu'en apprendre deux pour un seul geste est un coût qu'on paie à
- * chaque écran.
- */
-function bindNavigateur(root) {
-  for (const bouton of root.querySelectorAll("[data-memoire-aller]")) {
-    bouton.addEventListener("click", () => {
-      const cible = bouton.getAttribute("data-memoire-aller") || "";
-      view.chemin = cible ? cible.split("/").filter(Boolean) : [];
-      // Changer de fichier ne change pas la question qu'on se pose : la lecture
-      // reste celle qu'on avait choisie.
-      renderContent(root);
-    });
-  }
-
-  for (const bouton of root.querySelectorAll("[data-memoire-plier]")) {
-    bouton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const nom = bouton.getAttribute("data-memoire-plier");
-      if (view.replies.has(nom)) view.replies.delete(nom);
-      else view.replies.add(nom);
-      renderContent(root);
-    });
-  }
-
-  root.querySelector("[data-memoire-replier]")?.addEventListener("click", () => {
-    setNavCollapsed(!view.navCollapsed);
-    renderContent(root);
-  });
-
-  for (const bouton of root.querySelectorAll("[data-memoire-lecture]")) {
-    bouton.addEventListener("click", () => {
-      view.lecture = bouton.getAttribute("data-memoire-lecture") === LECTURE.BLAME ? LECTURE.BLAME : LECTURE.CODE;
-      renderContent(root);
-    });
-  }
-
-  // Le blâme mène à la proposition qui a versé la ligne : c'est là qu'on lit la
-  // discussion qui a mené là, et c'est la question à laquelle cette mémoire
-  // existe pour répondre.
-  for (const bouton of root.querySelectorAll("[data-memoire-proposition]")) {
-    bouton.addEventListener("click", () => {
-      store.pendingPropositionId = bouton.getAttribute("data-memoire-proposition");
-      const projet = String(store.currentProjectId || "").trim();
-      if (projet) window.location.hash = `#project/${projet}/propositions`;
-    });
-  }
-
-  root.querySelector("[data-memoire-copier]")?.addEventListener("click", async () => {
-    const memoire = preparerLaMemoire(view.assertions ?? []);
-    const fichier = fichierDuChemin(memoire, view.chemin);
-    if (!fichier) return;
-
-    try {
-      await navigator.clipboard.writeText(fichierEnClair(fichier, { enClair }));
-      view.notice = "Le fichier est dans le presse-papiers.";
-    } catch {
-      // Un presse-papiers refusé n'est pas une raison de perdre le texte : on
-      // l'affiche, il reste sélectionnable.
-      window.prompt("Le presse-papiers a été refusé — copiez le texte ci-dessous.", fichierEnClair(fichier, { enClair }));
-      view.notice = "";
-    }
-    renderContent(root);
-  });
-
-  const poignee = root.querySelector("#memoireTreeResize");
-  if (poignee) {
-    bindSideResizer({
-      handle: poignee,
-      guide: root.querySelector("#memoireTreeResizeGuide"),
-      getWidth: () => Number(view.navWidth) || 280,
-      onResize: (largeur) => {
-        view.navWidth = largeur;
-        root.querySelector(".memoire-layout")?.style.setProperty("--memoire-tree-width", `${largeur}px`);
-      },
-      onEnd: (largeur) => { setNavWidth(largeur); renderContent(root); }
-    });
-  }
-
-  const chercher = root.querySelector("[data-memoire-query]");
-  if (chercher) {
-    chercher.addEventListener("input", (event) => {
-      view.query = event.target.value;
-      view.page = 1;
-      renderContent(root);
-      // Le curseur revient là où il était : redessiner l'écran à chaque touche
-      // le renverrait au début du champ.
-      const champ = root.querySelector("[data-memoire-query]");
-      champ?.focus();
-      champ?.setSelectionRange(champ.value.length, champ.value.length);
-    });
-  }
 }
 
 /**
@@ -1893,7 +1752,6 @@ function bindListDelegation(root) {
 function bind(root) {
   bindListDelegation(root);
   bindExportButton(root);
-  bindNavigateur(root);
 
   const recherche = root.querySelector("[data-memory-search]");
   if (recherche) {
@@ -2410,8 +2268,6 @@ export function renderProjectMemory(root) {
   view.page = 1;
   view.navCollapsed = repliRetenu();
   view.navWidth = largeurRetenue();
-  view.chemin = [];
-  view.lecture = LECTURE.CODE;
   view.query = "";
   renderContent(root);
 

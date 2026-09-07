@@ -88,9 +88,9 @@ test("un avis ajouté n'a pas d'avant : on ne lui en invente pas un", () => {
 
   assert.equal(avant.length, 0);
   assert.equal(apres.length, 1);
-  // Zone puis domaine : un avis sans zone vaut pour l'ouvrage entier, et son
-  // extension `.cst` dit que c'est un constat.
-  assert.deepEqual(apres[0].chemin, ["Tout l'ouvrage", "Incendie"]);
+  // Un avis est un constat : il se range par domaine, et son extension `.cst`
+  // dit ce qu'il est.
+  assert.deepEqual(apres[0].chemin, ["Mémoire", "Incendie"]);
   assert.equal(apres[0].id, "avis:A-12");
 });
 
@@ -236,8 +236,8 @@ test("un seuil de l'arrêté qui bouge est le seul changement que le projet puis
     }]
   });
 
-  // Zone puis domaine, et l'extension dit que ce sont des règles.
-  assert.deepEqual(apres[0].chemin, ["Escalier B", "Incendie"]);
+  // Le domaine, et l'extension dit que ce sont des règles.
+  assert.deepEqual(apres[0].chemin, ["Mémoire", "Incendie"]);
   assert.equal(apres[0].extension, "ref");
 
   const compare = comparerDesReperes({ avant, apres });

@@ -2,36 +2,29 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  cheminDeRangement, cheminsDeRangement, extensionDeRangement,
-  EXTENSIONS, EXTENSION_REGLE, SANS_NATURE, SANS_DOMAINE, TOUT_LOUVRAGE,
-  rangDeLExtension, rangDeLaZone, phraseDeLExtension, phraseDeLaZone
+  cheminDeRangement, extensionDeRangement, zonesDeRangement,
+  EXTENSIONS, EXTENSION_REGLE, SANS_NATURE, SANS_DOMAINE, MEMOIRE, DOCUMENTS,
+  rangDeLExtension, rangDeLaZone, rangDeLaRacine,
+  phraseDeLExtension, phraseDeLaRacine
 } from "./memoire-rangement.js";
+import { TOUTES_ZONES } from "./memoire-en-texte.js";
 
-test("l'arborescence part de la zone, parce que c'est de là qu'on part", () => {
-  // « l'escalier B, l'incendie, ce qui a été relevé » — et non l'inverse.
-  assert.deepEqual(cheminDeRangement({ domain: "incendie", zones: ["Escalier B"] }), ["Escalier B", "Incendie"]);
-  assert.equal(extensionDeRangement({ nature: "donnee-de-base" }), "ddb");
-});
+test("ce qui est observé est transversal, ce qui est déduit est par domaine", () => {
+  // Une mesure appartient au bâtiment, pas à une discipline : la dupliquer par
+  // domaine violerait la règle 4.
+  assert.deepEqual(cheminDeRangement({ nature: "donnee-de-base", domain: "structure" }), [MEMOIRE, "Données de base"]);
+  assert.deepEqual(cheminDeRangement({ nature: "hypothese", domain: "sol" }), [MEMOIRE, "Hypothèses"]);
+  assert.deepEqual(cheminDeRangement({ nature: "intendance" }), [MEMOIRE, "Corpus"]);
 
-test("ce qui n'a pas de zone vaut pour tout l'ouvrage : c'est une portée, pas un manque", () => {
-  assert.deepEqual(cheminDeRangement({ domain: "structure" }), [TOUT_LOUVRAGE, "Structure"]);
-  assert.match(phraseDeLaZone(TOUT_LOUVRAGE), /l'ensemble du projet/);
-  assert.match(phraseDeLaZone("Escalier B"), /pour Escalier B/);
-});
-
-test("une affirmation qui vaut pour deux zones se lit dans les deux fichiers", () => {
-  assert.deepEqual(cheminsDeRangement({ domain: "incendie", zones: ["Escalier A", "Escalier B"] }), [
-    ["Escalier A", "Incendie"],
-    ["Escalier B", "Incendie"]
-  ]);
-  // Sans zone, un seul fichier : celui de l'ouvrage entier.
-  assert.deepEqual(cheminsDeRangement({ domain: "incendie" }), [[TOUT_LOUVRAGE, "Incendie"]]);
-  // Deux fois la même zone ne fait pas deux fichiers.
-  assert.equal(cheminsDeRangement({ domain: "incendie", zones: ["A", "A"] }).length, 1);
+  // Une règle et une contrainte viennent d'un corpus, donc d'un domaine.
+  assert.deepEqual(cheminDeRangement({ nature: "contrainte", domain: "incendie" }), [MEMOIRE, "Incendie"]);
+  assert.deepEqual(cheminDeRangement({ nature: "constat", domain: "incendie" }), [MEMOIRE, "Incendie"]);
+  assert.deepEqual(cheminDeRangement({ nature: "contrainte", domain: "incendie", referentiel: true }), [MEMOIRE, "Incendie"]);
 });
 
 test("l'extension dit la nature, et une nature inconnue ne s'invente pas", () => {
   assert.equal(extensionDeRangement({ nature: "contrainte" }), EXTENSIONS.contrainte);
+  assert.equal(extensionDeRangement({ nature: "donnee-de-base" }), "ddb");
   assert.equal(extensionDeRangement({ nature: "hypothese" }), "hyp");
   assert.equal(extensionDeRangement({ nature: "constat" }), "cst");
   assert.equal(extensionDeRangement({ nature: "intendance" }), "crp");
@@ -41,15 +34,30 @@ test("l'extension dit la nature, et une nature inconnue ne s'invente pas", () =>
 });
 
 test("un domaine inconnu se range à part plutôt que de se deviner", () => {
-  assert.deepEqual(cheminDeRangement({ zones: ["Escalier B"] }), ["Escalier B", SANS_DOMAINE]);
+  assert.deepEqual(cheminDeRangement({ nature: "contrainte" }), [MEMOIRE, SANS_DOMAINE]);
 });
 
-test("les règles se lisent avant ce qu'on en tire", () => {
+test("la zone ouvre une section, elle ne fait pas un répertoire", () => {
+  // Sans portée, l'affirmation vaut partout.
+  assert.deepEqual(zonesDeRangement({}), [TOUTES_ZONES]);
+  assert.deepEqual(zonesDeRangement({ zones: ["Bâtiment A", "Bâtiment B"] }), ["Bâtiment A", "Bâtiment B"]);
+  // Deux fois la même zone n'ouvre qu'une section.
+  assert.deepEqual(zonesDeRangement({ zones: ["A", "A"] }), ["A"]);
+});
+
+test("les règles se lisent avant ce qu'on en tire, et ce qui vaut partout avant le reste", () => {
   assert.equal(rangDeLExtension(EXTENSION_REGLE), 0);
   assert.ok(rangDeLExtension("ref") < rangDeLExtension("ctr"));
   assert.ok(rangDeLExtension("ctr") < rangDeLExtension("hyp"));
-  assert.equal(rangDeLaZone(TOUT_LOUVRAGE), 0);
-  assert.ok(rangDeLaZone(TOUT_LOUVRAGE) < rangDeLaZone("Escalier B"));
+  assert.equal(rangDeLaZone(TOUTES_ZONES), 0);
+  assert.ok(rangDeLaZone(TOUTES_ZONES) < rangDeLaZone("Bâtiment A"));
+});
+
+test("les deux racines se lisent dans l'ordre : ce que le projet sait, puis ce qu'il a reçu", () => {
+  assert.equal(rangDeLaRacine(MEMOIRE), 0);
+  assert.ok(rangDeLaRacine(MEMOIRE) < rangDeLaRacine(DOCUMENTS));
+  assert.match(phraseDeLaRacine(MEMOIRE), /jamais déplaçable/);
+  assert.match(phraseDeLaRacine(DOCUMENTS), /Rangez-les comme vous voulez/);
 });
 
 test("chaque extension dit ce qu'elle contient, sans quoi on range au hasard", () => {

@@ -52,12 +52,27 @@
  */
 
 import {
-  enTeteDeFichier, blocDAffirmation, blocDeRegle,
+  enTeteDeFichier, blocDAffirmation, blocDeRegle, corpsDuFichier,
   nomDeFichier, cheminDeFichier, couperLUnite, estMesuree,
-  PROVENANCE, STATUT
+  PROVENANCE, STATUT, TOUTES_ZONES
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
+
+/**
+ * Ce qu'une ligne déjà écrite est, pour qui la colore.
+ *
+ * On ne relit pas le texte : on regarde le **type du premier jeton**, que
+ * l'écriture a posé. Relire ferait deux vérités pour une même ligne.
+ */
+function natureDeLaLigneEcrite(jetons = []) {
+  const premier = jetons.find((jeton) => jeton.type !== "neutre");
+  if (!premier) return "vide";
+  if (premier.type === "mot-zone") return "zone";
+  if (premier.type === "accolade") return "accolade";
+  if (premier.type === "sujet") return "tete";
+  return "detail";
+}
 
 /** Le texte qui fonde une conclusion, tel qu'on le cite. */
 export function sourceDuModule(module = {}, referentiel = "") {
@@ -139,7 +154,7 @@ export function regleDuModule(module = {}, referentiel = "") {
  * La valeur s'écrit donc toujours, et l'absence d'exigence est un **statut**.
  * C'est la seule façon de garder un fichier dont les règles se rejouent.
  */
-export function affirmationDuModule(module = {}, referentiel = "") {
+export function affirmationDuModule(module = {}, referentiel = "", profondeur = 1) {
   const sujet = texte(module.titre);
   if (!sujet) return null;
 
@@ -187,7 +202,7 @@ export function affirmationDuModule(module = {}, referentiel = "") {
         : null,
       preuve,
       statut
-    })
+    }, profondeur)
   };
 }
 
@@ -200,27 +215,29 @@ export function affirmationDuModule(module = {}, referentiel = "") {
  * projet.
  */
 export function fichierDesRegles(vue, {
-  chemin = ["Tout l'ouvrage", "Incendie"],
+  chemin = ["Mémoire", "Incendie"],
   extension = "ref",
+  zone = TOUTES_ZONES,
   referentiel = "arrêté du 31 janvier 1986 modifié",
   produitPar = "l'utilitaire incendie — habitation",
   le = ""
 } = {}) {
   const modules = Array.isArray(vue?.modules) ? vue.modules : [];
 
-  const corps = modules
+  const blocs = modules
     .map((module) => regleDuModule(module, referentiel))
     .filter(Boolean)
-    .flatMap((regle) => blocDeRegle(regle).map((jetons, rang) => ({
-      nature: rang === 0 ? "donnee" : "regle", jetons
-    })));
+    .map((regle) => blocDeRegle(regle, 1));
+
+  const corps = corpsDuFichier([{ zone, blocs }])
+    .map((jetons) => ({ nature: natureDeLaLigneEcrite(jetons), jetons }));
 
   return {
     nom: nomDeFichier(chemin, extension),
     chemin: cheminDeFichier(chemin, extension),
     enTete: enTeteDeFichier({ chemin, extension, produitPar, le }),
     lignes: corps,
-    compte: { regles: corps.filter((ligne) => ligne.nature === "donnee").length }
+    compte: { regles: blocs.length }
   };
 }
 
@@ -239,24 +256,21 @@ export function fichierDesRegles(vue, {
  * @param {string} options.le la date, en clair
  */
 export function fichierDeLEtude(vue, {
-  chemin = ["Tout l'ouvrage", "Incendie"],
+  chemin = ["Mémoire", "Incendie"],
   extension = "ctr",
+  zone = TOUTES_ZONES,
   referentiel = "arrêté du 31 janvier 1986 modifié",
   produitPar = "l'utilitaire incendie — habitation",
   le = ""
 } = {}) {
   const modules = Array.isArray(vue?.modules) ? vue.modules : [];
 
-  const corps = modules
+  const entrees = modules
     .map((module) => affirmationDuModule(module, referentiel))
-    .filter(Boolean)
-    .flatMap((entree) => entree.lignes.map((jetons, rang) => ({
-      // La tête porte la nature du bloc ; ce qui suit la détaille.
-      nature: rang === 0 ? entree.nature : "detail",
-      jetons
-    })));
+    .filter(Boolean);
 
-  const tetes = corps.filter((ligne) => ligne.nature !== "detail");
+  const corps = corpsDuFichier([{ zone, blocs: entrees.map((entree) => entree.lignes) }])
+    .map((jetons) => ({ nature: natureDeLaLigneEcrite(jetons), jetons }));
 
   return {
     nom: nomDeFichier(chemin, extension),
@@ -266,9 +280,9 @@ export function fichierDeLEtude(vue, {
     // Ce que le fichier porte, en chiffres. Rien n'est estimé : ce sont des
     // comptes, et ils disent ce qu'on lira avant d'ouvrir.
     compte: {
-      affirmations: tetes.filter((ligne) => ligne.nature === "affirmation").length,
-      sansObjet: tetes.filter((ligne) => ligne.nature === "sans-objet").length,
-      attente: tetes.filter((ligne) => ligne.nature === "attente").length
+      affirmations: entrees.filter((entree) => entree.nature === "affirmation").length,
+      sansObjet: entrees.filter((entree) => entree.nature === "sans-objet").length,
+      attente: entrees.filter((entree) => entree.nature === "attente").length
     }
   };
 }

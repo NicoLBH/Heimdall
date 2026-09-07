@@ -59,7 +59,7 @@ export function reperesDAvis(items = []) {
     const payload = item.payload ?? {};
     // Un avis est un constat : observé, à une date, par quelqu'un. Il suit la
     // même politique de rangement que le reste.
-    const chemin = cheminDeRangement({ domain: payload.domain, zones: payload.zones ?? [] });
+    const chemin = cheminDeRangement({ nature: "constat", domain: payload.domain });
     const titre = texte(payload.reference)
       ? `Avis ${texte(payload.reference)}${texte(payload.title) ? ` — ${texte(payload.title)}` : ""}`
       : texte(payload.title) || "Avis relevé sur une fiche";
@@ -134,7 +134,7 @@ export function reperesDAffirmations(tableau = null) {
       // Zone puis domaine, et l'extension dit la nature. Voir
       // `memoire-rangement.js` : on cherche par le morceau d'ouvrage qu'on a en
       // tête, pas par la famille de l'information.
-      chemin: cheminDeRangement({ domain: ligne.domaine, zones: ligne.zones ?? [] }),
+      chemin: cheminDeRangement({ nature: ligne.nature, domain: ligne.domaine, referentiel }),
       extension: extensionDeRangement({ nature: ligne.nature, referentiel }),
       titre: texte(ligne.sujet) || texte(ligne.cle),
       provenance: {
@@ -225,7 +225,7 @@ export function reperesDeDocuments(items = []) {
     const repere = {
       id: `document:${texte(item.itemKey)}`,
       famille: "document",
-      chemin: cheminDeRangement({ domain: "" }),
+      chemin: cheminDeRangement({ nature: "intendance" }),
       titre: texte(payload.name) || texte(item.itemKey) || "Document",
       champs: {
         "Nature": texte(payload.kindLabel) || "non reconnue",
@@ -258,7 +258,7 @@ export function reperesDeRattachements(items = []) {
       return {
         id: `rattachement:${texte(item.itemKey)}`,
         famille: "rattachement",
-        chemin: cheminDeRangement({ domain: "" }),
+        chemin: cheminDeRangement({ nature: "intendance" }),
         titre: texte(payload.label) || texte(item.itemKey) || "Affaire",
         champs: { "Verdict": texte(payload.verdict), "Raison": texte(payload.reason) },
         provenance: null

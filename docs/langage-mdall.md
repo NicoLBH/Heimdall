@@ -44,25 +44,52 @@ caractères : chaque marque est devenue un **mot suivi de deux points**, qui dit
 en plus ce qu'elle voulait dire.
 
 ```
-fichier: escalier-b/incendie.ctr          le chemin du fichier
+fichier: memoire/incendie.ctr             le chemin du fichier
 note: écriture Mdall v4.0                 une note, jamais interprétée
 
-Sujet = valeur                            une affirmation
-Sujet (entrée, entrée)                    la tête d'une règle, et ses entrées
+zone: Bâtiment A {                        une section de portée
 
-   si Sujet <= 28 m                       une condition
-   et Sujet = "collective"
-   ou Sujet parmi "a" ou "b"
-   non Sujet = "x"
-   alors "3e famille B"                   ce que la règle pose
-   sinon "3e famille A"
-   sauf si Sujet = oui                    ce qui la borne
+   Sujet = valeur {                       une affirmation
+      le: 12 mars 2026                    quand — pour un constat
+      texte: arrêté …, article 3, 3°)     d'où cela vient, typé par le mot-clé
+         parce que: "citation exacte"     la preuve, sous sa provenance
+      statut: retenu                      l'état du raisonnement ici
+   }
 
-   le: 12 mars 2026                       quand — pour un constat
-   texte: arrêté …, article 3, 3°)        d'où cela vient, typé par le mot-clé
-      parce que: "citation exacte"        la preuve, sous sa provenance
-   statut: retenu                         l'état du raisonnement ici
+   Sujet (entrée, entrée) {               la tête d'une règle, et ses entrées
+      si Sujet <= 28 m                    une condition
+      et Sujet = "collective"
+      ou Sujet parmi "a" ou "b"
+      non Sujet = "x"
+      alors "3e famille B"                ce que la règle pose
+      sinon "3e famille A"
+      sauf si Sujet = oui                 ce qui la borne
+   }
+
+}
 ```
+
+### Les accolades bornent, elles ne parlent pas
+
+L'indentation suffisait à la machine, pas à l'œil : un bloc de sept lignes dont
+la fin ne se marque que par un retour au niveau zéro se relit mal, et se relit
+très mal quand deux blocs se suivent.
+
+Ce n'est pas un mot de programmeur, c'est une **borne**. Elle rend en outre le
+**pliage** possible, qui est ce qui rend un fichier de cent affirmations
+lisible : replié sur ses têtes, il en fait cent au lieu de cinq cents.
+
+On ne dépend donc plus de la seule mise en forme du rendu : le texte brut, collé
+dans un éditeur quelconque, garde sa structure.
+
+Une ligne vide sépare deux blocs. Sans elle, l'accolade fermante de l'un et la
+tête du suivant se collent, et l'œil ne voit plus où l'un finit. Une affirmation
+qui ne porte rien d'autre que sa valeur ne s'entoure pas de bornes : une paire
+autour de rien serait du bruit.
+
+La lecture, elle, **pardonne l'absence d'accolades** : un bloc ouvert sans borne
+se ferme à la première ligne non indentée. Un architecte qui tape à la main n'en
+ajoutera pas toujours.
 
 **Les comparateurs** : `=` `!=` `<=` `>=` `<` `>` `parmi` `renseigné`
 `non renseigné`. La lecture accepte aussi `≤`, `≥`, `≠`, `<>`, `==` : personne
@@ -93,12 +120,13 @@ valeur ni de la règle : c'est ce que **ce projet** en fait aujourd'hui.
 ## Une règle se lit comme une fonction
 
 ```
-Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages retenu pour le classement)
+Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages retenu pour le classement) {
    si Habitation individuelle ou collective = "collective"
    et Nombre d'étages retenu pour le classement <= 3
    alors "2e famille"
    texte: arrêté du 31 janvier 1986 modifié, article 3, 2°), quatrième tiret
       parce que: "habitations collectives comportant au plus trois étages sur rez-de-chaussée."
+}
 ```
 
 La parenthèse nomme les **entrées**, et c'est ce qui manquait le plus : on voit
@@ -110,44 +138,70 @@ dire de quoi il parle.
 signature recopiée diverge le jour où quelqu'un ajoute une condition. Elle se
 calcule à l'écriture.
 
-Pas d'accolades, et pas de `retourne(…)` : l'indentation délimite déjà le bloc,
-et `alors` dit déjà ce que la règle pose. Deux façons d'écrire la même chose
+Les accolades bornent la règle : on voit où elle commence et où elle finit,
+même sur un écran où l'indentation se perd. Mais pas de `retourne(…)` :
+`alors` dit déjà ce que la règle pose, et deux façons d'écrire la même chose
 finissent par ne plus dire la même chose.
 
 ---
 
-## L'arborescence part de la zone
+## Deux racines, et une arborescence courte
 
-Elle partait de la nature : `contraintes/incendie`, `donnees-de-base/structure`.
-C'était logique pour qui range, pas pour qui cherche. Sur un chantier on ne dit
-pas « les données de base de l'incendie, pour l'escalier B » : on dit
-**« l'escalier B, l'incendie, ce qui a été relevé »**.
+L'onglet **Fichiers** porte les deux matières du projet, et elles sont de même
+nature : ce sont les **sources**, celles à partir desquelles il se reconstruit.
+Les PDF ne suffisent pas — qui a dit, quand, qui assume sont aussi des sources,
+et l'application les produit.
 
 ```
-Escalier B/
-   incendie.ref     les règles appliquées à cet escalier
-   incendie.ddb     ce qui y a été relevé
-   incendie.ctr     ce qui s'y impose
-   incendie.hyp     ce qu'on y suppose
-   incendie.cst     ce qui y a été constaté, à une date
-Escalier A/
-   incendie.ref     et ce ne sont pas les mêmes règles
-Tout l'ouvrage/
-   structure.ddb    ce qui vaut partout
+Mémoire/
+   donnees-de-base.ddb    ce que le bâtiment est
+   hypotheses.hyp         ce qu'on suppose en attendant mieux
+   corpus.crp             ce qui est entré au dossier
+   incendie.ref           les règles appliquées
+   incendie.ctr           ce qui s'impose
+   incendie.cst           ce qui a été constaté, à une date
+   structure.ctr
+Documents/
+   … rangés comme l'utilisateur veut
 ```
 
-Le gain est double : l'arborescence est **plus courte** — deux niveaux au lieu
-de trois, la nature ayant migré dans l'extension — et tout ce qui concerne une
-zone se lit d'un seul endroit.
+**Ce qui est observé est transversal, ce qui est déduit est par domaine.** Une
+mesure appartient au bâtiment, pas à une discipline : « nombre d'étages » sert
+l'incendie, la structure et l'acoustique, et la dupliquer par domaine violerait
+la règle 4. Une règle et une contrainte viennent d'un corpus, donc d'un domaine.
+Un constat aussi : il observe un manquement **au regard d'une exigence**.
 
-Ce qu'on y perd : « montre-moi toutes les hypothèses du projet » demande la
-recherche plutôt qu'un dossier. C'est le bon échange — la première question se
-pose tous les jours, la seconde une fois par mois.
+Pas de répertoire par domaine : trois fichiers ne méritent pas un dossier, et
+`incendie.ref` à côté de `incendie.ctr` se lit comme `app.js` à côté de
+`app.css`. Une quinzaine d'entrées pour un vrai projet.
 
-**Une affirmation qui vaut pour deux zones se lit dans les deux fichiers.** Ce
-n'est pas une copie : c'est la même, vue de deux endroits, et elle porte le même
-identifiant des deux côtés. L'alternative — un dossier « A + B » — la cacherait
-à qui ouvre l'escalier A.
+## La zone est une section, pas un répertoire
+
+L'unité de production est le **domaine** : une étude incendie touche plusieurs
+zones d'un coup. Avec la zone en répertoire, une seule étude se dispersait en
+autant de fichiers, donc autant de groupes dans le diff, pour un seul acte.
+
+La zone est une **facette**, pas un lieu. Elle ouvre une section dans le
+fichier, et « Toutes zones » vient toujours en premier : ce qui vaut partout se
+lit avant ce qui ne vaut qu'ici.
+
+```
+zone: Toutes zones {
+   Champ d'application de l'arrêté (Hauteur du plancher bas) { … }
+}
+
+zone: Bâtiment A {
+   Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages) { … }
+}
+```
+
+Comparer le bâtiment A et le bâtiment B se fait donc dans un seul fichier. Une
+affirmation qui vaut pour deux zones ouvre les deux sections : c'est la même,
+vue de deux endroits, avec le même identifiant.
+
+Le risque, qu'il faut connaître : `zone:` est un séparateur **à état**, donc un
+bloc copié hors de son contexte perd sa zone. C'est acceptable parce que le diff
+transporte la zone dans le repère, jamais dans le texte seul.
 
 ---
 

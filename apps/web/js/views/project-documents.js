@@ -28,6 +28,11 @@ import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesC
 import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renameDocumentFolder, moveDocumentFile, resolveCurrentBackendProjectId, syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
+import {
+  preparerLaMemoire, fichierDuChemin, adresseDuFichier, renderArbre, renderBarre,
+  renderDossiers, renderFichiers, renderFichier, fichierEnClair, LECTURE
+} from "./project-memoire-fichiers.js";
+import { enClair } from "../services/memoire-en-texte.js";
 import { buildSupabaseAuthHeaders, getSupabaseAnonKey, getSupabaseUrl } from "../../assets/js/auth.js";
 
 const SUPABASE_URL = getSupabaseUrl();
@@ -66,6 +71,29 @@ function logPdfPreviewDebug(label, payload = {}) {
 
 const docsViewState = {
   mode: "list", // "list" | "upload" | "report-preview" | "pdf-preview"
+  /**
+   * La branche ouverte de l'onglet Fichiers.
+   *
+   * ## Pourquoi les deux matières vivent au même endroit
+   *
+   * Les PDF et les fichiers de mémoire sont de même nature : ce sont les
+   * **sources** du projet, celles à partir desquelles il se reconstruit. Les
+   * PDF ne suffisent pas — qui a dit, quand, qui assume sont aussi des sources,
+   * et l'application les produit. Le besoin est le même, l'écran l'était déjà
+   * presque : un arbre, un tableau, un lecteur.
+   *
+   * `""` la racine, `"memoire"` ce que le projet sait, `"documents"` ce qu'il a
+   * reçu.
+   */
+  branche: "",
+  /** Le chemin ouvert dans la branche Mémoire : `["Mémoire", "incendie.ctr"]`. */
+  memoireChemin: [],
+  /** Code ou Origine. */
+  memoireLecture: "code",
+  /** Les blocs repliés du fichier ouvert, par leur identifiant. */
+  memoirePlies: new Set(),
+  /** Les dossiers repliés du rail de la Mémoire. */
+  memoireReplies: new Set(),
   // Les fichiers choisis pour le prochain dépôt. `files`, plus bas, désigne tout
   // autre chose — le contenu du répertoire affiché —, d'où ce nom-ci.
   selectedFiles: [],
@@ -1275,7 +1303,15 @@ function renderDocumentsTopBar() {
         ${renderDocumentsBreadcrumb()}
       </div>
       <div class="documents-topbar__right">
-        ${renderDocumentsMenu(enApercu ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null)}
+        ${
+          // Ajouter, retirer, déplacer : des gestes sur des pièces déposées. Un
+          // fichier de mémoire n'a pas de chemin qu'on choisit — il est calculé
+          // — et proposer de le déplacer serait proposer de casser un rangement
+          // qui n'appartient pas à celui qui lit.
+          docsViewState.branche === "documents"
+            ? renderDocumentsMenu(enApercu ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null)
+            : ""
+        }
       </div>
     </div>
   `;
@@ -1371,7 +1407,11 @@ function renderRepoDocumentRow(doc) {
       </div>
       <div class="documents-repo__cell documents-repo__cell--date">${escapeHtml(decoratedDoc.updatedAt || "À l'instant")}</div>
       <div class="documents-repo__cell documents-repo__cell--stats">
-        <div class="documents-repo__stats-actions">${renderDocumentStatsCell(decoratedDoc)}<button type="button" class="gh-btn" data-document-move-id="${escapeHtml(decoratedDoc.id || "")}">Déplacer</button></div>
+        <div class="documents-repo__stats-actions">${renderDocumentStatsCell(decoratedDoc)}${
+  docsViewState.branche === "documents"
+    ? `<button type="button" class="gh-btn" data-document-move-id="${escapeHtml(decoratedDoc.id || "")}">Déplacer</button>`
+    : ""
+}</div>
       </div>
     </div>
   `;
@@ -1793,6 +1833,226 @@ function renderPdfPreviewView() {
                 </section>
               </div>
             </section>
+          </div>
+        </main>
+      </div>
+    </section>
+  `;
+}
+
+/**
+ * Ce que le projet sait, lu une fois par ouverture de l'onglet.
+ *
+ * Un échec ne vide pas la branche : il la laisse comme elle était, et l'écran
+ * dira qu'il n'a rien pu lire plutôt que d'afficher une mémoire vide, qui se
+ * lirait comme une perte.
+ */
+async function chargerLaMemoire() {
+  const projet = String(store.currentProject?.backendProjectId || store.currentProjectId || "").trim();
+  if (!projet) return;
+
+  try {
+    const [memoire, propositions] = await Promise.all([
+      import("../services/project-memory-supabase.js"),
+      import("../services/propositions-supabase.js")
+    ]);
+
+    docsViewState.memoireAssertions = (await memoire.listProjectAssertions(projet)) ?? [];
+
+    const ouvertes = (await propositions.listPropositions(projet)) ?? [];
+    docsViewState.memoirePropositions = new Map(ouvertes.map((entree) => [String(entree.id), entree]));
+
+    const auteurs = await propositions.loadAuthors(
+      (docsViewState.memoireAssertions ?? []).map((ligne) => ligne.decided_by)
+    );
+    docsViewState.memoireAuteurs = new Map(
+      [...(auteurs ?? new Map()).entries()].map(([cle, valeur]) => [
+        String(cle),
+        typeof valeur === "string" ? valeur : String(valeur?.name || valeur?.full_name || valeur?.email || "")
+      ])
+    );
+  } catch {
+    docsViewState.memoireAssertions = docsViewState.memoireAssertions ?? [];
+  }
+}
+
+/**
+ * Les gestes de la branche Mémoire.
+ *
+ * Le même vocabulaire que la branche Documents — un chemin, un fil d'Ariane,
+ * une arborescence repliable — parce que ce sont les mêmes gestes, et qu'en
+ * apprendre deux pour un seul est un coût payé à chaque écran.
+ */
+function bindLaMemoire(root) {
+  for (const bouton of root.querySelectorAll("[data-fichiers-branche]")) {
+    bouton.addEventListener("click", () => {
+      docsViewState.branche = bouton.getAttribute("data-fichiers-branche") || "";
+      docsViewState.memoireChemin = [];
+      renderProjectDocumentsContent(root);
+    });
+  }
+
+  for (const bouton of root.querySelectorAll("[data-memoire-aller]")) {
+    bouton.addEventListener("click", () => {
+      const cible = bouton.getAttribute("data-memoire-aller") || "";
+      // Le fil d'Ariane remonte à « Mémoire » par une cible vide : c'est la
+      // racine de la branche, pas celle de l'onglet.
+      docsViewState.memoireChemin = cible ? cible.split("/").filter(Boolean) : [];
+      docsViewState.memoirePlies = new Set();
+      renderProjectDocumentsContent(root);
+    });
+  }
+
+  for (const bouton of root.querySelectorAll("[data-memoire-plier]")) {
+    bouton.addEventListener("click", () => {
+      const nom = bouton.getAttribute("data-memoire-plier") || "";
+      const replies = docsViewState.memoireReplies ?? new Set();
+      if (replies.has(nom)) replies.delete(nom);
+      else replies.add(nom);
+      docsViewState.memoireReplies = replies;
+      renderProjectDocumentsContent(root);
+    });
+  }
+
+  root.querySelector("[data-memoire-replier]")?.addEventListener("click", () => {
+    docsViewState.memoireNavOuverte = docsViewState.memoireNavOuverte === false;
+    renderProjectDocumentsContent(root);
+  });
+
+  for (const bouton of root.querySelectorAll("[data-memoire-lecture]")) {
+    bouton.addEventListener("click", () => {
+      docsViewState.memoireLecture = bouton.getAttribute("data-memoire-lecture") === LECTURE.BLAME
+        ? LECTURE.BLAME : LECTURE.CODE;
+      renderProjectDocumentsContent(root);
+    });
+  }
+
+  // Le pliage ne repasse pas par un rendu : replier cent blocs redessinerait
+  // cinq cents lignes pour en cacher quatre cents, et la page sauterait.
+  for (const bouton of root.querySelectorAll("[data-memoire-plier-bloc]")) {
+    bouton.addEventListener("click", () => {
+      const cle = bouton.getAttribute("data-memoire-plier-bloc") || "";
+      const plies = docsViewState.memoirePlies ?? new Set();
+      const replie = !plies.has(cle);
+      if (replie) plies.add(cle);
+      else plies.delete(cle);
+      docsViewState.memoirePlies = plies;
+
+      for (const ligne of root.querySelectorAll(`[data-memoire-parent="${CSS.escape(cle)}"]`)) {
+        ligne.hidden = replie;
+      }
+      bouton.setAttribute("aria-expanded", replie ? "false" : "true");
+      bouton.setAttribute("aria-label", replie ? "Déplier ce bloc" : "Replier ce bloc");
+      bouton.innerHTML = svgIcon(replie ? "chevron-right" : "chevron-down", { className: "octicon" });
+    });
+  }
+
+  root.querySelector("[data-memoire-copier]")?.addEventListener("click", async () => {
+    const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
+    const fichier = fichierDuChemin(memoire, docsViewState.memoireChemin ?? []);
+    if (!fichier) return;
+
+    const texte = fichierEnClair(fichier, { enClair });
+    try {
+      await navigator.clipboard.writeText(texte);
+    } catch {
+      // Un presse-papiers refusé n'est pas une raison de perdre le texte : on
+      // l'affiche, il reste sélectionnable.
+      window.prompt("Le presse-papiers a été refusé — copiez le texte ci-dessous.", texte);
+    }
+  });
+
+  for (const bouton of root.querySelectorAll("[data-memoire-proposition]")) {
+    bouton.addEventListener("click", () => {
+      store.pendingPropositionId = bouton.getAttribute("data-memoire-proposition");
+      const projet = String(store.currentProjectId || "").trim();
+      if (projet) window.location.hash = `#project/${projet}/propositions`;
+    });
+  }
+}
+
+/**
+ * La racine de l'onglet Fichiers : les deux matières du projet.
+ *
+ * Ce que le projet **sait** d'un côté, ce qu'il a **reçu** de l'autre. Ce sont
+ * les mêmes sources — celles à partir desquelles il se reconstruit — et c'est
+ * pour cela qu'elles vivent au même endroit.
+ */
+function renderRacineDesFichiers() {
+  const entree = (nom, phrase, compte) => `
+    <button type="button" class="memoire-entree" data-fichiers-branche="${escapeHtml(nom.toLowerCase())}">
+      <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
+      <span class="memoire-entree__corps">
+        <span class="memoire-entree__nom">${escapeHtml(nom)}</span>
+        <span class="memoire-entree__phrase">${escapeHtml(phrase)}</span>
+      </span>
+      <span class="memoire-entree__compte">${escapeHtml(compte)}</span>
+    </button>
+  `;
+
+  const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
+  const lignes = (memoire.fichiers ?? []).reduce((total, fichier) => total + fichier.lignes.length, 0);
+  const pieces = (Array.isArray(docsViewState.files) ? docsViewState.files : []).length
+    + (Array.isArray(docsViewState.folders) ? docsViewState.folders : []).length;
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="documents-shell documents-shell--project-page">
+        <main class="documents-main">
+          <div class="memoire-liste">
+            ${entree("Mémoire", "Ce que le projet sait, et comment il l'a su. Écrit par l'application, jamais déplaçable.",
+              `${lignes} ligne${lignes > 1 ? "s" : ""}`)}
+            ${entree("Documents", "Les pièces déposées : plans, notes, comptes rendus. Rangez-les comme vous voulez.",
+              `${pieces} entrée${pieces > 1 ? "s" : ""}`)}
+          </div>
+        </main>
+      </div>
+    </section>
+  `;
+}
+
+/**
+ * La branche Mémoire : le même navigateur que l'onglet Mémoire portait.
+ *
+ * Le kebab et « Déplacer » n'y paraissent pas : les chemins des fichiers de
+ * mémoire sont **calculés**, et les déplacer serait décider d'un rangement qui
+ * n'appartient pas à celui qui lit.
+ */
+function renderBrancheMemoire() {
+  const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
+  const chemin = docsViewState.memoireChemin ?? [];
+  const racine = chemin.length === 0;
+  const ouverte = !racine && docsViewState.memoireNavOuverte !== false;
+  const largeur = ouverte ? Math.max(220, Math.min(520, Number(docsViewState.memoireNavWidth) || 280)) : 0;
+
+  const contexte = {
+    auteurs: docsViewState.memoireAuteurs ?? new Map(),
+    propositions: docsViewState.memoirePropositions ?? new Map()
+  };
+
+  const fichier = chemin.length >= 2 ? fichierDuChemin(memoire, chemin) : null;
+  const vue = racine
+    ? renderDossiers(memoire, { assertions: docsViewState.memoireAssertions ?? [] })
+    : chemin.length === 1
+      ? renderFichiers(memoire, chemin[0], contexte)
+      : fichier
+        ? renderFichier(fichier, {
+            lecture: docsViewState.memoireLecture === LECTURE.BLAME ? LECTURE.BLAME : LECTURE.CODE,
+            plies: docsViewState.memoirePlies ?? new Set(),
+            ...contexte
+          })
+        : `<div class="propositions-empty"><b>Ce fichier n'existe plus</b>
+             <p>Rien ne s'y range aujourd'hui. Il réapparaîtra dès qu'une proposition y versera une ligne.</p></div>`;
+
+  return `
+    <section class="project-simple-page project-simple-page--documents">
+      <div class="documents-shell documents-shell--project-page">
+        <main class="documents-main">
+          ${renderBarre({ chemin: chemin.slice(1), prefixe: chemin.slice(0, 1), ouverte, racine })}
+          <div class="memoire-layout${ouverte ? "" : " memoire-layout--replie"}${racine ? " memoire-layout--racine" : " memoire-layout--pleine"}"
+               style="--memoire-tree-width:${largeur}px">
+            ${racine ? "" : renderArbre(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), ouverte })}
+            <div class="memoire-corps">${vue}</div>
           </div>
         </main>
       </div>
@@ -2727,6 +2987,7 @@ async function retirerLeDocument(root) {
 
 function bindDocumentsView(root) {
   bindDocumentsSplitActions(root);
+  bindLaMemoire(root);
   const documentsShell = root.querySelector(".documents-shell");
   if (documentsShell) {
     bindProjectDocumentChromeCompact({
@@ -3051,7 +3312,11 @@ function renderProjectDocumentsContent(root) {
     contentHost.style.setProperty("--documents-content-height", `${height}px`);
   }
 
-  root.innerHTML = docsViewState.mode === "upload"
+  root.innerHTML = docsViewState.mode === "list" && docsViewState.branche === ""
+    ? renderRacineDesFichiers()
+    : docsViewState.mode === "list" && docsViewState.branche === "memoire"
+    ? renderBrancheMemoire()
+    : docsViewState.mode === "upload"
     ? renderUploadView()
     : docsViewState.mode === "report-preview"
       ? renderReportPreviewView()
@@ -3116,7 +3381,10 @@ export function renderProjectDocuments(root) {
   debugProjectScrollPolicy("render-project-documents", { mode: docsViewState.mode });
   Promise.all([
     syncProjectDocumentsFromSupabase({ force: true }),
-    loadCurrentDirectory()
+    loadCurrentDirectory(),
+    // Les deux matières se chargent ensemble : l'onglet les montre côte à côte,
+    // et n'en charger qu'une ferait clignoter la racine.
+    chargerLaMemoire()
   ])
     .then(() => {
       if (!root?.isConnected) return;
