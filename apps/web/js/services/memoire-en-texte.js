@@ -1,84 +1,111 @@
 /**
- * La mémoire du projet, écrite.
+ * La mémoire du projet, écrite — et relue.
  *
- * ## Pourquoi un langage, alors qu'on avait dit non
+ * ## Le sens de la flèche a changé
  *
- * On avait écarté l'idée d'inventer une syntaxe **que les gens écriraient** :
- * cela demande une grammaire, un analyseur, des messages d'erreur, et le jour
- * où quelqu'un se trompe d'un mot, quelqu'un doit décider quoi lui répondre.
- * C'est un produit à part entière, et ce n'est pas celui-ci.
- *
- * Ce fichier fait l'inverse : une syntaxe **que Mdall écrit**. Le sens de la
- * flèche change tout.
+ * Ce fichier écrivait, et rien d'autre : `mémoire → texte`, jamais l'inverse.
+ * C'était prudent et c'est devenu faux. Un architecte doit pouvoir écrire une
+ * ligne à la main et l'injecter ; un utilitaire de l'Atelier ne fait finalement
+ * rien d'autre qu'écrire du mdall. Les deux sens comptent :
  *
  * ```
- * mémoire  →  texte     le texte est une vue, régénérée à volonté      ← ici
- * texte    →  mémoire   les gens éditent, Mdall relit                  ← jamais
+ * mémoire  →  texte     ici, dans ce fichier
+ * texte    →  mémoire   dans `memoire-en-lecture.js`
  * ```
  *
- * ## Ce que cela résout
+ * Et une seule loi les relie, vérifiée par un test : **lire(écrire(G)) = G**.
+ * Chaque information du graphe apparaît une fois dans le texte, et rien de
+ * déductible n'y apparaît. C'est cette réciprocité qui fait du texte la
+ * mémoire, et non une vue de la mémoire.
  *
- * Une ligne de texte n'a pas d'identité — c'est ce qui rend illisible le diff
- * d'un PDF reformaté. Mais une ligne **engendrée depuis un repère** hérite de
- * son identité : elle est stable parce qu'elle est calculée, pas parce qu'on
- * espère qu'elle ne bougera pas.
+ * ## Les cinq objets, et pourquoi ils ne se mélangent plus
  *
- * L'ancrage d'un commentaire ne repose donc jamais sur le numéro affiché. Le
- * numéro est un point où poser le doigt ; l'adresse, c'est le repère.
+ * La v2 écrivait tout sur un bloc unique, et mélangeait :
+ *
+ * | l'objet | ce qu'il est | où il vit maintenant |
+ * | --- | --- | --- |
+ * | la donnée | « Hauteur du plancher bas… » | le sujet, en tête de ligne |
+ * | la valeur | « 26 m » | après le `=` |
+ * | la règle | `si … alors …` | un fichier de référentiel, réutilisable |
+ * | la preuve | l'article, puis sa citation | `←` puis `parce que` |
+ * | le statut | « retenu », « supposé » | `statut`, sur sa ligne |
+ *
+ * La conséquence la plus lourde : **la règle quitte le fichier de projet**. Une
+ * règle vaut pour mille projets, une valeur pour un seul. Les garder ensemble
+ * produisait des « règles » du genre `si hauteur = 26`, vraies d'un bâtiment et
+ * d'aucun autre, qui ne capitalisaient rien et faisaient mentir le diff dans
+ * les deux sens.
+ *
+ * ## Ce qui a disparu, et pourquoi
+ *
+ * - **`dépend de`** — la dépendance se déduit des conditions de la règle.
+ *   L'écrire une seconde fois, c'est la laisser diverger le jour où quelqu'un
+ *   modifie la règle sans y penser (fondamentaux, règle 4).
+ * - **`✓ retenu` sur la ligne `alors`** — mélangeait la conséquence de la règle
+ *   et l'état du raisonnement dans **ce** projet. Le second est `statut`.
+ * - **`⇐ calcul(…)`** — un calcul est une provenance comme une autre :
+ *   `← calcul`.
+ * - **`on retient` / `on suppose`** — un geste n'est pas un préfixe, c'est une
+ *   provenance : `← décision`, `← hypothèse`.
  *
  * ## L'identité de l'écriture
  *
- * On reprend les usages de l'informatique — une ligne, un fichier, une couleur
- * par nature de mot — sans copier aucun langage. Les marques viennent de
- * l'écrit technique et juridique, qui est la langue du métier :
+ * Les marques viennent de l'écrit technique et juridique, jamais d'un langage
+ * de programmation. Rien de `const`, de `function` ni de `//` : ce sont des
+ * mots de programmeur, et ils annonceraient un programme là où il n'y a qu'un
+ * raisonnement transcrit.
  *
- * | marque | ce qu'elle dit | d'où elle vient |
- * | --- | --- | --- |
- * | `§` | le titre du fichier | le signe de section, celui des CCTP et des arrêtés |
- * | `¶` | une note sur le fichier lui-même | le pied-de-mouche du typographe |
- * | `←` | ce qui fonde la valeur | l'invention propre à Mdall |
- * | `si · alors · sinon` | une décision | l'arrêté, mot pour mot |
- * | `✓ retenu` / `✗ écarté` | la branche prise | la revue de projet |
+ * | marque | ce qu'elle dit |
+ * | --- | --- |
+ * | `§` | le titre du fichier |
+ * | `¶` | une note sur le fichier lui-même |
+ * | `=` | ce que la donnée vaut |
+ * | `@` | la portée, quand ce n'est pas l'ouvrage entier |
+ * | `←` | d'où cela vient, typé par le mot qui suit |
+ * | `si · et · ou · non · alors · sinon · sauf si` | la règle, dans les mots de l'arrêté |
+ * | `parce que` | la preuve, citée entre guillemets |
+ * | `statut` | l'état du raisonnement dans ce projet |
  *
- * Rien de `const`, de `function` ni de `//` : ce sont des mots de programmeur,
- * et ils annonceraient un programme là où il n'y a qu'une transcription. La
- * flèche `←` est celle qui compte le plus — **chaque valeur pointe vers ce qui
- * la fonde, sur sa propre ligne**. Aucun langage ne fait cela, et c'est
- * exactement ce qu'une mémoire de chantier réclame.
+ * ## Trois lois de lecture
+ *
+ * 1. **L'indentation est l'appartenance.** Une ligne indentée détaille la ligne
+ *    pleine qui la précède. Trois espaces, jamais une tabulation : sa largeur
+ *    dépend de qui la lit, et une mémoire qui se lit différemment selon l'écran
+ *    n'est pas une mémoire.
+ * 2. **Un mot-clé ne compte qu'en tête de ligne**, après le retrait. « Habitation
+ *    individuelle **ou** collective » est un sujet, pas une disjonction.
+ * 3. **Une valeur textuelle porte des guillemets, une valeur mesurée n'en porte
+ *    pas.** `= "3e famille B"` contre `= 26 m`. La lecture accepte les deux
+ *    formes de guillemets, droits et français : personne ne doit être refusé
+ *    pour une raison typographique.
  *
  * ## Ce qu'on n'aligne pas avec des espaces
  *
  * L'écriture ne remplit jamais une colonne de blancs pour aligner les valeurs.
- * Elle le pourrait — c'est joli en monospace —, et le jour où quelqu'un dépose
- * une affirmation au sujet plus long que les autres, **toutes** les lignes du
- * fichier changeraient d'un espace, et le diff annoncerait douze modifications
- * pour un ajout. L'alignement est donc affaire de mise en page, pas de texte.
+ * Le jour où quelqu'un dépose une affirmation au sujet plus long que les
+ * autres, **toutes** les lignes du fichier changeraient d'un espace, et le diff
+ * annoncerait douze modifications pour un ajout.
  *
  * ## L'écriture porte sa version
  *
  * Le texte étant engendré, changer ce fichier change toutes les lignes de tous
- * les fichiers — et le prochain diff deviendrait du bruit. La version est donc
- * écrite dans l'en-tête : un changement de rendu s'annonce comme tel, « la
- * façon d'écrire a changé, pas ce qui est écrit ». Même doctrine que la pile de
- * lecture d'une analyse.
- *
- * ## Ce n'est pas un programme
- *
- * Un utilitaire dont la décision s'écrit en `si / alors` ressemblera à du code,
- * et quelqu'un finira par croire qu'en modifiant la ligne il change le calcul.
- * L'en-tête dit donc toujours **ce qui a produit le fichier** — quel
- * utilitaire, quelle version, quelle date. C'est une transcription d'une
- * décision, pas le moteur de la décision.
+ * les fichiers. La version est donc écrite dans l'en-tête : un changement de
+ * rendu s'annonce comme tel, « la façon d'écrire a changé, pas ce qui est
+ * écrit ».
  */
 
 /**
  * La version de l'écriture. Elle change quand la façon d'écrire change.
  *
- * v2.0 — une mémoire de projet ne garde pas que des valeurs. Elle garde des
- * décisions, des hypothèses, des raisonnements, des justifications, des
- * exceptions et des dépendances. L'écriture les dit maintenant.
+ * v3.0 — les cinq objets se séparent : la donnée, sa valeur, la règle, la
+ * preuve, le statut. La règle quitte le fichier de projet pour un référentiel.
+ * `dépend de` disparaît, il se déduit. Le langage se relit autant qu'il
+ * s'écrit.
  */
-export const ECRITURE = "2.0";
+export const ECRITURE = "3.0";
+
+/** Le pas d'indentation. Trois espaces, jamais une tabulation. */
+export const RETRAIT = "   ";
 
 /** Ce qu'un morceau de ligne est, pour qui le colore. */
 export const JETON = {
@@ -86,120 +113,147 @@ export const JETON = {
   SECTION: "section",
   /** `¶` — une note sur le fichier : ce qui l'a produit, comment il s'écrit. */
   NOTE: "note",
-  /** Le sujet d'une affirmation : « altitude du site ». */
+  /** Le sujet d'une donnée : « Hauteur du plancher bas du logement le plus haut ». */
   SUJET: "sujet",
-  /** Ce qu'elle vaut : « 490,03 ». */
+  /** Ce qu'elle vaut : « 26 », « 3e famille B ». */
   VALEUR: "valeur",
-  /** Son unité, colorée à part : « m », « bars », « h ». */
+  /** Son unité, colorée à part : « m », « h », « dm² ». */
   UNITE: "unite",
+  /** `=`, `≤`, `≥`, `<`, `>`, `≠` — la comparaison, ou l'affectation. */
+  OPERATEUR: "operateur",
+  /** `si`, `et`, `ou`, `non`, `alors`, `sinon` — les mots de la règle. */
+  MOT_CONDITION: "mot-condition",
+  /** `sauf si` — le mot qui borne la règle. */
+  MOT_EXCEPTION: "mot-exception",
+  /** `parce que` — le mot qui introduit la preuve. */
+  MOT_RAISON: "mot-raison",
+  /** La preuve elle-même, citée. */
+  RAISON: "raison",
   /** `←` — la flèche de provenance. */
   DEPUIS: "depuis",
-  /** Ce qui fonde la valeur : « NF EN 1991-1-3/NA, carte ». */
+  /** Le type de provenance : texte, document, calcul, règle, décision, hypothèse. */
+  PROVENANCE: "provenance",
+  /** Ce qui est désigné derrière le type : « arrêté …, article 6 ». */
   SOURCE: "source",
-  /** Un mot de la langue du métier : si, alors, sinon, sauf si. */
-  MOT: "mot",
-  /** `✓ retenu`, `✗ écarté` — la branche prise. */
-  MARQUE: "marque",
-  /** « sans objet » — le référentiel a conclu qu'il n'exige rien ici. */
-  SANS_OBJET: "sans-objet",
-  /** « en attente » — il manque une réponse pour conclure. */
-  ATTENTE: "attente",
-  /** `⇐` — la double flèche : cette valeur a été **calculée**. */
-  DEDUIT: "deduit",
-  /** Le calcul et ses entrées, derrière la double flèche. */
-  CALCUL: "calcul",
+  /** `statut` — le mot. */
+  MOT_STATUT: "mot-statut",
+  /** Son contenu : retenu, supposé, contesté, remplacé, écarté. */
+  STATUT: "statut",
   /** `@ escalier B` — la portée d'une affirmation. */
   PORTEE: "portee",
-  /**
-   * Ce qui n'est pas un fait.
-   *
-   * Une mémoire de projet ne garde pas que des valeurs relevées. Elle garde
-   * **ce que quelqu'un a décidé** (« on retient 8 m »), **ce qu'on suppose en
-   * attendant** (« on suppose 0,2 MPa »), et il faut que la ligne le dise :
-   * lues pareil, une mesure et un choix se confondent, et l'on discute six mois
-   * plus tard d'un chiffre qu'on croyait mesuré.
-   */
-  GESTE: "geste",
-  /**
-   * Les mots-clés du raisonnement, un type par construction.
-   *
-   * ## Pourquoi ils ne partagent pas le type `MOT`
-   *
-   * Un éditeur de code ne colore pas `if`, `throw` et `import` de la même
-   * teinte : la couleur du mot dit de quelle **espèce** est la ligne, et c'est
-   * ce qui permet de survoler un fichier sans le lire. Écrites toutes en rouge,
-   * les quatre constructions du raisonnement se lisaient comme une seule prose,
-   * et il fallait déchiffrer chaque ligne pour savoir laquelle justifiait,
-   * laquelle limitait, laquelle liait.
-   */
-  MOT_CONDITION: "mot-condition",
-  /** `parce que` — le mot qui introduit ce qui fonde. */
-  MOT_RAISON: "mot-raison",
-  /** `sauf si` — le mot qui introduit la limite. */
-  MOT_EXCEPTION: "mot-exception",
-  /** `dépend de` — le mot qui introduit les socles. */
-  MOT_DEPENDANCE: "mot-dependance",
-  /** `parce que …` — ce qui fonde le raisonnement, pas la valeur. */
-  RAISON: "raison",
-  /** `sauf si …` — le cas où la règle ne s'applique pas. */
-  EXCEPTION: "exception",
-  /** `dépend de …` — ce qui, en changeant, oblige à refaire. */
-  DEPENDANCE: "dependance",
   /** Ce qui ne se colore pas : les espaces, les séparateurs. */
   NEUTRE: "neutre"
 };
 
-/** Les mots de la langue du métier. Aucun n'est emprunté à un langage. */
-export const MOTS = ["si", "alors", "sinon", "sauf si", "parce que", "dépend de", "et", "ou"];
+/**
+ * D'où une valeur vient. Six réponses, et pas une de plus.
+ *
+ * ## Pourquoi la provenance n'est pas une « origine » déclarée
+ *
+ * On pourrait écrire `origine "règle"` à côté de `← règle …`. Ce serait la même
+ * information deux fois. Le **type de la provenance est l'origine** : une ligne
+ * qui renvoie à une règle est déduite, une ligne qui renvoie à un plan est lue,
+ * une ligne qui renvoie à un calcul est calculée. Rien à déclarer.
+ *
+ * Les deux dernières sont les seules qui ne se déduisent de rien d'autre :
+ * un choix humain, et une supposition. Ce sont donc les seules qu'il faut
+ * écrire — et les seules qui engagent quelqu'un.
+ */
+export const PROVENANCE = {
+  /** Un texte réglementaire, une norme, un DTU. */
+  TEXTE: "texte",
+  /** Une pièce du projet : plan, note, compte rendu. */
+  DOCUMENT: "document",
+  /** Un calcul, avec ce qu'il a lu. */
+  CALCUL: "calcul",
+  /** Une règle d'un référentiel — la valeur en est déduite. */
+  REGLE: "règle",
+  /** Quelqu'un a tranché. */
+  DECISION: "décision",
+  /** On suppose, en attendant mieux. */
+  HYPOTHESE: "hypothèse"
+};
+
+/** Les six types, pour qui veut vérifier qu'il en écrit un vrai. */
+export const PROVENANCES = Object.values(PROVENANCE);
 
 /**
- * Ce qu'une ligne est, quand ce n'est pas un simple relevé.
+ * L'état d'un raisonnement dans **ce** projet.
  *
- * Le geste précède le sujet, et se lit avant lui : « on retient 8 m » n'est pas
- * « 8 m ». Sans le geste, une décision de réunion et une mesure de géomètre
- * s'écrivent identiquement — et l'on rediscute six mois plus tard d'un chiffre
- * qu'on croyait mesuré.
+ * Ce n'est pas une propriété de la valeur, ni de la règle : c'est ce que le
+ * projet en fait aujourd'hui. La même règle donne « retenu » ici et « contesté »
+ * là, sans que rien ne change dans le référentiel.
  */
-export const GESTE = {
-  /** Un relevé, une lecture. Rien ne précède le sujet. */
-  FAIT: "",
-  /** Quelqu'un a tranché. « on retient » — et l'on sait qu'on peut en rediscuter. */
-  DECISION: "on retient",
-  /** On suppose, en attendant mieux. Ce qui en dépend devient suspect si ça change. */
-  HYPOTHESE: "on suppose"
+export const STATUT = {
+  /** Le projet le tient pour acquis. */
+  RETENU: "retenu",
+  /** En attendant mieux. Ce qui en dépend devient suspect si cela change. */
+  SUPPOSE: "supposé",
+  /** Quelqu'un ne l'admet pas. La valeur reste, le désaccord aussi. */
+  CONTESTE: "contesté",
+  /** Une décision plus récente a pris sa place. */
+  REMPLACE: "remplacé",
+  /** Refusé en revue. Un refus est une information, pas une valeur du projet. */
+  ECARTE: "écarté",
+  /**
+   * Examiné, et rien n'est exigé.
+   *
+   * Ce n'est pas une absence : c'est une conclusion, et c'est celle qu'on
+   * cherchera le jour où quelqu'un demandera « et pour la circulation
+   * horizontale ? ». La ligne s'écrit, avec sa valeur quand il y en a une —
+   * une donnée sans exigence reste une donnée dont d'autres règles dépendent.
+   */
+  SANS_OBJET: "sans objet",
+  /**
+   * Il manque une réponse.
+   *
+   * Ne pas savoir n'autorise pas à prétendre qu'il n'y a rien : la ligne
+   * s'écrit, et `parce que` dit ce qui la retient.
+   */
+  EN_ATTENTE: "en attente"
 };
+
+export const STATUTS = Object.values(STATUT);
+
+/**
+ * Les comparateurs, dans les signes qu'on lit.
+ *
+ * `≤` plutôt que `<=` : le premier s'écrit dans un CCTP, le second dans un
+ * programme. Le langage se lit à voix haute en réunion.
+ */
+export const OPERATEUR = {
+  EGAL: "=",
+  DIFFERENT: "≠",
+  AU_PLUS: "≤",
+  AU_MOINS: "≥",
+  MOINS_DE: "<",
+  PLUS_DE: ">",
+  PARMI: "parmi",
+  RENSEIGNE: "renseigné",
+  NON_RENSEIGNE: "non renseigné"
+};
+
+export const OPERATEURS = Object.values(OPERATEUR);
+
+/**
+ * Les mots de la langue, et l'ordre dans lequel on les cherche.
+ *
+ * « sauf si » avant « si », sans quoi « sauf si » se lirait comme « sauf » suivi
+ * d'un sujet nommé « si ». C'est la seule subtilité de la grammaire, et elle
+ * tient dans cet ordre.
+ */
+export const MOTS = ["sauf si", "parce que", "statut", "si", "et", "ou", "non", "alors", "sinon"];
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const jeton = (type, contenu) => ({ type, texte: contenu });
+const espace = (largeur = " ") => jeton(JETON.NEUTRE, largeur);
 
 /**
- * Le pas d'indentation, et pourquoi c'en est un.
+ * Ce qui, dans une valeur, est le nombre et ce qui est l'unité.
  *
- * ## L'indentation est la syntaxe
- *
- * Une ligne indentée **appartient** à la ligne pleine qui la précède. C'est la
- * seule chose qui disait à qui se rapportait un « dépend de Commune du projet »
- * flottant en tête de fichier : rien. On lisait quatre lignes de raisonnement
- * sans savoir ce qu'elles justifiaient.
- *
- * Le langage n'emprunte pas ses mots à l'informatique, mais il lui emprunte
- * cette convention-là — un bloc s'indente sous ce qu'il détaille — parce
- * qu'elle n'est pas informatique : c'est celle d'un alinéa, d'un sous-article,
- * d'une note sous un tableau.
- *
- * Trois espaces, jamais une tabulation : la largeur d'une tabulation dépend de
- * qui la lit, et une mémoire qui se lit différemment selon l'écran n'est pas
- * une mémoire.
- */
-export const RETRAIT = "   ";
-
-/**
- * Une valeur et son unité, séparées.
- *
- * « 490,03 m » se lit mieux quand le nombre et l'unité ne portent pas la même
- * couleur : l'œil saute d'une valeur à l'autre sans relire les unités. Ce qui
- * n'a pas d'unité — « 3e famille A », « A2 » — reste d'un bloc, parce qu'y
- * découper une syllabe finale inventerait une unité qui n'existe pas.
+ * « 490,03 m » se coupe, « CF 1/2 h » ne se coupe pas — c'est un degré, pas une
+ * mesure, et le couper produirait « CF » suivi de « 1/2 h ». La coupe n'a lieu
+ * que si tout ce qui précède l'espace est un nombre.
  */
 export function couperLUnite(valeur) {
   const brut = texte(valeur);
@@ -209,177 +263,295 @@ export function couperLUnite(valeur) {
 }
 
 /**
- * Une affirmation, en une ligne.
+ * Une valeur est-elle mesurée, ou textuelle ?
  *
- * `sujet` puis `valeur`, et la provenance derrière la flèche quand on la
- * connaît. Une valeur sans provenance n'écrit pas de flèche vide : on ne
- * dessine pas une case pour dire qu'elle est vide (fondamentaux, règle 5 — ce
- * qui manque n'apparaît pas, plutôt que d'apparaître creux).
+ * Une mesure s'écrit nue — `= 26 m` —, un texte entre guillemets —
+ * `= "3e famille B"`. Sans cette différence, on ne saurait pas relire `= 3` :
+ * trois quoi, ou la chaîne « 3 » ? La question se pose vraiment : la famille
+ * d'un bâtiment est la catégorie « 3 », pas le nombre trois.
  */
-export function ligneDAffirmation({
-  sujet = "", valeur = "", source = "", zones = [], deduitDe = null, geste = GESTE.FAIT
-} = {}) {
-  const { nombre, unite } = couperLUnite(valeur);
-  const jetons = [];
+export function estMesuree(valeur) {
+  const { nombre } = couperLUnite(valeur);
+  return /^-?\d+(?:[.,\s]\d+)*$/.test(texte(nombre));
+}
 
-  // Le geste d'abord : c'est ce qui change la nature de la phrase, et on le lit
-  // avant de lire le chiffre.
-  if (texte(geste)) {
-    jetons.push(jeton(JETON.GESTE, texte(geste)));
-    jetons.push(jeton(JETON.NEUTRE, " "));
+/** Une valeur, écrite selon qu'elle se mesure ou se cite. */
+function jetonsDeValeur(valeur, unite = "") {
+  const brut = texte(valeur);
+  if (!brut) return [];
+
+  const uniteDite = texte(unite);
+  if (uniteDite) return [jeton(JETON.VALEUR, brut), espace(), jeton(JETON.UNITE, uniteDite)];
+
+  if (estMesuree(brut)) {
+    const coupe = couperLUnite(brut);
+    return coupe.unite
+      ? [jeton(JETON.VALEUR, coupe.nombre), espace(), jeton(JETON.UNITE, coupe.unite)]
+      : [jeton(JETON.VALEUR, coupe.nombre)];
   }
-  jetons.push(jeton(JETON.SUJET, texte(sujet)));
 
-  // La portée fait partie de l'identité, donc de la ligne. Deux études sur deux
-  // zones produisent deux affirmations différentes, et rien ne le disait :
-  // l'écran annonçait quarante-huit lignes nouvelles là où vingt-cinq
-  // portaient le même sujet sur une autre zone.
+  return [jeton(JETON.VALEUR, `"${brut}"`)];
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Les lignes
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Une donnée et ce qu'elle vaut : la ligne de tête d'un bloc.
+ *
+ * `Sujet = valeur`, et la portée derrière l'arobase quand ce n'est pas
+ * l'ouvrage entier. Rien d'autre : la règle, la preuve et le statut sont des
+ * lignes indentées dessous, parce que ce sont des objets différents.
+ */
+export function ligneDAffirmation({ sujet = "", valeur = "", unite = "", zones = [] } = {}) {
+  const jetons = [jeton(JETON.SUJET, texte(sujet))];
+
+  const dit = texte(valeur);
+  if (dit) {
+    jetons.push(espace(), jeton(JETON.OPERATEUR, OPERATEUR.EGAL), espace());
+    jetons.push(...jetonsDeValeur(dit, unite));
+  }
+
+  // La portée fait partie de l'identité : le degré du bâtiment A ne dit rien de
+  // celui du bâtiment B, et les confondre ferait périmer l'un par l'autre.
   const portees = (Array.isArray(zones) ? zones : [zones]).map(texte).filter(Boolean);
   if (portees.length) {
-    jetons.push(jeton(JETON.NEUTRE, " "));
-    jetons.push(jeton(JETON.PORTEE, `@ ${portees.join(" + ")}`));
+    jetons.push(espace("  "), jeton(JETON.PORTEE, `@ ${portees.join(", ")}`));
   }
 
-  if (nombre) {
-    jetons.push(jeton(JETON.NEUTRE, "  "));
-    jetons.push(jeton(JETON.VALEUR, nombre));
-    if (unite) {
-      jetons.push(jeton(JETON.NEUTRE, " "));
-      jetons.push(jeton(JETON.UNITE, unite));
+  return jetons;
+}
+
+/**
+ * Le nom d'une donnée, seul : la ligne de tête d'une **règle**.
+ *
+ * Un référentiel ne dit pas ce que vaut la donnée dans un projet, il dit
+ * comment elle se détermine. La tête d'un bloc de règle n'a donc pas de `=`.
+ */
+export function ligneDeDonnee(sujet = "") {
+  return [jeton(JETON.SUJET, texte(sujet))];
+}
+
+/**
+ * Une condition : `si Sujet ≤ 28 m`, `et Sujet = "collective"`.
+ *
+ * @param {string} mot `si`, `et`, `ou`, `non`, `sauf si`
+ * @param {object} condition `{sujet, operateur, valeur, unite, logique}`
+ */
+export function ligneDeCondition(mot, condition = {}, profondeur = 1) {
+  const cle = texte(mot);
+  const jetons = [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(cle === "sauf si" ? JETON.MOT_EXCEPTION : JETON.MOT_CONDITION, cle),
+    espace(),
+    jeton(JETON.SUJET, texte(condition.sujet))
+  ];
+
+  const operateur = texte(condition.operateur) || OPERATEUR.EGAL;
+  // « renseigné » se suffit : il ne compare rien, il constate qu'on a répondu.
+  if (operateur === OPERATEUR.RENSEIGNE || operateur === OPERATEUR.NON_RENSEIGNE) {
+    jetons.push(espace(), jeton(JETON.OPERATEUR, operateur));
+    return jetons;
+  }
+
+  jetons.push(espace(), jeton(JETON.OPERATEUR, operateur), espace());
+
+  const valeurs = Array.isArray(condition.valeur) ? condition.valeur : [condition.valeur];
+  // Une liste se sépare d'un « ou » : c'est ce que « parmi » veut dire, et le
+  // lecteur ne doit pas avoir à le deviner d'une virgule.
+  valeurs.map(texte).filter(Boolean).forEach((valeur, rang) => {
+    if (rang > 0) {
+      jetons.push(espace(), jeton(JETON.MOT_CONDITION, "ou"), espace());
     }
-  }
-
-  // Deux flèches, deux choses différentes, et les confondre coûte cher :
-  //
-  //   ←  je l'ai **lu** ici       une valeur relevée, qui tient toute seule
-  //   ⇐  je l'ai **calculé**      une valeur qui ne tient que tant que ses
-  //                               entrées tiennent
-  //
-  // La seconde nomme le calcul et ce qui y est entré. C'est ce qui permet, le
-  // jour où l'altitude change, de savoir sans chercher ce qu'il faut refaire.
-  if (deduitDe && texte(deduitDe.calcul)) {
-    const entrees = (deduitDe.entrees ?? [])
-      .map((entree) => `${texte(entree?.sujet)} = ${texte(entree?.valeur)}`)
-      .filter((phrase) => phrase !== " = ");
-
-    jetons.push(jeton(JETON.NEUTRE, "  "));
-    jetons.push(jeton(JETON.DEDUIT, "⇐"));
-    jetons.push(jeton(JETON.NEUTRE, " "));
-    jetons.push(jeton(JETON.CALCUL, `${texte(deduitDe.calcul)}${entrees.length ? `(${entrees.join(" ; ")})` : ""}`));
-  }
-
-  if (texte(source)) {
-    jetons.push(jeton(JETON.NEUTRE, "  "));
-    jetons.push(jeton(JETON.DEPUIS, "←"));
-    jetons.push(jeton(JETON.NEUTRE, " "));
-    jetons.push(jeton(JETON.SOURCE, texte(source)));
-  }
+    // Un oui/non n'est pas un texte : il ne prend pas de guillemets.
+    jetons.push(...(condition.logique === true
+      ? [jeton(JETON.VALEUR, valeur)]
+      : jetonsDeValeur(valeur, condition.unite)));
+  });
 
   return jetons;
 }
 
-/**
- * Une exigence que le référentiel a écartée.
- *
- * « sans objet » n'est pas une valeur manquante : c'est une conclusion. Le
- * référentiel a examiné le cas et n'exige rien — et cela se lit, parce que
- * l'absence d'exigence est une information qu'on cherchera un jour.
- */
-export function ligneSansObjet({ sujet = "", motif = "", source = "" } = {}) {
-  const jetons = [
-    jeton(JETON.SUJET, texte(sujet)),
-    jeton(JETON.NEUTRE, "  "),
-    jeton(JETON.SANS_OBJET, "sans objet")
-  ];
-
-  if (texte(motif)) {
-    jetons.push(jeton(JETON.NEUTRE, "  "));
-    jetons.push(jeton(JETON.SANS_OBJET, `— ${texte(motif)}`));
-  }
-  if (texte(source)) {
-    jetons.push(jeton(JETON.NEUTRE, "  "), jeton(JETON.DEPUIS, "←"),
-      jeton(JETON.NEUTRE, " "), jeton(JETON.SOURCE, texte(source)));
-  }
-  return jetons;
-}
-
-/**
- * Ce qui ne peut pas encore conclure, et ce qui manque pour cela.
- *
- * Ne pas savoir n'autorise pas à prétendre qu'il n'y a rien (fondamentaux,
- * règle 5). Une exigence en attente s'écrit, avec le nom de ce qui la retient —
- * sans quoi elle disparaîtrait du fichier, et personne n'irait la chercher.
- */
-export function ligneEnAttente({ sujet = "", manque = [] } = {}) {
-  const attendus = (Array.isArray(manque) ? manque : [manque]).map(texte).filter(Boolean);
-  const jetons = [
-    jeton(JETON.SUJET, texte(sujet)),
-    jeton(JETON.NEUTRE, "  "),
-    jeton(JETON.ATTENTE, "en attente")
-  ];
-
-  if (attendus.length) {
-    jetons.push(jeton(JETON.NEUTRE, "  "));
-    jetons.push(jeton(JETON.ATTENTE, `— il manque ${attendus.join(", ")}`));
-  }
-  return jetons;
-}
-
-/**
- * Le nom du fichier d'une rubrique.
- *
- * Une arborescence qui s'arrête sur un dossier laisse le lecteur devant du vide :
- * on est habitué à trouver **quelque chose** au bout, et un contenu qui apparaît
- * sans porter de nom perturbe plus qu'il n'informe. La dernière marche du chemin
- * devient donc un fichier, et l'extension dit dans quelle écriture il est.
- *
- * Les accents partent, les espaces deviennent des tirets : c'est ce qu'on
- * attend d'un nom de fichier, et cela le rend citable dans une phrase.
- */
-export function nomDeFichier(chemin = []) {
-  const morceaux = (Array.isArray(chemin) ? chemin : []).map(texte).filter(Boolean);
-  const dernier = morceaux[morceaux.length - 1] ?? "sans-rubrique";
-
-  const base = dernier
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return `${base || "sans-rubrique"}.mdall`;
-}
-
-/** Le chemin complet d'un fichier : les dossiers, puis son nom. */
-export function cheminDeFichier(chemin = []) {
-  const morceaux = (Array.isArray(chemin) ? chemin : []).map(texte).filter(Boolean);
-  const dossiers = morceaux.slice(0, -1).map((morceau) =>
-    morceau.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
-  return [...dossiers, nomDeFichier(chemin)].filter(Boolean).join("/");
-}
-
-/** Le titre d'un fichier : `§ Données de base · Structure`. */
-export function ligneDeSection(chemin = []) {
-  const morceaux = (Array.isArray(chemin) ? chemin : []).map(texte).filter(Boolean);
+/** `alors …` ou `sinon …` — ce que la règle pose. */
+export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1) {
   return [
-    jeton(JETON.SECTION, "§"),
-    jeton(JETON.NEUTRE, " "),
-    jeton(JETON.SECTION, morceaux.join(" · ") || "Sans rubrique")
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_CONDITION, texte(mot)),
+    espace(),
+    ...jetonsDeValeur(valeur, unite)
   ];
 }
 
-/** Une note sur le fichier : `¶ écriture Mdall v1.0`. */
-export function ligneDeNote(phrase = "") {
-  return [jeton(JETON.NOTE, `¶ ${texte(phrase)}`)];
+/**
+ * `← texte arrêté du 31 janvier 1986 modifié, article 6`
+ *
+ * Le type derrière la flèche **est** l'origine de la valeur : rien à déclarer
+ * en plus. Un type qu'on n'écrit pas n'est pas une provenance vide, c'est une
+ * absence de provenance, et l'absence ne dessine pas de ligne creuse.
+ */
+export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, profondeur = 1) {
+  const dit = texte(quoi);
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.DEPUIS, "←"),
+    espace(),
+    jeton(JETON.PROVENANCE, texte(type) || PROVENANCE.TEXTE),
+    espace(),
+    jeton(JETON.SOURCE, dit)
+  ];
 }
 
 /**
- * L'en-tête d'un fichier.
+ * `parce que "…"` — la preuve, sous la provenance qu'elle appuie.
  *
- * Le titre, puis ce qui l'a produit, puis comment il s'écrit. Les deux notes
- * comptent autant l'une que l'autre : la première dit qu'on lit une
- * transcription et non un programme ; la seconde permet de distinguer, six mois
- * plus tard, un changement de valeur d'un changement de façon d'écrire.
+ * Elle est indentée d'un cran de plus que la flèche : une preuve appartient à
+ * une provenance, et le jour où une règle en portera plusieurs, on saura
+ * laquelle appuie laquelle sans rien changer à la grammaire.
+ */
+export function ligneDePreuve(citation = "", profondeur = 2) {
+  const dit = texte(citation).replace(/^[«"']\s*/, "").replace(/\s*[»"']$/, "");
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_RAISON, "parce que"),
+    espace(),
+    jeton(JETON.RAISON, `"${dit}"`)
+  ];
+}
+
+/** `statut retenu` — l'état du raisonnement dans ce projet. */
+export function ligneDeStatut(statut = "", profondeur = 1) {
+  const dit = texte(statut);
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_STATUT, "statut"),
+    espace(),
+    jeton(JETON.STATUT, dit)
+  ];
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Les blocs
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Une règle, telle qu'un référentiel la porte.
+ *
+ * ```
+ * Classement du bâtiment
+ *    si Logements superposés = oui
+ *    et Hauteur du plancher bas du logement le plus haut ≤ 28 m
+ *    alors "3e famille B"
+ *    ← texte arrêté du 31 janvier 1986 modifié, article 3, 3°)
+ *       parce que "Troisième famille B : …"
+ * ```
+ *
+ * Aucune valeur de projet n'y figure, et c'est tout l'intérêt : ce bloc vaut
+ * pour mille bâtiments. Les dépendances ne s'écrivent pas — elles **sont** les
+ * sujets des conditions.
+ */
+export function blocDeRegle({
+  sujet = "", conditions = [], alors = "", sinon = "", sauf = [], provenance = null, preuve = ""
+} = {}) {
+  const lignes = [ligneDeDonnee(sujet)];
+
+  (Array.isArray(conditions) ? conditions : []).forEach((condition, rang) => {
+    lignes.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition));
+  });
+
+  if (texte(alors)) lignes.push(ligneDeConsequence("alors", alors));
+  if (texte(sinon)) lignes.push(ligneDeConsequence("sinon", sinon));
+
+  for (const exception of (Array.isArray(sauf) ? sauf : [sauf]).filter(Boolean)) {
+    lignes.push(ligneDeCondition("sauf si", exception));
+  }
+
+  const depuis = provenance ? ligneDeProvenance(provenance) : null;
+  if (depuis) lignes.push(depuis);
+
+  const pourquoi = ligneDePreuve(preuve);
+  if (pourquoi) lignes.push(pourquoi);
+
+  return lignes;
+}
+
+/**
+ * Une affirmation de projet : ce que le projet retient, et d'où cela vient.
+ *
+ * ```
+ * Classement du bâtiment = "3e famille B"
+ *    ← règle Classement du bâtiment, arrêté du 31 janvier 1986, article 3, 3°)
+ *    statut retenu
+ * ```
+ *
+ * La règle n'est pas recopiée ici. On sait où elle est, on peut l'ouvrir, et
+ * elle ne se réécrit pas à chaque projet.
+ */
+export function blocDAffirmation({
+  sujet = "", valeur = "", unite = "", zones = [], provenance = null, preuve = "", statut = ""
+} = {}) {
+  const lignes = [ligneDAffirmation({ sujet, valeur, unite, zones })];
+
+  const depuis = provenance ? ligneDeProvenance(provenance) : null;
+  if (depuis) lignes.push(depuis);
+
+  const pourquoi = ligneDePreuve(preuve);
+  if (pourquoi) lignes.push(pourquoi);
+
+  const etat = ligneDeStatut(statut);
+  if (etat) lignes.push(etat);
+
+  return lignes;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * L'en-tête d'un fichier
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** « incendie.mdall » — le nom d'un fichier, depuis son chemin. */
+export function nomDeFichier(chemin = []) {
+  const morceaux = (Array.isArray(chemin) ? chemin : [chemin]).map(texte).filter(Boolean);
+  const dernier = morceaux[morceaux.length - 1] ?? "memoire";
+  return `${normaliser(dernier)}.mdall`;
+}
+
+/** « contraintes/incendie.mdall » — le chemin entier. */
+export function cheminDeFichier(chemin = []) {
+  const morceaux = (Array.isArray(chemin) ? chemin : [chemin]).map(texte).filter(Boolean);
+  if (morceaux.length < 2) return nomDeFichier(morceaux);
+  return `${morceaux.slice(0, -1).map(normaliser).join("/")}/${nomDeFichier(morceaux)}`;
+}
+
+function normaliser(morceau) {
+  return texte(morceau)
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "memoire";
+}
+
+/** `§ contraintes/incendie.mdall` */
+export function ligneDeSection(chemin = []) {
+  return [jeton(JETON.SECTION, "§"), espace(), jeton(JETON.SECTION, cheminDeFichier(chemin))];
+}
+
+/** `¶ une note` */
+export function ligneDeNote(phrase = "") {
+  return [jeton(JETON.NOTE, "¶"), espace(), jeton(JETON.NOTE, texte(phrase))];
+}
+
+/**
+ * L'en-tête : ce que le fichier est, ce qui l'a produit, comment il s'écrit.
+ *
+ * Les deux dernières comptent autant l'une que l'autre : la première dit qu'on
+ * lit une transcription et non un programme ; la seconde permet de distinguer,
+ * six mois plus tard, un changement de valeur d'un changement de façon d'écrire.
  */
 export function enTeteDeFichier({ chemin = [], produitPar = "", le = "" } = {}) {
   const lignes = [ligneDeSection(chemin)];
@@ -392,125 +564,18 @@ export function enTeteDeFichier({ chemin = [], produitPar = "", le = "" } = {}) 
   return lignes;
 }
 
-/**
- * Un raisonnement, tel qu'on le relit.
- *
- * ## Ce qu'une mémoire garde en plus des valeurs
- *
- * Une valeur seule ne se conteste pas : on l'accepte ou on la refuse, sans
- * savoir sur quoi. Ce qui permet d'en discuter, six mois plus tard, ce sont les
- * quatre choses qui l'entourent :
- *
- * ```
- * si … alors … sinon …    le raisonnement — ce qui a été appliqué
- * parce que …             la justification — pourquoi cette règle
- * sauf si …               l'exception — quand elle ne s'applique pas
- * dépend de …             les dépendances — ce qui, en changeant, oblige à refaire
- * ```
- *
- * Les trois dernières manquaient, et leur absence coûtait cher : sans la
- * justification on rediscute la règle à chaque projet ; sans l'exception on la
- * découvre en réunion ; sans les dépendances on ne sait pas quoi recalculer
- * quand une entrée bouge.
- *
- * ## L'ordre, qui n'est pas décoratif
- *
- * Le raisonnement, puis sa raison, puis son exception, puis la valeur qui en
- * sort, puis ce dont elle dépend. On lit du général au particulier, et la
- * valeur arrive **après** ce qui la fonde — c'est l'inverse d'un tableur, et
- * c'est voulu.
- *
- * @param {object} bloc
- * @param {string} bloc.condition   « hauteur du dernier plancher > 8 m »
- * @param {string} bloc.alors       ce qui vaut si la condition tient
- * @param {string} bloc.sinon       ce qui vaut sinon
- * @param {string} bloc.retenu      la branche prise
- * @param {string} bloc.parceQue    ce qui fonde la règle
- * @param {string[]} bloc.saufSi    les cas où elle ne s'applique pas
- * @param {string[]} bloc.dependDe  ce qui, en changeant, oblige à refaire
- * @returns {object[][]} des lignes de jetons
- */
-export function blocDeRaisonnement({
-  condition = "", alors = "", sinon = "", retenu = "",
-  parceQue = "", saufSi = [], dependDe = []
-} = {}) {
-  const lignes = lignesDeDecision({ condition, alors, sinon, retenu });
-
-  if (texte(parceQue)) {
-    lignes.push([
-      jeton(JETON.NEUTRE, RETRAIT),
-      jeton(JETON.MOT_RAISON, "parce que"),
-      jeton(JETON.NEUTRE, " "),
-      jeton(JETON.RAISON, texte(parceQue))
-    ]);
-  }
-
-  for (const cas of (Array.isArray(saufSi) ? saufSi : [saufSi]).map(texte).filter(Boolean)) {
-    lignes.push([
-      jeton(JETON.NEUTRE, RETRAIT),
-      jeton(JETON.MOT_EXCEPTION, "sauf si"),
-      jeton(JETON.NEUTRE, " "),
-      jeton(JETON.EXCEPTION, cas)
-    ]);
-  }
-
-  const socles = (Array.isArray(dependDe) ? dependDe : [dependDe]).map(texte).filter(Boolean);
-  if (socles.length) {
-    lignes.push([
-      jeton(JETON.NEUTRE, RETRAIT),
-      jeton(JETON.MOT_DEPENDANCE, "dépend de"),
-      jeton(JETON.NEUTRE, " "),
-      // Les dépendances se lisent séparées d'un point médian, jamais d'une
-      // virgule : un sujet peut en contenir une, et l'on ne saurait plus où
-      // finit le premier socle.
-      jeton(JETON.DEPENDANCE, socles.join(" · "))
-    ]);
-  }
-
-  return lignes;
-}
-
-/**
- * Une décision, telle que l'arrêté l'écrit.
- *
- * `si … alors … sinon …`, et la branche prise marquée. Ce sont les mots du
- * texte réglementaire, pas ceux d'un langage : les emprunter à l'informatique
- * annoncerait un programme, et un programme, on croit qu'on peut le modifier.
- */
-export function lignesDeDecision({ condition = "", alors = "", sinon = "", retenu = "" } = {}) {
-  const lignes = [];
-  if (!texte(condition)) return lignes;
-
-  lignes.push([
-    jeton(JETON.NEUTRE, RETRAIT),
-    jeton(JETON.MOT_CONDITION, "si"),
-    jeton(JETON.NEUTRE, " "),
-    jeton(JETON.SUJET, texte(condition))
-  ]);
-
-  const branche = (mot, valeur) => {
-    if (!texte(valeur)) return;
-    const jetons = [
-      jeton(JETON.NEUTRE, RETRAIT + RETRAIT),
-      jeton(JETON.MOT_CONDITION, mot),
-      jeton(JETON.NEUTRE, " "),
-      jeton(JETON.VALEUR, texte(valeur))
-    ];
-    if (texte(retenu) && texte(retenu) === texte(valeur)) {
-      jetons.push(jeton(JETON.NEUTRE, "  "));
-      jetons.push(jeton(JETON.MARQUE, "✓ retenu"));
-    }
-    lignes.push(jetons);
-  };
-
-  branche("alors", alors);
-  branche("sinon", sinon);
-  return lignes;
-}
+/* ────────────────────────────────────────────────────────────────────────────
+ * Mise à plat
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 /** Une ligne de jetons, remise à plat. C'est ce qui part dans un extrait. */
 export function enClair(jetons = []) {
   return (Array.isArray(jetons) ? jetons : []).map((entree) => entree.texte).join("");
+}
+
+/** Un fichier entier, remis à plat. */
+export function texteDesLignes(lignes = []) {
+  return (Array.isArray(lignes) ? lignes : []).map(enClair).join("\n");
 }
 
 /**

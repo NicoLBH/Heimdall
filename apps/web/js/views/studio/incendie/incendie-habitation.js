@@ -60,7 +60,7 @@ import {
 } from "../../../services/incendie-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
-import { fichierDeLEtude } from "../../../services/incendie-en-texte.js";
+import { fichierDeLEtude, fichierDesRegles } from "../../../services/incendie-en-texte.js";
 import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
 import { zoneChoices, ZONE_TOUT_LOUVRAGE } from "../../../services/project-zones.js";
 import { DOMAIN, NATURE } from "../../../services/assertion-taxonomy.js";
@@ -785,7 +785,8 @@ function affirmationsRetenues() {
     source: etat.vue?.texteDeReference?.source || "arrêté du 31 janvier 1986 modifié",
     article: ligne.article,
     citation: ligne.citation,
-    raisonnement: ligne.raisonnement ?? null,
+    provenance: ligne.provenance ?? null,
+    statut: ligne.statut || "",
     reference: ligne.id,
     zones: portee,
     atelier: "Incendie — Habitation"
@@ -2008,30 +2009,61 @@ function dessinerBatiment(vue) {
 
 
 /**
- * L'étude, écrite.
+ * L'étude, écrite — en deux fichiers.
+ *
+ * ## Pourquoi deux, et pas un
  *
  * Le questionnaire montre ce qu'on demande, les résultats ce qu'on conclut ;
  * l'écriture montre **ce que le projet retiendra**, dans la forme où il le
- * retiendra. C'est la même page que celle qu'on relira dans le diff d'une
- * proposition, six mois plus tard — et la voir ici, avant de transformer, évite
- * de découvrir à la signature ce qu'on est en train de verser.
+ * retiendra. Mais une étude produit deux choses de natures très différentes :
+ *
+ * - **le référentiel appliqué** — les règles, avec leurs seuils et leurs
+ *   articles. Elles valent pour mille bâtiments, ne changent que si l'arrêté
+ *   change, et ne partent dans aucune proposition ;
+ * - **ce que ce projet retient** — les valeurs, et de quelle règle elles
+ *   sortent. C'est cela, et cela seul, qu'une proposition emportera.
+ *
+ * Les montrer côte à côte est la meilleure façon de faire comprendre ce
+ * partage : ce qu'on relira six mois plus tard est à droite, ce qui a servi à
+ * le produire est à gauche.
  *
  * Rien n'est calculé ici : `incendie-en-texte.js` lit ce que le référentiel a
  * rendu, `memoire-en-texte.js` l'écrit. Cet écran ne fait que colorer.
  */
 function dessinerLEcriture(vue) {
   const zone = String(etat.zoneDuVersement ?? "").trim();
-  const fichier = fichierDeLEtude(vue, {
-    chemin: ["Incendie", zone ? `Habitation — ${zone}` : "Habitation"],
-    le: new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+  const le = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+  const regles = fichierDesRegles(vue, { le });
+  const projet = fichierDeLEtude(vue, {
+    chemin: ["Contraintes", zone ? `Incendie — ${zone}` : "Incendie"],
+    le
   });
 
-  const compte = [
-    fichier.compte.affirmations ? `${fichier.compte.affirmations} exigence${fichier.compte.affirmations > 1 ? "s" : ""}` : "",
-    fichier.compte.sansObjet ? `${fichier.compte.sansObjet} sans objet` : "",
-    fichier.compte.attente ? `${fichier.compte.attente} en attente` : ""
+  const compteDuProjet = [
+    projet.compte.affirmations ? `${projet.compte.affirmations} exigence${projet.compte.affirmations > 1 ? "s" : ""}` : "",
+    projet.compte.sansObjet ? `${projet.compte.sansObjet} sans objet` : "",
+    projet.compte.attente ? `${projet.compte.attente} en attente` : ""
   ].filter(Boolean).join(" · ");
 
+  return `
+    <div class="mdall-deux-fichiers">
+      ${dessinerUnFichier(regles, {
+        compte: regles.compte.regles ? `${regles.compte.regles} règle${regles.compte.regles > 1 ? "s" : ""}` : "",
+        vide: "Aucune règle n'a encore été appliquée.",
+        phrase: "Ce que le texte exige, sans ce projet-ci. Ce fichier ne part dans aucune proposition."
+      })}
+      ${dessinerUnFichier(projet, {
+        compte: compteDuProjet,
+        vide: "Le référentiel n'a encore rien conclu qui engage l'ouvrage.",
+        phrase: "Ce que le projet retiendra, et de quelle règle cela sort. C'est ce qu'une proposition emportera."
+      })}
+    </div>
+  `;
+}
+
+/** Un fichier mdall, coloré. La feuille de style décide des teintes, pas nous. */
+function dessinerUnFichier(fichier, { compte = "", vide = "", phrase = "" } = {}) {
   const ligne = (jetons, nature = "") => `
     <div class="mdall-ligne${nature ? ` mdall-ligne--${escapeHtml(nature)}` : ""}">${jetons
       .map((entree) => `<span class="mdall-${escapeHtml(entree.type)}">${escapeHtml(entree.texte)}</span>`)
@@ -2042,17 +2074,14 @@ function dessinerLEcriture(vue) {
     <section class="mdall-fichier">
       <header class="mdall-fichier__tete">
         <span class="mdall-fichier__nom">${escapeHtml(fichier.chemin)}</span>
-        <span class="mdall-fichier__compte">${escapeHtml(compte || "rien à écrire pour l'instant")}</span>
+        <span class="mdall-fichier__compte">${escapeHtml(compte || "vide pour l'instant")}</span>
       </header>
+      ${phrase ? `<p class="mdall-fichier__phrase">${escapeHtml(phrase)}</p>` : ""}
       <div class="mdall-fichier__corps">
         ${fichier.enTete.map((jetons) => ligne(jetons)).join("")}
         ${fichier.enTete.length ? `<div class="mdall-ligne"></div>` : ""}
         ${fichier.lignes.map((entree) => ligne(entree.jetons, entree.nature)).join("")}
-        ${
-          fichier.lignes.length === 0
-            ? `<div class="mdall-ligne mdall-ligne--vide">Le référentiel n'a encore rien conclu qui engage l'ouvrage.</div>`
-            : ""
-        }
+        ${fichier.lignes.length === 0 ? `<div class="mdall-ligne mdall-ligne--vide">${escapeHtml(vide)}</div>` : ""}
       </div>
     </section>
   `;

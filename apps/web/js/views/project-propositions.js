@@ -83,7 +83,9 @@ import { aChange, reperesDuDepot } from "../services/depot-carburants.js";
 import { limiterAuDepot } from "../services/depot-portee.js";
 import { ISSUE, passerLesControles, resumeDesControles } from "../services/depot-controles.js";
 import { bindSideResizer, renderSideResizer } from "./ui/side-resizer.js";
-import { cheminDeFichier, enClair, ligneDAffirmation, nomDeFichier } from "../services/memoire-en-texte.js";
+import {
+  cheminDeFichier, couperLUnite, enClair, estMesuree, ligneDAffirmation, nomDeFichier
+} from "../services/memoire-en-texte.js";
 import { avisFromFigures, mergeAvis } from "../services/avis-from-figures.js";
 import { describeReadingStack } from "../services/run-workflow.js";
 
@@ -2824,12 +2826,17 @@ function renderDiffLigne(groupe, entree) {
  */
 function jetonsDeLaLigne(entree) {
   const provenance = entree.ligne.provenance ?? {};
+  const brute = String(entree.valeur ?? "");
+  const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
+
+  // Le diff compare des **champs** de repères, un par ligne : la provenance et
+  // le statut y ont déjà leur propre ligne, avec leur propre `-` ou `+`. Les
+  // réécrire ici les ferait apparaître deux fois, dont une sans signe.
   return ligneDAffirmation({
     sujet: entree.nom,
-    valeur: entree.valeur,
-    zones: provenance.zones ?? [],
-    deduitDe: provenance.deduitDe ?? null,
-    source: [provenance.source, provenance.article].filter(Boolean).join(", ")
+    valeur: coupe.nombre,
+    unite: coupe.unite,
+    zones: provenance.zones ?? []
   });
 }
 

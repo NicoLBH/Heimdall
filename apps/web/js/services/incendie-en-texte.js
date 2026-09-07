@@ -1,29 +1,43 @@
 /**
- * L'étude incendie, écrite.
+ * L'étude incendie, écrite — en deux fichiers, parce qu'il y a deux choses.
  *
- * ## Ce que ce fichier branche
+ * ## Le partage, et pourquoi il est le point de tout ce fichier
  *
- * `memoire-en-texte.js` sait écrire une affirmation, une exigence sans objet,
- * une décision. Il ne sait rien de l'incendie. Ce fichier fait la jointure : il
- * lit ce que le référentiel a conclu et le rend en lignes.
+ * Une étude produit deux objets de natures très différentes :
  *
- * C'est le même partage que pour le diff — un moteur, des carburants — et pour
- * la même raison. L'écriture d'un autre utilitaire s'ajoutera par un fichier de
- * ce genre, sans toucher au langage.
+ * - **les règles appliquées** — « si le classement est 3e famille B, alors une
+ *   colonne sèche de 65 mm par escalier ». Cela vaut pour mille bâtiments, ne
+ *   change que si l'arrêté change, et c'est le capital de Mdall ;
+ * - **ce que ce projet retient** — « Colonne sèche = exigée ». Cela vaut pour
+ *   un bâtiment, change à chaque projet, et c'est la mémoire du client.
+ *
+ * Les écrire ensemble produisait des règles fausses. Faute de conditions, le
+ * fichier les fabriquait à partir des valeurs conclues en amont et écrivait
+ * `si Hauteur du plancher bas = 26` là où l'arrêté dit `≤ 28 m`. Une règle vraie
+ * d'un seul bâtiment ne capitalise rien, et le diff mentait dans les deux sens :
+ * il annonçait un changement de règle quand une cote du projet bougeait, et
+ * n'annonçait rien quand l'arrêté était modifié.
+ *
+ * Le corpus publie donc maintenant les conditions de la branche empruntée
+ * (voir `supabase/functions/incendie-habitation/conditions.js`), et ce fichier
+ * les range là où elles valent :
+ *
+ * ```
+ * referentiels/incendie-habitation.mdall   les règles, sans aucune valeur de projet
+ * contraintes/incendie.mdall               ce que le projet retient, et de quelle règle
+ * ```
  *
  * ## Ce qui s'écrit, et ce qui s'écrit aussi
  *
- * Un module conclu qui exige quelque chose donne une ligne, avec son article
- * derrière la flèche. Mais deux autres états comptent autant, et l'écran les
- * faisait disparaître :
+ * Un module conclu qui exige quelque chose donne une affirmation. Mais deux
+ * autres états comptent autant, et l'écran les faisait disparaître :
  *
  * - **sans objet** — le référentiel a examiné le cas et n'exige rien. Ce n'est
  *   pas une valeur manquante, c'est une conclusion, et c'est celle qu'on
  *   cherchera le jour où quelqu'un demandera « et pour la circulation
  *   horizontale ? » ;
  * - **en attente** — il manque une réponse. Ne pas savoir n'autorise pas à
- *   prétendre qu'il n'y a rien : la ligne s'écrit, avec le nom de ce qui la
- *   retient.
+ *   prétendre qu'il n'y a rien.
  *
  * Les **reformulations du cas** — « le bâtiment comporte un sous-sol » — n'ont
  * pas leur place dans un fichier d'exigences : elles décrivent l'entrée, pas la
@@ -38,8 +52,9 @@
  */
 
 import {
-  enTeteDeFichier, ligneDAffirmation, ligneSansObjet, ligneEnAttente,
-  blocDeRaisonnement, nomDeFichier, cheminDeFichier
+  enTeteDeFichier, blocDAffirmation, blocDeRegle,
+  nomDeFichier, cheminDeFichier, couperLUnite, estMesuree,
+  PROVENANCE, STATUT
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -55,119 +70,161 @@ export function sourceDuModule(module = {}, referentiel = "") {
 }
 
 /**
- * Un module du référentiel, en une ligne — ou rien.
+ * Les conditions publiées par le corpus, mises dans la forme du langage.
  *
- * `null` quand le module ne dit rien qui concerne l'ouvrage : une reformulation
- * du cas, ou un module qui n'a pas commencé.
+ * Rien n'est traduit : le serveur envoie déjà le sujet, l'opérateur, le seuil
+ * et l'unité. On ne fait que joindre les conditions entre elles — la première
+ * ouvre le `si`, les suivantes s'y ajoutent par un `et`.
  */
-export function ligneDuModule(module = {}, referentiel = "", vue = {}) {
+export function conditionsDuModule(module = {}) {
+  const brutes = Array.isArray(module?.conditions) ? module.conditions : [];
+
+  return brutes
+    .filter((condition) => texte(condition?.sujet))
+    .map((condition, rang) => ({
+      sujet: texte(condition.sujet),
+      operateur: texte(condition.operateur) || "=",
+      valeur: (Array.isArray(condition.valeur) ? condition.valeur : [condition.valeur])
+        .map(texte).filter(Boolean),
+      unite: texte(condition.unite),
+      logique: condition.logique === true,
+      ...(rang === 0 ? {} : { joint: "et" })
+    }));
+}
+
+/**
+ * Un module conclu, en règle : ce que le texte exige, sans ce projet-ci.
+ *
+ * `null` quand le module n'a pas conclu, ou quand il ne pose aucune exigence :
+ * une reformulation du cas n'est pas une règle du référentiel, c'est une
+ * lecture de l'entrée.
+ */
+export function regleDuModule(module = {}, referentiel = "") {
+  if (module?.exigence !== true) return null;
+  if (texte(module.statut) !== "conclu") return null;
+
+  const sujet = texte(module.titre);
+  const valeur = texte(module.valeur);
+  if (!sujet || !valeur) return null;
+
+  const conditions = conditionsDuModule(module);
+  const source = sourceDuModule(module, referentiel);
+  // Une règle sans condition **et** sans source ne dit rien qu'on puisse
+  // rejouer : elle n'a pas sa place dans un référentiel.
+  if (!conditions.length && !source) return null;
+
+  return {
+    sujet,
+    conditions,
+    alors: valeur,
+    provenance: source ? { type: PROVENANCE.TEXTE, quoi: source } : null,
+    preuve: texte(module.pourquoi?.citation)
+  };
+}
+
+/**
+ * Un module, en affirmation de projet : ce que celui-ci retient.
+ *
+ * La règle n'est pas recopiée. La ligne dit de quelle règle la valeur sort, et
+ * la règle vit dans le référentiel — une seule fois, pour tous les projets.
+ *
+ * ## La valeur s'écrit même quand rien n'est exigé
+ *
+ * Un module peut conclure une valeur **et** ne rien exiger : « Voie-engins =
+ * non décrite », et les deux premières familles ne sont soumises à aucune
+ * prescription d'accès. L'écriture posait alors « sans objet » **à la place**
+ * de la valeur, et le graphe se cassait : « Voie-échelles » dépend de
+ * « Voie-engins », dont le fichier ne disait plus rien.
+ *
+ * La valeur s'écrit donc toujours, et l'absence d'exigence est un **statut**.
+ * C'est la seule façon de garder un fichier dont les règles se rejouent.
+ */
+export function affirmationDuModule(module = {}, referentiel = "") {
   const sujet = texte(module.titre);
   if (!sujet) return null;
 
   // Ce qui ne pose aucune exigence décrit l'entrée, pas la sortie.
   if (module.exigence !== true) return null;
 
-  if (texte(module.sansObjet)) {
-    return { nature: "sans-objet", jetons: ligneSansObjet({ sujet, motif: texte(module.sansObjet), source: sourceDuModule(module, referentiel) }) };
-  }
-
-  if (texte(module.statut) === "enAttente") {
-    const manque = Array.isArray(module.manque) ? module.manque : [];
-    return { nature: "attente", jetons: ligneEnAttente({ sujet, manque }) };
-  }
-
-  if (texte(module.statut) !== "conclu") return null;
-
   const valeur = texte(module.valeur);
-  if (!valeur) return null;
+  const sansObjet = texte(module.sansObjet);
+  const enAttente = texte(module.statut) === "enAttente";
+  const conclu = texte(module.statut) === "conclu";
+
+  if (!conclu && !enAttente) return null;
+  if (conclu && !valeur && !sansObjet) return null;
+
+  const source = sourceDuModule(module, referentiel);
+  const coupe = valeur && estMesuree(valeur) ? couperLUnite(valeur) : { nombre: valeur, unite: "" };
+
+  const nature = enAttente ? "attente" : sansObjet ? "sans-objet" : "affirmation";
+  const statut = enAttente ? STATUT.EN_ATTENTE : sansObjet ? STATUT.SANS_OBJET : STATUT.RETENU;
+
+  // Ce qui retient une conclusion, ou ce qui fonde l'absence d'exigence : dans
+  // les deux cas, c'est ce qu'on cherchera d'abord.
+  const manque = (Array.isArray(module.manque) ? module.manque : []).map(texte).filter(Boolean);
+  const preuve = enAttente
+    ? (manque.length ? `Il manque : ${manque.join(", ")}.` : "")
+    : sansObjet;
 
   return {
-    nature: "affirmation",
-    jetons: ligneDAffirmation({ sujet, valeur, source: sourceDuModule(module, referentiel) }),
-    // Ce qui entoure la valeur, quand le référentiel le donne : le raisonnement
-    // appliqué, sa justification, ses exceptions, ce dont elle dépend. Une
-    // valeur seule ne se conteste pas — on l'accepte ou on la refuse, sans
-    // savoir sur quoi.
-    raisonnement: raisonnementDuModule(module, vue)
+    nature,
+    lignes: blocDAffirmation({
+      sujet,
+      valeur: coupe.nombre,
+      unite: coupe.unite,
+      // La provenance est la **règle** quand il y en a une : c'est elle qui a
+      // produit la valeur, et c'est par elle qu'on remonte au texte. Un seul
+      // chaînon par ligne, sinon on ne sait plus lequel suivre.
+      //
+      // Quand le module n'a rien conclu, aucune règle ne figure au référentiel
+      // et pointer vers elle mènerait nulle part. La ligne renvoie alors
+      // directement au texte, ce qu'elle fait honnêtement : c'est une lecture,
+      // pas une déduction.
+      provenance: source
+        ? { type: valeur ? PROVENANCE.REGLE : PROVENANCE.TEXTE,
+            quoi: valeur ? `${sujet} — ${source}` : source }
+        : null,
+      preuve,
+      statut
+    })
   };
 }
 
 /**
- * Les modules dont une conclusion a eu besoin, avec ce qu'ils ont conclu.
+ * Le référentiel appliqué, en un fichier.
  *
- * Le référentiel ne livre pas ses conditions — elles restent au serveur, et
- * c'est voulu : le corpus est le produit. Mais il livre son **graphe**, et le
- * graphe dit exactement quel module a alimenté quel autre. C'est de là que se
- * lit la condition : « si classement du bâtiment = 3e famille B ». Rien n'est
- * inventé, tout est relu.
+ * Aucune valeur de ce projet n'y figure. C'est ce qui le rend réutilisable, et
+ * c'est aussi ce qui fait qu'un changement de l'arrêté s'y voit — alors qu'il
+ * ne se voyait nulle part quand la règle était fondue dans le fichier du
+ * projet.
  */
-export function amontDuModule(module = {}, vue = {}) {
-  const id = texte(module.id);
-  if (!id) return [];
-
-  const liens = Array.isArray(vue?.graphe?.liens) ? vue.graphe.liens : [];
+export function fichierDesRegles(vue, {
+  chemin = ["Référentiels", "Incendie — Habitation"],
+  referentiel = "arrêté du 31 janvier 1986 modifié",
+  produitPar = "l'utilitaire incendie — habitation",
+  le = ""
+} = {}) {
   const modules = Array.isArray(vue?.modules) ? vue.modules : [];
-  const parId = new Map(modules.map((m) => [texte(m?.id), m]));
 
-  const amonts = [];
-  const vus = new Set();
-  for (const lien of liens) {
-    if (texte(lien?.vers) !== id) continue;
-    const de = texte(lien?.de);
-    if (!de || vus.has(de)) continue;
-    vus.add(de);
-    const amont = parId.get(de);
-    if (!amont || texte(amont.statut) !== "conclu") continue;
-    const titre = texte(amont.titre);
-    if (!titre) continue;
-    amonts.push({ titre, valeur: texte(amont.valeur) });
-  }
+  const corps = modules
+    .map((module) => regleDuModule(module, referentiel))
+    .filter(Boolean)
+    .flatMap((regle) => blocDeRegle(regle).map((jetons, rang) => ({
+      nature: rang === 0 ? "donnee" : "regle", jetons
+    })));
 
-  return amonts;
-}
-
-/**
- * Ce qui entoure une conclusion : la règle appliquée, sa raison, ses socles.
- *
- * Une valeur seule ne se conteste pas — on l'accepte ou on la refuse, sans
- * savoir sur quoi. Le bloc dit sous quelle condition elle vaut, pourquoi le
- * texte le dit, et de quoi elle dépendrait si l'une de ces entrées changeait.
- *
- * Rien n'est deviné. Un « parce que » inventé serait pire que pas de « parce
- * que », puisqu'on le citerait en réunion.
- *
- * @returns {object|null} `null` quand le module n'apporte aucun raisonnement
- */
-export function raisonnementDuModule(module = {}, vue = {}) {
-  const pourquoi = module.pourquoi ?? {};
-  const amont = amontDuModule(module, vue);
-
-  // « classement du bâtiment = 3e famille B et hauteur du dernier plancher = 18 m »
-  const condition = amont
-    .filter((entree) => entree.valeur)
-    .map((entree) => `${entree.titre} = ${entree.valeur}`)
-    .join(" et ");
-  // La citation est une phrase de l'arrêté, pas une reformulation : elle porte
-  // ses guillemets, comme partout ailleurs dans l'application. Qui la relit en
-  // réunion doit voir tout de suite qu'il cite le texte et non nous.
-  const citation = texte(pourquoi.citation);
-  const parceQue = citation ? `« ${citation} »` : "";
-  const dependDe = amont.map((entree) => entree.titre);
-
-  if (!condition && !parceQue && !dependDe.length) return null;
-
-  const valeur = texte(module.valeur);
   return {
-    condition,
-    alors: condition ? valeur : "",
-    retenu: condition ? valeur : "",
-    parceQue,
-    dependDe
+    nom: nomDeFichier(chemin),
+    chemin: cheminDeFichier(chemin),
+    enTete: enTeteDeFichier({ chemin, produitPar, le }),
+    lignes: corps,
+    compte: { regles: corps.filter((ligne) => ligne.nature === "donnee").length }
   };
 }
 
 /**
- * L'étude entière, en un fichier.
+ * L'étude entière, en un fichier de projet.
  *
  * L'ordre est celui du référentiel : il a posé ses questions dans l'ordre où
  * elles s'enchaînent, et relire le fichier dans un autre ordre ferait perdre le
@@ -181,25 +238,23 @@ export function raisonnementDuModule(module = {}, vue = {}) {
  * @param {string} options.le la date, en clair
  */
 export function fichierDeLEtude(vue, {
-  chemin = ["Incendie", "Habitation"],
+  chemin = ["Contraintes", "Incendie"],
   referentiel = "arrêté du 31 janvier 1986 modifié",
   produitPar = "l'utilitaire incendie — habitation",
   le = ""
 } = {}) {
   const modules = Array.isArray(vue?.modules) ? vue.modules : [];
-  // L'affirmation d'abord, son raisonnement indenté dessous. Écrit au-dessus,
-  // le bloc flottait : on lisait « dépend de Commune du projet » sans savoir de
-  // quoi cela parlait, puisque rien ne le rattachait à la ligne suivante.
-  // L'indentation dit l'appartenance — voir `RETRAIT` dans `memoire-en-texte`.
+
   const corps = modules
-    .map((module) => ligneDuModule(module, referentiel, vue))
+    .map((module) => affirmationDuModule(module, referentiel))
     .filter(Boolean)
-    .flatMap((ligne) => [
-      ligne,
-      ...(ligne.raisonnement
-        ? blocDeRaisonnement(ligne.raisonnement).map((jetons) => ({ nature: "raisonnement", jetons }))
-        : [])
-    ]);
+    .flatMap((entree) => entree.lignes.map((jetons, rang) => ({
+      // La tête porte la nature du bloc ; ce qui suit la détaille.
+      nature: rang === 0 ? entree.nature : "detail",
+      jetons
+    })));
+
+  const tetes = corps.filter((ligne) => ligne.nature !== "detail");
 
   return {
     nom: nomDeFichier(chemin),
@@ -209,10 +264,9 @@ export function fichierDeLEtude(vue, {
     // Ce que le fichier porte, en chiffres. Rien n'est estimé : ce sont des
     // comptes, et ils disent ce qu'on lira avant d'ouvrir.
     compte: {
-      raisonnements: corps.filter((ligne) => ligne.nature === "raisonnement").length,
-      affirmations: corps.filter((ligne) => ligne.nature === "affirmation").length,
-      sansObjet: corps.filter((ligne) => ligne.nature === "sans-objet").length,
-      attente: corps.filter((ligne) => ligne.nature === "attente").length
+      affirmations: tetes.filter((ligne) => ligne.nature === "affirmation").length,
+      sansObjet: tetes.filter((ligne) => ligne.nature === "sans-objet").length,
+      attente: tetes.filter((ligne) => ligne.nature === "attente").length
     }
   };
 }

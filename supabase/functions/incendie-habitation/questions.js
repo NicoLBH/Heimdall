@@ -27,6 +27,22 @@
  * le second, et l'écran ouvre les deux. Ouvrir l'article 3 sous une question
  * qui nomme l'article 6 est exactement ce qui fait douter de tout le reste.
  *
+ * ## Deux noms pour une même question
+ *
+ * `libelle` est la phrase qu'on **pose** : « Le bâtiment comporte-t-il des
+ * logements superposés ? ». `sujet` est le nom court sous lequel la réponse se
+ * **relit** : « Logements superposés ». Les deux sont nécessaires, et pour deux
+ * lecteurs différents : le questionnaire pose, l'écriture Mdall relit.
+ *
+ * « si Le bâtiment comporte-t-il des logements superposés ? = oui » ne se lit
+ * pas. « si Logements superposés = oui » se lit.
+ *
+ * Une question dont le libellé est **déjà** un groupe nominal — « Nombre
+ * d'étages sur rez-de-chaussée » — ne déclare pas de `sujet` : ce serait la
+ * même valeur écrite à deux endroits, et une valeur écrite à deux endroits finit
+ * par diverger. Un test vérifie la règle dans les deux sens : toute question
+ * interrogative en déclare un, aucune question nominale n'en déclare.
+ *
  * ## L'énoncé porte la règle
  *
  * « Nombre d'étages sur rez-de-chaussée » ne suffit pas : le texte compte les
@@ -40,6 +56,7 @@ export const QUESTIONS = [
   /* ── Le bâtiment, tel que l'article 3 le regarde ───────────────────────── */
   {
     cle: "logementsSuperposes",
+    sujet: "Logements superposés",
     libelle: "Le bâtiment comporte-t-il des logements superposés ?",
     type: "booleen",
     article: "3",
@@ -50,6 +67,7 @@ export const QUESTIONS = [
   },
   {
     cle: "implantation",
+    sujet: "Implantation de l'habitation",
     libelle: "Comment l'habitation est-elle implantée ?",
     type: "choix",
     valeurs: [
@@ -74,6 +92,7 @@ export const QUESTIONS = [
   },
   {
     cle: "structuresIndependantes",
+    sujet: "Indépendance des structures entre habitations contiguës",
     libelle: "Les structures de chaque habitation concourant à la stabilité du bâtiment sont-elles "
       + "indépendantes de celles de l'habitation contiguë ?",
     type: "booleen",
@@ -87,6 +106,7 @@ export const QUESTIONS = [
   /* ── Duplex et triplex : ce qu'on compte vraiment ──────────────────────── */
   {
     cle: "duplexOuTriplexAuDernierEtage",
+    sujet: "Duplex ou triplex à l'étage le plus élevé",
     libelle: "Les logements de l'étage le plus élevé sont-ils des duplex ou des triplex ?",
     type: "booleen",
     article: "3",
@@ -96,6 +116,7 @@ export const QUESTIONS = [
   },
   {
     cle: "duplexPiecePrincipaleEtPortePaliereEnBas",
+    sujet: "Pièce principale et porte palière en partie basse du duplex",
     libelle: "Ces logements disposent-ils d'une pièce principale et d'une porte palière en partie basse ?",
     type: "booleen",
     article: "3",
@@ -103,6 +124,7 @@ export const QUESTIONS = [
   },
   {
     cle: "duplexPlanchersConformesArticle6",
+    sujet: "Conformité des planchers du duplex à l'article 6",
     libelle: "Les planchers des différents niveaux de ces logements répondent-ils aux caractéristiques "
       + "de l'article 6 ?",
     type: "booleen",
@@ -114,6 +136,7 @@ export const QUESTIONS = [
   },
   {
     cle: "quadruplexOuPlus",
+    sujet: "Logements de quatre niveaux ou plus",
     libelle: "Le bâtiment comporte-t-il des logements de quatre niveaux ou plus ?",
     type: "booleen",
     article: "3",
@@ -161,6 +184,7 @@ export const QUESTIONS = [
   },
   {
     cle: "accesEscaliersAtteintsParVoieEchelles",
+    sujet: "Accès aux escaliers atteints par la voie-échelles",
     libelle: "Au rez-de-chaussée, les accès aux escaliers sont-ils atteints par la voie-échelles ?",
     type: "booleen",
     article: "3",
@@ -170,6 +194,7 @@ export const QUESTIONS = [
   },
   {
     cle: "accesEscaliersMoinsDe50mVoieEngins",
+    sujet: "Accès aux escaliers à moins de 50 m d'une voie-engins",
     libelle: "Les accès aux escaliers sont-ils situés à moins de 50 m d'une voie-engins ?",
     type: "booleen",
     article: "3",
@@ -178,6 +203,7 @@ export const QUESTIONS = [
   },
   {
     cle: "arreteMunicipalDeclassement",
+    sujet: "Arrêté municipal de déclassement en 3ᵉ famille A",
     libelle: "Le maire a-t-il décidé que ce bâtiment de 3ᵉ famille B peut être soumis aux seules "
       + "prescriptions de la 3ᵉ famille A ?",
     type: "booleen",
@@ -189,6 +215,7 @@ export const QUESTIONS = [
   },
   {
     cle: "logementsAtteignablesEchellesOuParcoursSur",
+    sujet: "Logements atteignables par les échelles ou par un parcours sûr",
     libelle: "Chaque logement peut-il être atteint par les échelles, soit directement, soit par un "
       + "parcours sûr ?",
     type: "booleen",
@@ -201,6 +228,7 @@ export const QUESTIONS = [
   /* ── L'article 4 : ce qui fait qu'une voie en est une ──────────────────── */
   {
     cle: "voieAccesDecrite",
+    sujet: "Voie d'accès des services de secours décrite",
     libelle: "Décrit-on une voie d'accès pour les services de secours ?",
     type: "booleen",
     article: "4",
@@ -250,6 +278,7 @@ export const QUESTIONS = [
   },
   {
     cle: "voieRaccordeeAUneVoieEngins",
+    sujet: "Raccordement de la section à une voie-engins",
     libelle: "Si la section n'est pas sur la voie publique, est-elle raccordée à une voie-engins ?",
     type: "choix",
     valeurs: [
@@ -263,6 +292,7 @@ export const QUESTIONS = [
   /* ── Ce que la structure et l'enveloppe demandent ──────────────────────── */
   {
     cle: "niveauxEnSousSol",
+    sujet: "Nombre de niveaux au-dessous du niveau de référence",
     libelle: "Combien de niveaux le bâtiment compte-t-il au-dessous du niveau de référence ?",
     type: "nombre", unite: "niveaux",
     article: "6",
@@ -273,6 +303,7 @@ export const QUESTIONS = [
   },
   {
     cle: "planchersSurVideSanitaireNonAccessible",
+    sujet: "Plancher situé au-dessus d'un vide sanitaire non accessible",
     libelle: "Le plancher considéré est-il situé au-dessus d'un vide sanitaire non accessible ?",
     type: "booleen",
     article: "6",
@@ -280,6 +311,7 @@ export const QUESTIONS = [
   },
   {
     cle: "paroisLogementProlongeesJusquACouverture",
+    sujet: "Parois de l'enveloppe des logements prolongées jusqu'à la couverture",
     libelle: "Les parois verticales de l'enveloppe des logements sont-elles prolongées jusqu'à la "
       + "couverture du bâtiment ?",
     type: "booleen",
@@ -290,6 +322,7 @@ export const QUESTIONS = [
   },
   {
     cle: "coursivesPasserellesOuCirculationsAAirLibre",
+    sujet: "Coursives, passerelles ou circulations à l'air libre",
     libelle: "Le bâtiment comporte-t-il des coursives, passerelles extérieures ou circulations à "
       + "l'air libre reliant les logements aux escaliers ?",
     type: "booleen",
@@ -298,6 +331,7 @@ export const QUESTIONS = [
   },
   {
     cle: "groupementEnBandeOuGrandeLongueur",
+    sujet: "Groupement en bande ou bâtiment de grande longueur",
     libelle: "S'agit-il d'un groupement en bande de maisons individuelles, ou d'un bâtiment de "
       + "grande longueur ?",
     type: "booleen",
@@ -312,6 +346,7 @@ export const QUESTIONS = [
   },
   {
     cle: "celliersOuCavesRegroupes",
+    sujet: "Ensemble de celliers ou caves regroupés",
     libelle: "Le bâtiment comporte-t-il un ensemble regroupant des celliers ou caves indépendants "
       + "des logements ?",
     type: "booleen",
@@ -321,6 +356,7 @@ export const QUESTIONS = [
   },
   {
     cle: "facadePartiesPleinesSystemeClasseE",
+    sujet: "Système de façade classé E sur les parties pleines",
     libelle: "Les parties pleines de la façade sont-elles revêtues d'un système de façade classé E ?",
     type: "booleen",
     article: "12", paragraphe: "A, deuxième alinéa"
@@ -343,6 +379,7 @@ export const QUESTIONS = [
   },
   {
     cle: "supportCouvertureContinuIncombustible",
+    sujet: "Support continu incombustible sous le revêtement de couverture",
     libelle: "Le revêtement est-il établi sur un support continu en matériau incombustible, en "
       + "panneaux de bois, d'aggloméré de fibres de bois ou équivalent reconnu par le Cecmi ?",
     type: "booleen",
@@ -353,6 +390,7 @@ export const QUESTIONS = [
   /* ── Titre III : ce qu'on a choisi de construire ───────────────────────── */
   {
     cle: "typeEscalierRetenu",
+    sujet: "Type d'escalier prévu",
     libelle: "Quel escalier le projet prévoit-il ?",
     type: "choix",
     valeurs: [
@@ -377,6 +415,7 @@ export const QUESTIONS = [
   },
   {
     cle: "partiesParoiEscalierNonPareFlammes",
+    sujet: "Parties de paroi de cage non pare-flammes de degré 1/2 h",
     libelle: "La paroi de la cage comporte-t-elle des parties, baies ou fenêtres non pare-flammes "
       + "de degré 1/2 heure ?",
     type: "booleen", article: "18", paragraphe: "deuxième alinéa",
@@ -406,6 +445,7 @@ export const QUESTIONS = [
   },
   {
     cle: "typeCirculationRetenue",
+    sujet: "Type de circulation horizontale prévu",
     libelle: "Quelle circulation horizontale le projet prévoit-il ?",
     type: "choix",
     valeurs: [
@@ -432,6 +472,7 @@ export const QUESTIONS = [
   },
   {
     cle: "modeDesenfumageRetenu",
+    sujet: "Mode de désenfumage de la circulation",
     libelle: "Comment la circulation est-elle désenfumée ?",
     type: "choix",
     valeurs: [
@@ -442,6 +483,7 @@ export const QUESTIONS = [
   },
   {
     cle: "parcoursCirculationRectiligne",
+    sujet: "Parcours rectiligne de la circulation",
     libelle: "Le parcours de la circulation est-il rectiligne ?",
     type: "booleen", article: "35", paragraphe: "deuxième alinéa",
     aide: "La distance admise entre deux bouches de nature différente passe de 10 m à 7 m dès que le "
@@ -449,6 +491,7 @@ export const QUESTIONS = [
   },
   {
     cle: "solutionDegagementRetenue",
+    sujet: "Solution de dégagements protégés retenue",
     libelle: "Quelle solution de dégagements protégés est retenue ?",
     type: "choix",
     valeurs: [
@@ -475,6 +518,7 @@ export const QUESTIONS = [
   /* ── Titre IV : ce qui traverse le bâtiment ───────────────────────────── */
   {
     cle: "conduitDansLogementOuCirculationCommune",
+    sujet: "Emplacement du conduit",
     libelle: "Où le conduit passe-t-il ?",
     // « Oui » et « non » ne veulent rien dire sous une question qui nomme deux
     // lieux : on lit la question, on regarde les deux boutons, et l'on ne sait
@@ -510,6 +554,7 @@ export const QUESTIONS = [
   },
   {
     cle: "gaineRecoupeeTousNiveauxA1",
+    sujet: "Gaine recoupée à tous les niveaux en matériaux A1",
     libelle: "La gaine est-elle recoupée à tous les niveaux en matériaux incombustibles de classement A1 ?",
     type: "booleen", article: "48", paragraphe: "troisième alinéa",
     aide: "Si oui, les trappes et portes de visite tiennent le coupe-feu 1/4 d'heure (EI 15) quelle "
@@ -522,6 +567,7 @@ export const QUESTIONS = [
   },
   {
     cle: "paroiTraversee",
+    sujet: "Nature de la paroi traversée",
     libelle: "Que sépare la paroi traversée ?",
     type: "choix",
     valeurs: [
@@ -536,16 +582,19 @@ export const QUESTIONS = [
   },
   {
     cle: "conduitIncorporeDansUneGaine",
+    sujet: "Conduit incorporé dans une gaine",
     libelle: "Le conduit est-il incorporé dans une gaine ?",
     type: "booleen", article: "49", paragraphe: "1°) et 2°)"
   },
   {
     cle: "conduiteMontanteDeGaz",
+    sujet: "Conduite montante de gaz",
     libelle: "Le bâtiment comporte-t-il une conduite montante de gaz ?",
     type: "booleen", article: "50"
   },
   {
     cle: "situationGaineGaz",
+    sujet: "Situation de la gaine gaz",
     libelle: "Où la gaine gaz est-elle située ?",
     type: "choix",
     valeurs: [
@@ -558,16 +607,19 @@ export const QUESTIONS = [
   },
   {
     cle: "gazTraversantUnParcDeStationnement",
+    sujet: "Traversée d'un parc de stationnement par l'installation de gaz",
     libelle: "L'installation de gaz traverse-t-elle un parc de stationnement couvert annexe ?",
     type: "booleen", article: "56", paragraphe: "2°)"
   },
   {
     cle: "colonneMontanteElectriqueEnGaine",
+    sujet: "Colonne montante « électricité » en gaine",
     libelle: "Le bâtiment comporte-t-il une colonne montante « électricité » en gaine ?",
     type: "booleen", article: "58"
   },
   {
     cle: "typeVentilation",
+    sujet: "Type de ventilation mécanique",
     libelle: "Quel système de ventilation mécanique ?",
     type: "choix",
     valeurs: [
@@ -583,6 +635,7 @@ export const QUESTIONS = [
   },
   {
     cle: "solutionVentilationRetenue",
+    sujet: "Solution de ventilation mécanique retenue",
     libelle: "Quelle solution de ventilation mécanique est retenue ?",
     type: "choix",
     valeurs: [
@@ -596,23 +649,27 @@ export const QUESTIONS = [
   },
   {
     cle: "ventilateurDansUnLocalExterieur",
+    sujet: "Ventilateur dans un local extérieur au bâtiment",
     libelle: "Le ventilateur est-il dans un local situé à l'extérieur du bâtiment ?",
     type: "booleen", article: "62", paragraphe: "a",
     aide: "À l'extérieur, les exigences sur les parois du local ne sont pas exigées."
   },
   {
     cle: "videOrdures",
+    sujet: "Vide-ordures",
     libelle: "Le bâtiment comporte-t-il un vide-ordures ?",
     type: "booleen", article: "64"
   },
   {
     cle: "videOrduresDansLesLogements",
+    sujet: "Vide-ordures à l'intérieur des logements",
     libelle: "Les vide-ordures sont-ils situés à l'intérieur des logements ?",
     type: "booleen", article: "64", paragraphe: "quatrième alinéa",
     aide: "À l'intérieur des logements, les degrés du conduit et du vidoir sont relevés."
   },
   {
     cle: "localOrduresDansLeParcDeStationnement",
+    sujet: "Local réceptacle des ordures dans le parc de stationnement",
     libelle: "Le local réceptacle des ordures est-il situé dans le parc de stationnement ?",
     type: "booleen", article: "64", paragraphe: "dernier alinéa",
     aide: "Dans le parc, les parois passent à CF 2 h et le bloc-porte à CF 1 h."
@@ -620,6 +677,7 @@ export const QUESTIONS = [
   /* ── Titre V : logements-foyers ───────────────────────────────────────── */
   {
     cle: "logementFoyer",
+    sujet: "Logement-foyer",
     libelle: "Le bâtiment renferme-t-il un logement-foyer ?",
     type: "booleen", article: "65",
     aide: "Les mesures des articles 66 à 76 **s'ajoutent** aux prescriptions générales : le classement "
@@ -627,6 +685,7 @@ export const QUESTIONS = [
   },
   {
     cle: "typeLogementFoyer",
+    sujet: "Type de logement-foyer",
     libelle: "Quel type de logement-foyer ?",
     type: "choix",
     valeurs: [
@@ -662,12 +721,14 @@ export const QUESTIONS = [
   },
   {
     cle: "hallDessertServicesCollectifs",
+    sujet: "Services collectifs desservis par le hall",
     libelle: "Au rez-de-chaussée, le hall où aboutit l'escalier dessert-il des services collectifs ?",
     type: "booleen", article: "68",
     aide: "Salles de réunion, salles de jeux, restaurants et leurs dégagements au sens de l'article 66."
   },
   {
     cle: "hallOuvertureExterieureDeDeuxMetresCarres",
+    sujet: "Ouverture du hall sur l'extérieur d'au moins 2 m²",
     libelle: "Le hall comporte-t-il une ouverture sur l'extérieur d'au moins 2 m², dans le tiers "
       + "supérieur de sa hauteur ?",
     type: "booleen", article: "68", paragraphe: "dernier alinéa",
@@ -682,6 +743,7 @@ export const QUESTIONS = [
   },
   {
     cle: "servicesCollectifsEnEtage",
+    sujet: "Services collectifs situés dans les étages",
     libelle: "Les services collectifs sont-ils situés dans les étages ?",
     type: "booleen", article: "71"
   },
@@ -695,16 +757,19 @@ export const QUESTIONS = [
   /* ── Titre VII : dispositions diverses ────────────────────────────────── */
   {
     cle: "ascenseur",
+    sujet: "Ascenseur",
     libelle: "Le bâtiment comporte-t-il un ascenseur ?",
     type: "booleen", article: "97"
   },
   {
     cle: "ascenseurDessertSousSolParcOuCaves",
+    sujet: "Ascenseur desservant un sous-sol de parc ou de caves",
     libelle: "L'ascenseur dessert-il un sous-sol comportant un parc de stationnement ou des caves ?",
     type: "booleen", article: "97", paragraphe: "cinquième alinéa"
   },
   {
     cle: "accesHallsAtteintsParVoieEchelles",
+    sujet: "Accès aux halls d'entrée atteints par la voie-échelles",
     libelle: "Au rez-de-chaussée, les accès aux halls d'entrée sont-ils atteints par la voie-échelles ?",
     type: "booleen", article: "98", paragraphe: "deuxième alinéa",
     aide: "Seconde condition de l'exception qui dispense de colonne sèche un collectif de troisième "
@@ -713,6 +778,7 @@ export const QUESTIONS = [
   },
   {
     cle: "conduitsOuGainesTraversantDesParois",
+    sujet: "Conduits ou gaines aménagés dans le bâtiment",
     libelle: "Des conduits ou gaines sont-ils aménagés dans le bâtiment ?",
     type: "booleen",
     article: "45"
@@ -720,6 +786,7 @@ export const QUESTIONS = [
   /* ── Titre VI : parcs de stationnement couverts ───────────────────────── */
   {
     cle: "parcDeStationnement",
+    sujet: "Parc de stationnement couvert annexe",
     libelle: "Le bâtiment comporte-t-il un parc de stationnement couvert annexe ?",
     type: "booleen", article: "78",
     aide: "« Un emplacement couvert, annexe d'un ou de plusieurs bâtiments d'habitation, qui permet le "
@@ -762,6 +829,7 @@ export const QUESTIONS = [
   },
   {
     cle: "parcContiguAImmeuble",
+    sujet: "Parc contigu à un immeuble d'habitation",
     libelle: "Le parc est-il contigu à un immeuble d'habitation ?",
     type: "booleen", article: "82", paragraphe: "1°)",
     aide: "« Contigu » inclut le parc situé en dessous de l'immeuble (ministère de l'Équipement, "
@@ -776,6 +844,7 @@ export const QUESTIONS = [
   },
   {
     cle: "communicationParcImmeuble",
+    sujet: "Communication entre le parc et le bâtiment",
     libelle: "Une communication est-elle aménagée entre le parc et le bâtiment ?",
     type: "booleen", article: "82", paragraphe: "1°), deuxième alinéa",
     aide: "Toute communication dans les murs ou parois séparant le parc du bâtiment appelle un sas. Un même "
@@ -791,6 +860,7 @@ export const QUESTIONS = [
   },
   {
     cle: "boxesDansLeParc",
+    sujet: "Boxes établis dans le parc",
     libelle: "Des boxes sont-ils établis dans le parc ?",
     type: "booleen", article: "84", paragraphe: "2°)"
   },
@@ -804,6 +874,7 @@ export const QUESTIONS = [
   },
   {
     cle: "couvertureParcDomineeParFacadesVitrees",
+    sujet: "Couverture du parc dominée par des façades vitrées ou ouvertes",
     libelle: "La couverture du parc est-elle dominée par les façades vitrées ou ouvertes d'immeubles "
       + "habités ou occupés ?",
     type: "booleen", article: "85",
@@ -825,6 +896,7 @@ export const QUESTIONS = [
   },
   {
     cle: "supportCouvertureParcContinu",
+    sujet: "Support continu sous le revêtement de couverture du parc",
     libelle: "Le revêtement est-il établi sur un support continu en matériau incombustible, en panneaux de "
       + "bois ou d'agglomérés de fibres de bois ?",
     type: "booleen", article: "86", paragraphe: "a",
@@ -838,6 +910,7 @@ export const QUESTIONS = [
   },
   {
     cle: "plusieursIssuesAuChoix",
+    sujet: "Choix entre plusieurs issues ou escaliers",
     libelle: "Les usagers ont-ils le choix entre plusieurs issues ou escaliers ?",
     type: "booleen", article: "87", paragraphe: "premier alinéa",
     aide: "Répondre non s'il n'y a qu'un escalier, ou si l'on se trouve dans une partie du parc formant "
@@ -851,6 +924,7 @@ export const QUESTIONS = [
   },
   {
     cle: "escaliersParcAboutissentDansImmeuble",
+    sujet: "Escaliers du parc aboutissant dans les circulations de l'immeuble",
     libelle: "Les escaliers du parc aboutissent-ils dans les circulations de l'immeuble d'habitation ?",
     type: "booleen", article: "87", paragraphe: "septième alinéa",
     aide: "Si oui, ils sont protégés à chaque niveau par des sas réalisés dans les conditions de l'article 82 ; "
@@ -858,6 +932,7 @@ export const QUESTIONS = [
   },
   {
     cle: "largesOuverturesDeuxFacesOpposees",
+    sujet: "Larges ouvertures à l'air libre sur deux faces opposées",
     libelle: "Le parc comporte-t-il, à chaque niveau, de larges ouvertures à l'air libre sur deux faces "
       + "opposées ?",
     type: "booleen", article: "89", paragraphe: "quatrième alinéa",
@@ -866,6 +941,7 @@ export const QUESTIONS = [
   },
   {
     cle: "ventilationParcRetenue",
+    sujet: "Ventilation retenue pour le parc",
     libelle: "Quelle ventilation est retenue pour le parc ?",
     type: "choix",
     valeurs: [
@@ -878,6 +954,7 @@ export const QUESTIONS = [
   },
   {
     cle: "extinctionAutomatiqueInstallee",
+    sujet: "Système d'extinction automatique à partir du 3ᵉ niveau",
     libelle: "Le parc est-il équipé d'un système d'extinction automatique à partir du 3ᵉ niveau ?",
     type: "booleen", article: "95", paragraphe: "1°), premier tiret",
     aide: "Sa présence lève l'exigence de détection automatique du premier tiret — et réciproquement, la "

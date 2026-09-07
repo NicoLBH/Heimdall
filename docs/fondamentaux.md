@@ -167,47 +167,57 @@ dit.
 ## 6. Une mémoire de projet ne garde pas que des valeurs
 
 Un projet ne se souvient pas d'une liste de chiffres. Il se souvient de ce qu'on
-a **décidé**, de ce qu'on **suppose** en attendant mieux, du **raisonnement** qui
-a mené là, de la **raison** qui le fonde, des **exceptions** qui le bornent et de
-ce dont il **dépend**.
+a **décidé**, de ce qu'on **suppose** en attendant mieux, de la **règle** qui a
+produit une valeur, de la **preuve** qui la fonde, et de l'**état** de tout cela
+aujourd'hui.
 
-Une valeur seule ne se conteste pas : on l'accepte ou on la refuse, sans savoir
-sur quoi. Et six mois plus tard, personne ne sait plus si « 8 m » était un relevé,
-un choix qu'on pouvait discuter, ou une supposition qu'il fallait confirmer.
-
-L'écriture Mdall les distingue donc, à même la ligne :
+Ces cinq objets ne se mélangent pas — la donnée, sa valeur, la règle, la preuve,
+le statut. Le langage les sépare, et `docs/langage-mdall.md` en porte la
+grammaire entière.
 
 ```
-on retient hauteur du dernier plancher  8,00 m  ← relevé du géomètre
-on suppose portance du sol  0,2 MPa  ← à confirmer par le G2
-
-Degré coupe-feu des planchers  CF 1 h  ← arrêté du 31 janvier 1986, article 6
-   si classement du bâtiment = 3e famille B
-      alors CF 1 h  ✓ retenu
-      sinon CF 1/2 h
-   parce que « Les planchers sont coupe-feu de degré une heure. »
-   sauf si le bâtiment ne comporte qu'une seule unité de passage
-   dépend de classement du bâtiment · hauteur du dernier plancher
+Classement du bâtiment = "3e famille B"
+   ← règle Classement du bâtiment — arrêté du 31 janvier 1986, article 3, 3°)
+   statut retenu
 ```
 
-**L'indentation est la syntaxe.** Une ligne indentée appartient à la ligne
-pleine qui la précède : c'est ce qui dit à quoi se rapporte un « dépend de ».
-Écrit au-dessus, le bloc flottait — on lisait quatre lignes de raisonnement sans
-savoir ce qu'elles justifiaient. Le langage n'emprunte pas ses mots à
-l'informatique, mais il lui emprunte cette convention-là, parce qu'elle n'est pas
-informatique : c'est celle d'un alinéa, d'un sous-article, d'une note sous un
-tableau.
+Quatre conséquences pour le code :
 
-**Chaque construction a sa couleur, mot-clé compris.** Un éditeur ne colore pas
-`if` et `import` de la même teinte : la couleur du mot dit de quelle espèce est
-la ligne, et c'est ce qui permet de survoler un bloc sans le lire.
-
-Trois conséquences pour le code :
-
-1. **Le raisonnement voyage avec l'affirmation**, dans son `payload`. Il n'a pas
-   sa table : ce qui a produit une valeur n'a de sens qu'attaché à cette valeur.
-2. **`alors` et `retenu` ne sont pas stockés** — ils *sont* la valeur, que
-   `payload.value` porte déjà (règle 4). L'écriture les reconstruit à la lecture.
-3. **Rien ne s'invente.** Un « parce que » fabriqué serait pire que pas de
+1. **La règle vit dans un référentiel, pas dans le projet.** Une règle vaut pour
+   mille bâtiments, une valeur pour un seul. Les garder ensemble produisait des
+   règles fabriquées à partir des cotes du projet — `si hauteur = 26` là où
+   l'arrêté dit `≤ 28 m` — qui ne capitalisaient rien et faisaient mentir le
+   diff dans les deux sens.
+2. **Le type de la provenance est l'origine.** Une valeur qui renvoie à une
+   règle est déduite, à un plan est lue, à un calcul est calculée. Un champ
+   « origine » à côté redirait la même chose et finirait par la contredire
+   (règle 4).
+3. **Rien ne se recopie de ce qui se déduit.** Les dépendances sortent des
+   conditions de la règle : les écrire aussi les laisserait diverger le jour où
+   quelqu'un modifie la règle sans y penser.
+4. **Rien ne s'invente.** Un « parce que » fabriqué serait pire que pas de
    « parce que », puisqu'on le citerait en réunion (règle 5). Un utilitaire qui
-   ne sait pas pourquoi n'écrit pas de raison — il écrit la valeur, et c'est tout.
+   ne sait pas pourquoi écrit la valeur, et c'est tout.
+
+---
+
+## 7. Le texte est la mémoire, dans les deux sens
+
+```
+lire(écrire(G)) = G
+```
+
+Chaque information du graphe apparaît une fois dans le texte, et rien de
+déductible n'y apparaît. Un test le vérifie.
+
+Cette loi n'est pas une élégance : c'est ce qui permet à un architecte d'écrire
+trois lignes à la main et de les injecter, et c'est ce qui fait qu'un utilitaire
+nouveau n'a rien à brancher — il écrit du mdall, comme tous les autres.
+
+Elle interdit aussi quelque chose : **on n'ajoute au langage aucune information
+qu'on ne saurait pas relire.** Toute construction nouvelle passe d'abord par ce
+test.
+
+Ce qui n'est pas compris n'est jamais avalé en silence. La lecture rend la
+ligne, son numéro et la raison du refus — un fichier amputé qui entrerait sans
+bruit en mémoire serait pire qu'un fichier refusé.

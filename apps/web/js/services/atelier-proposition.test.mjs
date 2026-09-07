@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  cleDAffirmation, itemsDeProposition, descriptionDeLaProposition, raisonnementRetenu } from "./atelier-proposition.js";
+  cleDAffirmation, itemsDeProposition, descriptionDeLaProposition, provenanceRetenue } from "./atelier-proposition.js";
 
 const DEGRE = {
   sujet: "Degré coupe-feu des planchers",
@@ -68,36 +68,28 @@ test("la description se lit avant de signer", () => {
   assert.match(texte, /Rien n'est encore entré dans la mémoire du projet/);
 });
 
-test("le raisonnement voyage avec l'affirmation, sans sa valeur", () => {
+
+test("la provenance voyage avec l'affirmation, son type compris", () => {
   const [item] = itemsDeProposition([{
-    sujet: "Degré coupe-feu des planchers",
-    valeur: "CF 1 h",
-    geste: "on retient",
-    raisonnement: {
-      condition: "Classement du bâtiment = 3e famille B",
-      alors: "CF 1 h",
-      retenu: "CF 1 h",
-      parceQue: "« …une heure… »",
-      saufSi: ["une seule unité de passage", ""],
-      dependDe: ["Classement du bâtiment"]
-    }
+    sujet: "Profondeur hors gel",
+    valeur: "0,935 m",
+    provenance: { type: "calcul", quoi: "hors gel (H0 du département = 0,850 m)" },
+    statut: "supposé"
   }]);
 
-  assert.equal(item.payload.geste, "on retient");
-  assert.deepEqual(item.payload.raisonnement, {
-    condition: "Classement du bâtiment = 3e famille B",
-    sinon: "",
-    parceQue: "« …une heure… »",
-    saufSi: ["une seule unité de passage"],
-    dependDe: ["Classement du bâtiment"]
-  });
+  assert.deepEqual(item.payload.provenance, { type: "calcul", quoi: "hors gel (H0 du département = 0,850 m)" });
+  assert.equal(item.payload.statut, "supposé");
 });
 
-test("une affirmation sans raisonnement n'en fabrique pas un vide", () => {
-  const [item] = itemsDeProposition([{ sujet: "Zone de neige", valeur: "A1" }]);
-  assert.equal(item.payload.raisonnement, null);
-  assert.equal(item.payload.geste, null);
+test("un type de provenance inventé n'entre pas", () => {
+  assert.equal(provenanceRetenue({ type: "oracle", quoi: "une boule de cristal" }), null);
+  assert.equal(provenanceRetenue({ type: "texte", quoi: "" }), null);
+  assert.equal(provenanceRetenue(null), null);
+  assert.deepEqual(provenanceRetenue({ type: "règle", quoi: "Classement du bâtiment" }),
+    { type: "règle", quoi: "Classement du bâtiment" });
+});
 
-  assert.equal(raisonnementRetenu({ condition: "", saufSi: [], dependDe: [] }), null);
-  assert.equal(raisonnementRetenu(null), null);
+test("un statut inconnu n'entre pas non plus", () => {
+  const [item] = itemsDeProposition([{ sujet: "Zone de neige", valeur: "E", statut: "peut-être" }]);
+  assert.equal(item.payload.statut, null);
 });

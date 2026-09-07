@@ -29,6 +29,7 @@
 import { normalizeSubjectKey } from "./project-memory.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { BASE_DATUM_KIND } from "./assertion-taxonomy.js";
+import { PROVENANCES, STATUTS } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -48,34 +49,22 @@ const texte = (valeur) => String(valeur ?? "").trim();
  */
 
 /**
- * Ce qu'on garde d'un raisonnement, et rien de plus.
+ * La provenance qu'on garde : son type, et ce qu'elle désigne.
  *
- * Un utilitaire peut passer un objet plus riche que ce que la mémoire sait
- * relire. On ne stocke que les cinq champs que l'écriture Mdall rend — le reste
- * dormirait dans la base sans jamais s'afficher, et finirait par diverger de ce
- * qui s'affiche.
- *
- * `alors` et `retenu` n'en font pas partie : ce sont la valeur elle-même, que
- * `payload.value` porte déjà. Une valeur écrite à deux endroits finit par
- * diverger — ici, l'écriture les reconstruit à la lecture.
+ * Un type inconnu n'entre pas. La liste des six est fermée — texte, document,
+ * calcul, règle, décision, hypothèse — parce que c'est elle qui dit **comment**
+ * la valeur a été obtenue : un septième type inventé ici ne se relirait nulle
+ * part, et l'écriture le rendrait comme une provenance qu'aucun écran ne sait
+ * colorer.
  */
-export function raisonnementRetenu(raisonnement) {
-  if (!raisonnement || typeof raisonnement !== "object") return null;
+export function provenanceRetenue(provenance) {
+  if (!provenance || typeof provenance !== "object") return null;
 
-  const liste = (valeur) => (Array.isArray(valeur) ? valeur : [valeur])
-    .map(texte).filter(Boolean);
+  const type = texte(provenance.type);
+  const quoi = texte(provenance.quoi);
+  if (!PROVENANCES.includes(type) || !quoi) return null;
 
-  const garde = {
-    condition: texte(raisonnement.condition),
-    sinon: texte(raisonnement.sinon),
-    parceQue: texte(raisonnement.parceQue),
-    saufSi: liste(raisonnement.saufSi),
-    dependDe: liste(raisonnement.dependDe)
-  };
-
-  const porteQuelqueChose = garde.condition || garde.sinon || garde.parceQue
-    || garde.saufSi.length || garde.dependDe.length;
-  return porteQuelqueChose ? garde : null;
+  return { type, quoi };
 }
 
 /** La clé métier d'une affirmation, portée comprise. */
@@ -120,14 +109,16 @@ export function itemsDeProposition(affirmations = []) {
           // ligne l'écrit derrière une double flèche — c'est ce qui permettra,
           // le jour où une entrée change, de savoir quoi refaire sans chercher.
           deduitDe: affirmation.deduitDe ?? null,
-          // Le geste : une valeur constatée ne s'écrit pas comme une valeur
-          // qu'on retient, ni comme une valeur qu'on suppose. La mémoire d'un
-          // projet garde les trois, et les confondre fait qu'on ne sait plus
-          // ce qui était acquis et ce qui restait à confirmer.
-          geste: texte(affirmation.geste) || null,
-          // Et ce qui l'entoure : sous quelle condition elle vaut, pourquoi,
-          // ses exceptions, ses socles. Une valeur seule ne se conteste pas.
-          raisonnement: raisonnementRetenu(affirmation.raisonnement)
+          // D'où elle vient, et donc comment elle a été obtenue : le type de
+          // la provenance **est** l'origine. Une valeur qui renvoie à une règle
+          // est déduite, une valeur qui renvoie à un plan est lue, une valeur
+          // qui renvoie à un calcul est calculée.
+          provenance: provenanceRetenue(affirmation.provenance),
+          // Et l'état du raisonnement dans ce projet : retenu, supposé,
+          // contesté. Ce n'est pas une propriété de la valeur, c'est ce que le
+          // projet en fait — et les confondre fait qu'on ne sait plus ce qui
+          // était acquis et ce qui restait à confirmer.
+          statut: STATUTS.includes(texte(affirmation.statut)) ? texte(affirmation.statut) : null
         }
       };
     });

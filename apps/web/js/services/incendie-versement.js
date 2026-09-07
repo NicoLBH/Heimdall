@@ -35,7 +35,8 @@
 import { normalizeSubjectKey } from "./project-memory.js";
 import { currentAssertions } from "./project-memory.js";
 import { zonesOf } from "./project-zones.js";
-import { raisonnementDuModule } from "./incendie-en-texte.js";
+import { sourceDuModule } from "./incendie-en-texte.js";
+import { PROVENANCE, STATUT } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -60,11 +61,16 @@ export function conclusionsVersables(vue) {
         ? `article ${module.pourquoi.article}${module.pourquoi.paragraphe ? `, ${module.pourquoi.paragraphe}` : ""}`
         : module.article ? `article ${module.article}` : ""),
       citation: texte(module.pourquoi?.citation),
-      // Sous quelle condition la valeur vaut, pourquoi le texte le dit, et de
-      // quoi elle dépendrait si l'une de ces entrées changeait. Une contrainte
-      // versée sans cela n'est plus qu'un chiffre : on ne peut ni la contester
-      // ni savoir quoi refaire quand le classement change.
-      raisonnement: raisonnementDuModule(module, vue)
+      // D'où la valeur sort : de la **règle** du référentiel, qui porte ses
+      // conditions et son article. La règle n'est pas recopiée dans le projet —
+      // elle vaut pour mille bâtiments, la valeur pour un seul — mais la ligne
+      // dit laquelle, et c'est par là qu'on remonte au texte.
+      provenance: {
+        type: PROVENANCE.REGLE,
+        quoi: [texte(module.titre), sourceDuModule(module, texte(vue?.texteDeReference?.source))]
+          .filter(Boolean).join(" — ")
+      },
+      statut: STATUT.RETENU
     }))
     .filter((conclusion) => conclusion.sujet && conclusion.valeur);
 }
