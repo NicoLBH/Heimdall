@@ -1,4 +1,6 @@
 import { store } from "../store.js";
+import { PROJECT_TAB_IDS } from "../constants.js";
+import { PROJECT_TAB_RESELECTED_EVENT } from "./project-header.js";
 import { brancherLaZoneDeDepot } from "./ui/zone-de-depot.js";
 import { setProjectViewHeader, clearProjectActiveScrollSource, debugProjectScrollPolicy, resetProjectShellCompactState, bindProjectDocumentChromeCompact } from "./project-shell-chrome.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
@@ -7,10 +9,7 @@ import {
   initGhActionButton,
   renderGhActionButton
 } from "./ui/gh-split-button.js";
-import {
-  renderProjectTableToolbar,
-  renderProjectTableToolbarGroup
-} from "./ui/project-table-toolbar.js";
+import { renderProjectTableToolbarGroup } from "./ui/project-table-toolbar.js";
 import { renderGhInput } from "./ui/gh-input.js";
 import { renderStateDot } from "./ui/status-badges.js";
 import { renderUploadProgressBar } from "./ui/upload-progress.js";
@@ -25,7 +24,6 @@ import {
   runAnalysis
 } from "../services/analysis-runner.js";
 import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesCatalog, getProjectDocumentById, getProjectDocumentPreviewUrl, getProjectDocuments, resolveDocumentRefs, setActiveProjectDocument } from "../services/project-documents-store.js";
-import { getDocumentStatsMap } from "../services/project-document-selectors.js";
 import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renameDocumentFolder, moveDocumentFile, resolveCurrentBackendProjectId, syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 import {
@@ -35,6 +33,10 @@ import {
 import { enClair } from "../services/memoire-en-texte.js";
 import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
 import { versementsDeLaMemoire } from "../services/memoire-blame.js";
+import {
+  lireAPropos, ecrireAPropos, topicsDeLaSaisie, descriptionDeLaSaisie,
+  DESCRIPTION_MAX, TOPICS_MAX
+} from "../services/projet-a-propos.js";
 import { buildSupabaseAuthHeaders, getSupabaseAnonKey, getSupabaseUrl } from "../../assets/js/auth.js";
 
 const SUPABASE_URL = getSupabaseUrl();
@@ -109,6 +111,12 @@ const docsViewState = {
   memoirePlies: new Set(),
   /** Le menu « Ajouter un fichier », ouvert ou non. */
   ajoutOuvert: false,
+  /** Ce que le projet dit de lui-même. `null` tant qu'on n'a pas lu. */
+  aPropos: null,
+  /** La saisie de « À propos », ouverte ou non, et ce qu'elle porte. */
+  aProposSaisie: null,
+  /** Ce qui a empêché l'enregistrement, s'il y a lieu. */
+  aProposEchec: "",
   /** Les racines repliées de l'arbre : « memoire », « documents ». */
   racinesRepliees: new Set(),
   /** Les dossiers repliés du rail de la Mémoire. */
@@ -292,8 +300,9 @@ function syncDocumentsProjectViewHeader() {
   }
 }
 
+/** Les trois colonnes de la Mémoire : ce que c'est, ce qui lui est arrivé, quand. */
 function getDocumentsTableGridTemplate() {
-  return "minmax(280px, 1.2fr) minmax(220px, 1fr) 180px minmax(260px, 1.1fr)";
+  return "minmax(280px, 1.2fr) minmax(220px, 1fr) minmax(200px, auto)";
 }
 
 function getFileExtension(value = "") {
@@ -1236,38 +1245,25 @@ function renderDocumentsActivityBanner() {
   `;
 }
 
+/**
+ * L'en-tête du dépôt, aligné sur celui de la Mémoire.
+ *
+ * Les deux moitiés de l'onglet montrent la même chose — des fichiers, ce qui
+ * leur est arrivé, quand — et deux tableaux différents pour un même geste
+ * donnaient l'impression de deux applications. « Indicateurs » a disparu avec
+ * sa colonne : des compteurs de sujets ouverts sur la ligne d'un PDF
+ * répondaient à une question que personne ne pose en cherchant un fichier.
+ */
 function renderDocumentsTableHeadHtml() {
   return renderDataTableHead({
     columns: [
-      { className: "documents-repo__col documents-repo__col--name", label: "Nom" },
-      { className: "documents-repo__col documents-repo__col--message", label: "Description" },
-      { className: "documents-repo__col documents-repo__col--date", label: "Dernière mise à jour" },
-      { className: "documents-repo__col documents-repo__col--stats", label: "Indicateurs" }
+      { className: "documents-repo__col documents-repo__col--name", label: "Fichier" },
+      { className: "documents-repo__col documents-repo__col--message", label: "Dernier versement" },
+      { className: "documents-repo__col documents-repo__col--date", label: "Date" }
     ]
   });
 }
 
-function renderDocumentsToolbar() {
-  const documentsButton = renderGhActionButton({
-    id: "documentsAddAction",
-    label: "Documents",
-    icon: getPlusIconSvg(),
-    tone: "primary",
-    mainAction: "add-documents"
-  });
-
-  const addFolderButton = `<button type="button" class="gh-btn" id="documentsAddFolderBtn">Ajouter un dossier</button>`;
-  const rightHtml = [
-    renderProjectTableToolbarGroup({ html: addFolderButton }),
-    renderProjectTableToolbarGroup({ html: documentsButton })
-  ].join("");
-
-  return renderProjectTableToolbar({
-    className: "project-table-toolbar--documents",
-    leftHtml: "",
-    rightHtml
-  });
-}
 
 /**
  * Le menu du fil d'Ariane.
@@ -1291,10 +1287,10 @@ function renderDocumentsMenu(selectedDocument) {
     iconOnly: true,
     menuOnly: true,
     tone: "default",
+    // Ajouter un dossier et ajouter un document ont maintenant leur bouton dans
+    // la même barre : les redire ici donnerait deux chemins pour un geste, et
+    // deux libellés qui finiraient par ne plus dire la même chose.
     items: [
-      { action: "documents-add-folder", icon: svgIcon("file-directory", { width: 14, height: 14 }), label: "Ajouter un dossier" },
-      { action: "add-documents", icon: getPlusIconSvg(), label: "Ajouter un document" },
-      { separator: true },
       {
         action: "documents-remove",
         icon: svgIcon("trash", { width: 14, height: 14 }),
@@ -1309,27 +1305,47 @@ function renderDocumentsMenu(selectedDocument) {
   });
 }
 
+/**
+ * La barre des Documents : le chemin, et ce qu'on peut y faire.
+ *
+ * Une seule ligne, racine comprise. Le fil d'Ariane vivait au-dessus des deux
+ * boutons, sur une ligne à lui, et la racine n'avait pas de barre du tout : on
+ * y entrait sans plus voir d'où l'on venait.
+ */
 function renderDocumentsTopBar() {
   const enApercu = docsViewState.mode === "pdf-preview";
-  // À la racine, la barre ne servait à rien — sauf quand on regarde un
-  // document : il faut alors savoir lequel, et pouvoir le retirer.
-  if (!docsViewState.currentFolderId && !enApercu) return "";
   const toggleIcon = docsViewState.documentTreeOpen
-    ? svgIcon("sidebar-expand", { className: "octicon octicon-sidebar-expand" })
-    : svgIcon("sidebar-collapse", { className: "octicon octicon-sidebar-collapse" });
+    ? svgIcon("sidebar-collapse", { className: "octicon octicon-sidebar-collapse" })
+    : svgIcon("sidebar-expand", { className: "octicon octicon-sidebar-expand" });
+
+  const dansLesDocuments = docsViewState.branche === BRANCHE.DOCUMENTS;
+  const gestes = dansLesDocuments
+    ? `${renderProjectTableToolbarGroup({
+         html: `<button type="button" class="gh-btn" id="documentsAddFolderBtn">Ajouter un dossier</button>`
+       })}
+       ${renderProjectTableToolbarGroup({
+         html: renderGhActionButton({
+           id: "documentsAddAction", label: "Documents", icon: getPlusIconSvg(),
+           tone: "primary", mainAction: "add-documents"
+         })
+       })}`
+    : "";
+
   return `
     <div class="documents-topbar">
       <div class="documents-topbar__left">
-        <button type="button" class="documents-tree__toggle" id="documentsTreeToggleBtn">${toggleIcon}</button>
+        <button type="button" class="documents-tree__toggle" id="documentsTreeToggleBtn"
+          aria-label="${docsViewState.documentTreeOpen ? "Replier" : "Étendre"} la barre latérale">${toggleIcon}</button>
         ${renderDocumentsBreadcrumb()}
       </div>
       <div class="documents-topbar__right">
+        ${gestes}
         ${
           // Ajouter, retirer, déplacer : des gestes sur des pièces déposées. Un
           // fichier de mémoire n'a pas de chemin qu'on choisit — il est calculé
           // — et proposer de le déplacer serait proposer de casser un rangement
           // qui n'appartient pas à celui qui lit.
-          docsViewState.branche === BRANCHE.DOCUMENTS
+          dansLesDocuments
             ? renderDocumentsMenu(enApercu ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null)
             : ""
         }
@@ -1338,18 +1354,39 @@ function renderDocumentsTopBar() {
   `;
 }
 
+/**
+ * Le fil d'Ariane des Documents.
+ *
+ * Il commence à **Fichiers**, la racine de l'onglet. Sans elle, on entrait dans
+ * les Documents sans plus rien pour revenir à l'accueil : le chemin disait
+ * « Documents » et s'arrêtait là.
+ *
+ * Le dernier morceau est là où l'on se trouve : il s'écrit en clair, il ne se
+ * clique pas. Un lien vers l'endroit où l'on est déjà ne mène nulle part.
+ */
 function renderDocumentsBreadcrumb() {
   const selectedDocument = docsViewState.mode === "pdf-preview" ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null;
-  const crumbButtons = [`<button type="button" class="documents-breadcrumb__link" data-breadcrumb-folder-id="">Documents</button>`];
-  docsViewState.breadcrumb.forEach((folder) => {
-    crumbButtons.push(`<span class="documents-breadcrumb__sep">/</span><button type="button" class="documents-breadcrumb__link" data-breadcrumb-folder-id="${escapeHtml(String(folder.id || ""))}">${escapeHtml(String(folder.name || "Dossier"))}</button>`);
-  });
-  if (selectedDocument?.name) {
-    crumbButtons.push(`<span class="documents-breadcrumb__sep">/</span><span class="documents-breadcrumb__current">${escapeHtml(String(selectedDocument.name || "Document"))}</span>`);
-  } else {
-    crumbButtons.push(`<span class="documents-breadcrumb__sep">/</span>`);
-  }
-  return `<div class="documents-breadcrumb">${crumbButtons.join("")}</div>`;
+
+  const lien = (cible, libelle) =>
+    `<button type="button" class="documents-breadcrumb__link" ${cible}>${escapeHtml(libelle)}</button>`;
+  const ici = (libelle) => `<span class="documents-breadcrumb__current">${escapeHtml(libelle)}</span>`;
+  const sep = `<span class="documents-breadcrumb__sep">/</span>`;
+
+  const morceaux = [
+    { libelle: "Fichiers", cible: `data-fichiers-branche=""` },
+    { libelle: DOCUMENTS, cible: `data-breadcrumb-folder-id=""` },
+    ...docsViewState.breadcrumb.map((dossier) => ({
+      libelle: String(dossier.name || "Dossier"),
+      cible: `data-breadcrumb-folder-id="${escapeHtml(String(dossier.id || ""))}"`
+    })),
+    ...(selectedDocument?.name ? [{ libelle: String(selectedDocument.name), cible: "" }] : [])
+  ];
+
+  const rendu = morceaux
+    .map((morceau, rang) => (rang === morceaux.length - 1 ? ici(morceau.libelle) : lien(morceau.cible, morceau.libelle)))
+    .join(sep);
+
+  return `<div class="documents-breadcrumb">${rendu}</div>`;
 }
 
 function renderRepoFolderRow(folder) {
@@ -1360,41 +1397,16 @@ function renderRepoFolderRow(folder) {
         <button type="button" class="documents-repo__name documents-repo__name-trigger js-folder-open-trigger" data-folder-id="${escapeHtml(folder.id || "")}">${escapeHtml(folder.name || "Dossier")}</button>
       </div>
       <div class="documents-repo__cell documents-repo__cell--message"><div class="documents-repo__message-main">Dossier</div></div>
-      <div class="documents-repo__cell documents-repo__cell--date">${escapeHtml(String(folder.updated_at || folder.created_at || "À l'instant"))}</div>
-      <div class="documents-repo__cell documents-repo__cell--stats"><button type="button" class="gh-btn" data-folder-rename-id="${escapeHtml(folder.id || "")}" data-folder-rename-name="${escapeHtml(folder.name || "")}">Renommer</button></div>
+      <div class="documents-repo__cell documents-repo__cell--date">
+        <span>${escapeHtml(ilYA(folder.updated_at || folder.created_at) )}</span>
+        <button type="button" class="gh-btn gh-btn--sm documents-repo__geste"
+          data-folder-rename-id="${escapeHtml(folder.id || "")}"
+          data-folder-rename-name="${escapeHtml(folder.name || "")}">Renommer</button>
+      </div>
     </div>
   `;
 }
 
-
-function renderDocumentsCountBadge({ iconHtml = "", label = "", count = 0 } = {}) {
-  return `
-    <span class="documents-count-badge" title="${escapeHtml(`${label} : ${count}`)}">
-      <span class="documents-count-badge__icon" aria-hidden="true">${iconHtml}</span>
-      <span class="documents-count-badge__count">${escapeHtml(String(count))}</span>
-    </span>
-  `;
-}
-
-function renderDocumentStatsCell(doc) {
-  const statsMap = getDocumentStatsMap({
-    getSituationStatus: getEffectiveSituationStatus,
-    getSujetStatus: getEffectiveSujetStatus
-  });
-  const stats = statsMap.get(doc.id) || {
-    openSituations: 0,
-    openSujets: 0,
-    blockedSubjects: 0
-  };
-
-  return `
-    <div class="documents-repo__stats" aria-label="Indicateurs liés au document">
-      ${renderDocumentsCountBadge({ iconHtml: svgIcon("table"), label: "Situations ouvertes", count: stats.openSituations })}
-      ${renderDocumentsCountBadge({ iconHtml: svgIcon("issue-opened"), label: "Sujets ouverts", count: stats.openSujets })}
-      ${renderDocumentsCountBadge({ iconHtml: svgIcon("blocked"), label: "Sujets bloqués", count: stats.blockedSubjects })}
-    </div>
-  `;
-}
 
 function renderRepoDocumentRow(doc) {
   const decoratedDoc = decorateDocumentWithPhase(doc);
@@ -1426,13 +1438,16 @@ function renderRepoDocumentRow(doc) {
         <div class="documents-repo__message-main${recognition.known ? " documents-repo__message-main--known" : ""}" title="${escapeHtml(recognition.title)}">${escapeHtml(recognition.main)}</div>
         <div class="documents-repo__message-meta">${escapeHtml(recognition.meta)}</div>
       </div>
-      <div class="documents-repo__cell documents-repo__cell--date">${escapeHtml(decoratedDoc.updatedAt || "À l'instant")}</div>
-      <div class="documents-repo__cell documents-repo__cell--stats">
-        <div class="documents-repo__stats-actions">${renderDocumentStatsCell(decoratedDoc)}${
-  docsViewState.branche === BRANCHE.DOCUMENTS
-    ? `<button type="button" class="gh-btn" data-document-move-id="${escapeHtml(decoratedDoc.id || "")}">Déplacer</button>`
-    : ""
-}</div>
+      <div class="documents-repo__cell documents-repo__cell--date">
+        <span>${escapeHtml(ilYA(decoratedDoc.updatedAt))}</span>
+        ${
+          // Ajouter, retirer, déplacer : des gestes sur des pièces déposées. Un
+          // fichier de mémoire n'a pas de chemin qu'on choisit — il est calculé.
+          docsViewState.branche === BRANCHE.DOCUMENTS
+            ? `<button type="button" class="gh-btn gh-btn--sm documents-repo__geste"
+                 data-document-move-id="${escapeHtml(decoratedDoc.id || "")}">Déplacer</button>`
+            : ""
+        }
       </div>
     </div>
   `;
@@ -1889,15 +1904,29 @@ async function chargerLaMemoire() {
       ...(docsViewState.memoireAssertions ?? []).map((ligne) => ligne.decided_by),
       store.currentProject?.ownerId
     ]);
+    // Deux tables : les noms, que le blâme met dans une phrase, et les
+    // portraits, que l'écran affiche. Les mêler donnerait « [object Object] »
+    // sur chaque ligne de la mémoire.
     docsViewState.memoireAuteurs = new Map(
       [...(auteurs ?? new Map()).entries()].map(([cle, valeur]) => [
         String(cle),
         typeof valeur === "string" ? valeur : String(valeur?.name || valeur?.full_name || valeur?.email || "")
       ])
     );
+    docsViewState.memoireAvatars = new Map(
+      [...(auteurs ?? new Map()).entries()]
+        .map(([cle, valeur]) => [String(cle), typeof valeur === "string" ? "" : String(valeur?.avatarUrl || "")])
+        .filter(([, url]) => url)
+    );
   } catch {
     docsViewState.memoireAssertions = docsViewState.memoireAssertions ?? [];
   }
+
+  // Une lecture qui échoue rend `null` : « ce projet n'a rien dit » et « je
+  // n'ai pas pu lire » sont deux phrases différentes, et les confondre
+  // effacerait la présentation à la première écriture.
+  const lu = await lireAPropos(projet);
+  if (lu) docsViewState.aPropos = lu;
 }
 
 /**
@@ -1943,6 +1972,69 @@ function bindLaMemoire(root) {
     });
   }
 
+  root.querySelector("[data-fichiers-a-propos]")?.addEventListener("click", () => {
+    const aPropos = docsViewState.aPropos ?? { description: "", topics: [] };
+    docsViewState.aProposSaisie = { description: aPropos.description, topics: [...aPropos.topics], enCours: false };
+    docsViewState.aProposEchec = "";
+    renderProjectDocumentsContent(root);
+  });
+
+  for (const bouton of root.querySelectorAll("[data-fichiers-a-propos-annuler]")) {
+    bouton.addEventListener("click", () => {
+      docsViewState.aProposSaisie = null;
+      docsViewState.aProposEchec = "";
+      renderProjectDocumentsContent(root);
+    });
+  }
+
+  // Le brouillon se garde à la frappe : un rendu ne doit pas effacer ce qu'on
+  // est en train d'écrire.
+  root.querySelector("[data-fichiers-a-propos-description]")?.addEventListener("input", (event) => {
+    if (!docsViewState.aProposSaisie) return;
+    docsViewState.aProposSaisie.description = event.target.value;
+    const reste = root.querySelector("[data-fichiers-a-propos-description] ~ small");
+    if (reste) reste.textContent = `${DESCRIPTION_MAX - event.target.value.length} caractères restants`;
+  });
+
+  root.querySelector("[data-fichiers-a-propos-topics]")?.addEventListener("input", (event) => {
+    if (!docsViewState.aProposSaisie) return;
+    // La saisie garde ce qui est tapé — virgules comprises —, la normalisation
+    // vient à l'enregistrement : couper « incendie » en « incendi » à la
+    // troisième lettre rendrait le champ inutilisable.
+    docsViewState.aProposSaisie.brut = event.target.value;
+  });
+
+  root.querySelector("[data-fichiers-a-propos-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const saisie = docsViewState.aProposSaisie;
+    if (!saisie || saisie.enCours) return;
+
+    const projet = String(store.currentProject?.backendProjectId || store.currentProjectId || "").trim();
+    if (!projet) {
+      docsViewState.aProposEchec = "Aucun projet ouvert.";
+      renderProjectDocumentsContent(root);
+      return;
+    }
+
+    saisie.enCours = true;
+    docsViewState.aProposEchec = "";
+    renderProjectDocumentsContent(root);
+
+    try {
+      docsViewState.aPropos = await ecrireAPropos(projet, {
+        description: descriptionDeLaSaisie(saisie.description),
+        topics: topicsDeLaSaisie(saisie.brut ?? saisie.topics)
+      });
+      docsViewState.aProposSaisie = null;
+    } catch (erreur) {
+      // La saisie reste : une écriture perdue en silence ne se refait pas.
+      docsViewState.aProposSaisie = { ...saisie, enCours: false };
+      docsViewState.aProposEchec = erreur?.message || "La présentation n'a pas pu être enregistrée.";
+    }
+
+    renderProjectDocumentsContent(root);
+  });
+
   // Le menu « Ajouter un fichier » : un déroulant, pas une navigation.
   const ajout = root.querySelector("[data-fichiers-ajout]");
   if (ajout) {
@@ -1966,8 +2058,9 @@ function bindLaMemoire(root) {
     renderProjectDocuments(root);
   });
 
-  // Chercher depuis la racine entre dans la Mémoire : c'est là que le texte
-  // vit, et une recherche qui ne mènerait nulle part ne servirait à rien.
+  // Chercher depuis l'accueil entre dans la branche qui sait afficher des
+  // résultats. La recherche porte sur les deux matières : les lignes de la
+  // mémoire et le nom des pièces déposées.
   const chercherDepuisLaRacine = root.querySelector("[data-fichiers-query]");
   if (chercherDepuisLaRacine) {
     chercherDepuisLaRacine.addEventListener("input", (event) => {
@@ -2089,14 +2182,23 @@ function bindLaMemoire(root) {
 const AUTEUR_INCONNU = "auteur inconnu";
 
 /**
- * Un avatar de secours : les initiales, ou une silhouette.
+ * Un avatar : le portrait de la personne, ou de quoi tenir sa place.
  *
- * « auteur inconnu » ne se réduit pas à « AI » : deux lettres se lisent comme
- * un nom, et l'écran affirmerait quelqu'un là où il ne sait rien.
+ * Le portrait d'abord — c'est à cela qu'on reconnaît quelqu'un dans une liste.
+ * Les initiales quand on n'a que le nom. Une silhouette quand on n'a rien :
+ * « auteur inconnu » ne se réduit pas à « AI », deux lettres se lisent comme un
+ * nom et l'écran affirmerait quelqu'un là où il ne sait rien.
  */
-function avatarDe(nom, { petit = false } = {}) {
+function avatarDe(nom, { petit = false, url = "" } = {}) {
   const classe = `fichiers-racine__avatar${petit ? " fichiers-racine__avatar--petit" : ""}`;
   const propre = String(nom ?? "").trim();
+  const portrait = String(url ?? "").trim();
+
+  if (portrait) {
+    return `<img class="${classe}" src="${escapeHtml(portrait)}"
+      alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+  }
+
   if (!propre || propre === AUTEUR_INCONNU) {
     return `<span class="${classe}" aria-hidden="true">${svgIcon("person", { className: "octicon" })}</span>`;
   }
@@ -2104,6 +2206,11 @@ function avatarDe(nom, { petit = false } = {}) {
   const mots = propre.split(/\s+/).filter(Boolean);
   const initiales = (mots.length === 1 ? mots[0].slice(0, 2) : `${mots[0][0]}${mots[mots.length - 1][0]}`).toUpperCase();
   return `<span class="${classe}" aria-hidden="true">${escapeHtml(initiales)}</span>`;
+}
+
+/** Le portrait d'une personne, s'il a pu être lu. */
+function portraitDe(identifiant) {
+  return String((docsViewState.memoireAvatars ?? new Map()).get(String(identifiant || "").trim()) || "");
 }
 
 /** Le nom d'une personne, ou de quoi ne pas mentir sur son absence. */
@@ -2128,11 +2235,11 @@ function contributeursDuProjet(assertions = []) {
   const gens = new Map();
 
   const proprietaire = String(store.currentProject?.ownerId || "").trim();
-  if (proprietaire) gens.set(proprietaire, nomDeLAuteur(proprietaire));
+  if (proprietaire) gens.set(proprietaire, { nom: nomDeLAuteur(proprietaire), url: portraitDe(proprietaire) });
 
   for (const assertion of assertions) {
     const qui = String(assertion?.decided_by || "").trim();
-    if (qui && !gens.has(qui)) gens.set(qui, nomDeLAuteur(qui));
+    if (qui && !gens.has(qui)) gens.set(qui, { nom: nomDeLAuteur(qui), url: portraitDe(qui) });
   }
 
   return [...gens.values()];
@@ -2176,11 +2283,26 @@ function langagesDuProjet(memoire) {
   }
 
   const total = [...compte.values()].reduce((somme, valeur) => somme + valeur, 0);
+  const part = (combien) => (total ? Math.round((combien / total) * 1000) / 10 : 0);
+
+  const classes = [...compte.entries()]
+    .sort((gauche, droite) => droite[1] - gauche[1] || gauche[0].localeCompare(droite[0], "fr"))
+    .map(([nom, combien]) => ({ nom, combien, part: part(combien) }));
+
+  // Quatre langages nommés, le reste sous « Autre ». Une légende de quinze
+  // entrées ne se lit pas, et les queues de distribution n'apprennent rien :
+  // ce qu'on veut savoir, c'est de quoi le projet est majoritairement fait.
+  const NOMMES = 4;
+  const tetes = classes.slice(0, NOMMES);
+  const queue = classes.slice(NOMMES);
+  const reste = queue.reduce((somme, langage) => somme + langage.combien, 0);
+
   return {
     total,
-    langages: [...compte.entries()]
-      .sort((gauche, droite) => droite[1] - gauche[1] || gauche[0].localeCompare(droite[0], "fr"))
-      .map(([nom, combien]) => ({ nom, combien, part: total ? Math.round((combien / total) * 1000) / 10 : 0 }))
+    combien: classes.length,
+    langages: reste
+      ? [...tetes, { nom: "Autre", combien: reste, part: part(reste), autre: true }]
+      : tetes
   };
 }
 
@@ -2212,7 +2334,7 @@ function renderRacineDesFichiers() {
     || String(location.hash || "").replace(/^#/, "").split("/")[1] || "";
   const projet = nomDuProjet || (identifiant ? `Projet ${identifiant}` : "Projet");
   const createur = createurDuProjet();
-  const { total, langages } = langagesDuProjet(memoire);
+  const { total, combien: combienDeLangages, langages } = langagesDuProjet(memoire);
 
   const ligne = (branche, nom, phrase, quand) => `
     <button type="button" class="fichiers-racine__ligne" data-fichiers-branche="${escapeHtml(branche)}">
@@ -2232,7 +2354,7 @@ function renderRacineDesFichiers() {
       <div class="documents-shell documents-shell--project-page">
         <main class="documents-main">
           <header class="fichiers-racine__tete">
-            ${avatarDe(createur)}
+            ${avatarDe(createur, { url: portraitDe(store.currentProject?.ownerId) })}
             <h2 class="fichiers-racine__titre">${escapeHtml(projet)}</h2>
             <span class="fichiers-racine__pastille">Privé</span>
           </header>
@@ -2281,35 +2403,126 @@ function renderRacineDesFichiers() {
             </div>
 
             <aside class="fichiers-racine__meta">
+              ${renderAPropos()}
+
               <section class="fichiers-meta">
                 <h3 class="fichiers-meta__titre">Contributeurs <span class="fichiers-meta__compte">${vus.length}</span></h3>
                 ${
                   vus.length
                     ? `<ul class="fichiers-meta__gens">${vus
-                        .map((nom) => `<li>${avatarDe(nom, { petit: true })}${escapeHtml(nom)}</li>`)
+                        .map(({ nom, url }) => `<li>${avatarDe(nom, { petit: true, url })}${escapeHtml(nom)}</li>`)
                         .join("")}</ul>`
                     : `<p class="fichiers-meta__vide">Personne n'a encore rien versé ni rien déposé.</p>`
                 }
               </section>
 
               <section class="fichiers-meta">
-                <h3 class="fichiers-meta__titre">Langages <span class="fichiers-meta__compte">${langages.length}</span></h3>
+                <h3 class="fichiers-meta__titre">Langages <span class="fichiers-meta__compte">${combienDeLangages}</span></h3>
                 ${
                   total
                     ? `<div class="fichiers-meta__barre">${langages
-                        .map((langage) => `<span style="width:${langage.part}%" title="${escapeHtml(`${langage.nom} — ${langage.combien}`)}"></span>`)
+                        .map((langage, rang) => `<span class="fichiers-langage--${langage.autre ? "autre" : rang}"
+                             style="width:${langage.part}%"
+                             title="${escapeHtml(`${langage.nom} — ${langage.combien}`)}"></span>`)
                         .join("")}</div>
                        <ul class="fichiers-meta__langages">${langages
-                        .map((langage) => `<li><code>${escapeHtml(langage.nom)}</code><span>${langage.combien}</span></li>`)
+                        .map((langage, rang) => `
+                          <li>
+                            <span class="fichiers-meta__pastille fichiers-langage--${langage.autre ? "autre" : rang}" aria-hidden="true"></span>
+                            <span class="fichiers-meta__langage">${escapeHtml(langage.nom)}</span>
+                            <span class="fichiers-meta__part">${escapeHtml(String(langage.part))} %</span>
+                          </li>`)
                         .join("")}</ul>`
                     : `<p class="fichiers-meta__vide">Le projet n'a encore aucun fichier.</p>`
                 }
               </section>
             </aside>
           </div>
+          ${renderSaisieDAPropos()}
         </main>
       </div>
     </section>
+  `;
+}
+
+/**
+ * Ce que le projet dit de lui-même.
+ *
+ * Une description vide n'est pas un défaut : beaucoup de projets n'en auront
+ * jamais. Mais on ne peut pas la deviner, et un encart absent ne dirait pas
+ * qu'on peut l'écrire — d'où l'invitation, plutôt que rien.
+ */
+function renderAPropos() {
+  const aPropos = docsViewState.aPropos ?? { description: "", topics: [] };
+
+  return `
+    <section class="fichiers-meta">
+      <h3 class="fichiers-meta__titre">
+        À propos
+        <button type="button" class="fichiers-meta__reglage" data-fichiers-a-propos
+          aria-label="Modifier la présentation du projet" title="Modifier la présentation du projet">
+          ${svgIcon("gear", { className: "octicon" })}
+        </button>
+      </h3>
+      ${
+        aPropos.description
+          ? `<p class="fichiers-meta__description">${escapeHtml(aPropos.description)}</p>`
+          : `<p class="fichiers-meta__vide">Ce projet n'a pas encore dit de quoi il parle.</p>`
+      }
+      ${
+        aPropos.topics.length
+          ? `<ul class="fichiers-meta__topics">${aPropos.topics
+              .map((topic) => `<li>${escapeHtml(topic)}</li>`)
+              .join("")}</ul>`
+          : ""
+      }
+    </section>
+  `;
+}
+
+/** Le formulaire de la présentation. Il n'existe que pendant qu'on écrit. */
+function renderSaisieDAPropos() {
+  const saisie = docsViewState.aProposSaisie;
+  if (!saisie) return "";
+
+  const restants = DESCRIPTION_MAX - String(saisie.description ?? "").length;
+
+  return `
+    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Présentation du projet">
+      <form class="fichiers-saisie__boite" data-fichiers-a-propos-form>
+        <header class="fichiers-saisie__tete">
+          <b>Présentation du projet</b>
+          <button type="button" class="fichiers-saisie__fermer" data-fichiers-a-propos-annuler
+            aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
+        </header>
+
+        <label class="fichiers-saisie__champ">
+          <span>Description</span>
+          <textarea class="gh-input" rows="3" maxlength="${DESCRIPTION_MAX}"
+            data-fichiers-a-propos-description
+            placeholder="De quoi ce projet parle, en une phrase">${escapeHtml(saisie.description ?? "")}</textarea>
+          <small class="${restants < 0 ? "fichiers-saisie__trop" : ""}">${restants} caractères restants</small>
+        </label>
+
+        <label class="fichiers-saisie__champ">
+          <span>Sujets</span>
+          <input type="text" class="gh-input" data-fichiers-a-propos-topics
+            value="${escapeHtml((saisie.topics ?? []).join(", "))}"
+            placeholder="incendie, structure, erp">
+          <small>Séparés par des virgules. ${TOPICS_MAX} au plus, en minuscules sans accent.</small>
+        </label>
+
+        ${docsViewState.aProposEchec
+          ? `<p class="fichiers-saisie__echec">${escapeHtml(docsViewState.aProposEchec)}</p>`
+          : ""}
+
+        <footer class="fichiers-saisie__pied">
+          <button type="button" class="gh-btn" data-fichiers-a-propos-annuler>Annuler</button>
+          <button type="submit" class="gh-btn gh-btn--primary"
+            ${saisie.enCours ? "disabled" : ""}>${saisie.enCours ? "Enregistrement…" : "Enregistrer"}</button>
+        </footer>
+      </form>
+    </div>
   `;
 }
 
@@ -2340,7 +2553,7 @@ function renderBrancheMemoire() {
   const query = String(docsViewState.memoireQuery ?? "").trim();
 
   const vue = query
-    ? renderRecherche(memoire, query)
+    ? renderRecherche(memoire, query, { pieces: getProjectDocuments() })
     : racine
     ? renderDossiers(memoire, { assertions: docsViewState.memoireAssertions ?? [] })
     : chemin.length === 1
@@ -2440,9 +2653,8 @@ function renderDocumentsListView() {
       <div class="documents-shell documents-shell--project-page documents-layout" id="projectDocumentScroll" style="--documents-tree-width:${docsViewState.documentTreeOpen ? Math.max(220, Math.min(520, Number(docsViewState.treeWidth || 280))) : 0}px">
           ${treeHtml}
           <main class="documents-main">
-            ${isRoot ? renderDocumentsToolbar() : topBar}
+            ${topBar}
             ${renderDocumentsActivityBanner()}
-            ${isRoot ? renderDocumentsBreadcrumb() : ""}
             ${renderDataTableShell({
               className: "documents-repo data-table-shell--document-scroll",
               gridTemplate: getDocumentsTableGridTemplate(),
@@ -3722,7 +3934,45 @@ function renderProjectDocumentsContent(root) {
   bindDocumentsView(root);
 }
 
+/**
+ * Revenir à l'accueil de l'onglet.
+ *
+ * Entrer dans l'onglet Fichiers, c'est venir voir de quoi le projet est fait —
+ * pas reprendre le dossier qu'on parcourait la dernière fois. Rester au fond
+ * d'une arborescence obligeait à remonter le fil à chaque visite, et l'accueil
+ * devenait un écran qu'on ne revoyait plus.
+ */
+function retourALAccueilDesFichiers() {
+  docsViewState.branche = "";
+  docsViewState.memoireChemin = [];
+  docsViewState.memoireQuery = "";
+  docsViewState.memoirePlies = new Set();
+  docsViewState.ajoutOuvert = false;
+  docsViewState.currentFolderId = null;
+  docsViewState.breadcrumb = [];
+}
+
+let ongletFichiersBranche = false;
+/** L'écran monté, pour le redessiner quand on reclique l'onglet. */
+let racineMontee = null;
+
+/** Recliquer l'onglet ramène à l'accueil, comme y arriver d'ailleurs. */
+function brancherLeRetourALAccueil() {
+  if (ongletFichiersBranche) return;
+  ongletFichiersBranche = true;
+
+  window.addEventListener(PROJECT_TAB_RESELECTED_EVENT, (event) => {
+    if (String(event?.detail?.tabId || "") !== PROJECT_TAB_IDS.DOCUMENTS) return;
+    if (!racineMontee?.isConnected) return;
+    retourALAccueilDesFichiers();
+    renderProjectDocumentsContent(racineMontee);
+  });
+}
+
 export function renderProjectDocuments(root) {
+  racineMontee = root;
+  brancherLeRetourALAccueil();
+  retourALAccueilDesFichiers();
   syncDocumentsSelectedPhase();
   if (!Array.isArray(docsViewState.treeExpandedFolderIds) || !docsViewState.treeExpandedFolderIds.length) {
     try {
