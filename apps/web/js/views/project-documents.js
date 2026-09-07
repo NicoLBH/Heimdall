@@ -1963,6 +1963,9 @@ async function allerDansLArbre(root, adresse) {
 
   if (prefixe === "memoire") {
     docsViewState.branche = BRANCHE.MEMOIRE;
+    // La pièce ouverte se referme : on ne regarde qu'une chose à la fois, et
+    // l'arbre ne doit montrer qu'une sélection.
+    setActiveProjectDocument(null);
     docsViewState.memoireChemin = cible ? cible.split("/").filter(Boolean) : [];
     docsViewState.memoirePlies = new Set();
     renderProjectDocumentsContent(root);
@@ -2712,9 +2715,18 @@ function renderArbreDesFichiers({ memoire, ouverte = true, query = "" } = {}) {
   const noeuds = [
     ...racine(BRANCHE.MEMOIRE, MEMOIRE,
       docsViewState.branche === BRANCHE.MEMOIRE && chemin.length === 0,
-      noeudsDeLaMemoire(memoire, { chemin, replies: docsViewState.memoireReplies ?? new Set(), profondeur: 1 })),
+      noeudsDeLaMemoire(memoire, {
+        chemin: docsViewState.branche === BRANCHE.MEMOIRE ? chemin : [],
+        replies: docsViewState.memoireReplies ?? new Set(),
+        profondeur: 1
+      })),
     ...racine(BRANCHE.DOCUMENTS, DOCUMENTS,
-      docsViewState.branche === BRANCHE.DOCUMENTS && !docsViewState.currentFolderId,
+      // La racine ne s'allume que si rien de plus précis ne l'est : un dossier
+      // ouvert, ou une pièce en lecture. Sans quoi deux nœuds paraissaient
+      // actifs — celui qu'on regarde, et la racine qui le contient.
+      docsViewState.branche === BRANCHE.DOCUMENTS
+        && !docsViewState.currentFolderId
+        && !String(store.projectDocuments?.activeDocumentId || "").trim(),
       noeudsDesDocuments({ profondeur: 1 }))
   ];
 
@@ -2799,7 +2811,11 @@ function noeudsDesDocuments({ profondeur = 1 } = {}) {
   }
 
   const deplies = new Set(Array.isArray(docsViewState.treeExpandedFolderIds) ? docsViewState.treeExpandedFolderIds : []);
-  const documentOuvert = String(store.projectDocuments?.activeDocumentId || "").trim();
+  // La pièce ouverte ne compte que si l'on est dans les Documents : sinon un
+  // PDF regardé tout à l'heure restait en surbrillance pendant qu'on lisait un
+  // fichier de mémoire, et deux nœuds paraissaient actifs à la fois.
+  const dansLesDocuments = docsViewState.branche === BRANCHE.DOCUMENTS;
+  const documentOuvert = dansLesDocuments ? String(store.projectDocuments?.activeDocumentId || "").trim() : "";
 
   const parcourir = (parent, niveau) => {
     const noeuds = [];
@@ -2817,7 +2833,7 @@ function noeudsDesDocuments({ profondeur = 1 } = {}) {
         genre: "dossier",
         ouvrable: enfants.length > 0 || pieces.length > 0,
         ouvert,
-        actif: String(docsViewState.currentFolderId || "") === id,
+        actif: dansLesDocuments && String(docsViewState.currentFolderId || "") === id,
         compte: pieces.length || ""
       });
 
