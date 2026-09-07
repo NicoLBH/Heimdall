@@ -205,6 +205,50 @@ export function rangDeLaRacine(racine) {
   return texte(racine) === MEMOIRE ? 0 : 1;
 }
 
+/**
+ * L'ordre des dossiers **dans** `Mémoire/`.
+ *
+ * Ce qui est observé se lit avant ce qui s'en déduit : on ne juge une exigence
+ * qu'une fois connu ce sur quoi elle porte. Puis les domaines, par ordre
+ * alphabétique, et ce qui n'a pas de domaine en dernier.
+ */
+const ORDRE_DES_DOSSIERS = [
+  TRANSVERSALES[NATURE.DONNEE_BASE],
+  TRANSVERSALES[NATURE.HYPOTHESE],
+  TRANSVERSALES[NATURE.INTENDANCE]
+];
+
+/** Le rang d'un dossier de `Mémoire/`. Les domaines après les transversaux. */
+export function rangDuDossier(nom) {
+  const rang = ORDRE_DES_DOSSIERS.indexOf(texte(nom));
+  if (rang !== -1) return rang;
+  return texte(nom) === SANS_DOMAINE ? ORDRE_DES_DOSSIERS.length + 1 : ORDRE_DES_DOSSIERS.length;
+}
+
+/**
+ * Ce qu'un dossier de `Mémoire/` dit de lui-même.
+ *
+ * « Données de base » et « Incendie » ne se ressemblent pas, mais on ne devine
+ * pas pour autant que l'un vaut pour tout le projet et l'autre pour une
+ * discipline. Un dossier nommé sans être expliqué se remplit de travers.
+ */
+export function phraseDuDossier(nom) {
+  const dit = texte(nom);
+  const transversal = {
+    [TRANSVERSALES[NATURE.DONNEE_BASE]]:
+      "Ce que le bâtiment est. Vaut pour tout le projet : l'incendie, la structure et l'acoustique s'en servent.",
+    [TRANSVERSALES[NATURE.HYPOTHESE]]:
+      "Ce qu'on suppose en attendant mieux. Vaut pour tout le projet, et ce qui en dépend devient suspect.",
+    [TRANSVERSALES[NATURE.INTENDANCE]]:
+      "Ce qui est entré au dossier : documents, pièces jointes, avis."
+  }[dit];
+  if (transversal) return transversal;
+
+  return dit === SANS_DOMAINE
+    ? "Ce dont personne n'a dit la discipline. Ce dossier ne devrait pas se remplir."
+    : `Les règles ${dit.toLowerCase()} appliquées, ce qu'elles imposent et ce qui a été constaté.`;
+}
+
 /** Ce qu'une racine dit d'elle-même, en une phrase. */
 export function phraseDeLaRacine(racine) {
   return texte(racine) === MEMOIRE

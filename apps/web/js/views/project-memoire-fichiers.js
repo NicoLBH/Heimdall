@@ -31,7 +31,7 @@ import {
   ligneDeZone, ligneFermante, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDeLaRacine, phraseDeLExtension, rangDeLaRacine, rangDeLExtension
+  phraseDuDossier, phraseDeLExtension, rangDuDossier, rangDeLExtension
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
@@ -55,7 +55,7 @@ const cleHtml = (valeur) => texte(valeur).replace(/[^\w-]+/g, "-");
 export function preparerLaMemoire(assertions = []) {
   const dossiers = dossiersDeLaMemoire(assertions)
     .map((dossier) => ({ ...dossier, fichiers: dossier.fichiers.slice().sort(parLecture) }))
-    .sort((gauche, droite) => rangDeLaRacine(gauche.nom) - rangDeLaRacine(droite.nom)
+    .sort((gauche, droite) => rangDuDossier(gauche.nom) - rangDuDossier(droite.nom)
       || gauche.nom.localeCompare(droite.nom, "fr"));
 
   return { dossiers, fichiers: fichiersDeLaMemoire(assertions) };
@@ -79,7 +79,10 @@ function parLecture(gauche, droite) {
  * désignerait six fichiers à la fois, et l'écran en ouvrirait un au hasard.
  */
 export function adresseDuFichier(fichier) {
-  return `${fichier.chemin.join("/")}.${fichier.extension}`;
+  // Relative à la branche : `Incendie/incendie.ctr`, et non `Mémoire/…`. La
+  // racine est celle de l'onglet, pas un dossier où l'on entre.
+  const dossier = fichier.chemin[fichier.chemin.length - 1];
+  return `${dossier}/${nomDeFichier(fichier.chemin, fichier.extension)}`;
 }
 
 /** Le fichier d'un chemin, s'il existe. */
@@ -157,18 +160,20 @@ export function renderArbre(memoire, { chemin = [], replies = new Set(), ouverte
  * La barre : fil d'Ariane, et la recherche à droite
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export function renderBarre({
-  chemin = [], query = "", ouverte = true, racine = false,
-  libelle = "Mémoire", prefixe = []
-} = {}) {
+export function renderBarre({ chemin = [], query = "", ouverte = true, racine = false } = {}) {
+  // Le fil remonte jusqu'à la racine de l'onglet : sans elle, on entrait dans
+  // la Mémoire sans pouvoir en ressortir vers les Documents.
+  //
+  // « Mémoire » est la racine de la branche, pas un dossier : elle se cible par
+  // une adresse vide, et le chemin qui suit est relatif.
   const miettes = [
-    `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="">${escapeHtml(libelle)}</button>`,
+    `<button type="button" class="documents-breadcrumb__link" data-fichiers-branche="">Fichiers</button>`,
+    `<span class="documents-breadcrumb__sep">/</span>`,
+    `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="">Mémoire</button>`,
     ...chemin.map((morceau, rang) => {
-      // La cible porte le préfixe de la branche : le fil affiche « Mémoire /
-      // Incendie.ctr », mais l'adresse reste celle du fichier.
-      const cible = [...prefixe, ...chemin.slice(0, rang + 1)];
+      const cible = chemin.slice(0, rang + 1).join("/");
       return `<span class="documents-breadcrumb__sep">/</span>`
-        + `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="${escapeHtml(cible.join("/"))}">${escapeHtml(morceau)}</button>`;
+        + `<button type="button" class="documents-breadcrumb__link" data-memoire-aller="${escapeHtml(cible)}">${escapeHtml(morceau)}</button>`;
     })
   ].join("");
 
@@ -220,7 +225,7 @@ export function renderDossiers(memoire, { assertions = [] } = {}) {
               <span class="memoire-entree__icone">${svgIcon("file-directory", { className: "octicon" })}</span>
               <span class="memoire-entree__corps">
                 <span class="memoire-entree__nom">${escapeHtml(dossier.nom)}</span>
-                <span class="memoire-entree__phrase">${escapeHtml(phraseDeLaRacine(dossier.nom))}</span>
+                <span class="memoire-entree__phrase">${escapeHtml(phraseDuDossier(dossier.nom))}</span>
               </span>
               <span class="memoire-entree__compte">${dossier.lignes} ligne${dossier.lignes > 1 ? "s" : ""}</span>
             </button>
@@ -521,6 +526,92 @@ export function renderFichier(fichier, {
           : ""
       }
     </section>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * La recherche
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/** Sans accents ni casse : « Bâtiment » se trouve en tapant « batiment ». */
+function pourChercher(valeur) {
+  return String(valeur ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Les lignes de la mémoire qui portent les mots cherchés.
+ *
+ * On cherche dans le **texte du fichier**, pas dans les champs de la base :
+ * c'est ce que l'écran montre, et une recherche qui trouverait autre chose que
+ * ce qu'on lit ne serait pas croyable. Tous les mots doivent y être, dans
+ * n'importe quel ordre.
+ */
+export function lignesTrouvees(memoire, query = "") {
+  const mots = pourChercher(query).split(/\s+/).filter(Boolean);
+  if (!mots.length) return [];
+
+  return (memoire.fichiers ?? [])
+    .map((fichier) => {
+      const lignes = lignesAffichables(fichier).filter((ligne) => {
+        if (!ligne.jetons.length) return false;
+        const clair = pourChercher(enClairDesJetons(ligne.jetons));
+        return mots.every((mot) => clair.includes(mot));
+      });
+      return { fichier, lignes };
+    })
+    .filter((trouvaille) => trouvaille.lignes.length);
+}
+
+/**
+ * Ce que la recherche a trouvé, fichier par fichier.
+ *
+ * La ligne garde **son numéro** : c'est ce qui permet de la retrouver dans le
+ * fichier une fois ouvert, et une liste de résultats renumérotée de 1 à n
+ * n'aiderait personne à y revenir.
+ */
+export function renderRecherche(memoire, query = "") {
+  const trouvailles = lignesTrouvees(memoire, query);
+
+  if (!trouvailles.length) {
+    return `<div class="propositions-empty"><b>Rien ne porte ces mots</b>
+      <p>La mémoire ne dit rien de « ${escapeHtml(query)} ». Ce n'est pas qu'elle l'a écarté : elle ne l'a jamais reçu.</p></div>`;
+  }
+
+  const lignes = trouvailles.reduce((total, trouvaille) => total + trouvaille.lignes.length, 0);
+
+  return `
+    <div class="memoire-recherche-resultats">
+      <p class="memoire-recherche-resultats__compte">
+        <b>${lignes} ligne${lignes > 1 ? "s" : ""}</b> dans
+        ${trouvailles.length} fichier${trouvailles.length > 1 ? "s" : ""}
+      </p>
+      ${trouvailles
+        .map(({ fichier, lignes: trouvees }) => `
+          <section class="memoire-fichier memoire-fichier--trouvaille">
+            <header class="memoire-fichier__tete">
+              <button type="button" class="memoire-recherche-resultats__fichier"
+                data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
+                ${svgIcon("file", { className: "octicon" })}
+                ${escapeHtml(nomDeFichier(fichier.chemin, fichier.extension))}
+              </button>
+              <span class="memoire-fichier__mesure">${trouvees.length} ligne${trouvees.length > 1 ? "s" : ""}</span>
+            </header>
+            <div class="memoire-fichier__corps">
+              ${trouvees
+                .map((ligne) => `
+                  <div class="memoire-ligne">
+                    <span class="memoire-ligne__num">${ligne.rang}</span>
+                    <span class="memoire-ligne__code">${renderJetons(ligne.jetons)}</span>
+                  </div>
+                `)
+                .join("")}
+            </div>
+          </section>
+        `)
+        .join("")}
+    </div>
   `;
 }
 
