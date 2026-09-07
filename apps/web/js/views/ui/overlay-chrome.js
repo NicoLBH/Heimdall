@@ -10,11 +10,17 @@ export function renderOverlayChromeHead({
   closeId = "",
   closeLabel = "Fermer",
   headClassName = "",
-  actionsHtml = ""
+  actionsHtml = "",
+  // Ce qui se pose **avant** le titre : un geste qui porte sur ce qu'on lit, et
+  // non sur ce qu'on lit dedans. La barre compactée recouvre celle du contenu ;
+  // sans cette place, ses gestes disparaissaient au moment précis où l'on en a
+  // besoin.
+  titleLeadHtml = ""
 } = {}) {
   return `
     <div ${headId ? `id="${escapeHtml(headId)}"` : ""} class="overlay-chrome__head gh-panel__head gh-panel__head--tight details-head--expanded ${escapeHtml(headClassName)}">
       <div class="overlay-chrome__bar">
+        ${titleLeadHtml ? `<div class="overlay-chrome__lead">${titleLeadHtml}</div>` : ""}
         <div class="overlay-chrome__context">
           ${eyebrow ? `<div class="overlay-chrome__eyebrow mono">${escapeHtml(eyebrow)}</div>` : ""}
           <div class="overlay-chrome__titlewrap" ${titleId ? `id="${escapeHtml(titleId)}"` : ""}>${titleHtml}</div>

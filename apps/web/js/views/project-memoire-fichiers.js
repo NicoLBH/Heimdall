@@ -31,12 +31,13 @@ import {
   ligneDeZone, ligneFermante, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDeLExtension, rangDuDossier, rangDeLExtension
+  phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
   dernierVersementDe, contributeursDuFichier, PARTS_DANCIENNETE
 } from "../services/memoire-blame.js";
+import { resolutionDuSujet, renvoisSansDeclaration } from "../services/memoire-identifiants.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -744,7 +745,7 @@ export function ligneCachee(ligne, plies) {
  */
 export function renderFichier(fichier, {
   lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
-  propositions = new Map(), plies = new Set()
+  propositions = new Map(), plies = new Set(), declares = null
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
@@ -799,7 +800,7 @@ export function renderFichier(fichier, {
               : `<span class="memoire-ligne__caret" aria-hidden="true"></span>`
             : ""
         }
-        <span class="memoire-ligne__code">${renderJetons(ligne.jetons)}${
+        <span class="memoire-ligne__code">${renderJetons(ligne.jetons, { declares })}${
           ligne.ouvre
             ? `<span class="memoire-ligne__replie" aria-hidden="true">${svgIcon("fold", { className: "octicon" })}</span>`
             : ""
@@ -808,9 +809,11 @@ export function renderFichier(fichier, {
     `;
   }).join("");
 
+  const manquants = renvoisSansDeclaration(lignes, declares);
+
   return `
     ${renderDernierVersement(fichier.lignes, { auteurs, avatars, propositions })}
-    <section class="memoire-fichier">
+    <section class="memoire-fichier memoire-fichier--${escapeHtml(langageDeLExtension(fichier.extension))}">
       <header class="memoire-fichier__tete">
         <span class="memoire-fichier__lectures">
           ${[[LECTURE.CODE, "Code"], [LECTURE.BLAME, "Origine"]]
@@ -828,6 +831,16 @@ export function renderFichier(fichier, {
         </button>
       </header>
       ${lecture === LECTURE.BLAME ? renderEchelleDAnciennete(fichier.lignes, { auteurs, avatars }) : ""}
+      ${
+        manquants.length
+          ? `<p class="memoire-fichier__manquants">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>${manquants.length}</b> renvoi${manquants.length > 1 ? "s" : ""} sans déclaration —
+               ${escapeHtml(manquants.slice(0, 4).join(", "))}${manquants.length > 4 ? "…" : ""}.
+               Ce fichier s'appuie sur ce que personne n'a versé.
+             </p>`
+          : ""
+      }
       <div class="memoire-fichier__corps">
         ${corps || `<p class="review-empty-note">Ce fichier ne porte plus aucune valeur : tout ce qu'il contenait a été remplacé ou écarté.</p>`}
       </div>
@@ -1153,9 +1166,26 @@ export function jetonsDeLAssertion(assertion = {}) {
   return tete;
 }
 
-function renderJetons(jetons = []) {
+/**
+ * Les jetons d'une ligne, colorés.
+ *
+ * Un sujet porte en plus **ce qu'il vaut** : il se pose, il renvoie à quelque
+ * chose de connu, ou il renvoie à rien. C'est cette dernière couleur qui
+ * transforme la mémoire en quelque chose qui se vérifie en la lisant — une
+ * condition qui porte sur une donnée jamais versée se voit sans la chercher.
+ */
+function renderJetons(jetons = [], { declares = null } = {}) {
   return jetons
-    .map((entree) => `<span class="mdall-${escapeHtml(entree.type)}">${escapeHtml(entree.texte)}</span>`)
+    .map((entree) => {
+      const resolution = entree.type === "sujet"
+        ? resolutionDuSujet(entree.texte, { jetons, declares })
+        : "";
+      const classes = `mdall-${escapeHtml(entree.type)}${resolution ? ` mdall-sujet--${resolution}` : ""}`;
+      const dit = resolution === "inconnu"
+        ? ` title="Aucune ligne de la mémoire ne déclare « ${escapeHtml(entree.texte)} »."`
+        : "";
+      return `<span class="${classes}"${dit}>${escapeHtml(entree.texte)}</span>`;
+    })
     .join("");
 }
 
