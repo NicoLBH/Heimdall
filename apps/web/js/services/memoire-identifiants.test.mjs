@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   cleDuSujet, sujetsDeclares, roleDesJetons, resolutionDuSujet,
-  renvoisSansDeclaration, ROLE, RESOLUTION
+  renvoisSansDeclaration, variablesDeLaMemoire, ROLE, RESOLUTION
 } from "./memoire-identifiants.js";
 import { blocDeRegle, blocDAffirmation, OPERATEUR, PROVENANCE } from "./memoire-en-texte.js";
 
@@ -82,4 +82,43 @@ test("un fichier dit ce sur quoi il s'appuie sans que personne l'ait versé", ()
 
   // Le sujet de la règle elle-même n'est pas un renvoi : il se pose.
   assert.equal(manquants.includes("Colonne sèche"), false);
+});
+
+test("les variables du projet se voient toutes, et avec elles qui s'en sert", () => {
+  const declaration = blocDAffirmation({ sujet: "Hauteur du plancher bas", valeur: "26", unite: "m" });
+  const regle = blocDeRegle({
+    sujet: "Classement du bâtiment",
+    conditions: [
+      { sujet: "Hauteur du plancher bas", operateur: OPERATEUR.AU_PLUS, valeur: "28", unite: "m" },
+      { sujet: "Logements superposés", operateur: OPERATEUR.EGAL, valeur: "oui", logique: true, joint: "et" }
+    ],
+    alors: "3e famille B"
+  });
+
+  const variables = variablesDeLaMemoire(
+    [
+      { fichier: "memoire/donnees-de-base.ddb", lignes: declaration },
+      { fichier: "memoire/incendie.ref", lignes: regle }
+    ],
+    (f) => f.lignes.map((jetons) => ({ jetons }))
+  );
+
+  const parNom = new Map(variables.map((v) => [v.nom, v]));
+
+  const hauteur = parNom.get("Hauteur du plancher bas");
+  assert.equal(hauteur.declaree, true);
+  assert.equal(hauteur.declarePar, "memoire/donnees-de-base.ddb");
+  assert.equal(hauteur.valeur, "26 m");
+  assert.deepEqual(hauteur.citeePar, ["memoire/incendie.ref"]);
+
+  // La règle se déclare : elle produit un nom, elle n'en emprunte pas un. Et ce
+  // qu'elle pose se lit sur sa ligne `alors` — sa tête ne dit pas ce qu'elle vaut.
+  assert.equal(parNom.get("Classement du bâtiment").declaree, true);
+  assert.equal(parNom.get("Classement du bâtiment").valeur, '"3e famille B"');
+
+  // Et ce que personne n'a versé figure aussi : c'est le trou du raisonnement,
+  // et le taire ne montrerait que ce qui va bien.
+  const manquante = parNom.get("Logements superposés");
+  assert.equal(manquante.declaree, false);
+  assert.deepEqual(manquante.citeePar, ["memoire/incendie.ref"]);
 });

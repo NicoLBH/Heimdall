@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  conclusionsVersables, cleDuVersement, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables } from "./incendie-versement.js";
+  conclusionsVersables, cleDuVersement, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables,
+  donneesDeBaseVersables } from "./incendie-versement.js";
 
 const VUE = {
   modules: [
@@ -169,4 +170,26 @@ test("une règle sans condition reste une règle : elle s'applique toujours", ()
   assert.equal(regle.sujet, "Conduit mettant en communication des niveaux différents");
   assert.deepEqual(regle.regle.conditions, []);
   assert.match(regle.provenance.quoi, /article 47/);
+});
+
+test("le classement part avec l'étude : sans lui, les règles renvoient à rien", () => {
+  const [classement] = donneesDeBaseVersables(
+    { faits: { classement: "3e famille B" }, texteDeReference: { source: "arrêté du 31 janvier 1986 modifié" } },
+    "Escalier B"
+  );
+
+  assert.equal(classement.sujet, "Classement du bâtiment");
+  assert.equal(classement.valeur, "3e famille B");
+  // Une déclaration, pas une exigence : c'est le nom que les règles citent.
+  assert.equal(classement.nature, "donnee-de-base");
+  // Deux escaliers peuvent être classés différemment ; sans la portée, l'un
+  // périmerait l'autre.
+  assert.deepEqual(classement.zones, ["Escalier B"]);
+});
+
+test("hors champ n'est pas une famille, et n'entre donc pas en mémoire", () => {
+  // « hors champ — IGH » dit que ce référentiel ne s'applique pas. Versé comme
+  // une valeur, il se lirait comme un classement décidé.
+  assert.deepEqual(donneesDeBaseVersables({ faits: { classement: "hors champ — IGH" } }, ""), []);
+  assert.deepEqual(donneesDeBaseVersables({ faits: {} }, ""), []);
 });

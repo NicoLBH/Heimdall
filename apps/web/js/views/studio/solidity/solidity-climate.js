@@ -188,24 +188,33 @@ export async function renderSolidityClimate(root, { force = false } = {}) {
   // « Transformer » : ouvrir un sujet pour en débattre, ou préparer une
   // proposition à signer. Aucune des deux n'écrit dans la mémoire du projet —
   // voir `docs/fondamentaux.md`.
-  root.addEventListener("ghaction:action", (event) => {
-    const quoi = event.detail?.action;
-    if (quoi === TRANSFORMER.SUJET) {
-      const opener = typeof window !== "undefined" ? window.openStudioToolSubjectDraft : null;
-      if (typeof opener !== "function") {
-        console.warn("[studio-tool-subject] open-draft unavailable", { toolKey: "climate" });
+  //
+  // Une seule fois par nœud. `renderSolidityClimate` se rappelle avec `force`
+  // à chaque venue sur le panneau, et `addEventListener` s'ajoute là où
+  // `root.onclick` se remplace : deux venues faisaient partir **deux**
+  // propositions pour un clic, et deux fenêtres de zones se recouvraient — d'où
+  // l'impression qu'elle ne se fermait pas.
+  if (root.dataset.climateBranche !== "true") {
+    root.dataset.climateBranche = "true";
+    root.addEventListener("ghaction:action", (event) => {
+      const quoi = event.detail?.action;
+      if (quoi === TRANSFORMER.SUJET) {
+        const opener = typeof window !== "undefined" ? window.openStudioToolSubjectDraft : null;
+        if (typeof opener !== "function") {
+          console.warn("[studio-tool-subject] open-draft unavailable", { toolKey: "climate" });
+          return;
+        }
+        opener({
+          origin: "studio-climate",
+          title: buildClimateDraftTitle(),
+          description: buildClimateDraftDescription(),
+          meta: { labels: ["climatique"] }
+        });
         return;
       }
-      opener({
-        origin: "studio-climate",
-        title: buildClimateDraftTitle(),
-        description: buildClimateDraftDescription(),
-        meta: { labels: ["climatique"] }
-      });
-      return;
-    }
-    if (quoi === TRANSFORMER.PROPOSITION) void proposerLesZones(root);
-  });
+      if (quoi === TRANSFORMER.PROPOSITION) void proposerLesZones(root);
+    });
+  }
 
   registerProjectPrimaryScrollSource(root.closest("#projectStudioRouterScroll") || document.getElementById("projectStudioRouterScroll"));
 }

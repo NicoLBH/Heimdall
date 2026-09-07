@@ -160,3 +160,104 @@ export function renvoisSansDeclaration(lignes = [], declares = null) {
 
   return [...manquants.values()];
 }
+
+/**
+ * Les variables du projet : ce qui est déclaré, et ce qui s'en sert.
+ *
+ * ## La question à laquelle rien ne répondait
+ *
+ * « Où voit-on l'ensemble des variables mutualisées, réutilisées dans les
+ * différentes fonctions ? » Nulle part. Le nom d'une donnée n'existait qu'aux
+ * endroits où il était écrit : sa déclaration dans un `.ddb`, ses citations
+ * dans les conditions de trente règles. Pour savoir ce que « Hauteur du
+ * plancher bas » vaut, et ce qui tomberait si elle changeait, il fallait ouvrir
+ * les fichiers un par un.
+ *
+ * ## Pourquoi la liste se calcule, et ne se range pas
+ *
+ * Elle est **entièrement déductible** des fichiers : les déclarations sont les
+ * têtes de blocs, les citations les sujets des conditions. La ranger à côté en
+ * ferait une seconde vérité, qui divergerait au premier versement
+ * (`docs/fondamentaux.md`, règle 4). Ce qui est dérivé se recalcule tant qu'il
+ * sert à décider.
+ *
+ * ## Ce qui est cité sans être déclaré y figure aussi
+ *
+ * Une variable dont personne n'a versé la valeur est **la** chose qu'on veut
+ * voir : c'est le trou du raisonnement. La taire parce qu'elle n'a pas de
+ * déclaration reviendrait à ne montrer que ce qui va bien.
+ *
+ * @param {{fichier: string, extension: string, lignes: object[]}[]} fichiers
+ *   les fichiers de la mémoire, tels que `fichiersDeLaMemoire` les rend
+ * @param {(fichier: object) => {jetons: object[]}[]} lireLesLignes comment lire
+ *   les lignes d'un fichier — l'écriture vit ailleurs, et ce service n'a pas à
+ *   la connaître
+ * @returns {{cle: string, nom: string, valeur: string, declarePar: string,
+ *            citeePar: string[], declaree: boolean}[]} par nom, ordre alphabétique
+ */
+const valeurDesJetons = (jetons = []) => jetons
+  .filter((jeton) => jeton?.type === "valeur" || jeton?.type === "unite")
+  .map((jeton) => texte(jeton.texte))
+  .join(" ");
+
+export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
+  const variables = new Map();
+
+  const entree = (nom) => {
+    const cle = cleDuSujet(nom);
+    if (!variables.has(cle)) {
+      variables.set(cle, { cle, nom: texte(nom), valeur: "", declarePar: "", citeePar: [], declaree: false });
+    }
+    return variables.get(cle);
+  };
+
+  // La déclaration qu'on vient de lire, tant qu'elle attend sa valeur.
+  let derniereDeclaration = null;
+
+  for (const fichier of Array.isArray(fichiers) ? fichiers : []) {
+    const nomDuFichier = texte(fichier?.fichier);
+
+    for (const ligne of lireLesLignes(fichier) ?? []) {
+      const jetons = ligne?.jetons ?? [];
+      const role = roleDesJetons(jetons);
+
+      // Ce qu'une règle pose se lit sur sa ligne `alors`, pas sur sa tête :
+      // `fonction Classement du bâtiment(…)` ne dit pas ce que le classement
+      // vaut. Sans cela, toute variable produite par une règle s'affichait sans
+      // valeur — c'est-à-dire pour rien.
+      const premier = jetons.find((jeton) => jeton?.type && jeton.type !== "neutre");
+      if (derniereDeclaration && !derniereDeclaration.valeur
+        && texte(premier?.texte).toLowerCase() === "alors") {
+        derniereDeclaration.valeur = valeurDesJetons(jetons);
+      }
+
+      if (role === ROLE.DECLARATION) {
+        const sujet = jetons.find((jeton) => jeton?.type === "sujet");
+        if (!sujet || !cleDuSujet(sujet.texte)) continue;
+
+        const variable = entree(sujet.texte);
+        // Une variable déclarée deux fois garde la première : les fichiers
+        // arrivent dans l'ordre de lecture, et c'est celui-là qu'on montre.
+        if (!variable.declaree) {
+          variable.declaree = true;
+          variable.declarePar = nomDuFichier;
+          // La valeur se lit sur la ligne, pas à côté d'elle : c'est déjà ce
+          // que le fichier montre, et le recopier ailleurs le ferait diverger.
+          variable.valeur = valeurDesJetons(jetons);
+          derniereDeclaration = variable;
+        } else {
+          derniereDeclaration = null;
+        }
+        continue;
+      }
+
+      for (const jeton of jetons) {
+        if (jeton?.type !== "sujet" || !cleDuSujet(jeton.texte)) continue;
+        const variable = entree(jeton.texte);
+        if (nomDuFichier && !variable.citeePar.includes(nomDuFichier)) variable.citeePar.push(nomDuFichier);
+      }
+    }
+  }
+
+  return [...variables.values()].sort((gauche, droite) => gauche.nom.localeCompare(droite.nom, "fr"));
+}

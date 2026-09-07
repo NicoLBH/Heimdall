@@ -5,8 +5,12 @@ règles : les règles ne sont qu'une des sources de raisonnement qu'un projet
 capitalise, à côté des décisions, des relevés, des calculs et des hypothèses.
 
 Il s'adresse à des contrôleurs techniques, des architectes, des maîtres
-d'ouvrage, des conducteurs de travaux. Aucun de ses mots n'est emprunté à un
-langage de programmation, et **tout se tape au clavier**.
+d'ouvrage, des conducteurs de travaux, et **tout se tape au clavier**.
+
+Un seul de ses mots est emprunté à un langage de programmation : `fonction`, qui
+ouvre une règle. Il l'est parce qu'un fichier `.ref` en est un — il s'exécute —
+et parce qu'un raisonnement composé de trois conditions ne se relit pas sans
+bornes. Le reste du langage vient de l'écrit technique et juridique.
 
 ---
 
@@ -56,14 +60,14 @@ zone: Bâtiment A {                        une section de portée
       statut: retenu                      l'état du raisonnement ici
    }
 
-   Sujet (entrée, entrée) {               la tête d'une règle, et ses entrées
-      si Sujet <= 28 m                    une condition
-      et Sujet = "collective"
-      ou Sujet parmi "a" ou "b"
-      non Sujet = "x"
-      alors "3e famille B"                ce que la règle pose
-      sinon "3e famille A"
-      sauf si Sujet = oui                 ce qui la borne
+   fonction Sujet(entrée, entrée) {       la tête d'une règle, et ses entrées
+      si (Sujet <= 28 m)                  une condition
+      et (Sujet = "collective")
+      ou (Sujet parmi "a" ou "b")
+      non (Sujet = "x")
+      alors ("3e famille B");             ce que la règle pose
+      sinon ("3e famille A");
+      sauf si (Sujet = oui)               ce qui la borne
    }
 
 }
@@ -120,14 +124,23 @@ valeur ni de la règle : c'est ce que **ce projet** en fait aujourd'hui.
 ## Une règle se lit comme une fonction
 
 ```
-Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages retenu pour le classement) {
-   si Habitation individuelle ou collective = "collective"
-   et Nombre d'étages retenu pour le classement <= 3
-   alors "2e famille"
+fonction Classement du bâtiment(Habitation individuelle ou collective, Nombre d'étages retenu pour le classement) {
+   si (Habitation individuelle ou collective = "collective")
+   et (Nombre d'étages retenu pour le classement <= 3)
+   alors ("2e famille");
    texte: arrêté du 31 janvier 1986 modifié, article 3, 2°), quatrième tiret
       parce que: "habitations collectives comportant au plus trois étages sur rez-de-chaussée."
 }
 ```
+
+**Un `.ref` est le seul fichier qui s'exécute**, et sa ponctuation le dit : une
+parenthèse par clause, un point-virgule sur ce que la règle pose. Trois
+conditions enchaînées sans bornes ne se relisent déjà pas ; elles ne se
+parseraient pas du tout. Les autres fichiers n'en portent pas : un `.ctr` énonce
+des paires, il n'a pas de clause à borner.
+
+La ponctuation rend la règle exécutable, elle ne la rend pas obligatoire : un
+fichier tapé à la main sans parenthèses se lit exactement pareil.
 
 La parenthèse nomme les **entrées**, et c'est ce qui manquait le plus : on voit
 d'un coup d'œil de quoi la règle a besoin sans lire ses conditions. Ce n'est pas
@@ -212,9 +225,11 @@ c'est dangereux : on ouvre l'un en croyant l'autre. Comme `app.html`, `app.css`
 et `app.js` disent trois choses du même `app`, l'extension dit la nature — et
 **chaque nature a sa forme**.
 
+Chacune a sa page : [`extensions.md`](extensions.md) les prend une par une.
+
 | extension | ce qu'elle contient | sa forme |
 | --- | --- | --- |
-| `.ref` | des règles | `Sujet (entrées)` · `si` · `alors` · `texte:` · `parce que:` |
+| `.ref` | des règles | `fonction Sujet(entrées)` · `si (…)` · `alors (…);` · `texte:` · `parce que:` |
 | `.ctr` | des contraintes | `Sujet = valeur` · `règle:` · `statut:` |
 | `.ddb` | des données de base | `Sujet = valeur` · `document:` · `parce que:` |
 | `.hyp` | des hypothèses | `Sujet = valeur` · `hypothèse:` · `statut: supposé` |
@@ -241,7 +256,7 @@ tous sous la forme `Sujet = valeur`. Une règle s'y lisait exactement comme une
 contrainte, et l'on ne voyait plus aucune règle.
 
 **Le nom d'un champ est son identité, pas son rang.** Une condition se nomme par
-son sujet : `si Hauteur du plancher bas`. Deux conditions réordonnées ne
+son sujet : `si (Hauteur du plancher bas …)`. Deux conditions réordonnées ne
 produisent donc aucun changement, et une condition ajoutée produit exactement
 une ligne ajoutée.
 

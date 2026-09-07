@@ -185,15 +185,21 @@ export function champsDuBloc({
   const exceptions = Array.isArray(regle?.sauf) ? regle.sauf : [];
 
   if (referentiel) {
+    // Une règle s'écrit comme elle s'exécute — voir `memoire-en-texte.js`. Le
+    // diff doit ressembler au fichier : écrire ici la forme d'avant montrerait
+    // un changement à chaque ligne le jour où on les compare.
+    const commeUneRegle = { regle: true };
+
     // La tête d'une règle : la donnée et ses entrées, sans valeur de projet.
-    poser("", ligneDeDonnee(sujet, [...conditions, ...exceptions].map((c) => c?.sujet)));
+    poser("", ligneDeDonnee(sujet, [...conditions, ...exceptions].map((c) => c?.sujet), commeUneRegle));
     conditions.forEach((condition, rang) => {
-      poser(`si ${texte(condition?.sujet)}`, ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition));
+      poser(`si ${texte(condition?.sujet)}`,
+        ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, 1, commeUneRegle));
     });
-    if (texte(valeur)) poser("alors", ligneDeConsequence("alors", texte(valeur)));
-    if (texte(regle?.sinon)) poser("sinon", ligneDeConsequence("sinon", texte(regle.sinon)));
+    if (texte(valeur)) poser("alors", ligneDeConsequence("alors", texte(valeur), "", 1, commeUneRegle));
+    if (texte(regle?.sinon)) poser("sinon", ligneDeConsequence("sinon", texte(regle.sinon), "", 1, commeUneRegle));
     for (const exception of exceptions) {
-      poser(`sauf si ${texte(exception?.sujet)}`, ligneDeCondition("sauf si", exception));
+      poser(`sauf si ${texte(exception?.sujet)}`, ligneDeCondition("sauf si", exception, 1, commeUneRegle));
     }
   } else {
     poser("", ligneDAffirmation({ sujet, valeur: texte(valeur) }));

@@ -31,13 +31,15 @@ import {
   ligneDeZone, ligneFermante, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension
+  phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
   dernierVersementDe, contributeursDuFichier, PARTS_DANCIENNETE
 } from "../services/memoire-blame.js";
-import { resolutionDuSujet, renvoisSansDeclaration } from "../services/memoire-identifiants.js";
+import {
+  resolutionDuSujet, renvoisSansDeclaration, variablesDeLaMemoire
+} from "../services/memoire-identifiants.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -401,6 +403,7 @@ export function renderDossiers(memoire, { auteurs = new Map(), propositions = ne
   }
 
   return `
+    ${renderLesVariables(memoire)}
     <div class="memoire-liste memoire-liste--tableau">
       ${renderEnteteDuTableau()}
       ${memoire.dossiers
@@ -422,6 +425,75 @@ export function renderDossiers(memoire, { auteurs = new Map(), propositions = ne
         })
         .join("")}
     </div>
+  `;
+}
+
+/**
+ * Les variables du projet, et qui s'en sert.
+ *
+ * ## Ce qui manquait
+ *
+ * Un nom n'existait qu'aux endroits où il était écrit. « Hauteur du plancher
+ * bas » se déclare dans un `.ddb` et se cite dans les conditions de trente
+ * règles ; pour savoir ce qu'elle vaut, et ce qui tomberait si elle changeait,
+ * il fallait ouvrir les fichiers un par un. C'est précisément la question qu'on
+ * pose devant une mémoire, et la seule à laquelle elle ne savait pas répondre.
+ *
+ * ## Pourquoi en tête de la racine
+ *
+ * Parce que c'est ce qu'on vient voir. Les dossiers disent où les choses sont
+ * rangées ; les variables disent de quoi le projet est fait. Un raisonnement se
+ * lit par ses noms avant de se lire par ses fichiers.
+ *
+ * Ce qui est cité sans être déclaré y figure en rouge : c'est le trou du
+ * raisonnement, et ne montrer que ce qui va bien serait pire que de ne rien
+ * montrer.
+ */
+export function renderLesVariables(memoire) {
+  const fichiers = (memoire.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
+  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
+  if (!variables.length) return "";
+
+  const manquantes = variables.filter((variable) => !variable.declaree).length;
+
+  const ligne = (variable) => `
+    <li class="memoire-variable${variable.declaree ? "" : " memoire-variable--inconnue"}">
+      <span class="memoire-variable__nom">${escapeHtml(variable.nom)}</span>
+      <span class="memoire-variable__valeur">${
+        variable.declaree
+          ? (variable.valeur ? escapeHtml(variable.valeur) : "—")
+          : "personne ne l'a versée"
+      }</span>
+      <span class="memoire-variable__ou">${
+        variable.declaree ? escapeHtml(variable.declarePar) : ""
+      }</span>
+      <span class="memoire-variable__usages" title="${escapeHtml(variable.citeePar.join(", "))}">${
+        variable.citeePar.length
+          ? `${variable.citeePar.length} usage${variable.citeePar.length > 1 ? "s" : ""}`
+          : "aucun usage"
+      }</span>
+    </li>
+  `;
+
+  return `
+    <section class="memoire-variables">
+      <header class="memoire-variables__tete">
+        <b>Variables du projet</b>
+        <span class="memoire-variables__compte">${variables.length}</span>
+        ${manquantes
+          ? `<span class="memoire-variables__manquantes">${manquantes} sans déclaration</span>`
+          : ""}
+      </header>
+      <p class="memoire-variables__quoi">
+        Les noms que les fichiers posent et que les règles citent. Ce sont eux
+        qu'on partage d'une discipline à l'autre : changer l'un d'eux change
+        tout ce qui s'y appuie.
+      </p>
+      <div class="memoire-variable memoire-variable--tete">
+        <span>Nom</span><span>Valeur</span><span>Déclarée dans</span><span>Citée par</span>
+      </div>
+      <ul class="memoire-variables__liste">${variables.map(ligne).join("")}</ul>
+    </section>
   `;
 }
 
@@ -831,6 +903,21 @@ export function renderFichier(fichier, {
         </button>
       </header>
       ${lecture === LECTURE.BLAME ? renderEchelleDAnciennete(fichier.lignes, { auteurs, avatars }) : ""}
+      ${
+        // `.mdall` n'est pas une nature, c'est l'absence de nature. Un fichier
+        // qui porte cette extension dit qu'un utilitaire a versé sans se
+        // prononcer : ses lignes ne se colorent pas, ne se rangent pas, et
+        // personne ne saura si elles s'imposent ou si elles se supposent. Le
+        // taire laisserait ce fichier grossir sans que rien ne le signale.
+        fichier.extension === SANS_NATURE
+          ? `<p class="memoire-fichier__manquants">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>Sans nature.</b> Ce que ce fichier contient n'a pas été déclaré :
+               ni règle, ni donnée de base, ni contrainte. Il ne devrait pas exister —
+               l'utilitaire qui a versé ces lignes ne s'est pas prononcé.
+             </p>`
+          : ""
+      }
       ${
         manquants.length
           ? `<p class="memoire-fichier__manquants">

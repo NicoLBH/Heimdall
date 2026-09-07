@@ -7,7 +7,7 @@ import {
 } from "./memoire-en-texte.js";
 import {
   lireUnFichier, lireUneCondition, lireUneValeur, lireUneTete,
-  dependancesDuBloc, grapheDesBlocs, aRevoirSi
+  dependancesDuBloc, grapheDesBlocs, aRevoirSi, jetonsDeLaLigne
 } from "./memoire-en-lecture.js";
 
 /** Ce que le référentiel incendie porte, en petit. */
@@ -276,4 +276,43 @@ test("un architecte qui n'écrit pas d'accolades est lu quand même", () => {
   assert.equal(blocs[0].statut, "supposé");
   assert.equal(blocs[1].provenance.type, "document");
   assert.equal(blocs[1].zone, "Bâtiment A");
+});
+
+test("un .ref se relit avec ou sans sa ponctuation", () => {
+  // La ponctuation rend la règle exécutable ; elle ne la rend pas obligatoire.
+  // Un architecte qui tape la règle à la main sans parenthèses doit être lu.
+  const avecBornes = lireUnFichier([
+    "fonction Classement du bâtiment(Hauteur du plancher bas) {",
+    "   si (Hauteur du plancher bas <= 28 m)",
+    '   alors ("3e famille B");',
+    "}"
+  ].join("\n"));
+
+  const sansBornes = lireUnFichier([
+    "Classement du bâtiment (Hauteur du plancher bas)",
+    "   si Hauteur du plancher bas <= 28 m",
+    '   alors "3e famille B"'
+  ].join("\n"));
+
+  for (const lu of [avecBornes, sansBornes]) {
+    assert.deepEqual(lu.refus, []);
+    assert.equal(lu.blocs[0].sujet, "Classement du bâtiment");
+    assert.equal(lu.blocs[0].alors, "3e famille B");
+    assert.deepEqual(lu.blocs[0].conditions.map((c) => c.sujet), ["Hauteur du plancher bas"]);
+  }
+});
+
+test("colorer une ligne de règle la réécrit telle qu'elle était", () => {
+  // Les jetons servent à peindre le diff : s'ils rendaient une autre ligne que
+  // celle du fichier, l'écran montrerait un texte que personne n'a écrit.
+  const rendre = (ligne) => jetonsDeLaLigne(ligne).map((j) => j.texte).join("");
+
+  for (const ligne of [
+    "fonction Classement du bâtiment(Hauteur du plancher bas)",
+    "   si (Hauteur du plancher bas <= 28 m)",
+    '   alors ("3e famille B");',
+    "   sauf si (Dérogation = oui)"
+  ]) {
+    assert.equal(rendre(ligne), ligne);
+  }
 });

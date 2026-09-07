@@ -246,8 +246,8 @@ test("un seuil de l'arrêté qui bouge est le seul changement que le projet puis
 
   // La condition se nomme par son sujet : réordonner n'invente aucun changement.
   assert.equal(change.nom, "si Hauteur du plancher bas du logement le plus haut");
-  assert.match(change.avant, /<= 28 m$/);
-  assert.match(change.apres, /<= 30 m$/);
+  assert.match(change.avant, /<= 28 m\)$/);
+  assert.match(change.apres, /<= 30 m\)$/);
 });
 
 test("un diff de règles ressemble à un fichier de règles", () => {
@@ -267,11 +267,13 @@ test("un diff de règles ressemble à un fichier de règles", () => {
     }]
   });
 
+  // Une règle s'écrit comme elle s'exécute : `fonction`, une parenthèse par
+  // clause, un point-virgule sur ce qu'elle pose. Le diff montre le fichier.
   assert.deepEqual(Object.values(apres[0].champs), [
-    "Classement du bâtiment (Logements superposés, Hauteur du plancher bas)",
-    "   si Logements superposés = oui",
-    "   et Hauteur du plancher bas <= 28 m",
-    '   alors "3e famille B"',
+    "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas)",
+    "   si (Logements superposés = oui)",
+    "   et (Hauteur du plancher bas <= 28 m)",
+    '   alors ("3e famille B");',
     "   texte: arrêté du 31 janvier 1986, article 3",
     '      parce que: "Troisième famille B : …"'
   ]);

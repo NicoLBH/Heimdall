@@ -326,9 +326,31 @@ function canPreviewPdf(documentItem = null) {
   );
 }
 
+/**
+ * Retrouver une pièce, où qu'elle ait été lue.
+ *
+ * L'onglet tient **deux** listes de documents : celle du répertoire courant,
+ * que le tableau affiche, et celle du projet entier, que l'arbre parcourt. Une
+ * valeur écrite à deux endroits finit par diverger (`docs/fondamentaux.md`,
+ * règle 4) — et elle divergeait : le tableau dessinait une ligne cliquable à
+ * partir de sa propre liste, tandis que le geste cherchait la pièce dans
+ * l'autre. Quand elle n'y était pas, le clic ne faisait rien, sans un mot.
+ *
+ * On cherche donc dans les deux, en commençant par celle qu'on regarde.
+ */
+function pieceDesFichiers(documentId) {
+  const id = String(documentId || "").trim();
+  if (!id) return null;
+
+  const duRepertoire = (Array.isArray(docsViewState.files) ? docsViewState.files : [])
+    .find((piece) => String(piece?.id || "") === id);
+
+  return duRepertoire || getProjectDocumentById(id);
+}
+
 function getSelectedPdfDocument() {
   const activeDocumentId = String(store.projectDocuments?.activeDocumentId || "").trim();
-  return activeDocumentId ? getProjectDocumentById(activeDocumentId) : null;
+  return activeDocumentId ? pieceDesFichiers(activeDocumentId) : null;
 }
 
 function revokePdfPreviewObjectUrl() {
@@ -3079,8 +3101,40 @@ function openReportPreview(root) {
 }
 
 async function openPdfPreview(root, documentId) {
-  const documentItem = getProjectDocumentById(documentId);
-  if (!canPreviewPdf(documentItem)) return;
+  const documentItem = pieceDesFichiers(documentId);
+
+  // Une pièce introuvable, ou sans rien à lire : on le dit. Un clic sans effet
+  // est le pire des retours — il ne distingue pas « ce fichier n'est pas
+  // lisible » de « l'application est cassée ».
+  if (!documentItem) {
+    docsViewState.activity = {
+      tone: "warning",
+      title: "Ce fichier n'est plus dans la liste",
+      message: "Il a peut-être été déplacé ou retiré depuis l'ouverture de l'onglet. Rechargez pour voir l'état réel."
+    };
+    renderProjectDocumentsContent(root);
+    return;
+  }
+  if (!isPdfDocument(documentItem)) {
+    docsViewState.activity = {
+      tone: "info",
+      title: `« ${String(documentItem.name || "Ce fichier")} » n'est pas un PDF`,
+      message: "Le lecteur ne sait afficher que des PDF. Téléchargez la pièce pour l'ouvrir ailleurs."
+    };
+    renderProjectDocumentsContent(root);
+    return;
+  }
+  if (!canPreviewPdf(documentItem)) {
+    docsViewState.activity = {
+      tone: "error",
+      title: `« ${String(documentItem.name || "Ce fichier")} » n'a rien à lire`,
+      message: "Aucun contenu n'est attaché à cette pièce : le dépôt ne s'est pas terminé. Redéposez le fichier."
+    };
+    renderProjectDocumentsContent(root);
+    return;
+  }
+
+  docsViewState.activity = null;
 
   setActiveProjectDocument(documentItem.id);
   docsViewState.mode = "pdf-preview";
@@ -3900,14 +3954,17 @@ function bindDocumentsView(root) {
     schedulePdfPreviewRender(root);
   }
 
+  // Le geste se branche sur **toutes** les pièces, y compris celles qu'on ne
+  // saura pas ouvrir. Un titre qui ne réagit pas laisse croire à une panne de
+  // l'écran ; l'écran doit dire ce qu'il ne sait pas faire plutôt que de se
+  // taire (`docs/fondamentaux.md`, règle 5).
   document.querySelectorAll(".js-document-title-trigger[data-document-id]").forEach((trigger) => {
     const documentId = trigger.getAttribute("data-document-id") || "";
-    const documentItem = getProjectDocumentById(documentId);
-    if (!canPreviewPdf(documentItem)) return;
 
     trigger.addEventListener("click", async (event) => {
       event.preventDefault();
-      console.info("[documents-view] open-file", { documentId });
+      const piece = pieceDesFichiers(documentId);
+      console.info("[documents-view] open-file", { documentId, trouve: Boolean(piece) });
       await openPdfPreview(root, documentId);
     });
   });
@@ -4123,21 +4180,3 @@ export function renderProjectDocuments(root) {
       console.warn("syncProjectDocumentsFromSupabase failed", error);
     });
 }
-  // Le même glisser-déposer que le rail de la Mémoire : un seul composant, une
-  // seule façon de se tromper. Le code vivait ici en double, à deux endroits de
-  // ce fichier.
-  bindSideResizer({
-    handle: document.getElementById("documentsTreeResizeHandle"),
-    guide: document.getElementById("documentsTreeResizeGuide"),
-    getWidth: () => Number(docsViewState.treeWidth || 280),
-    onResize: (largeur) => {
-      docsViewState.treeResizeActive = true;
-      docsViewState.treeWidth = largeur;
-      document.getElementById("projectDocumentScroll")?.style.setProperty("--documents-tree-width", `${largeur}px`);
-    },
-    onEnd: (largeur) => {
-      docsViewState.treeResizeActive = false;
-      docsViewState.treeWidth = largeur;
-      renderProjectDocumentsContent(root);
-    }
-  });
