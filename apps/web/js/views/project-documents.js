@@ -28,7 +28,7 @@ import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renam
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 import {
   preparerLaMemoire, fichierDuChemin, adresseDuFichier, noeudsDeLaMemoire, renderLigneDArbre, renderPanneauDArbre,
-  renderFilDAriane, renderRechercheDuProjet, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE,
+  renderFilDAriane, renderRechercheDuProjet, renderTeteDuContenu, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE,
   COLONNES_DU_TABLEAU, GABARIT_DU_TABLEAU
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
@@ -1328,26 +1328,22 @@ function renderDocumentsTopBar() {
        })}`
     : "";
 
-  return `
-    <div class="documents-topbar">
-      <div class="documents-topbar__left">
-        ${renderDocumentsBreadcrumb()}
-      </div>
-      <div class="documents-topbar__right">
-        ${docsViewState.documentTreeOpen === false ? renderRechercheDuProjet(docsViewState.memoireQuery ?? "") : ""}
-        ${gestes}
-        ${
-          // Ajouter, retirer, déplacer : des gestes sur des pièces déposées. Un
-          // fichier de mémoire n'a pas de chemin qu'on choisit — il est calculé
-          // — et proposer de le déplacer serait proposer de casser un rangement
-          // qui n'appartient pas à celui qui lit.
-          dansLesDocuments
-            ? renderDocumentsMenu(enApercu ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null)
-            : ""
-        }
-      </div>
-    </div>
-  `;
+  return renderTeteDuContenu({
+    fil: renderDocumentsBreadcrumb(),
+    droite: `
+      ${docsViewState.documentTreeOpen === false ? renderRechercheDuProjet(docsViewState.memoireQuery ?? "") : ""}
+      ${gestes}
+      ${
+        // Ajouter, retirer, déplacer : des gestes sur des pièces déposées. Un
+        // fichier de mémoire n'a pas de chemin qu'on choisit — il est calculé
+        // — et proposer de le déplacer serait proposer de casser un rangement
+        // qui n'appartient pas à celui qui lit.
+        dansLesDocuments
+          ? renderDocumentsMenu(enApercu ? decorateDocumentWithPhase(getSelectedPdfDocument()) : null)
+          : ""
+      }
+    `
+  });
 }
 
 /**
@@ -2223,10 +2219,15 @@ function bindLaMemoire(root) {
       else plies.delete(cle);
       docsViewState.memoirePlies = plies;
 
-      // L'accolade fermante reste : un bloc replié garde ses deux bornes.
-      const dedans = `[data-memoire-parent="${CSS.escape(cle)}"]:not([data-memoire-ferme="${CSS.escape(cle)}"])`;
-      for (const ligne of root.querySelectorAll(dedans)) {
-        ligne.hidden = replie;
+      // Le pliage est récursif : une ligne se cache si **l'un de ses ancêtres**
+      // est replié. Sans cela, replier une zone ne cachait que les têtes de ses
+      // blocs et laissait leurs détails orphelins à l'écran.
+      //
+      // Son accolade fermante reste : un bloc replié garde ses deux bornes.
+      for (const ligne of root.querySelectorAll("[data-memoire-ancetres]")) {
+        const ancetres = (ligne.getAttribute("data-memoire-ancetres") || "").split(" ").filter(Boolean);
+        const ferme = ligne.getAttribute("data-memoire-ferme") || "";
+        ligne.hidden = ancetres.some((ancetre) => ancetre !== ferme && plies.has(ancetre));
       }
       // La tête porte la marque du repli : l'icône dit qu'il y a du texte là.
       bouton.closest(".memoire-ligne")?.classList.toggle("memoire-ligne--plie", replie);
@@ -2663,11 +2664,10 @@ function renderBrancheMemoire() {
                style="--memoire-tree-width:${largeur}px">
             ${renderArbreDesFichiers({ memoire, ouverte, query: docsViewState.memoireQuery ?? "" })}
             <div class="memoire-corps">
-              <div class="memoire-corps__tete">
-                ${renderFilDAriane({ chemin })}
-                <span class="memoire-corps__espace"></span>
-                ${ouverte ? "" : renderRechercheDuProjet(docsViewState.memoireQuery ?? "")}
-              </div>
+              ${renderTeteDuContenu({
+                fil: renderFilDAriane({ chemin }),
+                droite: ouverte ? "" : renderRechercheDuProjet(docsViewState.memoireQuery ?? "")
+              })}
               ${vue}
             </div>
           </div>
@@ -3977,7 +3977,7 @@ function renderProjectDocumentsContent(root) {
   if (docsViewState.mode === "pdf-preview") {
     const projectShellBody = document.querySelector(".project-shell__body");
     const projectShellBodyStyle = projectShellBody ? window.getComputedStyle(projectShellBody) : null;
-    const topbar = document.querySelector(".documents-topbar");
+    const topbar = document.querySelector(".memoire-corps__tete");
     const pdfToolbar = document.querySelector(".documents-report-table__header--pdf-preview");
     const pdfBody = document.querySelector(".documents-report-table__body--pdf");
     const treePanel = document.querySelector(".documents-tree__panel");

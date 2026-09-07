@@ -282,6 +282,32 @@ export function renderFilDAriane({ chemin = [] } = {}) {
   return `<nav class="documents-breadcrumb" aria-label="Chemin">${miettes}</nav>`;
 }
 
+/**
+ * La tête d'un contenu : où l'on est, et ce qu'on peut y faire.
+ *
+ * ## Une seule barre pour les deux matières
+ *
+ * La Mémoire et les Documents avaient chacune la leur — `.memoire-corps__tete`
+ * et `.documents-topbar` —, avec deux balisages, deux jeux de règles et deux
+ * façons de se coller en haut de l'écran. Elles montrent la même chose : un fil
+ * d'Ariane à gauche, ce qu'on peut faire à droite. Deux composants pour un
+ * geste finissent par ne plus se ressembler, et il faudrait tenir la logique de
+ * défilement à deux endroits.
+ *
+ * @param {object} options
+ * @param {string} options.fil le fil d'Ariane, déjà rendu
+ * @param {string} [options.droite] les gestes, alignés à droite
+ */
+export function renderTeteDuContenu({ fil = "", droite = "" } = {}) {
+  return `
+    <div class="memoire-corps__tete">
+      ${fil}
+      <span class="memoire-corps__espace"></span>
+      ${droite}
+    </div>
+  `;
+}
+
 /** Le champ de recherche. Il change de place, jamais de forme. */
 export function renderRechercheDuProjet(query = "") {
   return `
@@ -565,12 +591,15 @@ export function lignesAffichables(fichier) {
     const dedans = zone ? 1 : 0;
     numeroDeBloc += 1;
     const blocDeZone = `z${numeroDeBloc}`;
+    // Une zone est une balise : tout ce qu'elle contient a un ancêtre de plus,
+    // et se décale d'un rang vers la droite.
+    const dansLaZone = zone ? [blocDeZone] : [];
 
     if (zone) {
       rang += 1;
       sorties.push({
-        rang, jetons: ligneDeZone(zone), nature: "zone",
-        bloc: blocDeZone, ouvre: blocDeZone, parent: null, assertion: null, position: 0
+        rang, jetons: ligneDeZone(zone), nature: "zone", profondeur: 0,
+        ancetres: [], ouvre: blocDeZone, ferme: null, assertion: null, position: 0
       });
     }
 
@@ -579,25 +608,36 @@ export function lignesAffichables(fichier) {
       // tête du suivant se collent, et l'œil ne voit plus où l'un finit.
       if (place > 0) {
         rang += 1;
-        sorties.push({ rang, jetons: [], nature: "vide", bloc: null, ouvre: null, ferme: null, parent: blocDeZone, assertion: null, position: 0 });
+        sorties.push({
+          rang, jetons: [], nature: "vide", profondeur: dedans,
+          ancetres: dansLaZone, ouvre: null, ferme: null, assertion: null, position: 0
+        });
       }
 
       numeroDeBloc += 1;
       const cle = `b${numeroDeBloc}`;
       const lignes = lignesDeLAssertion(assertion, dedans);
+      const aUnCorps = lignes.length > 1;
 
       lignes.forEach((ligne, position) => {
         rang += 1;
+        const tete = position === 0;
+        const fermante = position === lignes.length - 1 && aUnCorps;
+
         sorties.push({
           rang, jetons: ligne.jetons, nature: ligne.nature,
-          bloc: cle,
+          profondeur: dedans,
+          // Les ancêtres, du plus large au plus proche. Replier l'un d'eux
+          // cache la ligne : c'est ce qui rend le pliage **récursif**. Sans
+          // cela, replier une zone ne cachait que les têtes de ses blocs et
+          // laissait leurs détails orphelins à l'écran.
+          ancetres: tete ? dansLaZone : [...dansLaZone, cle],
           // Seule la tête porte le caret, et seulement si le bloc a un corps.
-          ouvre: position === 0 && lignes.length > 1 ? cle : null,
+          ouvre: tete && aUnCorps ? cle : null,
           // L'accolade fermante reste visible quand le bloc est replié : deux
           // lignes — la tête et sa fermeture — se lisent d'un coup d'œil, là où
           // une seule ligne « { … } » demande de reconstruire la paire.
-          ferme: position === lignes.length - 1 && lignes.length > 1 ? cle : null,
-          parent: position === 0 ? blocDeZone : cle,
+          ferme: fermante ? cle : null,
           assertion, position
         });
       });
@@ -606,13 +646,28 @@ export function lignesAffichables(fichier) {
     if (zone) {
       rang += 1;
       sorties.push({
-        rang, jetons: ligneFermante(0), nature: "accolade",
-        bloc: blocDeZone, ouvre: null, parent: blocDeZone, assertion: null, position: 1
+        rang, jetons: ligneFermante(0), nature: "accolade", profondeur: 0,
+        ancetres: dansLaZone, ouvre: null, ferme: blocDeZone, assertion: null, position: 1
       });
     }
   }
 
   return sorties;
+}
+
+/**
+ * Une ligne se cache-t-elle, vu ce qui est replié ?
+ *
+ * Elle se cache si **l'un de ses ancêtres** est replié — c'est ce qui rend le
+ * pliage récursif : replier une zone emporte ses blocs et leurs détails, pas
+ * seulement ses enfants immédiats.
+ *
+ * Sauf sa propre accolade fermante : un bloc replié garde ses deux bornes, et
+ * l'on voit d'où à où il va sans reconstruire la paire.
+ */
+export function ligneCachee(ligne, plies) {
+  if (!plies?.size) return false;
+  return (ligne.ancetres ?? []).some((ancetre) => ancetre !== ligne.ferme && plies.has(ancetre));
 }
 
 /**
@@ -646,19 +701,14 @@ export function renderFichier(fichier, {
   const corps = lignes.map((ligne) => {
     const blame = ligne.assertion ? blameDeLaLigne(ligne.assertion, auteurs) : null;
     const replie = pliable && ligne.ouvre && plies.has(ligne.ouvre);
-    // Une ligne dont le bloc parent est replié se cache. La tête reste, et sa
-    // fermeture avec : un bloc replié garde ses deux bornes, l'œil voit d'où à
-    // où il va sans avoir à reconstruire la paire.
-    const cachee = pliable
-      && ligne.parent
-      && ligne.parent !== ligne.ouvre
-      && ligne.parent !== ligne.ferme
-      && plies.has(ligne.parent);
+    const cachee = pliable && ligneCachee(ligne, plies);
 
     return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
-      }${replie ? " memoire-ligne--plie" : ""}" data-memoire-parent="${escapeHtml(ligne.parent ?? "")}"${
+      }${replie ? " memoire-ligne--plie" : ""}"
+        style="--memoire-profondeur:${ligne.profondeur ?? 0}"
+        data-memoire-ancetres="${escapeHtml((ligne.ancetres ?? []).join(" "))}"${
         ligne.ferme ? ` data-memoire-ferme="${escapeHtml(ligne.ferme)}"` : ""
       }${cachee ? " hidden" : ""}>
         ${
