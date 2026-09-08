@@ -8,6 +8,11 @@ dit ce qui existe aujourd'hui, ce qui manque, et dans quel ordre le construire.
 Elle a été écrite en vérifiant le code, pas de mémoire. Chaque affirmation de
 l'état des lieux est vérifiable en ouvrant le fichier cité.
 
+**Où en est le plan :** les six étapes sont faites. L'état des lieux ci-dessous
+décrit le point de départ et n'a pas été réécrit — le relire à côté de ce qui
+existe aujourd'hui est la meilleure façon de mesurer ce qui a changé. Chaque
+étape porte sa mention *fait*, et ce qui reste dehors est dit à la fin.
+
 ---
 
 ## L'état des lieux, vérifié
@@ -159,7 +164,7 @@ climatique nommera ses sources. En attendant, une donnée de base employée
 *uniquement* par un utilitaire n'apparaît pas encore dans le compte — celles que
 les règles citent, si.
 
-### 2. L'index dans les deux sens
+### 2. L'index dans les deux sens — *fait*
 
 `données-de-base.ddb` gagne sa colonne **« employée par »** : le compte exact,
 les fonctions, les zones, un lien vers chacune. `variables-du-projet.ref` gagne
@@ -338,10 +343,33 @@ posée même si les variantes ne sortent jamais.
 C'est aussi le banc d'essai de l'évaluateur : chaque écart est soit un défaut de
 l'évaluateur, soit une dérive de la mémoire. On ne peut pas rêver mieux.
 
-### 6. La variante, enfin triviale
+### 6. La variante, enfin triviale — *fait*
 
 On change un nœud du socle, on rejoue les strates en aval, on affiche le diff. Le
-mécanisme est déjà écrit et déjà éprouvé sur le cas dont on connaît la réponse.
+mécanisme était déjà écrit et déjà éprouvé sur le cas dont on connaissait la
+réponse ; il ne restait qu'à retirer ce qui tenait la variante debout avant lui.
+
+Ce qui a été retiré, précisément : le sujet privilégié. La variante ne connaissait
+que l'altitude — un service qui portait son nom, une fenêtre à un champ, un item de
+menu qui s'éteignait faute d'altitude en mémoire. Il n'en reste rien.
+
+`memoire-variante.js` ne sait plus quel sujet il fait varier. Il reçoit une table
+`affirmation → valeur essayée`, appelle deux fois le rejeu — une fois la mémoire
+telle qu'elle est, une fois avec les substitutions —, et n'attribue à la variante
+que la **différence** entre les deux. Une règle qui concluait déjà autre chose que
+ce que le projet affirme est un défaut de la mémoire, que l'audit dit ; l'imputer à
+qui essaie une valeur lui ferait porter la dérive de ceux qui l'ont précédé.
+
+Ce qui varie est **le socle, et lui seul** : ce que le projet pose, suppose ou
+constate. Substituer une valeur dérivée réécrirait la conclusion sans toucher au
+raisonnement, et l'écran montrerait une chaîne qui ne mène plus à ce qu'elle
+affiche — exactement le défaut que l'audit cherche. La fenêtre s'ouvre donc sur la
+question qui précède — *quelle valeur essaie-t-on ?* —, comme le fait l'étude
+d'impact, et les valeurs les plus employées sont en tête.
+
+Les deux relectures d'utilitaires ont déménagé dans `variante-utilitaires.js`, où
+elles sont **l'exception, et se disent comme telles**. Le fichier porte sa propre
+date de péremption : voir plus bas.
 
 Et la variante n'est alors qu'**un** des usages du moteur, pas le plus précieux :
 
@@ -386,13 +414,14 @@ Ils s'allument à mesure que le plan avance.
 
 | usage | s'allume à | ce qu'il fera |
 | --- | --- | --- |
-| **Tester une variante** | déjà là, honnête depuis l'étape 3 | changer une valeur du socle, rejouer les règles, ne rien écrire |
+| **Tester une variante** | étape 6 — *allumé* | changer n'importe quelle valeur du socle, rejouer ce qui en découle, ne rien écrire |
 | **Auditer la mémoire** | étape 5 — *allumé* | rejouer à blanc, et dire ce qui a dérivé. Rien n'est écrit |
 | **Étude d'impact** | étape 2 — *allumé* | « qu'est-ce qui repose sur cette valeur ? », par strates, avec le compte exact |
 
 Un item qui n'est pas encore servi par le moteur est **désactivé et dit son
 étape**. Un bouton qui prétend faire ce qu'il ne fait pas coûte plus cher que
-l'absence du bouton.
+l'absence du bouton. Les trois sont servis depuis l'étape 5 ; l'étape 6 a rendu au
+premier ce que les autres avaient déjà — de ne privilégier aucun sujet.
 
 ---
 
@@ -407,8 +436,7 @@ trace de ce qu'elles ont lu. Ce n'est plus une démonstration sur deux cas.
 ### Ce qui reste, et qui ne disparaîtra pas là
 
 Une correction à ce document : j'avais écrit que l'évaluateur ferait
-**disparaître** la table `RELECTURES` de `variante-altitude.js`. C'est faux, et
-la raison est structurelle.
+**disparaître** la table `RELECTURES`. C'est faux, et la raison est structurelle.
 
 `RELECTURES` ne relit pas des règles : elle relit des **utilitaires** — la
 profondeur hors gel, la zone de neige. Ils calculent au serveur, sur des faits de
@@ -420,6 +448,11 @@ cesse d'**être** le mécanisme pour redevenir ce qu'elle aurait toujours dû ê
 deux exceptions nommées au bord d'un moteur qui, lui, généralise. Elle ne
 s'allongera pas d'un cas à chaque projet : les projets apportent des règles, et
 les règles se rejouent.
+
+L'étape 6 l'a rendu visible dans l'arborescence : ces deux relectures vivent
+maintenant seules dans `variante-utilitaires.js`, un fichier dont l'en-tête dit
+qu'il est une exception et qu'il est destiné à disparaître. Un jour où quelqu'un
+voudra y ajouter un troisième cas, le fichier le lui déconseillera lui-même.
 
 Elle disparaîtra le jour où les utilitaires **nommeront leurs sources** et
 seront rejouables comme le reste. Ce n'est pas une étape de ce plan ; c'est un

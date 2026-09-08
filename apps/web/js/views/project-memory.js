@@ -127,7 +127,7 @@ import { ouvrirLAudit } from "./ui/fenetre-audit.js";
 import { planDeRecalcul } from "../services/memoire-plan.js";
 import { renderBoutonTester } from "./ui/bouton-tester.js";
 import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
-import { altitudeDeLaMemoire, laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
+import { laMemoireABouge, memoireAvecLaVariante, valeursSubstituables } from "../services/memoire-variante.js";
 
 /**
  * Les champs interrogeables de la mémoire.
@@ -1520,11 +1520,11 @@ export function renderMemoryHead(resume, { busy = false } = {}) {
                    // impact. Ce sont la même chose vue de trois côtés, et trois
                    // boutons épars laisseraient croire à trois mécanismes.
                    //
-                   // Un projet sans altitude n'a rien à faire varier : l'item
-                   // s'éteint, le bouton reste. Une lacune du projet et une
-                   // lacune du moteur ne se disent pas de la même façon.
+                   // Un projet dont le socle est vide n'a rien à faire varier :
+                   // l'item s'éteint, le bouton reste. Une lacune du projet et
+                   // une lacune du moteur ne se disent pas de la même façon.
                    renderBoutonTester({
-                     indisponibles: altitudeDeLaMemoire(view.assertions ?? []) ? [] : ["tester:variante"],
+                     indisponibles: valeursSubstituables(view.memoire ?? []).length ? [] : ["tester:variante"],
                      busy
                    })
                  }
@@ -3197,7 +3197,11 @@ function brancherLeBoutonTester(root) {
     const quoi = String(event.detail?.action || "");
     // Rien à faire en entrant dans une variante : on est déjà sur la mémoire, et
     // l'abonnement au magasin la redessine.
-    if (quoi === "tester:variante") void ouvrirLaFenetreDeVariante({ assertions: view.memoire ?? [] });
+    if (quoi === "tester:variante") {
+      void ouvrirLaFenetreDeVariante({
+        assertions: view.memoire ?? [], applications: view.applications
+      });
+    }
     if (quoi === "tester:impact") {
       ouvrirLEtudeDImpact({ assertions: view.memoire ?? [], applications: view.applications });
     }

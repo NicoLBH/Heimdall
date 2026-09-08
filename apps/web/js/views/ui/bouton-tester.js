@@ -45,11 +45,12 @@ import { renderGhActionButton } from "./gh-split-button.js";
  * 5. le rejeu à blanc
  * 6. la variante, alors triviale
  *
- * `5` : le rejeu à blanc existe. Les trois usages sont servis, et le moteur
- * répond à la question pour laquelle le produit existe — ce que le projet
- * affirme est-il encore ce que ses règles concluent ?
+ * `6` : le plan est fait. La variante ne connaît plus de sujet privilégié —
+ * n'importe quelle valeur du socle se change, le moteur rejoue les strates en
+ * aval, l'écran montre l'écart. C'était le but : que faire varier une valeur
+ * devienne un appel de plus au même moteur, et non un mécanisme à part.
  */
-export const ETAPE_ATTEINTE = 5;
+export const ETAPE_ATTEINTE = 6;
 
 /**
  * Les trois usages, dans l'ordre où on les lit.
@@ -63,7 +64,7 @@ export const USAGES = [
     action: "tester:variante",
     nom: "Tester une variante",
     depuisLEtape: 0,
-    quoi: "Changer une valeur du socle, lire les conséquences, et ne rien écrire."
+    quoi: "Changer n'importe quelle valeur du socle, rejouer ce qui en découle, et ne rien écrire."
   },
   {
     action: "tester:audit",
