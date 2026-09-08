@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   chaineDuRaisonnement, valeurDuSujet, reglesQuiProduisent, traceDesLignes,
-  grapheDuRaisonnement
+  grapheDuRaisonnement, dependancesDeLaMemoire
 } from "./memoire-raisonnement.js";
 import { blocDeRegle, OPERATEUR } from "./memoire-en-texte.js";
 
@@ -183,4 +183,41 @@ test("un maillon intermédiaire montre ce que sa règle a conclu", () => {
   const seche = noeuds.find((noeud) => noeud.id === "regle:colonne seche");
   assert.equal(seche.entrees[0].manquant, false);
   assert.equal(seche.entrees[0].valeur, "3e famille B");
+});
+
+test("les dépendances se déduisent des règles, au lieu de se déclarer", () => {
+  // « si (Classement du bâtiment = …) » **est** un lien de dépendance, écrit une
+  // fois, à l'endroit où il compte. Le redemander dans un formulaire, c'était
+  // demander d'écrire deux fois la même chose — et personne ne le faisait.
+  const hauteur = valeur("Hauteur du plancher bas", "26 m");
+  const classement = valeur("Classement du bâtiment", "3e famille B");
+  const seche = valeur("Colonne sèche", "exigée");
+
+  const liens = dependancesDeLaMemoire([
+    regle("Colonne sèche", "exigée", ["Classement du bâtiment"]),
+    regle("Classement du bâtiment", "3e famille B", ["Hauteur du plancher bas"]),
+    hauteur, classement, seche
+  ]);
+
+  const dits = liens.map((lien) => `${lien.assertion_id} <- ${lien.depends_on_assertion_id}`).sort();
+  assert.deepEqual(dits, [
+    `${classement.id} <- ${hauteur.id}`,
+    `${seche.id} <- ${classement.id}`
+  ].sort());
+});
+
+test("une dépendance ne traverse pas les zones", () => {
+  // Le degré du bâtiment A ne dépend pas de la hauteur du bâtiment B : les
+  // relier ferait revérifier l'un quand l'autre bouge, et le signal deviendrait
+  // du bruit qu'on apprend à ignorer.
+  const ici = valeur("Hauteur du plancher bas", "26 m", "Bâtiment A");
+  const ailleurs = valeur("Hauteur du plancher bas", "31 m", "Bâtiment B");
+  const produite = valeur("Classement du bâtiment", "3e famille B", "Bâtiment A");
+
+  const liens = dependancesDeLaMemoire([
+    regle("Classement du bâtiment", "3e famille B", ["Hauteur du plancher bas"]),
+    ici, ailleurs, produite
+  ]);
+
+  assert.deepEqual(liens.map((lien) => lien.depends_on_assertion_id), [ici.id]);
 });

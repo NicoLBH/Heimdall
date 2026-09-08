@@ -375,3 +375,95 @@ export function grapheDuRaisonnement(sujet, assertions = [], { zone = "", ouEcri
   const connus = new Set(noeuds.map((noeud) => noeud.id));
   return { noeuds, liens: liens.filter((lien) => connus.has(lien.de) && connus.has(lien.vers)) };
 }
+
+/**
+ * Les dépendances du projet, telles que ses règles les dessinent.
+ *
+ * ## Pourquoi elles se déduisent, et ne se déclarent plus
+ *
+ * Elles se déclaraient à la main : un panneau, des cases à cocher, « cette note
+ * de calcul repose sur cette hypothèse ». Personne ne les cochait — et c'est
+ * normal : au moment où l'on verse une conclusion, on n'a pas envie de
+ * re-décrire ce que la règle vient d'énoncer.
+ *
+ * Or la règle **le dit déjà**. `si (Classement du bâtiment = "3e famille B")`
+ * est un lien de dépendance, écrit une fois, à l'endroit où il compte. Le
+ * redemander à quelqu'un, c'est demander d'écrire deux fois la même chose — et
+ * une chose écrite à deux endroits finit par diverger (`docs/fondamentaux.md`,
+ * règle 4).
+ *
+ * On les lit donc, plutôt que de les stocker. Le format est celui de la table :
+ * les lecteurs — le drapeau « à revérifier », le compte des dépendants — n'ont
+ * pas à savoir d'où le lien vient.
+ *
+ * ## Ce qu'un lien relie
+ *
+ * Des **lignes**, pas des noms : la valeur qui porte le résultat repose sur les
+ * valeurs que la règle a lues. C'est ce qui permet de répondre à « la hauteur
+ * change, qu'est-ce qui tombe ? » — et la réponse est une liste de lignes, pas
+ * une liste de mots.
+ *
+ * @param {object[]} assertions la mémoire du projet
+ * @returns {{assertion_id: string, depends_on_assertion_id: string, declared_by: null}[]}
+ */
+export function dependancesDeLaMemoire(assertions = []) {
+  const toutes = Array.isArray(assertions) ? assertions : [];
+  const regles = [];
+  const valeurs = new Map();
+
+  for (const assertion of toutes) {
+    if (!enVigueur(assertion)) continue;
+    const cle = cleDuSujet(sujetDe(assertion));
+    if (!cle) continue;
+    if (estUneRegle(assertion)) { regles.push(assertion); continue; }
+    if (!valeurs.has(cle)) valeurs.set(cle, []);
+    valeurs.get(cle).push(assertion);
+  }
+
+  const liens = [];
+  const poses = new Set();
+
+  for (const regle of regles) {
+    const portees = zonesLisibles(regle).map(normalizeZoneKey).filter(Boolean);
+    const produites = valeurs.get(cleDuSujet(sujetDe(regle))) ?? [];
+
+    const conditions = [
+      ...(regle.payload?.regle?.conditions ?? []),
+      ...(regle.payload?.regle?.sauf ?? [])
+    ];
+
+    for (const condition of conditions) {
+      const lues = valeurs.get(cleDuSujet(texte(condition?.sujet))) ?? [];
+
+      for (const produite of produites) {
+        for (const lue of lues) {
+          // À portée comparable, et seulement là : le degré du bâtiment A ne
+          // dépend pas de la hauteur du bâtiment B. Ce qui vaut partout entre
+          // dans toutes les lectures — c'est le sens d'une portée vide.
+          if (!lesMemesZones(produite, lue, portees)) continue;
+          const cible = texte(produite?.id);
+          const socle = texte(lue?.id);
+          if (!cible || !socle || cible === socle) continue;
+
+          const marque = `${cible}<-${socle}`;
+          if (poses.has(marque)) continue;
+          poses.add(marque);
+          liens.push({ assertion_id: cible, depends_on_assertion_id: socle, declared_by: null });
+        }
+      }
+    }
+  }
+
+  return liens;
+}
+
+/** Deux lignes se rencontrent quand leurs portées se recoupent, ou qu'elles valent partout. */
+function lesMemesZones(gauche, droite, portees = []) {
+  const unes = zonesLisibles(gauche).map(normalizeZoneKey).filter(Boolean);
+  const autres = zonesLisibles(droite).map(normalizeZoneKey).filter(Boolean);
+  if (!unes.length || !autres.length) return true;
+  if (unes.some((zone) => autres.includes(zone))) return true;
+  // Et la portée de la règle tranche les cas où ni l'une ni l'autre ne la
+  // porte explicitement : c'est elle qui dit pour quel ouvrage on a raisonné.
+  return portees.length > 0 && portees.some((zone) => unes.includes(zone) && autres.includes(zone));
+}

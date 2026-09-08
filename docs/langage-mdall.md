@@ -560,6 +560,20 @@ contraintes, ni dans les données de base. Sa valeur se lit alors sur
 l'instantané de la règle qui l'a conclue — et l'écran dit **déduit**, pour ne
 pas la confondre avec un relevé.
 
+### Les dépendances se déduisent, elles ne se déclarent plus
+
+Un panneau demandait de cocher, affirmation par affirmation, sur quoi elle
+repose. Personne ne le remplissait — et c'est normal : au moment où l'on verse
+une conclusion, on n'a pas envie de re-décrire ce que la règle vient d'énoncer.
+
+Or la règle **le dit déjà**. `si (Classement du bâtiment = "3e famille B")` est
+un lien de dépendance, écrit une fois, à l'endroit où il compte.
+`dependancesDeLaMemoire()` les lit ; le drapeau « à revérifier » et le compte
+des dépendants s'en nourrissent, et rien ne se stocke.
+
+Un lien relie des **lignes**, pas des noms, et jamais deux zones différentes :
+le degré du bâtiment A ne dépend pas de la hauteur du bâtiment B.
+
 ### La zone se compare sur la clé, et s'affiche en clair
 
 La colonne `zones` de la base range des clés — `batiment-a` ; le `payload` garde
@@ -579,3 +593,4 @@ n'écrire que la clé perd le libellé pour toujours — rien d'autre ne le port
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |
+| `apps/web/js/views/project-memoire-raisonnement.js` | l'espace de raisonnement : le schéma, le code et les valeurs en une grille |

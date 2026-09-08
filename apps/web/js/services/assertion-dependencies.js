@@ -127,49 +127,6 @@ export function dependenciesOf(assertionId, dependencies = []) {
 }
 
 /**
- * Le lien qu'on s'apprête à écrire, ou la raison de ne pas l'écrire.
- *
- * Trois refus, et ils protègent tous la même chose — qu'une lecture du graphe
- * reste finie et vraie :
- *
- *  - une affirmation ne repose pas sur elle-même ;
- *  - on ne repose que sur une **hypothèse** : dire qu'une note de calcul repose
- *    sur un avis de chantier serait un abus de langage qui rendrait le signal
- *    illisible le jour où cet avis change ;
- *  - et jamais deux fois sur la même.
- *
- * @returns {{ok: true, link: object}|{ok: false, reason: string}}
- */
-export function planDependency({ assertion = null, dependsOn = null, existing = [], declaredBy = null } = {}) {
-  const cible = texte(assertion?.id);
-  const source = texte(dependsOn?.id);
-
-  if (!cible || !source) return { ok: false, reason: "Il manque l'une des deux affirmations." };
-  if (cible === source) return { ok: false, reason: "Une affirmation ne peut pas reposer sur elle-même." };
-
-  const socle = classifyAssertion(dependsOn).nature;
-  if (!isFoundational(socle)) {
-    return {
-      ok: false,
-      reason: "On ne repose que sur une hypothèse ou une contrainte : ce sont les valeurs d'entrée, les seules dont le changement rend le reste suspect."
-    };
-  }
-
-  const deja = dependenciesOf(cible, existing).includes(source);
-  if (deja) return { ok: false, reason: "Ce lien existe déjà." };
-
-  return {
-    ok: true,
-    link: {
-      project_id: texte(assertion.project_id) || null,
-      assertion_id: cible,
-      depends_on_assertion_id: source,
-      declared_by: texte(declaredBy) || null
-    }
-  };
-}
-
-/**
  * Ce que le bandeau d'une affirmation suspecte dit.
  *
  * Il nomme **la valeur d'entrée**, **sa nature** et **la date**, parce que « à

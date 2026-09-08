@@ -172,11 +172,15 @@ export function noeudsVisibles(graphe, { montrerTout = false, chemin = null } = 
  * @param {string} options.legende la phrase d'en-tête, propre à l'écran
  * @param {string} options.rangNomme comment appeler une colonne — « Niveau »
  * @param {string} options.detail le panneau de droite, dessiné par l'appelant
+ * @param {boolean} [options.peutSAgrandir] faux quand le schéma est **enchâssé**
+ *   dans un écran qui porte déjà son propre plein écran : deux boutons pour un
+ *   même geste font douter qu'ils fassent la même chose
  */
 export function dessinerGrapheLiaisons({
   graphe, selection = null, zoom = 1, pleinEcran = false,
   legende = "", rangNomme = "Niveau", detail = "",
-  montrerTout = false, peutToutMontrer = false, chemin = null
+  montrerTout = false, peutToutMontrer = false, chemin = null,
+  peutSAgrandir = true
 } = {}) {
   const visibles = noeudsVisibles(graphe, { montrerTout, chemin });
   const colonnes = rangerParProfondeur(graphe)
@@ -207,12 +211,13 @@ export function dessinerGrapheLiaisons({
           <button type="button" class="graphe__outil" data-graphe-zoom="in" aria-label="Agrandir" title="Agrandir">
             ${svgIcon("plus", { className: "octicon" })}
           </button>
+          ${peutSAgrandir ? `
           <button type="button" class="graphe__outil${pleinEcran ? " est-actif" : ""}" data-graphe-plein-ecran
                   aria-pressed="${pleinEcran}"
                   aria-label="${pleinEcran ? "Quitter le plein écran" : "Plein écran"}"
                   title="${pleinEcran ? "Quitter le plein écran" : "Plein écran"}">
             ${svgIcon("screen-full", { className: "octicon" })}
-          </button>
+          </button>` : ""}
         </div>
       </div>
 
@@ -262,7 +267,7 @@ export function dessinerGrapheLiaisons({
  * contient, donc du navigateur. On les pose après coup, et on les repose à
  * chaque zoom et à chaque redimensionnement.
  */
-export function tracerLesLiens(root, { graphe, selection = null, zoom = 1 } = {}) {
+export function tracerLesLiens(root, { graphe, selection = null, survol = null, zoom = 1 } = {}) {
   const toile = root?.querySelector("[data-graphe-toile]");
   const svg = root?.querySelector("[data-graphe-liens]");
   if (!toile || !svg || !graphe) return;
@@ -281,7 +286,12 @@ export function tracerLesLiens(root, { graphe, selection = null, zoom = 1 } = {}
     });
   }
 
-  const amont = cheminAmont(selection, graphe);
+  // Le survol l'emporte sur la sélection : c'est le geste en cours. On regarde
+  // une carte du coin de l'œil bien plus souvent qu'on ne la choisit, et devoir
+  // cliquer pour voir ses liens fait cliquer partout.
+  const designe = survol || selection;
+  const amont = cheminAmont(designe, graphe);
+  const aval = cheminAval(designe, graphe);
   const chemins = [];
   for (const lien of graphe.liens ?? []) {
     const de = boites.get(lien.de);
@@ -293,9 +303,12 @@ export function tracerLesLiens(root, { graphe, selection = null, zoom = 1 } = {}
     const courbe = Math.max(18, (x2 - x1) / 2);
 
     const rang = amont.has(lien.de) && amont.has(lien.vers) ? amont.get(lien.vers) : null;
-    const aval = selection && lien.de === selection;
+    // Ce qui découle de la carte désignée, de proche en proche — et non le seul
+    // premier rang : une conclusion qui en entraîne une autre se suit jusqu'au
+    // bout, sinon le trait s'arrête au milieu de la chaîne.
+    const enAval = rang === null && aval.has(lien.de) && aval.has(lien.vers);
     const opacite = rang === null ? null : Math.max(0.28, 1 - rang * 0.22);
-    const classe = rang !== null ? "graphe-lien est-marque" : aval ? "graphe-lien est-aval" : "graphe-lien";
+    const classe = rang !== null ? "graphe-lien est-marque" : enAval ? "graphe-lien est-aval" : "graphe-lien";
     const style = opacite === null ? "" : ` style="opacity:${opacite};stroke-width:${Math.max(1.1, 2 - rang * 0.25)}"`;
     chemins.push(`<path d="M ${x1} ${y1} C ${x1 + courbe} ${y1}, ${x2 - courbe} ${y2}, ${x2} ${y2}"
       class="${classe}"${style}><title>${escapeHtml(lien.fait ?? "")}</title></path>`);
@@ -304,8 +317,11 @@ export function tracerLesLiens(root, { graphe, selection = null, zoom = 1 } = {}
   // Les boîtes du chemin s'allument aussi : un trait qui mène à un nœud éteint
   // se suit mal.
   for (const noeud of toile.querySelectorAll("[data-graphe-noeud]")) {
-    const rang = amont.get(noeud.dataset.grapheNoeud);
+    const cle = noeud.dataset.grapheNoeud;
+    const rang = amont.get(cle);
     noeud.classList.toggle("est-en-amont", rang !== undefined && rang > 0);
+    noeud.classList.toggle("est-en-aval", rang === undefined && aval.has(cle) && cle !== designe);
+    noeud.classList.toggle("est-survolee", Boolean(survol) && cle === survol);
     noeud.style.removeProperty("--graphe-amont");
     if (rang !== undefined && rang > 0) noeud.style.setProperty("--graphe-amont", String(Math.max(0.3, 1 - rang * 0.2)));
   }

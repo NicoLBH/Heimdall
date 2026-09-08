@@ -47,38 +47,39 @@ export async function listAssertionDependencies(projectId) {
   if (!projectId) return null;
 
   try {
-    return (
-      (await request("assertion_dependencies", {
-        params: { select: COLUMNS, project_id: `eq.${projectId}`, order: "created_at.asc" }
-      })) ?? []
-    );
+    const stockes = (await request("assertion_dependencies", {
+      params: { select: COLUMNS, project_id: `eq.${projectId}`, order: "created_at.asc" }
+    })) ?? [];
+
+    return [...stockes, ...(await dependancesDeduites(projectId))];
   } catch {
     return null;
   }
 }
 
 /**
- * Déclare qu'une affirmation repose sur une autre.
+ * Les liens que les règles du projet dessinent d'elles-mêmes.
  *
- * Le doublon est ignoré plutôt que rejeté : déclarer deux fois le même lien est
- * un geste sans conséquence, et le refuser bruyamment ferait passer une
- * répétition pour une erreur.
+ * Ils ne sont pas dans la table, et ils n'ont pas à y être : une règle dit déjà
+ * ce qu'elle a lu, et le stocker en ferait une seconde vérité qui divergerait
+ * au premier versement (`docs/fondamentaux.md`, règle 4).
  *
- * @returns {Promise<object|null>} le lien écrit, ou `null`
+ * Les rangées stockées restent lues : le projet en porte, déclarées à la main
+ * du temps où c'était le seul moyen. Elles restent vraies.
+ *
+ * Un échec de lecture rend une liste vide, pas `null` : ne pas savoir déduire
+ * les liens ne doit pas faire croire qu'on n'a pas su lire la table.
  */
-export async function declareDependency(link) {
-  if (!link?.assertion_id || !link?.depends_on_assertion_id) return null;
-
+async function dependancesDeduites(projectId) {
   try {
-    const rows = await request("assertion_dependencies", {
-      method: "POST",
-      params: { select: COLUMNS, on_conflict: "assertion_id,depends_on_assertion_id" },
-      headers: { Prefer: "return=representation,resolution=ignore-duplicates" },
-      body: [link]
-    });
-    return rows?.[0] ?? null;
+    const [{ listProjectAssertions }, { dependancesDeLaMemoire }] = await Promise.all([
+      import("./project-memory-supabase.js"),
+      import("./memoire-raisonnement.js")
+    ]);
+
+    return dependancesDeLaMemoire((await listProjectAssertions(projectId)) ?? []);
   } catch {
-    return null;
+    return [];
   }
 }
 

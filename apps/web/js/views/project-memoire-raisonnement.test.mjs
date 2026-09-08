@@ -1,0 +1,116 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES
+} from "./project-memoire-raisonnement.js";
+
+/** Une ligne de code, telle que l'écriture la rend. */
+const ligne = (...jetons) => ({ jetons: jetons.map(([type, texte]) => ({ type, texte })) });
+
+/** Le retrait est un jeton neutre : il ouvre chaque ligne, et ne dit rien. */
+const retrait = ["neutre", "   "];
+
+const CODE = [
+  ligne(["neutre", ""], ["mot-fonction", "fonction"], ["neutre", " "], ["sujet", "Colonne sèche"]),
+  ligne(retrait, ["mot-importe", "importe"], ["neutre", " "], ["sujet", "Classement du bâtiment"]),
+  ligne(retrait, ["mot-condition", "si"], ["neutre", " "], ["sujet", "Classement du bâtiment"])
+];
+
+const TRACE = [
+  { sujet: "Colonne sèche", valeur: "exigée", zone: "Bâtiment A", manquant: false, deduite: false },
+  { sujet: "Classement du bâtiment", valeur: "3e famille B", zone: "Bâtiment A", manquant: false, deduite: true },
+  { sujet: "Classement du bâtiment", valeur: "", zone: "", manquant: true, deduite: false }
+];
+
+const GRAPHE = {
+  noeuds: [
+    { id: "donnee:classement du batiment", produit: "classement du batiment", demande: [],
+      entete: "donnees-de-base.ddb", titre: "Classement du bâtiment", valeur: "3e famille B", etat: "conclu" },
+    { id: "regle:colonne seche", produit: "colonne seche", demande: ["classement du batiment"],
+      entete: "incendie.ref", titre: "Colonne sèche", valeur: "exigée", etat: "conclu" }
+  ],
+  liens: [{ de: "donnee:classement du batiment", vers: "regle:colonne seche", fait: "Classement du bâtiment" }]
+};
+
+test("chaque rangée porte le code, son numéro et sa valeur — dans cet ordre", () => {
+  // C'est ce qui rend le décalage impossible : deux fenêtres côte à côte, l'une
+  // qui replie une ligne et pas l'autre, comparaient la condition d'une ligne à
+  // la valeur d'une autre sans que rien ne le signale.
+  const html = renderEspaceDuRaisonnement({
+    graphe: GRAPHE, lignes: CODE, trace: TRACE,
+    ancres: ancresDuCode(CODE, TRACE, GRAPHE).parRang, etat: espaceParDefaut()
+  });
+
+  const rangee = html.slice(html.indexOf('data-raison-rang="0"'));
+  const ordre = ["raison-ligne__code", "raison-ligne__num", "raison-ligne__etat"]
+    .map((classe) => rangee.indexOf(classe));
+  assert.deepEqual(ordre, [...ordre].sort((a, b) => a - b));
+
+  // Et la valeur du jour se lit sur la même rangée que sa ligne.
+  assert.match(rangee.slice(0, 400), /exigée/);
+});
+
+test("ce que personne n'a versé se dit, et ne se laisse pas vide", () => {
+  const html = renderEspaceDuRaisonnement({
+    graphe: GRAPHE, lignes: CODE, trace: TRACE, etat: espaceParDefaut()
+  });
+
+  assert.match(html, /raison-ligne--manquante/);
+  assert.match(html, /personne ne l'a versée/);
+  // Déduite, et non relevée : les confondre ferait prendre une conclusion de
+  // règle pour un constat de terrain.
+  assert.match(html, /déduit/);
+});
+
+test("le schéma sait où chaque carte tombe dans le code", () => {
+  // C'est ce qui permet de cliquer une étape pour y aller. Le premier jeton
+  // d'une ligne est le **retrait**, pas le mot : le chercher là ne trouvait
+  // aucune tête de fonction, et le geste ne faisait rien.
+  const { parCarte, parRang } = ancresDuCode(CODE, TRACE, GRAPHE);
+
+  assert.equal(parCarte.get("regle:colonne seche"), 0);
+  // Une donnée de base n'a pas de fonction à elle : elle vise la première ligne
+  // qui la cite, c'est-à-dire l'`importe` de la règle qui la lit.
+  assert.equal(parCarte.get("donnee:classement du batiment"), 1);
+  assert.equal(parRang.get(0), "regle:colonne seche");
+});
+
+test("l'espace ne dessine sa discussion que lorsqu'on l'appelle", () => {
+  // Une colonne de discussion ouverte par défaut prendrait le tiers de l'écran
+  // à quelqu'un qui vient lire un raisonnement.
+  const ferme = renderEspaceDuRaisonnement({ graphe: GRAPHE, lignes: CODE, trace: TRACE, etat: espaceParDefaut() });
+  assert.equal(ferme.includes("data-raison-discussion"), false);
+
+  const ouvert = renderEspaceDuRaisonnement({
+    graphe: GRAPHE, lignes: CODE, trace: TRACE,
+    etat: { ...espaceParDefaut(), copiloteOuvert: true }
+  });
+  assert.match(ouvert, /data-raison-discussion/);
+  // Le bouton et l'hôte ne partagent pas leur attribut : le même pour les deux
+  // faisait monter le fil de discussion à l'intérieur du bouton.
+  assert.notEqual(ouvert.indexOf("data-raison-copilote"), ouvert.indexOf("data-raison-discussion"));
+});
+
+test("les trois zones se tirent, et leurs bornes sont dites", () => {
+  const html = renderEspaceDuRaisonnement({
+    graphe: GRAPHE, lignes: CODE, trace: TRACE,
+    etat: { ...espaceParDefaut(), copiloteOuvert: true }
+  });
+
+  for (const nom of ["schema", "etat", "copilote"]) {
+    assert.match(html, new RegExp(`data-raison-poignee="${nom}"`));
+    assert.ok(BORNES[nom].min < BORNES[nom].defaut && BORNES[nom].defaut < BORNES[nom].max);
+  }
+});
+
+test("sans schéma, l'espace montre quand même le code", () => {
+  // Une valeur relevée n'a pas de chaîne : ce n'est pas une raison pour ne rien
+  // montrer de ce qui la porte.
+  const html = renderEspaceDuRaisonnement({
+    graphe: { noeuds: [], liens: [] }, lignes: CODE, trace: TRACE, etat: espaceParDefaut()
+  });
+
+  assert.equal(html.includes("data-raison-schema"), false);
+  assert.match(html, /data-raison-code/);
+});
