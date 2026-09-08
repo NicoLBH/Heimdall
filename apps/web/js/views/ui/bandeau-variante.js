@@ -40,13 +40,18 @@ export function renderBandeauVariante(variante, { aBouge = false, seulement = fa
   if (!variante) return "";
 
   const touchees = Number(variante.recalculees ?? 0) + Number(variante.aRevoir ?? 0);
+  // Une variante peut porter plusieurs substitutions. Les dire toutes : n'en
+  // nommer qu'une laisserait croire qu'on lit la mémoire sous un seul écart.
+  const depart = Array.isArray(variante.depart) ? variante.depart : [];
 
   return `
     <div class="variante-bandeau${aBouge ? " variante-bandeau--perimee" : ""}" role="status" data-variante-bandeau>
       <span class="variante-bandeau__marque">${svgIcon("beaker", { className: "octicon" })} Variante</span>
       <span class="variante-bandeau__quoi">
-        <b>${escapeHtml(variante.sujet)}</b> lu à <b>${escapeHtml(variante.vers)}</b>
-        au lieu de ${escapeHtml(variante.depuis)}.
+        ${depart.map((entree) => `
+          <b>${escapeHtml(entree.sujet)}</b> lu à <b>${escapeHtml(entree.vers)}</b>
+          au lieu de ${escapeHtml(entree.depuis)}.
+        `).join(" ")}
         ${variante.recalculees} ${accorde(variante.recalculees, "valeur relue", "valeurs relues")},
         ${variante.aRevoir} ${accorde(variante.aRevoir, "à revérifier", "à revérifier")}.
       </span>

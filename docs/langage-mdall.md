@@ -755,7 +755,8 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |
 | `apps/web/js/views/project-memoire-raisonnement.js` | l'espace de raisonnement : le schéma, le code et les valeurs en une grille |
-| `apps/web/js/services/variante-altitude.js` | relit la mémoire sous une autre altitude, et range les conséquences en trois rangs |
+| `apps/web/js/services/memoire-variante.js` | relit la mémoire sous une autre valeur du socle, et range les conséquences en trois rangs |
+| `apps/web/js/services/variante-utilitaires.js` | les deux relectures d'utilitaires que nous savons faire — l'exception, isolée et datée |
 | `apps/web/js/services/variante-en-cours.js` | la variante essayée — en portée de module, jamais rangée nulle part |
 | `apps/web/js/views/ui/fenetre-variante.js` | la fenêtre : la question d'une ligne, puis les conséquences |
 | `apps/web/js/views/ui/bandeau-variante.js` | le bandeau qui dit qu'on ne lit pas la mémoire du projet |

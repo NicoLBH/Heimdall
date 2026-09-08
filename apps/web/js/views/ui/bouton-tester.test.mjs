@@ -10,9 +10,9 @@ test("les trois usages du moteur sont nommés, et dans l'ordre où on les lit", 
 });
 
 test("tous les usages sont servis, et portent leur nom sans étape", () => {
-  // Le plan est dans `docs/rejouer-la-memoire.md`. L'étape 5 est faite : le
-  // rejeu à blanc existe, et les trois usages sont servis.
-  assert.equal(ETAPE_ATTEINTE, 5);
+  // Le plan est dans `docs/rejouer-la-memoire.md`. Les six étapes sont faites :
+  // le moteur existe, et la variante n'est plus qu'un appel de plus.
+  assert.equal(ETAPE_ATTEINTE, 6);
 
   // Les trois sont servis : le moteur est là.
   for (const usage of USAGES) {
@@ -29,4 +29,5 @@ test("avancer le plan allume les usages, sans toucher au menu", () => {
   assert.deepEqual(servisA(0), ["tester:variante"]);
   assert.deepEqual(servisA(2), ["tester:variante", "tester:impact"]);
   assert.deepEqual(servisA(5), ["tester:variante", "tester:audit", "tester:impact"]);
+  assert.deepEqual(servisA(6), ["tester:variante", "tester:audit", "tester:impact"]);
 });

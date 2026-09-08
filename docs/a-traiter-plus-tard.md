@@ -40,8 +40,11 @@ Trois conséquences, aujourd'hui :
 - l'étude d'impact ne voit pas ce chemin-là : elle dit « rien ne repose sur
   l'altitude » à un projet dont la moitié des fondations en dépend ;
 - la variante doit passer par `RELECTURES`, une table de correspondance écrite à
-  la main dans `variante-altitude.js`, qui redit en JavaScript ce que
-  l'utilitaire sait déjà faire.
+  la main dans `variante-utilitaires.js`, qui redit en JavaScript ce que
+  l'utilitaire sait déjà faire. Depuis l'étape 6 du plan, ce fichier ne contient
+  plus **que** cela : le reste de la variante s'appuie sur le moteur de rejeu, et
+  ce qui reste est nommément une exception, prête à être supprimée le jour où ce
+  chantier sera fait.
 
 ### Ce qu'il faut faire
 

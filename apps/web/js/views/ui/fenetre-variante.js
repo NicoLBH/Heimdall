@@ -1,11 +1,21 @@
 /**
- * Essayer une altitude, et lire ce que le projet en dirait.
+ * Essayer une valeur du projet, et lire ce que le projet en dirait.
  *
  * ## Ce que cette fenêtre doit prouver
  *
  * Qu'on peut **se promener dans une mémoire qui n'existe pas, sans jamais croire
- * qu'elle existe**. Tout le reste — plusieurs substitutions, la comparaison de
- * deux variantes, l'adoption en hypothèse — n'est que du volume par-dessus.
+ * qu'elle existe**. Tout le reste — la comparaison de deux variantes, l'adoption
+ * en hypothèse — n'est que du volume par-dessus.
+ *
+ * ## Ce que l'étape 6 change ici
+ *
+ * La fenêtre ne connaissait qu'un sujet : l'altitude. Elle s'ouvrait sur un
+ * champ, et le champ était toujours le même. Maintenant qu'un nœud quelconque du
+ * socle se fait varier, elle s'ouvre sur la **question qui précède** — quelle
+ * valeur essaie-t-on ? — comme le fait déjà l'étude d'impact.
+ *
+ * Trois temps, donc : on choisit une valeur, on dit ce qu'elle deviendrait, on
+ * lit les conséquences.
  *
  * ## Pourquoi une fenêtre et pas un écran
  *
@@ -17,8 +27,7 @@
  * ## Les trois rangs, et pourquoi ils ne se ressemblent pas
  *
  * **Recalculé** rend une vraie valeur, avec son écart. **À revérifier** nomme ce
- * qui devient suspect sans en deviner la valeur — le référentiel est au serveur
- * et prend le questionnaire entier, pas un champ. **Inchangé** se compte, parce
+ * qui devient suspect sans en deviner la valeur. **Inchangé** se compte, parce
  * que « rien n'a bougé là » est une information : sans elle, on ne sait pas si
  * l'outil a regardé.
  *
@@ -30,8 +39,9 @@
 import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import {
-  altitudeDeLaMemoire, altitudeEnTexte, consequencesDeLaVariante, lireUnNombre, variantePourLEcran
-} from "../../services/variante-altitude.js";
+  consequencesDeLaVariante, valeursSubstituables, variantePourLEcran
+} from "../../services/memoire-variante.js";
+import { emploisParAffirmation } from "../../services/memoire-applications.js";
 import { essayerLaVariante } from "../../services/variante-en-cours.js";
 import { RESERVE, phraseDeReserve } from "../../utilitaires/reserves.js";
 
@@ -39,6 +49,81 @@ const texte = (valeur) => String(valeur ?? "").trim();
 
 /** L'accord d'un mot avec son nombre. Pas de « 1 recalculées » à l'écran. */
 const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulier);
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Le choix de la valeur
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Les valeurs qu'on peut faire varier, celles qui servent le plus en tête.
+ *
+ * Le compte des emplois vient des lectures enregistrées quand on les a. Il ne
+ * décide de rien — on fait varier ce qu'on veut —, mais il place en haut de la
+ * liste ce sur quoi la question se pose vraiment : une donnée lue quarante fois
+ * et une donnée lue jamais ne méritent pas le même rang.
+ */
+function valeursAuChoix(assertions, emplois) {
+  return valeursSubstituables(assertions)
+    .map((entree) => ({ ...entree, lectures: emplois.get(entree.id)?.lectures ?? 0 }))
+    .sort((gauche, droite) =>
+      droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr"));
+}
+
+/** Une valeur qu'on peut essayer, avec ce qu'elle vaut et ce qu'elle sert. */
+function renderChoixDUneValeur(valeur) {
+  return `
+    <button type="button" class="impact-choix" data-variante-choisir="${escapeHtml(valeur.id)}">
+      <span class="impact-choix__titre">${escapeHtml(valeur.sujet)} : ${escapeHtml(valeur.valeur || "—")}</span>
+      <span class="impact-choix__compte${valeur.lectures ? "" : " impact-choix__compte--vide"}">${
+        valeur.lectures
+          ? `${valeur.lectures} ${accorde(valeur.lectures, "emploi", "emplois")}`
+          : "aucun emploi connu"
+      }</span>
+    </button>
+  `;
+}
+
+/** La liste, ou la phrase qui dit pourquoi elle est vide. */
+function renderListeDesValeurs(valeurs, { cherche = false } = {}) {
+  if (valeurs.length) return valeurs.map(renderChoixDUneValeur).join("");
+  return `<p class="variante-rang__vide">${
+    cherche
+      ? "Aucune valeur du socle ne porte ce mot."
+      : "Ce projet ne pose aucune valeur qu'on puisse faire varier."
+  }</p>`;
+}
+
+function renderChoix(valeurs) {
+  return `
+    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Tester une variante">
+      <div class="fichiers-saisie__boite impact-boite">
+        <header class="fichiers-saisie__tete">
+          <b>${svgIcon("beaker", { className: "octicon" })} Quelle valeur essaie-t-on ?</b>
+          <button type="button" class="fichiers-saisie__fermer" data-variante-fermer
+            aria-label="Renoncer">${svgIcon("x", { className: "octicon" })}</button>
+        </header>
+
+        <p class="variante-lead">
+          On ne fait varier que le <b>socle</b> : ce que le projet pose, suppose ou constate.
+          Ce que ses règles en concluent se recalcule — le réécrire à la main afficherait une
+          chaîne qui ne mène plus à ce qu'elle montre.
+        </p>
+
+        <label class="fichiers-saisie__champ">
+          <span>Chercher une valeur</span>
+          <input type="text" class="gh-input" data-variante-recherche placeholder="altitude, classement, hauteur…"
+            autocomplete="off">
+        </label>
+
+        <div class="impact-liste" data-variante-liste>${renderListeDesValeurs(valeurs)}</div>
+
+        <footer class="fichiers-saisie__pied">
+          <button type="button" class="gh-btn" data-variante-fermer>Fermer</button>
+        </footer>
+      </div>
+    </div>
+  `;
+}
 
 /* ────────────────────────────────────────────────────────────────────────────
  * La saisie
@@ -67,9 +152,11 @@ function renderSaisie(depart, echec = "") {
           <span class="variante-saisie__fleche">${svgIcon("arrow-right", { className: "octicon" })}</span>
           <label class="fichiers-saisie__champ variante-saisie__champ">
             <span>dans la variante</span>
-            <input type="text" class="gh-input" data-variante-valeur placeholder="890"
-              inputmode="decimal" autocomplete="off">
-            <small>En mètres. La virgule et le point se lisent tous les deux.</small>
+            <input type="text" class="gh-input" data-variante-valeur
+              placeholder="${escapeHtml(depart.valeur || "la valeur essayée")}" autocomplete="off">
+            <small>
+              Écrite comme le projet l'écrit : c'est ainsi que les règles la reliront.
+            </small>
           </label>
         </div>
 
@@ -77,6 +164,7 @@ function renderSaisie(depart, echec = "") {
 
         <footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn" data-variante-fermer>Annuler</button>
+          <button type="button" class="gh-btn" data-variante-retour>Choisir une autre valeur</button>
           <button type="button" class="gh-btn gh-btn--primary" data-variante-calculer>Calculer</button>
         </footer>
       </div>
@@ -137,7 +225,7 @@ function renderRecalculee(ligne) {
         // le chiffre sans retenir sa condition.
         ligne.suppose
           ? `<span class="variante-ligne__pourquoi variante-ligne__pourquoi--suppose">
-              supposée calculée à ${escapeHtml(altitudeEnTexte(ligne.altitudeDepart))} — ce calcul ne conservait pas ses entrées
+              supposée calculée à ${escapeHtml(String(ligne.altitudeDepart))} m — ce calcul ne conservait pas ses entrées
             </span>`
           : ""
       }
@@ -188,15 +276,17 @@ function renderARevoir(ligne) {
         // La raison précise plutôt que la phrase générale : « à revérifier »
         // sans motif est une inquiétude sans adresse, et l'on ne sait pas s'il
         // faut corriger la donnée ou l'outil.
-        escapeHtml(ligne.pourquoi || (ligne.motif === "lit-altitude"
-          ? "lit l'altitude, et nous ne savons pas rejouer son calcul ici"
-          : "repose sur une valeur qui vient de bouger"))
+        escapeHtml(ligne.pourquoi || (ligne.motif === "utilitaire"
+          ? "un utilitaire l'a déduite, et nous ne savons pas rejouer son calcul ici"
+          : ligne.motif === "sans-objet"
+            ? "la règle qui la concluait ne s'applique plus"
+            : "repose sur une valeur qui vient de bouger"))
       }${ligne.provenance ? ` — ${escapeHtml(ligne.provenance)}` : ""}</span>
     </li>
   `;
 }
 
-function renderConsequences(depart, altitude, rendu) {
+function renderConsequences(depart, vers, rendu) {
   // Une valeur supposée compte : elle bouge, sous une condition dite. Ne compter
   // que les certaines ferait écrire « rien ne bouge » sous une liste qui bouge.
   const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length
@@ -207,7 +297,7 @@ function renderConsequences(depart, altitude, rendu) {
       <div class="fichiers-saisie__boite variante-boite variante-boite--large">
         <header class="fichiers-saisie__tete">
           <b>${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(depart.sujet)} :
-            ${escapeHtml(depart.valeur)} → ${escapeHtml(altitudeEnTexte(altitude))}</b>
+            ${escapeHtml(depart.valeur)} → ${escapeHtml(vers)}</b>
           <button type="button" class="fichiers-saisie__fermer" data-variante-fermer
             aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
         </header>
@@ -303,6 +393,7 @@ function renderConsequences(depart, altitude, rendu) {
 
         <footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn" data-variante-fermer>Abandonner</button>
+          <button type="button" class="gh-btn" data-variante-retour>Choisir une autre valeur</button>
           <button type="button" class="gh-btn" data-variante-refaire>Changer la valeur</button>
           <button type="button" class="gh-btn gh-btn--primary" data-variante-lire>
             ${svgIcon("book", { className: "octicon" })} Lire la mémoire avec cette variante
@@ -332,10 +423,14 @@ let ouverte = null;
  * @param {object} options
  * @param {string} [options.projectId] de quoi lire la mémoire, à défaut
  * @param {object[]} [options.assertions] la mémoire, si on l'a déjà sous la main
+ * @param {object[]|null} [options.applications] les lectures enregistrées, si on les a
+ * @param {string} [options.depart] la valeur à essayer d'emblée, si l'écran la connaît
  * @param {(variante: object) => void} [options.quandOnLit] appelé quand on entre
  *   dans la variante — c'est à l'appelant d'emmener l'utilisateur à la mémoire
  */
-export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = null, quandOnLit = null } = {}) {
+export async function ouvrirLaFenetreDeVariante({
+  projectId = "", assertions = null, applications = null, depart = "", quandOnLit = null
+} = {}) {
   // Une fenêtre dont l'hôte a quitté le document est fermée, quoi qu'en dise le
   // verrou : sans cette ligne, un rendu qui balaie la page laisse le verrou posé
   // et l'écran ne se rouvre plus jamais.
@@ -360,15 +455,12 @@ export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = n
     }
   }
 
-  const depart = altitudeDeLaMemoire(memoire ?? []);
+  const emplois = emploisParAffirmation(Array.isArray(applications) ? applications : []);
+  const valeurs = valeursAuChoix(memoire ?? [], emplois);
 
-  if (!depart || depart.metres === null) {
-    // Une fenêtre à un champ mort ne dit rien. On dit pourquoi on ne peut pas.
-    alerter(
-      depart
-        ? `L'altitude en mémoire ne se lit pas comme un nombre : « ${depart.valeur} ».`
-        : "Ce projet n'a pas d'altitude en mémoire : il n'y a rien à faire varier."
-    );
+  if (!valeurs.length) {
+    // Une fenêtre à une liste vide ne dit rien. On dit pourquoi on ne peut pas.
+    alerter("Ce projet ne pose aucune valeur qu'on puisse faire varier : il n'y a rien à essayer.");
     return;
   }
 
@@ -389,9 +481,25 @@ export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = n
   };
   document.addEventListener("keydown", auClavier);
 
+  /** La valeur qu'on fait varier, et la dernière saisie faite pour elle. */
+  let choisie = null;
+  let saisieRetenue = "";
+
+  /** Ce que la recherche retient : le sujet, et rien d'autre — c'est lui qu'on lit. */
+  const retenues = (cherche) =>
+    cherche ? valeurs.filter((valeur) => valeur.sujet.toLowerCase().includes(cherche)) : valeurs;
+
+  const montrerLeChoix = (filtre = "") => {
+    hote.innerHTML = renderChoix(retenues(filtre.trim().toLowerCase()));
+    brancherCommun();
+    brancherLeChoix(filtre);
+  };
+
   const montrerLaSaisie = (echec = "", valeur = "") => {
-    hote.innerHTML = renderSaisie(depart, echec);
-    brancher();
+    if (!choisie) return montrerLeChoix();
+    hote.innerHTML = renderSaisie(choisie, echec);
+    brancherCommun();
+    brancherLaSaisie();
     const champ = hote.querySelector("[data-variante-valeur]");
     if (champ) {
       champ.value = valeur;
@@ -400,45 +508,92 @@ export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = n
     }
   };
 
-  /** La dernière valeur saisie, pour la retrouver en refaisant le calcul. */
-  let saisieRetenue = "";
+  const choisir = (id) => {
+    const valeur = valeurs.find((entree) => entree.id === texte(id));
+    if (!valeur) return;
+    choisie = valeur;
+    saisieRetenue = "";
+    montrerLaSaisie();
+  };
 
   const calculer = ({ supposer = false } = {}) => {
+    if (!choisie) return;
     const saisie = hote.querySelector("[data-variante-valeur]")?.value ?? saisieRetenue;
     saisieRetenue = texte(saisie);
-    const altitude = lireUnNombre(saisie);
-    const rendu = consequencesDeLaVariante({ assertions: memoire ?? [], altitude, supposer });
+    const rendu = consequencesDeLaVariante({
+      assertions: memoire ?? [],
+      substitutions: new Map([[choisie.id, saisieRetenue]]),
+      applications,
+      supposer
+    });
 
     if (!rendu.ok) {
       montrerLaSaisie(rendu.raison, saisieRetenue);
       return;
     }
 
-    hote.innerHTML = renderConsequences(depart, altitude, rendu);
-    brancher({
-      lire: () => {
-        const variante = variantePourLEcran({ altitude, consequences: rendu });
+    hote.innerHTML = renderConsequences(choisie, saisieRetenue, rendu);
+    brancherCommun();
+    for (const bouton of hote.querySelectorAll("[data-variante-lire]")) {
+      bouton.addEventListener("click", () => {
+        const variante = variantePourLEcran({ consequences: rendu });
         essayerLaVariante(variante);
         fermer();
         if (typeof quandOnLit === "function") quandOnLit(variante);
-      },
-      refaire: () => montrerLaSaisie("", saisieRetenue),
-      // Refaire le même calcul, la supposition acceptée. C'est un second passage
-      // complet, pas une retouche de l'affichage : une conséquence supposée en
-      // entraîne d'autres, et rafistoler la liste les manquerait.
-      supposer: () => calculer({ supposer: true })
-    });
+      });
+    }
+    for (const bouton of hote.querySelectorAll("[data-variante-refaire]")) {
+      bouton.addEventListener("click", () => montrerLaSaisie("", saisieRetenue));
+    }
+    // Refaire le même calcul, la supposition acceptée. C'est un second passage
+    // complet, pas une retouche de l'affichage : une conséquence supposée en
+    // entraîne d'autres, et rafistoler la liste les manquerait.
+    for (const bouton of hote.querySelectorAll("[data-variante-supposer]")) {
+      bouton.addEventListener("click", () => calculer({ supposer: true }));
+    }
   };
 
-  function brancher({ lire = null, refaire = null, supposer = null } = {}) {
+  /** Ce que toutes les étapes partagent : fermer, et revenir au choix. */
+  function brancherCommun() {
     for (const bouton of hote.querySelectorAll("[data-variante-fermer]")) {
       bouton.addEventListener("click", fermer);
     }
+    for (const bouton of hote.querySelectorAll("[data-variante-retour]")) {
+      bouton.addEventListener("click", () => montrerLeChoix());
+    }
+  }
+
+  function brancherLeChoix(filtre) {
+    const champ = hote.querySelector("[data-variante-recherche]");
+    if (champ) {
+      champ.value = filtre;
+      champ.focus();
+      // Redessiner la liste seule : refaire la fenêtre entière ferait perdre le
+      // curseur à chaque lettre.
+      champ.addEventListener("input", () => {
+        const cherche = champ.value.trim().toLowerCase();
+        const liste = hote.querySelector("[data-variante-liste]");
+        if (!liste) return;
+        liste.innerHTML = renderListeDesValeurs(retenues(cherche), { cherche: Boolean(cherche) });
+        brancherLesChoix();
+      });
+    }
+
+    brancherLesChoix();
+  }
+
+  function brancherLesChoix() {
+    for (const bouton of hote.querySelectorAll("[data-variante-choisir]")) {
+      bouton.addEventListener("click", () => choisir(bouton.getAttribute("data-variante-choisir") || ""));
+    }
+  }
+
+  function brancherLaSaisie() {
     for (const bouton of hote.querySelectorAll("[data-variante-calculer]")) {
       bouton.addEventListener("click", () => calculer());
     }
-    // Entrée calcule : on tape un nombre, on veut le résultat, pas un déplacement
-    // au bouton suivant.
+    // Entrée calcule : on tape une valeur, on veut le résultat, pas un
+    // déplacement au bouton suivant.
     const champ = hote.querySelector("[data-variante-valeur]");
     if (champ) {
       champ.addEventListener("keydown", (evenement) => {
@@ -447,18 +602,10 @@ export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = n
         calculer();
       });
     }
-    if (lire) {
-      for (const bouton of hote.querySelectorAll("[data-variante-lire]")) bouton.addEventListener("click", lire);
-    }
-    if (refaire) {
-      for (const bouton of hote.querySelectorAll("[data-variante-refaire]")) bouton.addEventListener("click", refaire);
-    }
-    if (supposer) {
-      for (const bouton of hote.querySelectorAll("[data-variante-supposer]")) bouton.addEventListener("click", supposer);
-    }
   }
 
-  montrerLaSaisie();
+  if (texte(depart) && valeurs.some((valeur) => valeur.id === texte(depart))) choisir(texte(depart));
+  else montrerLeChoix();
 }
 
 /**
