@@ -109,9 +109,6 @@ import {
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
 import { renderLightTabs, bindLightTabs } from "./ui/light-tabs.js";
 import { renderSharedDetailsTitleWrap } from "./ui/detail-header.js";
-import {
-  recherchesEpinglees, epingler, renommerLaRecherche, oublierLaRecherche
-} from "../services/memoire-recherches.js";
 import { renderOverlayChromeHead, bindOverlayChromeCompact } from "./ui/overlay-chrome.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
@@ -119,7 +116,7 @@ import { fichiersDeLaMemoire, zonesLisibles } from "../services/memoire-blame.js
 import { chaineDuRaisonnement, traceDesLignes, grapheDuRaisonnement } from "../services/memoire-raisonnement.js";
 import { tracerLesLiens } from "./ui/graphe-liaisons.js";
 import {
-  renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES
+  renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES, VUES
 } from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 
@@ -297,6 +294,7 @@ export function __setMemoryStateForPreview({
   declaring = false,
   onglet = "",
   copilote = false,
+  ouverte = null,
   reader = READER.ALL
 } = {}) {
   view.assertions = assertions;
@@ -306,6 +304,10 @@ export function __setMemoryStateForPreview({
   // L'onglet ouvert du détail : sans lui, une page d'essai ne pourrait montrer
   // que la première des trois lectures.
   if (onglet) view.detailOnglet = onglet;
+  // L'affirmation ouverte, quand la page d'essai en montre une : sans elle,
+  // seul le tableau se dessine.
+  view.open = ouverte ?? null;
+  view.loading = false;
   // La colonne de discussion : une page d'essai doit pouvoir la montrer, sinon
   // seule la moitié de l'écran se vérifie.
   view.raisonnement = { ...espaceParDefaut(), copiloteOuvert: copilote === true };
@@ -918,13 +920,13 @@ export function renderMemoryDetail(assertions, cible = {}) {
   const titreEtendu = renderSharedDetailsTitleWrap(courante, {
     emptyText: "Aucune affirmation",
     buildTitleTextHtml: () => `<span class="details-title-text">${escapeHtml(titre)}</span>`,
-    // La clé métier ne s'écrit plus à droite du titre : elle en est la
-    // translittération — « degre-coupe-feu-des-planchers@batiment-a » redit
-    // mot pour mot ce qui est déjà lu au-dessus, en moins lisible. La **zone**,
-    // elle, ne se lisait nulle part alors qu'elle change tout : c'est elle qui
-    // prend la place.
-    buildIdHtml: () => zonesDuDetail(courante)
-      .map((zone) => `<span class="memory-zone-chip">${escapeHtml(zone)}</span>`).join(""),
+    // Rien à droite du titre. La clé métier en était la translittération —
+    // « degre-coupe-feu-des-planchers@batiment-a » redit mot pour mot ce qui est
+    // lu au-dessus, en moins lisible. La zone l'avait remplacée, mais la ligne
+    // du dessous la dit déjà, en toutes lettres et dans une phrase : l'écrire
+    // deux fois à dix pixels d'intervalle ne la met pas en valeur, cela fait
+    // douter qu'il s'agisse de la même.
+    buildIdHtml: () => "",
     buildExpandedBottomHtml: () => renderProvenanceDuDetail(courante, suite, ecartee),
     buildCompactConfig: (_, { titleTextHtml }) => ({
       variant: "grid",
@@ -1167,18 +1169,35 @@ export function renderMemoryFormForPreview() {
  * Exportée pour qu'un aperçu monte **cette** navigation-ci, et non une copie de
  * son HTML qui vieillirait à part.
  */
-export function renderMemoryForPreview(assertions = [], { reader = READER.ALL, collapsed = false, projet = "" } = {}) {
+export function renderMemoryForPreview(assertions = [], {
+  reader = READER.ALL, collapsed = false, projet = "", recherches = null
+} = {}) {
   view.assertions = assertions;
   view.query = onlyFilters(view.query, MEMORY_FIELDS, READER_FILTERS[reader] ?? {});
   view.navCollapsed = collapsed;
   // Les recherches épinglées font partie du rail : une page d'essai qui les
-  // ignorerait ne montrerait que la moitié de ce qu'on regarde.
-  if (projet) {
-    view.projectId = projet;
-    view.recherches = recherchesEpinglees(projet);
-  }
+  // ignorerait ne montrerait que la moitié de ce qu'on regarde. Elle les donne,
+  // plutôt que d'aller les lire — une page d'essai ne parle pas à la base.
+  if (projet) view.projectId = projet;
+  if (Array.isArray(recherches)) view.recherches = recherches;
   return `<div class="project-rail-layout${collapsed ? " project-rail-layout--collapsed" : ""}">${
     renderMemoryNav()}<div class="project-rail-layout__content">${renderSearch()}${renderReaderLead()}</div></div>`;
+}
+
+/**
+ * Monter l'écran **entier** dans une page d'essai, branchements compris.
+ *
+ * `renderMemoryForPreview` rend du HTML ; il ne branche rien, donc rien ne se
+ * clique. Ce qui se vérifie mal — le clic d'une carte qui doit amener sa
+ * fonction sous les yeux, la bascule d'une vue — passe par les branchements,
+ * et une sonde qui les recopierait vérifierait sa propre copie.
+ *
+ * L'état se pose avec `__setMemoryStateForPreview` avant l'appel.
+ */
+export function __mountMemoryForPreview(root) {
+  if (!root) return;
+  mountedRoot = root;
+  renderContent(root);
 }
 
 /**
@@ -1713,6 +1732,7 @@ function renderRaisonnement(courante) {
   return renderEspaceDuRaisonnement({
     graphe, lignes, trace, ancres: ancres.parRang, resume,
     titre: titreDeLAffirmation(courante),
+    pastilles: renderDetailTagsCompacts(courante),
     etat: view.raisonnement
   });
 }
@@ -1927,6 +1947,14 @@ function brancherLEspace(root) {
   brancherLesPoignees(root, espace);
   monterLeCopilote(espace);
 
+  // La carte demandée au rendu précédent : on l'honore maintenant, sur le
+  // panneau qui vient d'être construit.
+  if (etat.viser) {
+    const vise = etat.viser;
+    etat.viser = null;
+    allerALaFonction(espace, vise);
+  }
+
   // Le plein écran fige la page derrière lui : deux ascenseurs superposés se
   // disputent la molette, et l'on croit faire glisser le schéma quand c'est la
   // page qui bouge.
@@ -1974,7 +2002,11 @@ function brancherLesGestesDeLEspace(root, espace) {
     if (carte) {
       const id = carte.dataset.grapheNoeud;
       etat.carte = etat.carte === id ? null : id;
-      allerALaFonction(espace, id);
+      // Le défilement se **demande**, il ne se fait pas ici : le rendu qui suit
+      // remplace le panneau de code, et la position qu'on venait de poser
+      // partait avec l'ancien. On atterrissait en haut du fichier, à chaque
+      // clic, sur la ligne 1 — ce qui ressemblait à « ça ne marche pas ».
+      etat.viser = id;
       renderContent(root);
       return;
     }
@@ -2004,13 +2036,23 @@ function brancherLesGestesDeLEspace(root, espace) {
       return;
     }
 
-    // Les trois panneaux : le schéma, le code, la discussion. Chacun porte le
-    // nom du champ qu'il commande — un seul geste, aucune table de
-    // correspondance à tenir à jour.
+    // La discussion se masque seule : elle a sa colonne.
     const panneau = evenement.target?.closest?.("[data-raison-panneau]");
     if (panneau) {
       const cle = panneau.dataset.raisonPanneau;
       etat[cle] = etat[cle] === false;
+      renderContent(root);
+      return;
+    }
+
+    // Le schéma et le code se relaient dans la même colonne : un sélecteur à
+    // trois positions, qui ne peut pas produire d'écran vide.
+    const vue = evenement.target?.closest?.("[data-raison-vue]");
+    if (vue) {
+      const suivante = VUES.find((entree) => entree.cle === vue.dataset.raisonVue);
+      if (!suivante) return;
+      etat.schemaOuvert = suivante.schema;
+      etat.codeOuvert = suivante.code;
       renderContent(root);
     }
   });
@@ -2206,7 +2248,15 @@ function brancherLesRecherches(root) {
       const actuelle = (view.recherches ?? []).find((entree) => entree.id === id);
       const propose = window.prompt("Renommer cette recherche", actuelle?.titre ?? "");
       if (propose === null) return;
-      view.recherches = renommerLaRecherche(clefDesRecherches(), id, propose);
+
+      const { renommerLaRecherche } = await import("../services/memoire-recherches-supabase.js");
+      const changee = await renommerLaRecherche(id, propose);
+      if (!changee) {
+        view.notice = "Le nouveau nom n'a pas pu être enregistré.";
+        renderContent(root);
+        return;
+      }
+      view.recherches = (view.recherches ?? []).map((entree) => (entree.id === id ? changee : entree));
       renderContent(root);
       return;
     }
@@ -2215,7 +2265,15 @@ function brancherLesRecherches(root) {
     if (oublier) {
       evenement.stopPropagation();
       fermerLesMenus();
-      view.recherches = oublierLaRecherche(clefDesRecherches(), oublier.dataset.rechercheOublier);
+      const id = oublier.dataset.rechercheOublier;
+
+      const { oublierLaRecherche } = await import("../services/memoire-recherches-supabase.js");
+      if (!(await oublierLaRecherche(id))) {
+        view.notice = "L'épingle n'a pas pu être retirée.";
+        renderContent(root);
+        return;
+      }
+      view.recherches = (view.recherches ?? []).filter((entree) => entree.id !== id);
       renderContent(root);
       return;
     }
@@ -2231,10 +2289,20 @@ function brancherLesRecherches(root) {
     }
 
     if (evenement.target.closest?.("[data-memory-epingler]")) {
-      // Le titre proposé est la requête elle-même : c'est ce qu'on reconnaît,
-      // et il se renomme ensuite. Demander un nom avant d'épingler ferait
-      // renoncer une fois sur deux.
-      view.recherches = epingler(clefDesRecherches(), view.query);
+      // Le nom se donne après : demander un titre avant d'épingler ferait
+      // renoncer une fois sur deux. La requête fait office, et c'est elle qu'on
+      // reconnaît.
+      const { epinglerLaRecherche } = await import("../services/memoire-recherches-supabase.js");
+      const posee = await epinglerLaRecherche({ projectId: view.projectId, requete: view.query });
+      if (!posee) {
+        view.notice = "L'épingle n'a pas pu être enregistrée.";
+        renderContent(root);
+        return;
+      }
+      // Déjà là : la base a rendu la ligne existante plutôt qu'un doublon.
+      view.recherches = (view.recherches ?? []).some((entree) => entree.id === posee.id)
+        ? view.recherches
+        : [...(view.recherches ?? []), posee];
       renderContent(root);
       return;
     }
@@ -2248,11 +2316,6 @@ function brancherLesRecherches(root) {
 
     fermerLesMenus();
   });
-}
-
-/** Le projet sous lequel les recherches se rangent. */
-function clefDesRecherches() {
-  return String(view.projectId || "").trim();
 }
 
 /** Les propositions, retrouvables par leur identifiant — pour les intitulés. */
@@ -2839,10 +2902,12 @@ export function renderProjectMemory(root) {
       // L'identifiant de route n'est pas celui de la base : les lire l'un pour
       // l'autre rend une liste vide sans erreur, ce qui est la pire des pannes.
       view.projectId = (await resolveCurrentBackendProjectId().catch(() => "")) || "";
-      // Les recherches épinglées de ce projet-ci : rangées par projet, elles ne
-      // suivent pas d'un chantier à l'autre.
-      view.recherches = recherchesEpinglees(view.projectId);
       view.assertions = view.projectId ? await memoire.listProjectAssertions(view.projectId) : null;
+
+      // Les épingles de qui regarde, sur ce projet-ci. Elles ne sont visibles
+      // que de lui : la politique de la table le garantit, pas cet écran.
+      const { listerLesRecherches } = await import("../services/memoire-recherches-supabase.js");
+      view.recherches = (view.projectId ? await listerLesRecherches(view.projectId) : []) ?? [];
 
       // Le graphe des dépendances se lit avec la mémoire : sans lui, une
       // affirmation suspecte s'afficherait sans dire de quelle hypothèse elle

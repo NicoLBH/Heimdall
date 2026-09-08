@@ -152,3 +152,47 @@ test("une fermeture orpheline ne prend aucune teinte", () => {
   const paires = niveauxDesPaires([ligne(["ponctuation", ")"])]);
   assert.equal(paires.get(0), undefined);
 });
+
+test("le sélecteur de vue ne peut pas produire un écran vide", async () => {
+  const { VUES, vueCourante, vueSuivante } = await import("./project-memoire-raisonnement.js");
+
+  // Deux bascules séparées auraient permis de fermer le schéma **et** le code,
+  // et l'écran serait devenu vide — ce qui n'arrive dans aucun logiciel qu'on
+  // respecte. Le bouton tourne donc sur trois états, et le vide n'en est pas un.
+  assert.equal(VUES.every((vue) => vue.schema || vue.code), true);
+
+  // Le tour se referme : trois clics ramènent où l'on était.
+  let etat = espaceParDefaut();
+  const vues = [];
+  for (let clic = 0; clic < 3; clic += 1) {
+    const suivante = vueSuivante(etat);
+    vues.push(suivante.cle);
+    etat = { ...etat, schemaOuvert: suivante.schema, codeOuvert: suivante.code };
+  }
+  assert.deepEqual(vues, ["code-seul", "schema-seul", "les-deux"]);
+  assert.equal(vueCourante(etat).cle, "les-deux");
+});
+
+test("l'icône du sélecteur dit ce qu'on voit, pas ce qu'on va faire", () => {
+  const dessin = (etat) => {
+    const html = renderEspaceDuRaisonnement({ graphe: GRAPHE, lignes: CODE, trace: TRACE, etat });
+    return html.slice(html.indexOf("data-raison-vue")).match(/#(panneaux-[a-z-]+)/)?.[1];
+  };
+
+  assert.equal(dessin(espaceParDefaut()), "panneaux-les-deux");
+  assert.equal(dessin({ ...espaceParDefaut(), schemaOuvert: false }), "panneaux-code-seul");
+  assert.equal(dessin({ ...espaceParDefaut(), codeOuvert: false }), "panneaux-schema-seul");
+});
+
+test("le bandeau porte le constat et ses caractéristiques", () => {
+  // En plein écran, la barre de titre n'est plus là : sans elles, on ne sait
+  // plus de quelle nature ni de quelle zone on lit le raisonnement.
+  const html = renderEspaceDuRaisonnement({
+    graphe: GRAPHE, lignes: CODE, trace: TRACE, etat: espaceParDefaut(),
+    titre: "Colonne sèche : exigée",
+    pastilles: `<span class="memory-tag">Contrainte</span>`
+  });
+
+  assert.match(html, /Colonne sèche : exigée/);
+  assert.match(html, /raison-espace__pastilles/);
+});

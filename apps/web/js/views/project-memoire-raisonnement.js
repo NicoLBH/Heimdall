@@ -72,36 +72,63 @@ export const BORNES = {
 };
 
 /**
- * Les trois panneaux, et le champ d'état qui commande chacun.
+ * Ce que la colonne de gauche montre : les deux, ou l'un des deux.
  *
- * ## Pourquoi on peut les masquer
+ * ## Pourquoi un seul bouton, et non deux
  *
- * Les trois ne servent pas en même temps. On ouvre le schéma pour comprendre la
- * forme, puis on le ferme et l'on descend dans le code ; on ouvre la discussion
- * pour poser une question, et le code n'a plus à tenir la moitié de l'écran. Un
- * poste de travail dont on ne peut rien fermer oblige à tout regarder.
+ * Le schéma et le code se partagent la même colonne : ils ne se masquent pas
+ * indépendamment, ils **se relaient**. Deux bascules séparées auraient permis
+ * de fermer les deux, et l'écran serait devenu vide — ce qui n'arrive dans
+ * aucun logiciel qu'on respecte.
  *
- * L'icône dit l'état, pas le geste : pleine, le panneau est là ; vide, il ne
- * l'est pas. C'est la convention d'un éditeur de code, et elle se lit sans
- * légende.
+ * Le bouton tourne donc sur trois états, comme un sélecteur : les deux, le code
+ * seul, le schéma seul, puis les deux à nouveau. Il ne peut pas produire le
+ * vide, parce que le vide n'est pas dans la liste.
+ *
+ * L'icône dit l'état, pas le geste : la part pleine est le panneau affiché, et
+ * le filet marque la place de celui qui ne l'est pas.
  */
-export const PANNEAUX = [
-  { cle: "schemaOuvert", icone: "panneau-haut", nom: "le schéma des dépendances" },
-  { cle: "codeOuvert", icone: "panneau-bas", nom: "le code" },
-  { cle: "copiloteOuvert", icone: "panneau-droite", nom: "la discussion" }
+export const VUES = [
+  { cle: "les-deux", icone: "panneaux-les-deux", schema: true, code: true,
+    nom: "le schéma et le code" },
+  { cle: "code-seul", icone: "panneaux-code-seul", schema: false, code: true,
+    nom: "le code seul" },
+  { cle: "schema-seul", icone: "panneaux-schema-seul", schema: true, code: false,
+    nom: "le schéma seul" }
 ];
 
-/** Une bascule, dessinée. */
-function renderBasculeDePanneau(panneau, etat) {
-  const ouvert = etat[panneau.cle] !== false;
-  const dit = `${ouvert ? "Masquer" : "Afficher"} ${panneau.nom}`;
+/** La vue courante, d'après ce que l'état porte. */
+export function vueCourante(etat = {}) {
+  const schema = etat.schemaOuvert !== false;
+  const code = etat.codeOuvert !== false;
+  return VUES.find((vue) => vue.schema === schema && vue.code === code) ?? VUES[0];
+}
+
+/** Et la suivante, dans l'ordre du tour. */
+export function vueSuivante(etat = {}) {
+  const rang = VUES.indexOf(vueCourante(etat));
+  return VUES[(rang + 1) % VUES.length];
+}
+
+/** Le sélecteur de la colonne de gauche, et la bascule de la discussion. */
+function renderBasculesDesPanneaux(etat) {
+  const vue = vueCourante(etat);
+  const suivante = vueSuivante(etat);
+  const discussion = etat.copiloteOuvert !== false;
 
   return `
-    <button type="button" class="bouton-discret raison-espace__outil${ouvert ? " est-actif" : ""}"
-      data-raison-panneau="${escapeHtml(panneau.cle)}"
-      aria-pressed="${ouvert ? "true" : "false"}"
-      title="${escapeHtml(dit)}" aria-label="${escapeHtml(dit)}">
-      ${svgIcon(ouvert ? panneau.icone : `${panneau.icone}-masque`, { className: "octicon" })}
+    <button type="button" class="bouton-discret raison-espace__outil est-actif"
+      data-raison-vue="${escapeHtml(suivante.cle)}"
+      title="${escapeHtml(`Vous voyez ${vue.nom} — cliquez pour voir ${suivante.nom}`)}"
+      aria-label="${escapeHtml(`Vous voyez ${vue.nom} — cliquez pour voir ${suivante.nom}`)}">
+      ${svgIcon(vue.icone, { className: "octicon" })}
+    </button>
+    <button type="button" class="bouton-discret raison-espace__outil${discussion ? " est-actif" : ""}"
+      data-raison-panneau="copiloteOuvert"
+      aria-pressed="${discussion ? "true" : "false"}"
+      title="${discussion ? "Masquer la discussion" : "Afficher la discussion"}"
+      aria-label="${discussion ? "Masquer la discussion" : "Afficher la discussion"}">
+      ${svgIcon(discussion ? "panneau-droite" : "panneau-droite-masque", { className: "octicon" })}
     </button>
   `;
 }
@@ -118,6 +145,8 @@ export function espaceParDefaut() {
     schemaOuvert: true,
     codeOuvert: true,
     copiloteOuvert: false,
+    /** La carte dont le code doit venir sous les yeux, au prochain rendu. */
+    viser: null,
     hauteurSchema: BORNES.schema.defaut,
     largeurEtat: BORNES.etat.defaut,
     largeurCopilote: BORNES.copilote.defaut
@@ -303,11 +332,13 @@ export function niveauxDesPaires(lignes = []) {
  * @param {string} options.resume la phrase de tête
  * @param {string} [options.titre] le constat dont on lit le raisonnement — en
  *   plein écran, sa barre de titre n'est plus là pour le dire
+ * @param {string} [options.pastilles] ses caractéristiques, déjà rendues — pour
+ *   la même raison
  * @param {object} options.etat ce que l'écran garde entre deux rendus
  */
 export function renderEspaceDuRaisonnement({
   graphe = { noeuds: [], liens: [] }, lignes = [], trace = [], ancres = new Map(),
-  resume = "", titre = "", etat = espaceParDefaut()
+  resume = "", titre = "", pastilles = "", etat = espaceParDefaut()
 } = {}) {
   const style = [
     `--raison-schema:${Math.round(etat.hauteurSchema)}px`,
@@ -324,8 +355,12 @@ export function renderEspaceDuRaisonnement({
              son nom, on ne sait plus de quoi on lit le raisonnement. */""}
         ${titre ? `<span class="raison-espace__sujet">${escapeHtml(titre)}</span>` : ""}
         <span class="raison-espace__resume">${resume}</span>
+        ${/* En plein écran, la barre de titre du constat n'est plus là : ses
+             caractéristiques non plus, et l'on ne sait plus de quelle nature ni
+             de quelle zone on lit le raisonnement. */""}
+        ${pastilles ? `<span class="raison-espace__pastilles">${pastilles}</span>` : ""}
         <div class="raison-espace__outils">
-          ${PANNEAUX.map((panneau) => renderBasculeDePanneau(panneau, etat)).join("")}
+          ${renderBasculesDesPanneaux(etat)}
           <span class="raison-espace__separateur" role="separator" aria-orientation="vertical"></span>
           <button type="button" class="bouton-discret raison-espace__outil${
             etat.pleinEcran ? " est-actif" : ""}" data-raison-plein-ecran
