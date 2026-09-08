@@ -5,8 +5,8 @@ import {
   GENRE, SIGNAL, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, complexiteDeLaRegle,
   dispositionDuCerveau, dispositionEnVolume, dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau,
   enveloppeConvexe, famillesParSujet, graineDe, lecturesAvecLesFonctions, liensDuRaisonnement,
-  noeudsIsoles, ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, stratesDuGraphe,
-  valeursDeLOnde
+  noeudsIsoles, ondeDepuis, partDeLaMemoire, pencherVersLesDomaines, phraseDuSignal, separerLesGenres,
+  signauxDeLAudit, stratesDuGraphe, valeursDeLOnde
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -796,4 +796,80 @@ test("une règle ne porte jamais de famille : ce n'est pas une valeur", () => {
   for (const noeud of cerveau.noeuds.filter((n) => n.genre === GENRE.FONCTION)) {
     assert.equal(noeud.famille, null);
   }
+});
+
+/* ── Deux hémisphères : la mémoire et le raisonnement ────────────────────── */
+
+/** Des places de vue en strates : `y` entre 0 et 1, pas de `z`. */
+const place = (id, genre, y) => ({ id, genre, x: 0.5, y, domaine: "" });
+
+/** Des places de vue en volume : sur une sphère de rayon 1. */
+const enVolume = (id, genre, y) => ({ id, genre, x: Math.sqrt(1 - y * y), y, z: 0, domaine: "" });
+
+test("la part du cadre suit la population, sans laisser une moitié vide", () => {
+  // C'est la forme du projet : une mémoire épaisse sous un raisonnement mince,
+  // c'est un projet qui a beaucoup relevé et peu conclu.
+  assert.equal(partDeLaMemoire([
+    place("a", GENRE.VALEUR, 0), place("b", GENRE.VALEUR, 1),
+    place("c", GENRE.VALEUR, 0.5), place("r", GENRE.FONCTION, 0.5)
+  ]), 0.75);
+
+  // Bornée : sous un quart, une famille devient une ligne.
+  const beaucoupDeRegles = [
+    place("a", GENRE.VALEUR, 0),
+    ...Array.from({ length: 20 }, (_, i) => place(`r${i}`, GENRE.FONCTION, 0.5))
+  ];
+  assert.equal(partDeLaMemoire(beaucoupDeRegles), 0.25);
+});
+
+test("rien à séparer quand il n'y a qu'une famille", () => {
+  // Écraser toutes les valeurs dans une moitié pour laisser l'autre vide
+  // n'apprendrait rien et coûterait la moitié de l'écran.
+  const seules = [place("a", GENRE.VALEUR, 0.2), place("b", GENRE.VALEUR, 0.8)];
+  assert.equal(partDeLaMemoire(seules), 0);
+  assert.equal(separerLesGenres(seules), seules);
+  assert.deepEqual(separerLesGenres(seules, { actif: false }), seules);
+});
+
+test("en strates, chaque genre reçoit sa bande, et l'ordre est gardé", () => {
+  // Le pliage garde l'ordre : un domaine posé au tiers de la hauteur se retrouve
+  // au tiers de chaque moitié — les mêmes lobes, dans le même ordre, des deux
+  // côtés du trait.
+  const plie = separerLesGenres([
+    place("v0", GENRE.VALEUR, 0), place("v1", GENRE.VALEUR, 1),
+    place("r0", GENRE.FONCTION, 0), place("r1", GENRE.FONCTION, 1)
+  ]);
+  const y = Object.fromEntries(plie.map((p) => [p.id, p.y]));
+
+  // Les valeurs occupent le haut, les règles le bas, sans se toucher.
+  assert.ok(y.v0 < y.v1);
+  assert.ok(y.r0 < y.r1);
+  assert.ok(y.v1 < y.r0, "la dernière valeur reste au-dessus de la première règle");
+  assert.ok(y.v0 >= 0 && y.r1 <= 1);
+});
+
+test("en volume, la mémoire monte vers le haut de l'écran", () => {
+  // L'écran a son axe vertical vers le bas : la mémoire va donc vers les `y`
+  // négatifs. Une séparation qui s'inverserait en changeant de vue ne se lirait
+  // pas.
+  const plie = separerLesGenres([
+    enVolume("v", GENRE.VALEUR, 0.9), enVolume("r", GENRE.FONCTION, -0.9)
+  ]);
+  const y = Object.fromEntries(plie.map((p) => [p.id, p.y]));
+
+  assert.ok(y.v < 0, "une valeur passe au nord");
+  assert.ok(y.r > 0, "une règle passe au sud");
+  // Les nœuds restent sur leur coquille : une coquille reste une strate.
+  for (const point of plie) {
+    assert.ok(Math.abs(Math.hypot(point.x, point.y, point.z) - 1) < 1e-6);
+  }
+});
+
+test("le cap d'un nœud ne bouge pas : un domaine reste un méridien", () => {
+  // On plie la latitude, jamais la longitude — sinon la séparation des genres
+  // écraserait le regroupement par domaine, et les deux se battraient.
+  const avant = { id: "v", genre: GENRE.VALEUR, x: 0.6, y: 0.5, z: 0.62449979983984, domaine: "" };
+  const [apres] = separerLesGenres([avant, enVolume("r", GENRE.FONCTION, -0.5)]);
+
+  assert.ok(Math.abs(Math.atan2(apres.z, apres.x) - Math.atan2(avant.z, avant.x)) < 1e-9);
 });

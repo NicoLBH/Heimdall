@@ -840,6 +840,118 @@ export function pencherVersLesDomaines(places = [], cerveau = {}, force = PENCHA
   });
 }
 
+/**
+ * De combien l'équateur écarte les deux hémisphères. Un vide, pas une cloison.
+ *
+ * Un trait plein dirait que rien ne passe de l'un à l'autre, alors que **tout**
+ * passe : chaque lien du dessin traverse l'équateur, puisqu'une règle lit une
+ * valeur et en produit une autre. Le vide se voit, et les liens le franchissent.
+ */
+const EQUATEUR = 0.04;
+
+/**
+ * La part du cadre qui revient à la mémoire, entre 0,25 et 0,75.
+ *
+ * Zéro quand il n'y a rien à séparer — que des valeurs, ou que des règles.
+ */
+export function partDeLaMemoire(places = []) {
+  const liste = Array.isArray(places) ? places : [];
+  const valeurs = liste.filter((place) => place.genre !== GENRE.FONCTION).length;
+  if (!valeurs || valeurs === liste.length) return 0;
+
+  // Chaque moitié reçoit la part qui lui revient. C'est la **forme du projet** :
+  // une bande de mémoire épaisse sous un mince ruban de règles, c'est un projet
+  // qui a beaucoup relevé et peu conclu ; l'inverse, un projet qui déduit
+  // beaucoup de peu. Un partage à parts égales dessinerait le même écran pour les
+  // deux, et laisserait la moitié du cadre vide dans presque tous les cas.
+  //
+  // Bornée : sous un quart, une famille devient une ligne et l'on ne distingue
+  // plus rien de ce qu'elle contient.
+  return Math.min(0.75, Math.max(0.25, valeurs / liste.length));
+}
+
+/**
+ * Deux hémisphères : la mémoire d'un côté, le raisonnement de l'autre.
+ *
+ * ## Pourquoi c'est possible sans rien casser
+ *
+ * Les deux vues ont un axe qui porte le raisonnement et un axe libre. En strates,
+ * la colonne dit la strate et la hauteur est libre ; en volume, le rayon dit la
+ * strate et l'orientation est libre. Les domaines occupent déjà l'axe libre — la
+ * bande en strates, le cap en volume. Il en reste un **demi** : on plie l'axe des
+ * domaines en deux, valeurs d'un côté, règles de l'autre.
+ *
+ * ## Pourquoi c'est un pliage, et pas un second classement
+ *
+ * Parce qu'il **garde l'ordre**. Un domaine posé au tiers de la hauteur se
+ * retrouve au tiers de chaque moitié : les mêmes lobes, dans le même ordre, dans
+ * les deux hémisphères. On lit donc les deux découpages à la fois — « la
+ * structure, côté mémoire » et « la structure, côté raisonnement » — au lieu de
+ * les faire se battre pour le même axe.
+ *
+ * ## Ce que ça donne à voir
+ *
+ * La forme du projet. Une mémoire épaisse sous un raisonnement mince, c'est un
+ * projet qui a beaucoup relevé et peu conclu ; l'inverse, un projet qui déduit
+ * beaucoup de peu. Aucun des deux n'est un défaut, et ni l'un ni l'autre ne se
+ * voyait tant que tout était mêlé.
+ *
+ * Sans règle dessinée, on ne plie rien : écraser toutes les valeurs dans une
+ * moitié pour laisser l'autre vide n'apprendrait rien et coûterait la moitié de
+ * l'écran.
+ */
+export function separerLesGenres(places = [], { actif = true } = {}) {
+  if (!actif || !Array.isArray(places) || !places.length) return places;
+
+  const part = partDeLaMemoire(places);
+  if (!part) return places;
+
+  const enVolume = places.some((place) => typeof place.z === "number");
+
+  return places.map((place) => {
+    const memoire = place.genre !== GENRE.FONCTION;
+
+    if (!enVolume) {
+      // La hauteur relative dans le cadre devient la hauteur relative dans sa
+      // moitié : le domaine ne bouge pas de rang, il se répète en haut et en bas.
+      const dedans = Math.min(1, Math.max(0, place.y));
+      const haut = memoire ? 0.02 : part + EQUATEUR / 2;
+      const bas = memoire ? part - EQUATEUR / 2 : 0.98;
+      return { ...place, y: haut + dedans * (bas - haut) };
+    }
+
+    // En volume, on plie la **latitude** et l'on garde le cap : une coquille reste
+    // une coquille, un domaine reste un méridien, et la mémoire monte au nord.
+    //
+    // Le plan de coupe se place à `2 × part − 1` : sur une sphère, l'aire de la
+    // calotte sous le plan `y = c` vaut `(c + 1) / 2`. La part de surface est donc
+    // la part des nœuds, ce que l'œil lit sans qu'on le lui dise.
+    //
+    // La mémoire va vers les `y` négatifs : l'écran a son axe vertical vers le
+    // bas, et la mémoire doit se retrouver **en haut** dans les deux vues. Une
+    // séparation qui s'inverserait en changeant de vue ne se lirait pas.
+    const rayon = Math.hypot(place.x, place.y, place.z);
+    if (rayon < 1e-6) return place;
+
+    const coupe = 2 * part - 1;
+    const hauteur = Math.min(1, Math.max(-1, place.y / rayon));
+    const dedans = (hauteur + 1) / 2;
+    const bas = memoire ? -1 : coupe + EQUATEUR;
+    const haut = memoire ? coupe - EQUATEUR : 1;
+    const pliee = bas + dedans * (haut - bas);
+
+    const anneau = Math.sqrt(Math.max(0, 1 - pliee * pliee));
+    const plat = Math.hypot(place.x, place.z) || 1e-6;
+
+    return {
+      ...place,
+      x: (place.x / plat) * anneau * rayon,
+      y: pliee * rayon,
+      z: (place.z / plat) * anneau * rayon
+    };
+  });
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * La chaleur
  * ────────────────────────────────────────────────────────────────────────── */

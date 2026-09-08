@@ -341,6 +341,24 @@ la moitié manquante de la métaphore.
 > issues, zones) et l'écran la rend en **crans autour du losange**, jamais en
 > taille : la taille reste le poids, comme pour tout le monde.
 >
+> **Les secteurs, ensuite.** La question posée ici — « deux systèmes de secteurs
+> qui se battraient » — a trouvé sa réponse, et ce n'était pas celle qu'on
+> attendait. On ne classe pas les règles par nature de fonction (réflexe,
+> capteur) : on **plie l'axe libre en deux**, la mémoire d'un côté, le
+> raisonnement de l'autre. La hauteur en strates, la latitude en volume ; les
+> domaines gardent leur axe — la bande, le méridien — et ne se battent avec rien.
+>
+> Le pliage garde l'ordre : un domaine posé au tiers de la hauteur se retrouve au
+> tiers de **chaque** moitié. Les mêmes lobes, dans le même ordre, dans les deux
+> hémisphères — « la structure, côté mémoire » et « la structure, côté
+> raisonnement » —, et un voile par lobe et par côté plutôt qu'un seul qui
+> enjamberait l'équateur. La part de cadre qui revient à chaque moitié suit la
+> population : la forme du projet se lit dans l'épaisseur des deux bandes.
+>
+> L'équateur est **pointillé**, jamais plein : tout le traverse, puisqu'une règle
+> lit une valeur d'un côté et en produit une autre de l'autre. Ce n'est pas une
+> frontière, c'est un repère de lecture.
+>
 > **Ce qui n'a pas été fait, et pourquoi.** Les coquilles ne s'appellent pas
 > « réflexe » et « capteur ». Un rang ne porte presque jamais *que* des règles —
 > deux chaînes de longueurs différentes y mettent couramment une valeur à côté

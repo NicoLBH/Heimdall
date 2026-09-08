@@ -56,7 +56,8 @@ import { NOEUD } from "../../services/memoire-plan.js";
 import {
   GENRE, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe,
   dispositionDuCerveau, dispositionEnVolume, domainesDuCerveau, enveloppeConvexe, noeudsIsoles,
-  ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, valeursDeLOnde
+  ondeDepuis, partDeLaMemoire, pencherVersLesDomaines, phraseDuSignal, separerLesGenres, signauxDeLAudit,
+  valeursDeLOnde
 } from "../../services/memoire-cerveau.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -143,17 +144,44 @@ const CHALEUR = [
   { a: 1, teinte: [255, 173, 96] }
 ];
 
+/**
+ * Le même dégradé pour les **règles**, en bleu.
+ *
+ * Deux familles de nœuds, deux dégradés : c'est ce qui les rend séparables d'un
+ * coup d'œil sur un écran entier d'orange. La forme le disait déjà — losange,
+ * cube —, mais une forme se distingue de près et une couleur se distingue de
+ * loin, et c'est de loin qu'on regarde un cerveau.
+ *
+ * L'échelle reste la même : mêmes arrêts, même racine, même sens. Un bleu vif et
+ * un orange vif disent la même chose de deux choses différentes — « il passe
+ * beaucoup par là ». Sans ce parallèle, on aurait appris deux langages.
+ */
+const CHALEUR_REGLE = [
+  { a: 0, teinte: [70, 92, 132] },
+  { a: 0.35, teinte: [56, 118, 199] },
+  { a: 0.7, teinte: [88, 166, 255] },
+  { a: 1, teinte: [150, 208, 255] }
+];
+
 /** La teinte d'une chaleur, interpolée entre deux arrêts du dégradé. */
-function teinteDeLaChaleur(chaleur) {
+function teinteDeLaChaleur(chaleur, echelle = CHALEUR) {
   const t = borne(Number(chaleur) || 0, 0, 1);
-  for (let i = 1; i < CHALEUR.length; i += 1) {
-    if (t > CHALEUR[i].a) continue;
-    const bas = CHALEUR[i - 1];
-    const haut = CHALEUR[i];
+  for (let i = 1; i < echelle.length; i += 1) {
+    if (t > echelle[i].a) continue;
+    const bas = echelle[i - 1];
+    const haut = echelle[i];
     const part = (t - bas.a) / (haut.a - bas.a || 1);
     return bas.teinte.map((canal, k) => Math.round(canal + (haut.teinte[k] - canal) * part)).join(",");
   }
-  return CHALEUR.at(-1).teinte.join(",");
+  return echelle.at(-1).teinte.join(",");
+}
+
+/** La chaleur d'un nœud, dans le dégradé de sa famille. */
+function teinteDuNoeud(noeud, poidsMax) {
+  return teinteDeLaChaleur(
+    chaleurDuNoeud(noeud, poidsMax),
+    noeud.genre === GENRE.FONCTION ? CHALEUR_REGLE : CHALEUR
+  );
 }
 
 /**
@@ -164,9 +192,23 @@ function teinteDeLaChaleur(chaleur) {
  * flotte pas au milieu d'un écran vide. Un seul réglage pour les deux laissait
  * l'une des deux mal posée.
  */
+/**
+ * Le zoom auquel un clic amène, par vue.
+ *
+ * C'est un **plancher** : on n'approche que si l'on était plus loin. Le volume
+ * demande davantage — la boule tient dans un cercle, et ses nœuds y sont plus
+ * serrés que les colonnes ne le sont dans la largeur de l'écran.
+ */
+const APPROCHE = { strates: 2.1, volume: 3 };
+
+/** La part du chemin restant parcourue à chaque image. Sous 0,1, ça traîne. */
+const PAS_DU_VISEUR = 0.13;
+
 const CADRAGE = {
   strates: { zoom: 1, dx: 0, dy: 0, orbite: 0, elevation: 0 },
-  volume: { zoom: 1.7, dx: 0, dy: 0, orbite: 0.6, elevation: 0.42 }
+  // Reculé depuis que la boule est coupée en deux : les deux calottes s'étirent
+  // vers les pôles, et à 1,7 le raisonnement sortait par le bas du cadre.
+  volume: { zoom: 1.45, dx: 0, dy: 0, orbite: 0.6, elevation: 0.42 }
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -181,16 +223,28 @@ const CADRAGE = {
  * raisonnement passe par là* — et le rouge, à part, veut dire tout autre chose.
  */
 function renderEchelleDeChaleur(cerveau, signales) {
-  const bande = [0, 0.2, 0.4, 0.6, 0.8, 1]
-    .map((chaleur) => `<i style="--trait:rgb(${teinteDeLaChaleur(chaleur)})"></i>`).join("");
+  const bande = (echelle) => [0, 0.2, 0.4, 0.6, 0.8, 1]
+    .map((chaleur) => `<i style="--trait:rgb(${teinteDeLaChaleur(chaleur, echelle)})"></i>`).join("");
 
   return `
     <div class="cerveau-legende" data-cerveau-legende="chaleur" hidden>
       <span class="cerveau-legende__item cerveau-legende__echelle">
-        <span class="cerveau-echelle">${bande}</span>
-        <b>Ce qui passe par là</b>
+        <span class="cerveau-echelle">${bande(CHALEUR)}</span>
+        <b>Ce qui passe par une valeur</b>
         <small>emplois et liens réunis — la taille suit le même poids</small>
       </span>
+      ${
+        // Deux familles, deux dégradés, une seule échelle : le bleu ne dit pas
+        // autre chose que l'orange, il le dit d'autre chose. Sur un écran entier
+        // d'orange, une règle se retrouve de loin.
+        cerveau.compte.fonctions
+          ? `<span class="cerveau-legende__item cerveau-legende__echelle">
+              <span class="cerveau-echelle">${bande(CHALEUR_REGLE)}</span>
+              <b>Ce qui passe par une règle</b>
+              <small>même échelle, en bleu — losange à plat, cube en volume</small>
+            </span>`
+          : ""
+      }
       ${
         signales
           ? `<span class="cerveau-legende__item cerveau-legende__item--signale">
@@ -202,8 +256,7 @@ function renderEchelleDeChaleur(cerveau, signales) {
       }
       <span class="cerveau-legende__item">
         <b>La forme dit la nature</b>
-        <small>plein pour le socle, cerclé pour ce qui se rejoue, creux pour l'opaque —
-          et un losange est une règle</small>
+        <small>plein pour le socle, cerclé pour ce qui se rejoue, creux pour l'opaque</small>
       </span>
     </div>
   `;
@@ -240,7 +293,8 @@ function renderLegende(cerveau, signales) {
           ? `<span class="cerveau-legende__item cerveau-legende__item--regle">
               <i></i>
               <b>${cerveau.compte.fonctions} ${accorde(cerveau.compte.fonctions, "règle", "règles")}</b>
-              <small>un losange, entre ses entrées et sa sortie — les crans disent sa complexité</small>
+              <small>entre ses entrées et sa sortie — un losange à plat, un cube en volume,
+                et les crans disent sa complexité</small>
             </span>`
           : ""
       }
@@ -309,6 +363,10 @@ function renderBarre(isoles) {
       <label class="cerveau__isoles">
         <input type="checkbox" data-cerveau-fonctions checked>
         <span>Montrer les règles</span>
+      </label>
+      <label class="cerveau__isoles">
+        <input type="checkbox" data-cerveau-genres checked>
+        <span>Mémoire et raisonnement à part</span>
       </label>
       <label class="cerveau__isoles">
         <input type="checkbox" data-cerveau-domaines checked>
@@ -415,6 +473,43 @@ function losange(ctx, x, y, rayon) {
   ctx.lineTo(x, y + rayon);
   ctx.lineTo(x - rayon, y);
   ctx.closePath();
+}
+
+/**
+ * La silhouette d'un cube vu par un coin : un hexagone.
+ *
+ * Le losange est la même règle **à plat**. En volume, un losange reste plat au
+ * milieu d'un nuage de sphères, et l'œil le lit comme une étiquette posée sur
+ * l'image plutôt que comme un objet qui s'y trouve. Le cube a un volume : il
+ * tourne avec le reste.
+ */
+function cube(ctx, x, y, rayon) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const px = x + Math.cos(angle) * rayon;
+    const py = y + Math.sin(angle) * rayon;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+/**
+ * Les trois arêtes qui font qu'un hexagone devient un cube.
+ *
+ * Sans elles, c'est une pastille à six côtés. Avec, l'œil voit trois faces et le
+ * volume apparaît — pour trois traits.
+ */
+function aretesDuCube(ctx, x, y, rayon, couleur) {
+  ctx.strokeStyle = couleur;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const i of [1, 3, 5]) {
+    const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(angle) * rayon, y + Math.sin(angle) * rayon);
+  }
+  ctx.stroke();
 }
 
 /** Au-delà, on ne compte plus les crans : on lit « beaucoup », et c'est assez. */
@@ -707,6 +802,8 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
   if (etat.vue === "strates") dessinerLesColonnes(ctx, etat, largeur, hauteur, points);
   else dessinerLesCoquilles(ctx, etat, largeur, hauteur, points);
 
+  if (etat.deuxHemispheres) dessinerLEquateur(ctx, etat, largeur, hauteur, ou);
+
   // Le voile en premier, sous les liens et les nœuds : c'est un fond, pas un
   // cadre. Posé par-dessus, il voilerait ce qu'il est censé situer.
   if (etat.parDomaine) etat.voiles = dessinerLesVoiles(ctx, etat, points, temps);
@@ -805,8 +902,15 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     ctx.globalAlpha = etat.vue === "volume" ? borne(0.3 + p * 0.7, 0.25, 1) : 1;
 
     const fonction = noeud.genre === GENRE.FONCTION;
-    if (fonction) losange(ctx, x, y, rayon + 1.5);
-    else { ctx.beginPath(); ctx.arc(x, y, rayon, 0, Math.PI * 2); }
+    // Un losange à plat, un cube en volume : la même règle, dans la géométrie de
+    // la vue. Un losange au milieu d'un nuage de sphères se lit comme une
+    // étiquette collée sur l'image, pas comme un objet qui s'y trouve.
+    const enVolume = etat.vue === "volume";
+    const cote = rayon + (enVolume ? 2.4 : 1.5);
+    if (fonction) {
+      if (enVolume) cube(ctx, x, y, cote);
+      else losange(ctx, x, y, cote);
+    } else { ctx.beginPath(); ctx.arc(x, y, rayon, 0, Math.PI * 2); }
 
     if (signal) {
       ctx.fillStyle = `rgba(${ROUGE},.9)`;
@@ -815,7 +919,7 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
       // La chaleur dit **combien de raisonnement passe par là**, et rien d'autre.
       // La nature reste lisible à la forme : plein pour une source, cerclé pour
       // ce qui se rejoue, creux pour ce qu'on ne sait pas refaire.
-      const chaud = teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax));
+      const chaud = teinteDuNoeud(noeud, etat.poidsMax);
       if (noeud.nature === NOEUD.OPAQUE) {
         ctx.strokeStyle = `rgba(${chaud},.85)`;
         ctx.lineWidth = 1.4;
@@ -853,14 +957,21 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     }
 
     if (fonction) {
+      const teinte = signal
+        ? `rgba(${ROUGE},.9)`
+        : etat.couleur === "chaleur"
+          ? `rgba(${teinteDuNoeud(noeud, etat.poidsMax)},.9)`
+          : `rgba(${REGLE},.85)`;
+      if (enVolume) aretesDuCube(ctx, x, y, cote, teinte);
+
       // La couronne dit ce que la règle demande pour être comprise, en clair et
       // à côté du poids — jamais fondu dedans.
       couronneDeComplexite(
-        ctx, x, y, rayon + 1.5, noeud.complexite,
+        ctx, x, y, cote, noeud.complexite,
         signal
           ? `rgba(${ROUGE},.8)`
           : etat.couleur === "chaleur"
-            ? `rgba(${teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax))},.7)`
+            ? `rgba(${teinteDuNoeud(noeud, etat.poidsMax)},.7)`
             : `rgba(${REGLE},.75)`
       );
     }
@@ -873,7 +984,7 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
         signal
           ? ROUGE
           : etat.couleur === "chaleur"
-            ? teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax))
+            ? teinteDuNoeud(noeud, etat.poidsMax)
             : TEINTES[noeud.nature] ?? "139,148,158",
         etat.respire
       );
@@ -993,6 +1104,87 @@ function dessinerLesCoquilles(ctx, etat, largeur, hauteur, points) {
   }
 }
 
+/**
+ * L'équateur : où la mémoire s'arrête et où le raisonnement commence.
+ *
+ * Un trait **pointillé**, et pas plein. Plein, il dirait qu'il sépare deux
+ * territoires ; or tout le passe : chaque lien du dessin le traverse, puisqu'une
+ * règle lit une valeur d'un côté et en produit une autre de l'autre. Ce n'est pas
+ * une frontière, c'est un repère de lecture.
+ *
+ * Les deux mots sont posés **aux extrémités**, là où les nœuds ne vont pas :
+ * au milieu, ils tomberaient dans la zone la plus dense de l'écran.
+ */
+function dessinerLEquateur(ctx, etat, largeur, hauteur, ou) {
+  // Les deux points où l'on écrira, l'un à gauche l'autre à droite du trait. En
+  // strates ce sont ses extrémités ; en volume, les flancs de l'ellipse — là où
+  // elle est le plus haute et le plus basse à l'écran, donc là où les mots ne
+  // tombent pas dans le nuage.
+  let gauche = null;
+  let droite = null;
+
+  ctx.save();
+  ctx.setLineDash([3, 7]);
+  ctx.strokeStyle = "rgba(139,148,158,.18)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  if (etat.vue === "strates") {
+    // La séparation est à `part` dans l'espace des nœuds, pas au milieu de
+    // l'écran : la caméra a pu se déplacer, et un trait posé à `hauteur / 2`
+    // mentirait dès le premier glissé.
+    const { y } = ou({ x: 0, y: etat.partDeLaMemoire, phase: 0 });
+    ctx.moveTo(0, y);
+    ctx.lineTo(largeur, y);
+    gauche = { x: 12, y, align: "left" };
+    droite = { x: largeur - 12, y, align: "right" };
+  } else {
+    // En volume, l'équateur est un **cercle**, et la caméra le voit de biais. On
+    // le projette comme n'importe quel nœud : un trait droit posé au milieu de
+    // l'écran serait faux dès qu'on incline la vue.
+    //
+    // Le plan de coupe est à `2 × part − 1`, le même que celui du service, pour
+    // que le trait passe exactement là où les nœuds se séparent.
+    const coupe = 2 * etat.partDeLaMemoire - 1;
+    const rayon = 1.06 * Math.sqrt(Math.max(0.04, 1 - coupe * coupe));
+
+    for (let i = 0; i <= 96; i += 1) {
+      const angle = (i / 96) * Math.PI * 2;
+      const point = ou({
+        x: Math.cos(angle) * rayon, y: coupe, z: Math.sin(angle) * rayon, phase: 0
+      });
+      if (i === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
+      // **En dehors** de la boule, pas sur son flanc : posés dessus, les deux
+      // mots tombent sur le nom du domaine qui occupe déjà ce bord.
+      if (!gauche || point.x < gauche.x) gauche = { ...point, x: point.x - 10, align: "right" };
+      if (!droite || point.x > droite.x) droite = { ...point, x: point.x + 10, align: "left" };
+    }
+  }
+
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.fillStyle = "rgba(139,148,158,.45)";
+
+  for (const ancre of [gauche, droite]) {
+    if (!ancre) continue;
+    ctx.textAlign = ancre.align;
+    const x = Math.min(largeur - 10, Math.max(10, ancre.x));
+
+    // Quand le trait sort du cadre, un seul des deux mots a encore un sens : les
+    // écrire tous les deux les empilerait au même bord, et deux mots superposés
+    // disent moins que rien.
+    if (ancre.y < 26) ctx.fillText("RAISONNEMENT", x, 16);
+    else if (ancre.y > hauteur - 26) ctx.fillText("MÉMOIRE", x, hauteur - 8);
+    else {
+      ctx.fillText("MÉMOIRE", x, ancre.y - 8);
+      ctx.fillText("RAISONNEMENT", x, ancre.y + 17);
+    }
+  }
+  ctx.textAlign = "left";
+}
+
 /** De combien la frontière d'un voile s'écarte des nœuds qu'elle entoure. */
 const MARGE_DU_VOILE = 26;
 
@@ -1025,9 +1217,17 @@ const MARGE_DU_VOILE = 26;
 function dessinerLesVoiles(ctx, etat, points, temps) {
   const voiles = [];
 
-  for (const entree of etat.domaines) {
+  // Un domaine coupé en deux fait **deux** voiles, un par hémisphère : « la
+  // structure, côté mémoire » et « la structure, côté raisonnement ». Un seul
+  // voile enjamberait l'équateur et rendrait la séparation illisible — exactement
+  // ce qu'on venait de gagner.
+  const cotes = etat.deuxHemispheres ? [GENRE.VALEUR, GENRE.FONCTION] : [null];
+  const paquets = etat.domaines.flatMap((entree) => cotes.map((cote) => ({ entree, cote })));
+
+  for (const { entree, cote } of paquets) {
     const siens = etat.places
       .filter((noeud) => texte(noeud.domaine) === entree.domaine)
+      .filter((noeud) => !cote || noeud.genre === cote)
       .map((noeud) => points.get(noeud.id))
       .filter(Boolean);
     // Sous trois points il n'y a pas de territoire, seulement des points.
@@ -1240,6 +1440,11 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     parDomaine: true,
     /** Les règles dessinées comme des nœuds, entre leurs entrées et leur sortie. */
     avecLesFonctions: true,
+    /** La mémoire d'un côté, le raisonnement de l'autre. */
+    parGenre: true,
+    deuxHemispheres: false,
+    /** Quelle fraction du cadre revient à la mémoire. Zéro : rien n'est séparé. */
+    partDeLaMemoire: 0,
     domaines: domainesDuCerveau(cerveau),
     poidsMax: cerveau.compte.poidsMax,
     rangsDeFonctions: cerveau.rangsDeFonctions,
@@ -1255,7 +1460,9 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     respire: !calme,
     /** Au-delà de ce nombre de nœuds **à l'écran**, les étiquettes ne se lisent plus. */
     seuilDesNoms: 45,
-    camera: { ...CADRAGE.strates }
+    camera: { ...CADRAGE.strates },
+    /** La caméra vers laquelle on glisse, ou rien quand on est arrivé. */
+    vise: null
   };
 
   /**
@@ -1296,7 +1503,13 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
     const brutes = etat.vue === "volume" ? dispositionEnVolume(retenus) : dispositionDuCerveau(retenus);
     etat.domaines = domainesDuCerveau(retenus);
-    etat.places = etat.parDomaine ? pencherVersLesDomaines(brutes, retenus) : brutes;
+    // Les domaines d'abord, les hémisphères ensuite : le pliage garde l'ordre des
+    // bandes, si bien qu'un domaine se retrouve à la même hauteur relative dans
+    // les deux moitiés. L'inverse plierait des bandes qui n'existent pas encore.
+    const penchees = etat.parDomaine ? pencherVersLesDomaines(brutes, retenus) : brutes;
+    etat.partDeLaMemoire = etat.parGenre ? partDeLaMemoire(penchees) : 0;
+    etat.places = separerLesGenres(penchees, { actif: etat.parGenre });
+    etat.deuxHemispheres = etat.partDeLaMemoire > 0;
     etat.parId = new Map(etat.places.map((noeud) => [noeud.id, noeud]));
     const dedans = new Set(etat.places.map((noeud) => noeud.id));
     etat.liens = cerveau.liens.filter((lien) => dedans.has(lien.de) && dedans.has(lien.vers));
@@ -1444,9 +1657,68 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   /* ── La caméra ─────────────────────────────────────────────────────────── */
 
-  const recadrer = () => { etat.camera = { ...CADRAGE[etat.vue] }; };
+  const recadrer = () => { etat.camera = { ...CADRAGE[etat.vue] }; etat.vise = null; };
+
+  /**
+   * Amener un nœud au centre, et l'approcher.
+   *
+   * ## Pourquoi la caméra bouge d'elle-même
+   *
+   * Parce que sur un projet réel, le nœud qu'on vient de cliquer est un point de
+   * trois pixels dans un nuage de trois cents. On lit sa bulle, on suit son onde,
+   * et l'on ne voit ni l'un ni l'autre : il faut molette, glissé, molette encore,
+   * et l'on a perdu de vue ce qu'on cherchait. Le clic dit déjà « celui-là » —
+   * l'écran n'a pas besoin qu'on le lui redemande à la main.
+   *
+   * ## Pourquoi on vise sans sauter
+   *
+   * Un saut ne dit pas d'où l'on vient. Le glissement garde le lien entre l'avant
+   * et l'après : on voit le reste du dessin s'écarter autour du nœud, et l'on sait
+   * donc encore où l'on est. C'est la même raison qui fait que l'onde monte strate
+   * par strate au lieu de tout allumer d'un coup.
+   *
+   * ## Pourquoi on n'approche que si l'on est loin
+   *
+   * Le zoom visé est un **plancher**, jamais une remise à zéro : quelqu'un qui a
+   * déjà approché sa zone garde son échelle, et le clic ne fait que recentrer.
+   * Reculer quelqu'un qui vient d'approcher serait lui reprendre son geste.
+   */
+  const viser = (id) => {
+    const noeud = etat.parId.get(id);
+    if (!noeud) return;
+
+    const zoom = borne(Math.max(etat.camera.zoom, APPROCHE[etat.vue]), 0.25, 8);
+    // On projette avec la caméra visée mais sans décalage : ce qu'on lit alors
+    // est exactement le décalage qu'il faut pour amener ce nœud au centre.
+    const sansDecalage = { ...etat, camera: { ...etat.camera, zoom, dx: 0, dy: 0 } };
+    const point = projeteur(sansDecalage, largeur, hauteur, performance.now())(noeud);
+
+    etat.vise = { zoom, dx: largeur / 2 - point.x, dy: hauteur / 2 - point.y };
+  };
+
+  /** Un pas de glissement vers la caméra visée. Rien à faire si l'on n'y va pas. */
+  const glisserVersLaCible = () => {
+    if (!etat.vise) return;
+    const reste = Math.abs(etat.vise.zoom - etat.camera.zoom) * 60
+      + Math.hypot(etat.vise.dx - etat.camera.dx, etat.vise.dy - etat.camera.dy);
+
+    // Assez près : on se pose exactement, plutôt que d'approcher indéfiniment par
+    // moitiés — une caméra qui ne s'arrête jamais redessine l'écran pour rien.
+    if (reste < 0.6) {
+      etat.camera = { ...etat.camera, ...etat.vise };
+      etat.vise = null;
+      return;
+    }
+
+    for (const champ of ["zoom", "dx", "dy"]) {
+      etat.camera[champ] += (etat.vise[champ] - etat.camera[champ]) * PAS_DU_VISEUR;
+    }
+  };
 
   const zoomer = (facteur, versX = null, versY = null) => {
+    // La molette reprend la main : on ne se bat pas avec un mouvement qu'on n'a
+    // pas demandé.
+    etat.vise = null;
     const avant = etat.camera.zoom;
     etat.camera.zoom = borne(avant * facteur, 0.25, 8);
     const reel = etat.camera.zoom / avant;
@@ -1480,6 +1752,9 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       const dx = evenement.clientX - glisse.x;
       const dy = evenement.clientY - glisse.y;
       if (Math.hypot(dx, dy) > 4) glisse.bouge = true;
+
+      // Le glissé reprend la main, comme la molette.
+      etat.vise = null;
 
       if (etat.vue === "volume") {
         // En volume, le glissé fait tourner : c'est le geste qu'on attend d'un
@@ -1519,7 +1794,11 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     accorderLeBattement();
     if (bouge) return;
     const noeud = sousLeCurseur(evenement);
-    if (noeud) { etat.choisi = noeud.id; allumer(noeud.id, { duree: TENUE.onde, dire: true }); }
+    if (noeud) {
+      etat.choisi = noeud.id;
+      allumer(noeud.id, { duree: TENUE.onde, dire: true });
+      viser(noeud.id);
+    }
   };
 
   const alaMolette = (evenement) => {
@@ -1704,6 +1983,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   let image = 0;
   const boucle = (temps) => {
+    glisserVersLaCible();
     dessiner(ctx, etat, largeur, hauteur, temps);
     image = requestAnimationFrame(boucle);
   };
@@ -1752,6 +2032,13 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   }
   for (const bouton of hote.querySelectorAll("[data-cerveau-couleur]")) {
     bouton.addEventListener("click", () => changerDeCouleur(bouton.getAttribute("data-cerveau-couleur")));
+  }
+  const caseDesGenres = hote.querySelector("[data-cerveau-genres]");
+  if (caseDesGenres) {
+    caseDesGenres.addEventListener("change", () => {
+      etat.parGenre = caseDesGenres.checked;
+      recomposer();
+    });
   }
   const caseDesDomaines = hote.querySelector("[data-cerveau-domaines]");
   if (caseDesDomaines) {
