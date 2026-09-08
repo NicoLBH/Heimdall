@@ -534,9 +534,83 @@ porte. La seconde n'est pas une faute — la valeur est là, dans le bloc —, m
 elle n'est ni auditable, ni rattachable à un document, ni comparable d'une version
 à l'autre. C'est un choix de modèle, et il doit se voir.
 
-### Ce qui reste ouvert
+### La suite, tranchée : chaque conclusion verse sa valeur
 
-**Faut-il verser une valeur pour chaque conclusion de règle ?** Aujourd'hui c'est
-au cas par cas, sans que rien ne le décide : « Classement du bâtiment » en a une,
-« Famille » non. Les deux fonctionnent, mais seule la première s'audite. La
-question est de produit, pas de code, et elle attend une décision.
+La question posée ici — faut-il verser une valeur pour chaque conclusion de
+règle ? — a été tranchée : **oui**. `conclusionsDesDeductions` verse, à côté de
+chaque déduction du référentiel, la valeur qu'elle établit. « Famille : 2 » est
+désormais une affirmation du projet, pas une ligne dans un bloc.
+
+Ce qu'on y gagne, et qui n'était pas rattrapable autrement : l'audit la relit ;
+un document peut s'y rattacher ; elle se remplace, datée, comme n'importe quelle
+autre valeur ; et une correction se voit à l'étape où elle a lieu.
+
+La règle et sa conclusion sortent du **même module, au même instant** :
+`module.valeur` est lu une fois et écrit dans les deux lignes. Ce n'est pas une
+copie qu'on entretient — c'est un instantané, comme la règle elle-même en est un
+(`docs/fondamentaux.md`, règle 4).
+
+Un sujet déjà posé plus haut ne se repose pas : « Classement du bâtiment » partait
+déjà comme donnée de base, et la base refuse l'envoi entier sur un doublon de clé.
+
+### Ce qui reste, et qui n'est pas un défaut de l'outil
+
+Sur la mémoire d'essai, cent vingt-trois lectures restent sans entrée après
+reconstruction. Elles ne sont pas un bug : ce sont des **règles qui lisent un
+sujet que leur zone ne porte pas**. Une règle du magasin lit « Famille » ; aucune
+famille n'est déclarée pour le magasin. Emprunter celle du bâtiment A serait le
+mensonge que le code refuse — elle se lirait comme la valeur d'ici.
+
+Elles se comptent en haut de l'écran. C'est au projet d'y répondre, pas à l'outil.
+
+---
+
+## 8. Le volume cachait ses strates — *fait*
+
+**État :** fait · **Nature :** un encodage qui ne pouvait pas marcher.
+
+### Le symptôme
+
+Huit strates, trois cents nœuds, et pas une strate visible : la vue Volume
+montrait une boule. Les libellés des coquilles étaient là, la structure non.
+
+### Pourquoi aucun espacement ne pouvait le corriger
+
+Parce que le rayon **est** l'axe qu'on ne peut pas voir à travers. Des coquilles
+concentriques se cachent les unes les autres par construction : la plus externe
+masque tout ce qu'elle contient, et cela ne dépend ni de leur écartement, ni
+d'une échelle logarithmique. Espacer les coquilles ne fait qu'écarter des voiles
+qui continuent de se recouvrir.
+
+L'échelle logarithmique avait d'ailleurs un défaut de plus : elle **déforme**. Un
+pas vaut un pas, et rien ne justifie que la sixième étape paraisse plus loin de
+la cinquième que la seconde ne l'est de la première.
+
+### Ce qui a été fait : sortir la strate du rayon
+
+Une troisième vue, **Éclatée**. Chaque strate devient un disque, les disques
+s'empilent le long d'un axe qu'on voit, et la caméra les regarde presque de côté
+— une élévation basse rend les ellipses fines, et des ellipses fines s'empilent
+sans se confondre. On compte les étages du raisonnement comme les étages d'un
+immeuble.
+
+Le disque rétrécit quand les étages se multiplient : c'est la seule contrainte
+géométrique de cette vue. Deux disques larges à des hauteurs voisines se
+recouvrent à l'écran, et l'on retrouve la boule qu'on venait de quitter.
+
+Rien d'autre ne change : le plan du disque est un plan `x`/`z`, et
+`pencherVersLesDomaines` y tourne les nœuds vers le cap de leur domaine sans
+toucher à la hauteur — exactement comme en volume. Un domaine reste un secteur,
+une strate reste une strate.
+
+Deux choses n'ont pas leur place ici, et pour la même raison — la hauteur est
+prise : les **hémisphères**, qui s'en servaient pour séparer mémoire et
+raisonnement (les règles ont de toute façon leurs propres étages dans la pile), et
+les **voiles de domaine**, dont l'enveloppe traverserait tous les étages en une
+bande verticale qui recouvre sans rien situer. Le nom du secteur suffit.
+
+### Ce qui reste
+
+La vue Volume ne bouge pas. Elle répond à une autre question — *où est la
+matière* — et elle y répond bien tant qu'on ne lui demande pas de compter les
+strates.

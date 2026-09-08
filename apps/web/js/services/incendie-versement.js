@@ -256,6 +256,71 @@ export function deductionsVersables(vue, zone = "") {
 }
 
 /**
+ * Ce que chaque déduction **conclut**, versé comme une valeur du projet.
+ *
+ * ## Ce qui manquait, et ce que ça coûtait
+ *
+ * Une déduction partait comme règle, et sa conclusion restait dans son bloc :
+ * « Famille : 2 » n'existait nulle part ailleurs. Trois choses en découlaient,
+ * toutes mauvaises.
+ *
+ * **L'audit ne la vérifiait pas.** Il relit les valeurs de la mémoire ; une
+ * valeur qui n'y est pas ne se compare à rien, et une famille devenue fausse
+ * parce que le nombre d'étages a changé passait sans un mot.
+ *
+ * **Rien ne s'y rattachait.** Pas de document source, pas de proposition, pas de
+ * remplacement daté : on ne pouvait ni la contester, ni voir depuis quand elle
+ * vaut ce qu'elle vaut.
+ *
+ * **Le raisonnement se coupait en deux.** Les quarante-neuf règles qui lisent
+ * « Famille » ne trouvaient aucune affirmation de ce nom. `resoudre` sait
+ * désormais remonter jusqu'à la règle, ce qui recolle le graphe — mais recoller
+ * un graphe n'est pas la même chose qu'avoir la valeur. La valeur, elle, se lit,
+ * se cite, se corrige et s'audite.
+ *
+ * ## Pourquoi la même valeur à deux endroits ne diverge pas ici
+ *
+ * La règle **et** sa conclusion sortent du même versement, du même module, au
+ * même instant : `module.valeur` est lu une fois et écrit dans les deux lignes.
+ * Ce n'est pas une copie qu'on entretient — c'est un instantané, comme la règle
+ * elle-même en est un. Rejouer la règle plus tard produira une nouvelle valeur
+ * qui remplacera celle-ci, datée, sans toucher à l'ancienne.
+ *
+ * ## Pourquoi une donnée de base
+ *
+ * Comme le classement, et pour la même raison : c'est un **nom posé une fois et
+ * cité partout ailleurs**. Sa nature déduite se lit à ce qu'une règle du projet
+ * la conclut — le cerveau la range en « rejouable » sans qu'on ait à l'écrire,
+ * et l'écrire en dur ferait deux vérités pour une.
+ *
+ * @param {object} vue ce que le référentiel a conclu
+ * @param {string} zone la portée retenue, vide pour l'ensemble
+ */
+export function conclusionsDesDeductions(vue, zone = "") {
+  const source = texte(vue?.texteDeReference?.source) || "arrêté du 31 janvier 1986 modifié";
+  const portee = texte(zone) ? [texte(zone)] : [];
+
+  // Les mêmes déductions, exactement : une conclusion qui ne viendrait pas
+  // d'une règle versée serait une valeur sans raisonnement, et l'on aurait
+  // remplacé un trou par un autre.
+  return deductionsVersables(vue, zone).map((regle) => ({
+    sujet: regle.sujet,
+    valeur: regle.valeur,
+    nature: NATURE.DONNEE_BASE,
+    domaine: DOMAIN.INCENDIE,
+    quoi: `Conclusion de la règle « ${regle.sujet} », appliquée à cette étude.`,
+    utilisation: "Citée par les règles qui la lisent en condition.",
+    source,
+    provenance: { type: PROVENANCE.REGLE, quoi: `${regle.sujet} — ${source}` },
+    citation: regle.citation,
+    statut: STATUT.RETENU,
+    reference: regle.reference.replace(/^regle:/, ""),
+    zones: portee,
+    atelier: "Incendie — Habitation"
+  }));
+}
+
+/**
  * Les réponses de l'étude, versées comme les données de base qu'elles sont.
  *
  * ## Là où la chaîne doit s'arrêter

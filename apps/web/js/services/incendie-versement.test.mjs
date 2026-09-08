@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   conclusionsVersables, cleDuVersement, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables,
-  donneesDeBaseVersables, deductionsVersables, reponsesVersables } from "./incendie-versement.js";
+  donneesDeBaseVersables, deductionsVersables, conclusionsDesDeductions,
+  reponsesVersables } from "./incendie-versement.js";
+import { PROVENANCE } from "./memoire-en-texte.js";
 
 const VUE = {
   modules: [
@@ -260,4 +262,41 @@ test("les réponses de l'étude partent en données de base : c'est là que la c
   assert.equal(donnees[1].valeur, "4");
   assert.equal(donnees[2].valeur, "24.5 m");
   assert.equal(donnees[0].nature, "donnee-de-base");
+});
+
+/* ── Ce que chaque déduction conclut ─────────────────────────────────────── */
+
+test("une déduction verse aussi la valeur qu'elle conclut", () => {
+  // Sans elle, « Habitation : collective » n'existe que dans le bloc de sa règle :
+  // l'audit ne la relit pas, aucun document ne s'y rattache, et les règles qui la
+  // citent ne trouvent aucune affirmation de ce nom.
+  const valeurs = conclusionsDesDeductions(VUE_DEDUITE, "Bâtiment A");
+
+  assert.deepEqual(valeurs.map((v) => v.sujet), ["Habitation individuelle ou collective"]);
+  const [nature] = valeurs;
+  assert.equal(nature.valeur, "collective");
+  assert.equal(nature.referentiel, undefined, "une valeur n'est pas une règle");
+  assert.deepEqual(nature.zones, ["Bâtiment A"]);
+  // La portée en fait partie : deux bâtiments peuvent conclure différemment, et
+  // une conclusion posée sans zone périmerait l'autre.
+  assert.equal(nature.provenance.type, PROVENANCE.REGLE);
+});
+
+test("la règle et sa conclusion sortent du même module, jamais de deux lectures", () => {
+  // Une valeur écrite à deux endroits finit par diverger — sauf quand les deux
+  // écritures lisent la même source au même instant, ce qui est le cas ici.
+  const regles = deductionsVersables(VUE_DEDUITE, "Bâtiment A");
+  const valeurs = conclusionsDesDeductions(VUE_DEDUITE, "Bâtiment A");
+
+  assert.deepEqual(regles.map((r) => [r.sujet, r.valeur]), valeurs.map((v) => [v.sujet, v.valeur]));
+});
+
+test("une conclusion sans règle versée n'existe pas", () => {
+  // Une valeur sans raisonnement remplacerait un trou par un autre : on ne verse
+  // que ce que `deductionsVersables` retient — ni le « sans objet », ni la
+  // lecture directe sans condition, ni l'exigence qui part déjà ailleurs.
+  const sujets = conclusionsDesDeductions(VUE_DEDUITE, "").map((v) => v.sujet);
+  assert.equal(sujets.includes("Sous-sol du bâtiment"), false);
+  assert.equal(sujets.includes("Duplex au dernier étage"), false);
+  assert.equal(sujets.includes("Classement du bâtiment"), false);
 });
