@@ -51,6 +51,22 @@ Deno.serve(async (req: Request) => {
     const toolKey = payload?.tool_key as ToolKey;
     const location = payload?.location ?? {};
 
+    /**
+     * Calculer sans rien écrire.
+     *
+     * C'est ce qui manquait pour qu'une variante puisse rejouer un utilitaire.
+     * Sans ce mode, il n'y avait que deux issues, toutes deux mauvaises : appeler
+     * l'outil et **écrire** le fait de contexte — une valeur essayée entrerait
+     * alors dans le projet sans que personne l'ait décidée, ce que Mdall existe
+     * pour empêcher —, ou réécrire la loi de calcul dans le navigateur, un
+     * utilitaire à la fois, jusqu'à ce que les deux copies divergent.
+     *
+     * Le même calcul, la même table, la même version. Seule l'écriture est
+     * retirée. Les contrôles d'accès, eux, restent : lire le zonage d'un projet
+     * dont on n'est pas membre resterait une fuite, écriture ou pas.
+     */
+    const dryRun = payload?.dry_run === true;
+
     if (!projectId || !toolKey || !["snow", "wind", "frost"].includes(toolKey)) {
       return json({ error: "Invalid payload: project_id and tool_key(snow|wind|frost) are required" }, 400);
     }
@@ -75,6 +91,24 @@ Deno.serve(async (req: Request) => {
 
     const resolution = await resolveClimateTool(serviceClient, toolKey, location);
     const inputSignature = await buildInputSignature({ toolKey, location });
+
+    // Une valeur essayée n'entre nulle part. Elle se lit, elle se compte, et elle
+    // ressort — la mémoire du projet ne bouge pas d'un octet.
+    //
+    // On rend le **fait de contexte** qu'on aurait écrit, pas seulement le
+    // résultat brut : c'est lui que les utilitaires savent lire, et le laisser
+    // reconstruire au navigateur obligerait à y recopier `mapToolResultToContextFact`.
+    // Deux copies d'une même mise en forme finissent par diverger.
+    if (dryRun) {
+      return json({
+        tool_key: toolKey,
+        input_signature: inputSignature,
+        dry_run: true,
+        result: resolution.result,
+        context_fact: mapToolResultToContextFact(toolKey, resolution.result),
+        markdown_summary: resolution.markdownSummary
+      });
+    }
 
     const { error: resultUpsertError } = await serviceClient
       .from("project_tool_results")

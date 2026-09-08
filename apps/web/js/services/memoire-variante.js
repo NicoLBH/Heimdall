@@ -21,13 +21,24 @@
  * base est une valeur qu'on **sait**. Adopter une variante, ce sera la faire
  * monter d'un barreau — par une proposition, jamais directement.
  *
+ * ## Les utilitaires se rejouent, eux aussi
+ *
+ * Ce module ne connaît plus **aucune** loi de calcul. Les utilitaires se
+ * rejouaient par une table de correspondance écrite à la main, qui portait deux
+ * cas ; ils se rejouent maintenant en redemandant à l'outil qui les a produits,
+ * en mode « calcule sans écrire ». Voir `utilitaires-rejeu.js`.
+ *
+ * Le réseau se fait **avant**, une fois, et ce module reçoit le résultat par
+ * `relectures`. C'est ce qui le garde pur et synchrone : le calque de la mémoire
+ * s'applique des dizaines de fois par rendu, et il ne peut pas attendre.
+ *
  * ## Les trois rangs, et pourquoi ils ne se mélangent jamais
  *
- * 1. **Recalculé** — une règle du projet a été rejouée, ou l'un des deux
- *    utilitaires dont nous connaissons la loi. Une vraie valeur, et sa trace.
- * 2. **À revérifier** — concerné, mais nous ne savons pas le refaire : un
- *    utilitaire opaque, une règle dont une entrée manque, une règle qui a perdu
- *    son objet. On le **nomme**, on ne devine pas.
+ * 1. **Recalculé** — une règle du projet a été rejouée, ou un utilitaire a
+ *    recalculé au serveur. Une vraie valeur, et sa trace.
+ * 2. **À revérifier** — concerné, mais on ne sait pas le refaire : un utilitaire
+ *    injoignable ou sans rejeu, une règle dont une entrée manque, une règle qui a
+ *    perdu son objet. On le **nomme**, on ne devine pas.
  * 3. **Inchangé** — compté, et dit. « Rien n'a bougé là » est une information.
  *
  * La faute mortelle serait de présenter le deuxième rang comme le premier.
@@ -49,7 +60,7 @@ import { dependancesDesApplications } from "./memoire-applications.js";
 import { rejouerLesRegles } from "./memoire-rejeu.js";
 import { natureDuNoeud, NOEUD } from "./memoire-plan.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
-import { pourquoiPasRelue, relecturesConnues } from "./variante-utilitaires.js";
+import { phraseDuRefus } from "./utilitaires-rejeu.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const idDe = (assertion) => texte(assertion?.id);
@@ -161,11 +172,12 @@ function etatDuRejeu(rejeu) {
  * @param {object[]} options.assertions la mémoire telle qu'elle est lue
  * @param {Map<string, string>|object} options.substitutions affirmation → valeur essayée
  * @param {object[]} [options.applications] les lectures enregistrées, si on les a
- * @param {boolean} [options.supposer] accepter de supposer l'altitude de départ
- *   des contraintes qui ne l'ont pas conservée
+ * @param {{recalculees: object[], refusees: object[]}} [options.relectures] ce que
+ *   les utilitaires ont répondu quand on les a rejoués. Calculé avant, par
+ *   `rejouerLesUtilitaires` : ce module ne parle à personne.
  */
 export function consequencesDeLaVariante({
-  assertions = [], substitutions = new Map(), applications = null, supposer = false
+  assertions = [], substitutions = new Map(), applications = null, relectures = null
 } = {}) {
   const toutes = Array.isArray(assertions) ? assertions : [];
   const voulues = substitutions instanceof Map ? substitutions : new Map(Object.entries(substitutions ?? {}));
@@ -190,10 +202,10 @@ export function consequencesDeLaVariante({
 
   if (!depart.length) return { ok: false, raison: "Rien n'a été changé : il n'y a pas de variante." };
 
-  // Les deux utilitaires dont nous connaissons la loi — l'exception, isolée.
-  const relectures = relecturesConnues({ enVigueur, substitutions: voulues, supposer });
-  const recalculees = relectures.recalculees;
-  const refusees = relectures.refusees;
+  // Ce que les utilitaires ont répondu. Rien n'est calculé ici : le rejeu a eu
+  // lieu avant, au serveur, avec la même loi et la même version qu'au versement.
+  const recalculees = Array.isArray(relectures?.recalculees) ? relectures.recalculees : [];
+  const refusees = Array.isArray(relectures?.refusees) ? relectures.refusees : [];
 
   // Ce qu'on impose au rejeu : les valeurs essayées, et ce que les relectures
   // viennent d'établir. Le moteur fait le reste.
@@ -229,14 +241,28 @@ export function consequencesDeLaVariante({
   const changees = new Set([
     ...depart.map((entree) => entree.id),
     ...recalculees.filter((l) => l.valeurABouge || l.reservesOntBouge).map((l) => idDe(l.assertion)),
-    ...refusees.map(idDe),
+    ...refusees.map((ligne) => idDe(ligne.assertion)),
     ...rejouees.map((l) => idDe(l.assertion))
   ].filter(Boolean));
+
+  /**
+   * Ce que le rejeu a **confirmé** : évalué, et rendu la même valeur qu'avant.
+   *
+   * Sans ce compte, une règle que le moteur venait de rejouer avec succès tombait
+   * dans « à revérifier » du seul fait qu'une de ses entrées avait bougé. C'est
+   * exactement le faux signal qu'on refuse ailleurs : on a regardé, la conclusion
+   * tient, et le dire suspect apprend à ignorer l'écran.
+   */
+  const confirmees = (rejeu.tenues ?? [])
+    .map((tenue) => texte(tenue?.sortie?.id))
+    .filter(Boolean)
+    .filter((id) => !rejouees.some((ligne) => idDe(ligne.assertion) === id));
 
   const traitees = new Set([
     ...depart.map((entree) => entree.id),
     ...recalculees.map((l) => idDe(l.assertion)),
-    ...rejouees.map((l) => idDe(l.assertion))
+    ...rejouees.map((l) => idDe(l.assertion)),
+    ...confirmees
   ]);
 
   const heritiers = cequiEnDecoule(enVigueur, changees, applications);
@@ -246,7 +272,7 @@ export function consequencesDeLaVariante({
       const id = idDe(assertion);
       if (!id || traitees.has(id) || estUneRegle(assertion)) return false;
       return sansFondement.has(id)
-        || refusees.some((autre) => idDe(autre) === id)
+        || refusees.some((autre) => idDe(autre.assertion) === id)
         || heritiers.has(id);
     })
     .map((assertion) => {
@@ -257,13 +283,13 @@ export function consequencesDeLaVariante({
         valeur: texte(assertion?.payload?.value),
         motif: sansFondement.has(id)
           ? "sans-objet"
-          : refusees.some((autre) => idDe(autre) === id)
+          : refusees.some((autre) => idDe(autre.assertion) === id)
             ? "utilitaire"
             : "en-decoule",
         pourquoi: sansFondement.has(id)
           ? "la règle qui la concluait ne s'applique plus, et elle n'a rien à dire à la place"
-          : refusees.some((autre) => idDe(autre) === id)
-            ? pourquoiPasRelue(assertion)
+          : refusees.some((autre) => idDe(autre.assertion) === id)
+            ? phraseDuRefus(refusees.find((autre) => idDe(autre.assertion) === id)?.refus)
             : rejeu.indecidables.some((ligne) => texte(ligne?.sortie?.id) === id)
               ? `sa règle n'a pas pu être évaluée : il manque ${
                   rejeu.indecidables.find((ligne) => texte(ligne?.sortie?.id) === id)?.manquants.join(", ")
@@ -281,12 +307,15 @@ export function consequencesDeLaVariante({
     ok: true,
     depart,
     substitutions: voulues,
-    suppose: Boolean(supposer),
-    // Combien de contraintes ne manquent que de leur altitude de départ : de
-    // quoi proposer la supposition plutôt que de la prendre.
-    supposables: relectures.supposables,
+    // Rendues telles quelles : c'est ce que le calque réappliquera, et ce que la
+    // variante gardée entre deux écrans doit porter. Le recalculer ailleurs
+    // rappellerait le serveur pour une réponse qu'on a déjà.
+    relectures: { recalculees, refusees },
     recalculees,
     rejouees,
+    // Comptées, jamais listées : trois cents lignes « rien n'a changé » noieraient
+    // les trois qui comptent. Le compte, lui, dit que l'outil a regardé.
+    confirmees: confirmees.length,
     cycles: rejeu.cycles,
     aRevoir,
     // Compté, jamais listé : une liste de soixante lignes identiques noierait
@@ -354,7 +383,7 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
   if (!voulues.size) return toutes;
 
   const consequences = consequencesDeLaVariante({
-    assertions: toutes, substitutions: voulues, supposer: Boolean(variante?.suppose)
+    assertions: toutes, substitutions: voulues, relectures: variante?.relectures ?? null
   });
   if (!consequences.ok) return toutes;
 
@@ -370,11 +399,14 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
     remplacements.set(idDe(ligne.assertion), substituee(ligne.assertion, {
       valeur: ligne.apres,
       reserves: ligne.reservesApres,
-      effet: ligne.suppose
-        ? "supposee"
-        : ligne.valeurABouge || ligne.reservesOntBouge ? "recalculee" : "relue",
+      effet: ligne.valeurABouge || ligne.reservesOntBouge ? "recalculee" : "relue",
       avant: ligne.avant,
-      pourquoi: ligne.suppose ? `supposée calculée à ${ligne.altitudeDepart} m` : ""
+      // « recalculée » quand elle a bougé, « relue » quand elle n'a pas bougé :
+      // le mot suit l'effet. Écrire « recalculée » sur une valeur identique
+      // ferait chercher un changement qui n'existe pas.
+      pourquoi: ligne.utilitaire
+        ? `${ligne.valeurABouge || ligne.reservesOntBouge ? "recalculée" : "relue"} par ${ligne.utilitaire}, au serveur`
+        : ""
     }));
   }
 
@@ -411,11 +443,14 @@ export function variantePourLEcran({ consequences = null, par = null, at = "" } 
 
   return {
     substitutions: consequences.substitutions,
-    suppose: Boolean(consequences.suppose),
+    // Ce que les utilitaires ont répondu, gardé avec la variante : le calque le
+    // réapplique sans redemander, et sans rien recalculer de son côté.
+    relectures: consequences.relectures,
     depart: consequences.depart.map((entree) => ({
       sujet: entree.sujet, depuis: entree.valeur, vers: entree.vers
     })),
     recalculees: consequences.recalculees.length + consequences.rejouees.length,
+    confirmees: consequences.confirmees,
     aRevoir: consequences.aRevoir.length,
     inchangees: consequences.inchangees,
     memoireAu: consequences.memoireAu,

@@ -14,10 +14,10 @@ se fera pas — et alors on écrit pourquoi.
 
 ---
 
-## 1. Les utilitaires nommeront leurs sources
+## 1. Les utilitaires nommeront leurs sources — *fait*
 
-**État :** en partie fait · **Nature :** un chantier client, fait ; un chantier
-serveur, ouvert.
+**État :** fait, pour les outils climatiques · **Reste :** les utilitaires qui
+lisent une API ou un document, et les entrées que la mémoire ne porte pas.
 
 ### Le problème, tel qu'il était
 
@@ -74,29 +74,52 @@ ne recalcule pas — la table est au serveur — mais on dit que la valeur affic
 vaut plus. C'était le défaut le plus dangereux : une valeur d'apparence normale
 dont l'entrée a bougé sous elle.
 
-### Ce qui reste, et qui est bien serveur
+### Ce qui a été fait ensuite : les utilitaires se rejouent
 
-Deux choses, et elles se tiennent.
+Le carnet disait ici que rejouer un utilitaire était « un chantier serveur », et
+que deux lois resteraient en dur dans le navigateur en attendant. **C'était une
+mauvaise réponse**, et elle vidait la variante de son intérêt : sur un projet dont
+le raisonnement passe surtout par des utilitaires, essayer une altitude ne rendait
+que des noms « à revérifier », et il fallait recalculer à la main ce que l'outil
+existe pour calculer.
 
-**Rejouer un utilitaire.** Savoir qu'une contrainte dépend de l'altitude ne dit
-pas ce qu'elle vaudrait à 890 m. Deux lois vivent encore en dur dans
-`variante-utilitaires.js` — la profondeur hors gel et la réserve de la zone de
-neige — et elles y restent parce qu'un troisième cas voudrait dire qu'on réécrit
-le serveur dans le navigateur, un utilitaire à la fois. Ce qu'il faudrait est un
-appel : « recalcule cette déduction avec ces entrées-là, sans rien écrire ».
+Il manquait une chose, et une seule : le droit de **calculer sans écrire**. Sans
+lui, il n'y avait que deux issues, toutes deux mauvaises — appeler l'outil et
+écrire le fait de contexte, et une valeur essayée entrerait dans le projet sans
+que personne l'ait décidée ; ou recopier la loi dans le navigateur, jusqu'à ce que
+les deux copies divergent.
+
+`resolve-climate-tool` accepte donc `dry_run`. Même table, même version, même loi ;
+rien n'entre nulle part. Il rend en plus le **fait de contexte** qu'il aurait écrit,
+si bien que l'utilitaire le relit avec sa propre fonction `deduire` — la même qu'au
+versement. Une variante et un versement ne peuvent donc pas dire deux choses
+différentes de la même situation.
+
+Chaque utilitaire déclare comment se rejouer : `rejeu: { outil: "frost" }`, et sur
+chaque entrée le champ de l'appel par lequel elle passe. Une entrée sans champ se
+lit sans se faire varier — H0 en est une : le serveur le choisit dans sa table
+départementale, et le lui imposer lui ferait dire autre chose que le DTU. La
+variante le **dit** au lieu de rendre un chiffre.
+
+`variante-utilitaires.js`, avec sa table `RELECTURES` et ses deux lois recopiées,
+n'existe plus.
+
+### Ce qui reste, et qui est vraiment serveur
+
+**Les autres utilitaires.** Seuls les trois outils climatiques ont un mode « calcule
+sans écrire ». Le zonage sismique et le retrait-gonflement lisent Géorisques, et
+l'extraction d'avis lit des documents : ni l'un ni l'autre ne se rejoue avec une
+valeur du projet. Ils se disent « à revérifier », avec leur nom.
 
 **Nommer les entrées que la mémoire ne porte pas.** Le département, le canton, les
 coordonnées : un utilitaire les lit et le projet ne les verse pas comme sujets. On
 ne les déclare donc pas — déclarer un sujet que rien ne verse ferait un lien vers
 rien. Le jour où le projet posera son adresse comme une donnée de base, ces
-lectures-là se déclareront comme les autres.
+lectures-là se déclareront comme les autres, et se feront varier comme les autres.
 
-### Ce qui se passe si on laisse le reste
-
-Rien ne casse, et l'angle mort est bien plus petit qu'avant. Ce qui dépend d'un
-utilitaire est **su**, compté et signalé ; ce qu'on ne sait pas, c'est ce qu'il
-vaudrait autrement. La variante le dit ligne par ligne : « à revérifier », avec le
-nom de l'utilitaire, jamais un chiffre inventé.
+**Un projet sans appel conservé.** Le rejeu repart du dernier appel de l'outil,
+gardé dans `project_tool_results`. Un projet qui n'en a pas — parce que ses
+contraintes ont été versées autrement — n'a rien à redemander, et le dit.
 
 ### Ce qu'il ne faut pas faire en attendant
 
@@ -104,9 +127,14 @@ nom de l'utilitaire, jamais un chiffre inventé.
 n'est pas « Altitude du site ». Ce qui a été fait est l'inverse : l'utilitaire
 **dit** le sujet, et c'est un sujet du projet, pas un nom de champ.
 
-**Allonger `RELECTURES`.** Elle porte deux cas parce qu'ils servent la
-démonstration ; un troisième voudrait dire qu'on réécrit le serveur dans le
-navigateur, un utilitaire à la fois.
+**Recopier une loi de calcul dans le navigateur.** C'est ce qu'on vient de
+supprimer. Un utilitaire qu'on ne sait pas rejouer se **nomme** ; il ne se
+réimplémente pas, fût-ce « juste pour ce cas-là ».
+
+**Laisser passer une valeur qu'un champ ne sait pas lire.** L'appel attend un
+nombre ; « à confirmer » n'en est pas un, et le passer quand même le ferait
+retomber sur zéro — une cote de fondation calculée au niveau de la mer, énoncée
+comme une règle. Le refus est nommé.
 
 ---
 
@@ -179,3 +207,77 @@ mécanique, elle, est prête — `variantePourLEcran` porte déjà le dossier co
 L'outil reste **honnête et inutilisable au bout** : il montre juste, et il faut
 recopier. C'est le pire endroit où s'arrêter, parce que c'est celui où
 quelqu'un, un jour, recopiera de travers.
+
+---
+
+## 5. Le cerveau du projet : voir le raisonnement en strates
+
+**État :** proposé, à arbitrer · **Nature :** un écran. **Débloque :** rien de
+mécanique — tout est déjà calculé. Il rend **visible** ce qu'on ne peut
+aujourd'hui que lire ligne à ligne.
+
+### Ce qui manque
+
+On ne voit toujours pas l'ensemble du raisonnement d'un projet. On le lit — un
+tableau, une étude d'impact, un audit — et chacun de ces écrans répond à une
+question précise. Aucun ne montre la **forme** : combien de strates, où est le
+socle, où sont les nœuds opaques, et jusqu'où une valeur se propage.
+
+### Ce qu'il n'y a pas à construire
+
+Tout. `planDeRecalcul` rend les strates et les cycles, `dependancesDesApplications`
+les arêtes avec leur compte exact et leur zone, `natureDuNoeud` les trois natures.
+Cet écran ne calcule rien : il dessine ce qui existe.
+
+### La proposition
+
+Un plein écran depuis le menu **Tester**. Fond sombre, un canvas.
+
+Les nœuds rangés en **colonnes = strates** : le socle à gauche, puis ce qui n'en
+dépend que d'un pas, et ainsi de suite. Dedans, une disposition organique — pas une
+grille — avec une respiration continue et lente, de sorte que ça vive sans jamais
+partir.
+
+Trois natures, trois traitements, et ce sont ceux de la sidebar :
+
+- **socle** — points pleins et lumineux : ce sont les sources ;
+- **rejouable** — points cerclés : on sait les refaire ;
+- **opaque** — points creux, éteints : on sait qu'ils dépendent, pas les refaire.
+
+Les arêtes en dégradé de l'amont vers l'aval, l'épaisseur au nombre de lectures.
+
+**Ce qui fait l'effet, et qui n'est pas décoratif :** on clique un nœud du socle,
+une **onde** part de lui, remonte les arêtes strate par strate, et illumine au
+passage tout ce qui en découle — au rythme du plan, une strate par temps. On *voit*
+la profondeur du raisonnement : « la plus longue chaîne fait huit pas » devient huit
+pulsations. Un cycle se lit tout de suite — l'onde y tourne au lieu d'en sortir — et
+on l'arrête en le nommant.
+
+### Les deux choses qui la sauvent d'être une jolie image inutile
+
+**L'onde suit la même fonction que l'étude d'impact.** Même graphe, même compte. Si
+cet écran ment, l'étude d'impact ment aussi, et les deux se corrigent ensemble. Un
+dessin qui aurait sa propre source de vérité finirait par montrer autre chose que ce
+que l'outil décide.
+
+**Ce qui est opaque ne s'allume pas.** L'onde s'arrête net devant, et c'est visible :
+la frontière de ce qu'on sait rejouer devient une forme, pas un chiffre. C'est
+probablement le seul écran de l'application où l'on comprend d'un coup d'œil ce que
+Mdall sait et ce qu'il ne sait pas.
+
+### Ce qui reste à arbitrer
+
+**(a) L'onde au clic** — on choisit une valeur, on regarde ce qui s'allume. C'est
+l'étude d'impact rendue physique, et c'est directement interrogeable.
+
+**(b) Le battement permanent** — les impulsions partent du socle en boucle, et les
+nœuds que l'audit signale pulsent en rouge. Plus spectaculaire, moins interrogeable.
+
+Recommandation : **(a) d'abord**, avec le battement de fond en sourdine, et (b) en
+mode plein écran.
+
+### Ce qui se passe si on le laisse
+
+Rien ne casse, et il manque quelque chose qui ne se répare pas ailleurs : la
+**compréhension d'ensemble**. Un projet de quatre cents affirmations se lit
+aujourd'hui par le trou d'une serrure, une question à la fois.

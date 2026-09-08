@@ -148,6 +148,7 @@ export function rejouerLesRegles(assertions = [], { substitutions = new Map() } 
   const imposees = substitutions instanceof Map ? substitutions : new Map(Object.entries(substitutions ?? {}));
 
   const conclusions = new Map();
+  const tenues = new Map();
   const indecidables = [];
   const sansObjet = [];
   const cycles = [];
@@ -162,6 +163,7 @@ export function rejouerLesRegles(assertions = [], { substitutions = new Map() } 
     const doutes = new Map();
     const inapplicables = new Map();
     const trouvees = new Map();
+    const confirmees = new Map();
     let bouge = true;
     let toursDeLaZone = 0;
     let tourne = false;
@@ -201,14 +203,31 @@ export function rejouerLesRegles(assertions = [], { substitutions = new Map() } 
 
         const cle = cleDuSujet(sujetDe(regle));
         const avant = valeurs.get(cle) ?? "";
-        if (texte(rendu.apres) === texte(avant)) continue;
+        const marque = `${texte(sortie?.id) || texte(regle.id)}|${zone}`;
+
+        if (texte(rendu.apres) === texte(avant)) {
+          // **Rejouée, et elle tient.** Ce n'est pas rien : sans cette liste, une
+          // règle que le moteur venait d'évaluer avec succès était indiscernable
+          // d'une règle qu'il n'avait pas regardée — et la variante la rangeait
+          // dans « à revérifier » du seul fait qu'une de ses entrées avait bougé.
+          // C'est le faux signal qu'on refuse ailleurs : on a regardé, la
+          // conclusion tient, et le dire suspect apprend à ignorer l'écran.
+          confirmees.set(marque, {
+            regle, zone, sortie,
+            sujet: sujetDe(regle),
+            valeur: texte(rendu.apres),
+            trace: rendu.evaluation.conditions
+          });
+          continue;
+        }
+        confirmees.delete(marque);
 
         // Une valeur nouvelle : on la pose, et l'on refait un tour — ce qui la
         // lit doit être rejoué avec elle.
         valeurs.set(cle, texte(rendu.apres));
         bouge = true;
 
-        trouvees.set(`${texte(sortie?.id) || texte(regle.id)}|${zone}`, {
+        trouvees.set(marque, {
           regle, zone, sortie,
           sujet: sujetDe(regle),
           avant: texte(sortie?.payload?.value) || avant,
@@ -231,9 +250,18 @@ export function rejouerLesRegles(assertions = [], { substitutions = new Map() } 
     }
 
     for (const [cle, conclusion] of trouvees) conclusions.set(cle, conclusion);
+    // Une règle qui a fini par bouger n'est plus tenue : c'est son dernier tour
+    // qui compte, pas le premier.
+    for (const cle of trouvees.keys()) confirmees.delete(cle);
+    for (const [cle, tenue] of confirmees) tenues.set(cle, tenue);
     indecidables.push(...doutes.values());
     sansObjet.push(...inapplicables.values());
   }
 
-  return { conclusions: [...conclusions.values()], indecidables, sansObjet, cycles, tours, borne };
+  return {
+    conclusions: [...conclusions.values()],
+    /** Rejouées, et elles rendent ce que le projet affirme déjà. On a regardé. */
+    tenues: [...tenues.values()],
+    indecidables, sansObjet, cycles, tours, borne
+  };
 }

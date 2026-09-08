@@ -22,6 +22,16 @@ export const DEDUCTION_ZONE_VENT_COMMUNE_V1 = {
   domaine: DOMAIN.STRUCTURE,
   cleDonnee: "wind_zone",
 
+  /**
+   * Le même outil serveur, en mode « calcule sans écrire ».
+   *
+   * Elle ne déclare aucune lecture — la zone vient d'une table communale que la
+   * mémoire ne porte pas —, et elle est donc rejouable sans être concernée par
+   * quoi que ce soit qu'on fasse varier aujourd'hui. Le jour où le projet posera
+   * sa commune comme une donnée de base, il n'y aura qu'une ligne à ajouter.
+   */
+  rejeu: { outil: "wind" },
+
   deduire(fait = {}) {
     const valeur = String(fait?.fact_value?.zone ?? "").trim();
     if (!valeur) return null;

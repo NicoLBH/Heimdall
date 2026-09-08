@@ -641,7 +641,6 @@ const EFFETS_DE_VARIANTE = {
   variante: { nom: "Variante", quoi: "la valeur que vous essayez" },
   recalculee: { nom: "Recalculée", quoi: "rejouée avec la nouvelle valeur" },
   rejouee: { nom: "Rejouée", quoi: "" },
-  supposee: { nom: "Supposée", quoi: "" },
   relue: { nom: "Relue", quoi: "rejouée, et elle ne bouge pas" },
   "a-revoir": { nom: "À revérifier", quoi: "" }
 };
@@ -3198,8 +3197,13 @@ function brancherLeBoutonTester(root) {
     // Rien à faire en entrant dans une variante : on est déjà sur la mémoire, et
     // l'abonnement au magasin la redessine.
     if (quoi === "tester:variante") {
+      // L'identifiant du projet n'est pas décoratif : sans lui, la fenêtre ne
+      // peut pas redemander aux utilitaires de se rejouer, et tout ce qu'ils
+      // produisent retombe dans « à revérifier ».
       void ouvrirLaFenetreDeVariante({
-        assertions: view.memoire ?? [], applications: view.applications
+        projectId: view.projectId ?? "",
+        assertions: view.memoire ?? [],
+        applications: view.applications
       });
     }
     if (quoi === "tester:impact") {

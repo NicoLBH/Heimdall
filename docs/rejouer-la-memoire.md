@@ -367,9 +367,10 @@ affiche — exactement le défaut que l'audit cherche. La fenêtre s'ouvre donc 
 question qui précède — *quelle valeur essaie-t-on ?* —, comme le fait l'étude
 d'impact, et les valeurs les plus employées sont en tête.
 
-Les deux relectures d'utilitaires ont déménagé dans `variante-utilitaires.js`, où
-elles sont **l'exception, et se disent comme telles**. Le fichier porte sa propre
-date de péremption : voir plus bas.
+Les deux relectures d'utilitaires ont déménagé dans un fichier à part, où elles
+étaient **l'exception, et se disaient comme telles**. Elles n'existent plus : les
+utilitaires se rejouent maintenant en redemandant à leur référentiel de calculer
+sans écrire. Voir `docs/a-traiter-plus-tard.md`, § 1.
 
 Et la variante n'est alors qu'**un** des usages du moteur, pas le plus précieux :
 
@@ -449,10 +450,11 @@ deux exceptions nommées au bord d'un moteur qui, lui, généralise. Elle ne
 s'allongera pas d'un cas à chaque projet : les projets apportent des règles, et
 les règles se rejouent.
 
-L'étape 6 l'a rendu visible dans l'arborescence : ces deux relectures vivent
-maintenant seules dans `variante-utilitaires.js`, un fichier dont l'en-tête dit
-qu'il est une exception et qu'il est destiné à disparaître. Un jour où quelqu'un
-voudra y ajouter un troisième cas, le fichier le lui déconseillera lui-même.
+**Et elle a disparu depuis.** Pas parce que l'évaluateur a fini par savoir lire un
+utilitaire — il ne le sait toujours pas — mais parce qu'on a cessé de vouloir le
+lui faire faire. L'outil qui a produit la contrainte sait la refaire ; il lui
+manquait le droit de calculer sans écrire. Voir `docs/a-traiter-plus-tard.md`,
+§ 1.
 
 Elle disparaîtra le jour où les utilitaires **nommeront leurs sources** et
 seront rejouables comme le reste. Ce n'est pas une étape de ce plan ; c'est un

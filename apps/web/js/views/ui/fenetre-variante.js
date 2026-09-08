@@ -41,9 +41,10 @@ import { svgIcon } from "../../ui/icons.js";
 import {
   consequencesDeLaVariante, valeursSubstituables, variantePourLEcran
 } from "../../services/memoire-variante.js";
+import { rejouerLesUtilitaires } from "../../services/utilitaires-rejeu.js";
 import { emploisParAffirmation } from "../../services/memoire-applications.js";
 import { essayerLaVariante } from "../../services/variante-en-cours.js";
-import { RESERVE, phraseDeReserve } from "../../utilitaires/reserves.js";
+import { phraseDeReserve } from "../../utilitaires/reserves.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -172,6 +173,37 @@ function renderSaisie(depart, echec = "") {
   `;
 }
 
+/**
+ * Pendant que le référentiel calcule.
+ *
+ * Elle dit ce qui se passe, et surtout ce qui **ne** se passe pas : l'outil du
+ * serveur est appelé, et rien ne s'y écrit. Quelqu'un qui voit « on interroge le
+ * référentiel » sans cette phrase peut légitimement craindre d'avoir engagé le
+ * projet en tapant un chiffre.
+ */
+function renderAttente(depart, vers) {
+  return `
+    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Calcul en cours">
+      <div class="fichiers-saisie__boite variante-boite">
+        <header class="fichiers-saisie__tete">
+          <b>${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(depart.sujet)} :
+            ${escapeHtml(depart.valeur)} → ${escapeHtml(vers)}</b>
+        </header>
+
+        <p class="variante-lead variante-attente">
+          ${svgIcon("sync", { className: "octicon" })}
+          Les règles du projet se rejouent ici, et les utilitaires sont redemandés à leur
+          référentiel avec cette valeur. <b>Rien n'y est écrit</b> : ils calculent et se taisent.
+        </p>
+
+        <footer class="fichiers-saisie__pied">
+          <button type="button" class="gh-btn" data-variante-fermer>Abandonner</button>
+        </footer>
+      </div>
+    </div>
+  `;
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * Les conséquences
  * ────────────────────────────────────────────────────────────────────────── */
@@ -196,7 +228,7 @@ function renderRecalculee(ligne) {
   const levees = ligne.reservesAvant.filter((code) => !ligne.reservesApres.includes(code));
 
   return `
-    <li class="variante-ligne variante-ligne--${bouge ? "bouge" : "stable"}${ligne.suppose ? " variante-ligne--supposee" : ""}">
+    <li class="variante-ligne variante-ligne--${bouge ? "bouge" : "stable"}">
       <span class="variante-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
       <span class="variante-ligne__valeurs">
         <b class="variante-ligne__avant">${escapeHtml(ligne.avant)}</b>
@@ -209,24 +241,14 @@ function renderRecalculee(ligne) {
       </span>
       ${nees.length ? `<span class="variante-ligne__reserve variante-ligne__reserve--nee">Réserve : ${escapeHtml(nees.map(phraseDeReserve).filter(Boolean).join(" · "))}</span>` : ""}
       ${levees.length ? `<span class="variante-ligne__reserve variante-ligne__reserve--levee">Réserve levée : ${escapeHtml(levees.map(phraseDeReserve).filter(Boolean).join(" · "))}</span>` : ""}
+      ${!nees.length && !levees.length ? renderReserves(ligne.reservesApres) : ""}
       ${
-        // « ce calcul ne dit pas sur quoi il a été fait » et « supposée
-        // calculée à 13 m » disent la même chose deux fois. La seconde est plus
-        // utile : elle nomme la valeur supposée.
-        !nees.length && !levees.length
-          ? renderReserves(ligne.suppose
-              ? ligne.reservesApres.filter((code) => code !== RESERVE.ENTREES_INCONNUES)
-              : ligne.reservesApres)
-          : ""
-      }
-      ${
-        // La supposition ne se dit pas une fois pour toutes en haut du bloc :
-        // elle se dit sur chaque ligne qu'elle porte, sans quoi on retiendrait
-        // le chiffre sans retenir sa condition.
-        ligne.suppose
-          ? `<span class="variante-ligne__pourquoi variante-ligne__pourquoi--suppose">
-              supposée calculée à ${escapeHtml(String(ligne.altitudeDepart))} m — ce calcul ne conservait pas ses entrées
-            </span>`
+        // Qui a recalculé, et dans quelle version. Ce n'est pas une formalité :
+        // c'est ce qui distingue un chiffre rendu par le référentiel d'un chiffre
+        // qu'on aurait refait de son côté — et c'est bien le référentiel qui a
+        // répondu, avec sa table, sans rien écrire.
+        ligne.utilitaire
+          ? `<span class="variante-ligne__pourquoi">recalculée par ${escapeHtml(ligne.utilitaire)}, au serveur</span>`
           : ""
       }
     </li>
@@ -287,8 +309,9 @@ function renderARevoir(ligne) {
 }
 
 function renderConsequences(depart, vers, rendu) {
-  // Une valeur supposée compte : elle bouge, sous une condition dite. Ne compter
-  // que les certaines ferait écrire « rien ne bouge » sous une liste qui bouge.
+  // Une réserve qui naît compte autant qu'un chiffre qui change : c'est un doute
+  // qui apparaît. Ne compter que les valeurs ferait écrire « rien ne bouge » sous
+  // une liste qui bouge.
   const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length
     + (rendu.rejouees ?? []).length;
 
@@ -306,6 +329,14 @@ function renderConsequences(depart, vers, rendu) {
           ${rendu.recalculees.length + (rendu.rejouees ?? []).length} ${
             accorde(rendu.recalculees.length + (rendu.rejouees ?? []).length, "valeur relue", "valeurs relues")
           }
+          ${
+            // « Confirmée » n'est pas « sans rapport » : la règle repose sur ce qui
+            // a bougé, elle a été rejouée, et sa conclusion tient. Les confondre
+            // ferait croire que l'outil ne l'a pas regardée.
+            rendu.confirmees
+              ? `· ${rendu.confirmees} ${accorde(rendu.confirmees, "confirmée", "confirmées")} inchangée${rendu.confirmees > 1 ? "s" : ""}`
+              : ""
+          }
           · ${rendu.aRevoir.length} ${accorde(rendu.aRevoir.length, "à revérifier", "à revérifier")}
           · ${rendu.inchangees} ${accorde(rendu.inchangees, "sans rapport", "sans rapport")}.
           Rien n'a été écrit.
@@ -315,9 +346,10 @@ function renderConsequences(depart, vers, rendu) {
           <section class="variante-rang variante-rang--calcule">
             <h5>${svgIcon("check-circle", { className: "octicon" })} Recalculé</h5>
             <p>
-              Les utilitaires déterministes et les <b>règles du projet</b> ont été rejoués avec la
-              nouvelle valeur. Ces chiffres-là sont vrais, et chaque règle dit au survol ce qu'elle
-              a lu pour conclure.
+              Les <b>règles du projet</b> ont été rejouées ici, et les <b>utilitaires</b> ont été
+              redemandés à leur référentiel, au serveur, avec la valeur essayée — même table, même
+              version, et rien n'y a été écrit. Ces chiffres-là sont vrais, et chaque règle dit au
+              survol ce qu'elle a lu pour conclure.
             </p>
             ${
               rendu.recalculees.length || (rendu.rejouees ?? []).length
@@ -325,11 +357,11 @@ function renderConsequences(depart, vers, rendu) {
                     ...rendu.recalculees.map(renderRecalculee),
                     ...(rendu.rejouees ?? []).map(renderRejouee)
                   ].join("")}</ul>`
-                : `<p class="variante-rang__vide">Aucune déduction ni aucune règle du projet ne lit cette donnée d'une façon que nous savons rejouer.</p>`
+                : `<p class="variante-rang__vide">Aucune règle du projet et aucun utilitaire ne lit cette valeur.</p>`
             }
             ${
               (rendu.cycles ?? []).length
-                ? `<p class="variante-rang__suppose">${svgIcon("alert", { className: "octicon" })}
+                ? `<p class="variante-rang__note">${svgIcon("alert", { className: "octicon" })}
                     ${rendu.cycles.length} ${rendu.cycles.length > 1 ? "zones ne se stabilisent" : "zone ne se stabilise"} pas :
                     leurs règles se lisent en rond. Rien n'en sort — un état de passage n'est pas un résultat.</p>`
                 : ""
@@ -346,31 +378,6 @@ function renderConsequences(depart, vers, rendu) {
               rendu.aRevoir.length
                 ? `<ul class="variante-lignes">${rendu.aRevoir.map(renderARevoir).join("")}</ul>`
                 : `<p class="variante-rang__vide">Rien de ce que le projet tient ne repose sur ce qui vient de bouger.</p>`
-            }
-            ${
-              // Une contrainte à qui il ne manque que son altitude de départ
-              // peut être relue — à condition de supposer qu'elle a été
-              // calculée sur celle que le projet dit aujourd'hui. C'est
-              // probable, ce n'est pas certain, et c'est donc une question :
-              // l'outil la pose, quelqu'un y répond. Deviner à sa place
-              // reviendrait à rendre un chiffre indiscernable d'un chiffre
-              // calculé, ce qu'on refuse partout ailleurs.
-              rendu.supposables && !rendu.suppose
-                ? `<button type="button" class="gh-btn gh-btn--sm variante-supposer" data-variante-supposer>
-                    ${svgIcon("beaker", { className: "octicon" })}
-                    Supposer ${rendu.supposables > 1 ? "qu'elles ont" : "qu'elle a"} été calculée${rendu.supposables > 1 ? "s" : ""}
-                    à ${escapeHtml(depart.valeur)}, et ${rendu.supposables > 1 ? "les" : "la"} relire
-                  </button>`
-                : ""
-            }
-            ${
-              rendu.suppose
-                ? `<p class="variante-rang__suppose">
-                    ${svgIcon("beaker", { className: "octicon" })}
-                    Relues en supposant qu'elles avaient été calculées à ${escapeHtml(depart.valeur)}.
-                    Chaque ligne concernée le dit, ici et dans la mémoire.
-                  </p>`
-                : ""
             }
           </section>
 
@@ -440,15 +447,19 @@ export async function ouvrirLaFenetreDeVariante({
   // Une liste vide n'est pas une mémoire : c'est « je n'ai rien sous la main ».
   let memoire = Array.isArray(assertions) && assertions.length ? assertions : null;
 
+  // L'identifiant de la route n'est pas celui de la base. On le résout une fois,
+  // ici, pour les deux usages : lire la mémoire, et redemander aux utilitaires de
+  // se rejouer. Le résoudre à moitié laisserait le rejeu muet sans rien dire.
+  let cible = texte(projectId);
+  if (!cible) {
+    cible = await import("../../services/project-supabase-sync.js")
+      .then((mod) => mod.resolveCurrentBackendProjectId())
+      .catch(() => "");
+  }
+
   if (!memoire) {
     try {
-      const [{ resolveCurrentBackendProjectId }, { listProjectAssertions }] = await Promise.all([
-        import("../../services/project-supabase-sync.js"),
-        import("../../services/project-memory-supabase.js")
-      ]);
-      // L'identifiant de la route n'est pas celui de la base : l'appelant n'a
-      // pas à le savoir, et le résoudre ici évite qu'un écran passe le mauvais.
-      const cible = texte(projectId) || (await resolveCurrentBackendProjectId().catch(() => ""));
+      const { listProjectAssertions } = await import("../../services/project-memory-supabase.js");
       memoire = cible ? (await listProjectAssertions(cible)) ?? [] : [];
     } catch {
       memoire = [];
@@ -508,6 +519,17 @@ export async function ouvrirLaFenetreDeVariante({
     }
   };
 
+  /**
+   * Ce qu'on montre pendant que le référentiel calcule.
+   *
+   * Sans elle, la fenêtre reste figée sur la saisie le temps de l'appel, et un
+   * écran qui ne répond pas passe pour cassé — on reclique, on relance l'appel.
+   */
+  const montrerLAttente = () => {
+    hote.innerHTML = renderAttente(choisie, saisieRetenue);
+    brancherCommun();
+  };
+
   const choisir = (id) => {
     const valeur = valeurs.find((entree) => entree.id === texte(id));
     if (!valeur) return;
@@ -516,15 +538,38 @@ export async function ouvrirLaFenetreDeVariante({
     montrerLaSaisie();
   };
 
-  const calculer = ({ supposer = false } = {}) => {
+  /**
+   * Calculer, en laissant d'abord les utilitaires se rejouer.
+   *
+   * Le seul moment de tout l'écran qui attend le réseau. Il attend parce qu'il le
+   * faut : le référentiel a la table, et lui demander sa réponse vaut mieux que de
+   * refaire son calcul de notre côté — deux copies d'une même loi divergent
+   * toujours. Rien n'est écrit là-bas : l'outil calcule et se tait.
+   */
+  const calculer = async () => {
     if (!choisie) return;
     const saisie = hote.querySelector("[data-variante-valeur]")?.value ?? saisieRetenue;
     saisieRetenue = texte(saisie);
+    const substitutions = new Map([[choisie.id, saisieRetenue]]);
+
+    // Refusé d'entrée — même valeur, valeur vide — : inutile de déranger le
+    // serveur pour une variante qui n'en est pas une.
+    const controle = consequencesDeLaVariante({
+      assertions: memoire ?? [], substitutions, applications
+    });
+    if (!controle.ok) {
+      montrerLaSaisie(controle.raison, saisieRetenue);
+      return;
+    }
+
+    montrerLAttente();
+
+    const relectures = await rejouerLesUtilitaires({
+      projectId: cible, enVigueur: memoire ?? [], substitutions
+    }).catch(() => null);
+
     const rendu = consequencesDeLaVariante({
-      assertions: memoire ?? [],
-      substitutions: new Map([[choisie.id, saisieRetenue]]),
-      applications,
-      supposer
+      assertions: memoire ?? [], substitutions, applications, relectures
     });
 
     if (!rendu.ok) {
@@ -544,12 +589,6 @@ export async function ouvrirLaFenetreDeVariante({
     }
     for (const bouton of hote.querySelectorAll("[data-variante-refaire]")) {
       bouton.addEventListener("click", () => montrerLaSaisie("", saisieRetenue));
-    }
-    // Refaire le même calcul, la supposition acceptée. C'est un second passage
-    // complet, pas une retouche de l'affichage : une conséquence supposée en
-    // entraîne d'autres, et rafistoler la liste les manquerait.
-    for (const bouton of hote.querySelectorAll("[data-variante-supposer]")) {
-      bouton.addEventListener("click", () => calculer({ supposer: true }));
     }
   };
 
@@ -590,7 +629,7 @@ export async function ouvrirLaFenetreDeVariante({
 
   function brancherLaSaisie() {
     for (const bouton of hote.querySelectorAll("[data-variante-calculer]")) {
-      bouton.addEventListener("click", () => calculer());
+      bouton.addEventListener("click", () => { void calculer(); });
     }
     // Entrée calcule : on tape une valeur, on veut le résultat, pas un
     // déplacement au bouton suivant.
@@ -599,7 +638,7 @@ export async function ouvrirLaFenetreDeVariante({
       champ.addEventListener("keydown", (evenement) => {
         if (evenement.key !== "Enter") return;
         evenement.preventDefault();
-        calculer();
+        void calculer();
       });
     }
   }

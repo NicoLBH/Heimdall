@@ -36,8 +36,17 @@ export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
    * au-delà de 900 m, et un projet qui la corrige doit voir cette zone bouger.
    */
   lit: [
-    { sujet: "Altitude du site", lire: (fait) => fait?.fact_value?.inputs?.altitude }
+    {
+      sujet: "Altitude du site",
+      entree: "altitude",
+      /** L'appel attend un nombre : « 1200 m » retomberait sur zéro. */
+      nombre: true,
+      lire: (fait) => fait?.fact_value?.inputs?.altitude
+    }
   ],
+
+  /** Le même outil serveur qu'au versement, en mode « calcule sans écrire ». */
+  rejeu: { outil: "snow" },
 
   deduire(fait = {}) {
     const valeur = String(fait?.fact_value?.zone ?? "").trim();
