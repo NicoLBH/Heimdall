@@ -45,12 +45,12 @@ import { renderGhActionButton } from "./gh-split-button.js";
  * 5. le rejeu à blanc
  * 6. la variante, alors triviale
  *
- * `1` : les lectures d'une règle sont enregistrées — leur rang, leur zone, et
- * l'affirmation que chaque nom désignait au moment où la règle a servi. La
- * variante, elle, rejoue toujours deux formules réécrites à la main : une
- * démonstration, pas un mécanisme.
+ * `2` : les lectures sont enregistrées et l'index se lit dans les deux sens —
+ * qui emploie chaque valeur, combien de fois, dans quelles zones. L'étude
+ * d'impact en vit. La variante, elle, rejoue toujours deux formules réécrites à
+ * la main : une démonstration, pas un mécanisme, jusqu'à l'évaluateur.
  */
-export const ETAPE_ATTEINTE = 1;
+export const ETAPE_ATTEINTE = 2;
 
 /**
  * Les trois usages, dans l'ordre où on les lit.

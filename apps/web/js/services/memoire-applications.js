@@ -292,3 +292,125 @@ export function emploisParSujet(applications = []) {
 
   return emplois;
 }
+
+/**
+ * Ce qui emploie chaque **affirmation**, et non chaque nom.
+ *
+ * `emploisParSujet` répond « ce nom sert quatre fois » ; celle-ci répond « cette
+ * valeur-là, telle qu'elle a été affirmée, sert quatre fois ». C'est la question
+ * qu'on pose devant une ligne d'un fichier : elle a un identifiant, pas
+ * seulement un libellé, et deux valeurs successives d'un même sujet ne servent
+ * pas les mêmes fonctions.
+ *
+ * @returns {Map<string, {lectures: number, sorties: Map<string, number>, zones: Set<string>}>}
+ */
+export function emploisParAffirmation(applications = []) {
+  const emplois = new Map();
+
+  for (const ligne of Array.isArray(applications) ? applications : []) {
+    const entree = texte(ligne?.input_assertion_id);
+    if (!entree) continue;
+
+    if (!emplois.has(entree)) emplois.set(entree, { lectures: 0, sorties: new Map(), zones: new Set() });
+    const emploi = emplois.get(entree);
+    emploi.lectures += 1;
+    emploi.zones.add(texte(ligne.zone));
+
+    const sortie = texte(ligne.output_assertion_id);
+    if (sortie) emploi.sorties.set(sortie, (emploi.sorties.get(sortie) ?? 0) + 1);
+  }
+
+  return emplois;
+}
+
+/**
+ * Ce qui repose sur une valeur, de proche en proche.
+ *
+ * ## Pourquoi des strates, et pas une liste
+ *
+ * « 47 affirmations reposent dessus » ne se lit pas : on ne sait pas par quel
+ * bout reprendre. Rangées par **distance** — ce qui la lit directement, puis ce
+ * qui lit cela — la même réponse devient un chemin : « trois pas, et le premier
+ * ne fait que deux lignes ».
+ *
+ * ## Les cycles se nomment, ils ne bouclent pas
+ *
+ * Un graphe écrit par des humains finira par en contenir un. Une affirmation
+ * déjà atteinte n'est pas revisitée — la strate où on l'a vue la première fois
+ * est la bonne, c'est le plus court chemin — et les arêtes qui rebouclent sont
+ * rendues à part, pour être montrées plutôt que subies.
+ *
+ * @param {string} depart l'identifiant de l'affirmation qu'on fait bouger
+ * @param {object[]} applications les lectures enregistrées
+ * @returns {{strates: string[][], total: number, lectures: number, cycles: {de: string, vers: string}[]}}
+ */
+export function impactDe(depart, applications = []) {
+  const racine = texte(depart);
+  const aval = new Map();
+  const compte = new Map();
+
+  for (const ligne of Array.isArray(applications) ? applications : []) {
+    const entree = texte(ligne?.input_assertion_id);
+    const sortie = texte(ligne?.output_assertion_id);
+    if (!entree || !sortie || entree === sortie) continue;
+    if (!aval.has(entree)) aval.set(entree, new Set());
+    aval.get(entree).add(sortie);
+    compte.set(sortie, (compte.get(sortie) ?? 0) + 1);
+  }
+
+  const strates = [];
+  const vus = new Set([racine]);
+  const cycles = [];
+  let front = [racine];
+
+  while (front.length) {
+    const suivante = [];
+
+    for (const noeud of front) {
+      for (const enfant of aval.get(noeud) ?? []) {
+        if (vus.has(enfant)) {
+          // Déjà atteint : soit par un chemin plus court — et c'est là qu'il
+          // faut le lire —, soit en rebouclant vers la racine. Le second se dit.
+          if (enfant === racine) cycles.push({ de: noeud, vers: enfant });
+          continue;
+        }
+        vus.add(enfant);
+        suivante.push(enfant);
+      }
+    }
+
+    if (!suivante.length) break;
+    strates.push(suivante);
+    front = suivante;
+  }
+
+  return {
+    strates,
+    total: strates.reduce((somme, strate) => somme + strate.length, 0),
+    // Le nombre de lectures qui touchent directement cette valeur : c'est
+    // « employée n fois », et ce n'est pas le nombre d'affirmations touchées.
+    lectures: (Array.isArray(applications) ? applications : [])
+      .filter((ligne) => texte(ligne?.input_assertion_id) === racine).length,
+    cycles
+  };
+}
+
+/**
+ * Ce qu'une lecture enregistrée vaut, en un mot.
+ *
+ * Un graphe où l'on ne distingue pas les liens figés en leur temps des liens
+ * rapprochés aujourd'hui se lit comme s'il était tout entier sûr. Le compte des
+ * deux se montre.
+ */
+export function couvertureDesApplications(applications = []) {
+  const lignes = Array.isArray(applications) ? applications : [];
+  const enregistrees = lignes.filter((ligne) => texte(ligne?.resolution) === RESOLUTION.ENREGISTRE).length;
+
+  return {
+    lectures: lignes.length,
+    enregistrees,
+    reconstruites: lignes.length - enregistrees,
+    // Les lectures dont le nom ne désigne rien : le trou du raisonnement, compté.
+    orphelines: lignes.filter((ligne) => !texte(ligne?.input_assertion_id)).length
+  };
+}

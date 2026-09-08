@@ -34,6 +34,7 @@ import {
   COLONNES_DU_TABLEAU, GABARIT_DU_TABLEAU, lignesAffichables
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
+import { emploisParAffirmation } from "../services/memoire-applications.js";
 import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
 import { versementsDeLaMemoire } from "../services/memoire-blame.js";
 import { sujetsDeclares, variablesDeLaMemoire, cleDuSujet } from "../services/memoire-identifiants.js";
@@ -1934,6 +1935,18 @@ async function chargerLaMemoire() {
 
     docsViewState.memoireAssertions = (await memoire.listProjectAssertions(projet)) ?? [];
 
+    // Ce que chaque règle a lu : c'est de là que vient « employée n fois ».
+    // `null` quand la lecture échoue — « personne ne s'en sert » et « je ne sais
+    // pas qui s'en sert » sont deux phrases différentes, et la vue les
+    // distingue. Isolé du reste : un graphe illisible ne doit pas emporter les
+    // fichiers, qui se lisent très bien sans lui.
+    try {
+      const { listerLesApplications } = await import("../services/memoire-applications-supabase.js");
+      docsViewState.memoireApplications = await listerLesApplications(projet);
+    } catch {
+      docsViewState.memoireApplications = null;
+    }
+
     const ouvertes = (await propositions.listPropositions(projet)) ?? [];
     docsViewState.memoirePropositions = new Map(ouvertes.map((entree) => [String(entree.id), entree]));
 
@@ -2058,6 +2071,28 @@ function plierDansLArbre(root, adresse) {
   }
 
   renderProjectDocumentsContent(root);
+}
+
+/**
+ * Ce qui emploie chaque affirmation, et de quoi nommer les fonctions.
+ *
+ * Rendu comme un objet à étaler dans les options de `renderFichier` : la vue des
+ * fichiers ne sait rien des lectures, et n'a pas à apprendre.
+ */
+function emploisDeLaMemoire() {
+  const applications = docsViewState.memoireApplications;
+  // `null` reste `null` : la vue distingue « personne ne s'en sert » de « je
+  // n'ai pas pu lire qui s'en sert ».
+  if (!Array.isArray(applications)) return { emplois: null, sujets: new Map() };
+
+  return {
+    emplois: emploisParAffirmation(applications),
+    sujets: new Map(
+      (docsViewState.memoireAssertions ?? [])
+        .map((ligne) => [String(ligne?.id ?? ""), String(ligne?.payload?.subject || ligne?.subject_key || "")])
+        .filter(([id]) => id)
+    )
+  };
 }
 
 /**
@@ -2243,8 +2278,10 @@ function bindLaMemoire(root) {
 
   for (const bouton of root.querySelectorAll("[data-memoire-lecture]")) {
     bouton.addEventListener("click", () => {
-      docsViewState.memoireLecture = bouton.getAttribute("data-memoire-lecture") === LECTURE.BLAME
-        ? LECTURE.BLAME : LECTURE.CODE;
+      const voulue = bouton.getAttribute("data-memoire-lecture");
+      // Une lecture inconnue retombe sur le code : c'est celle qui ne demande
+      // rien d'autre que le fichier.
+      docsViewState.memoireLecture = [LECTURE.BLAME, LECTURE.EMPLOIS].includes(voulue) ? voulue : LECTURE.CODE;
       renderProjectDocumentsContent(root);
     });
   }
@@ -2713,8 +2750,10 @@ function renderBrancheMemoire() {
     ? renderDossiers(memoire, contexte)
     : fichier
       ? renderFichier(fichier, {
-          lecture: docsViewState.memoireLecture === LECTURE.BLAME ? LECTURE.BLAME : LECTURE.CODE,
+          lecture: [LECTURE.BLAME, LECTURE.EMPLOIS].includes(docsViewState.memoireLecture)
+            ? docsViewState.memoireLecture : LECTURE.CODE,
           plies: docsViewState.memoirePlies ?? new Set(),
+          ...emploisDeLaMemoire(),
           ...contexte
         })
       : chemin.length === 1

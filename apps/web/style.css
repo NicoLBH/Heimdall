@@ -21478,3 +21478,104 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   color:var(--variante); font-size:12px;
 }
 .variante-rang__suppose .octicon{ width:12px; height:12px; }
+
+/* ── « Emplois » : à quoi sert chaque valeur déclarée ──────────────────────
+   La même gouttière que l'origine, et pour la même raison : une annotation qui
+   entrerait dans le code se lirait comme du code. Seule la première ligne d'un
+   bloc la porte — répéter « 4 emplois » quatre fois ferait croire à seize. */
+.memoire-ligne--emplois{ gap:0; }
+.memoire-emploi{
+  flex:0 0 210px;
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  padding:0 10px;
+  margin-right:10px;
+  border-left:3px solid var(--variante-bord, rgba(57,197,207,.40));
+  color:var(--muted);
+  font-size:12px;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.memoire-emploi b{ color:var(--variante, #39c5cf); font-weight:600; }
+.memoire-emploi__ou{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  opacity:.8;
+}
+/* Personne ne s'en sert : c'est une information, pas un vide. */
+.memoire-emploi--orphelin{
+  border-left-color:rgba(210,153,34,.45);
+  color:#d29922;
+  font-style:italic;
+}
+/* Les lignes qui décrivent la même affirmation, et celles qui ne déclarent
+   rien : la gouttière garde sa largeur pour que le code reste aligné. */
+.memoire-emploi--suite{ border-left-color:var(--border2); }
+
+/* ── L'étude d'impact : ce qui repose sur une valeur ───────────────────────
+   Rangée par distance, parce que « 47 affirmations » ne se lit pas : on ne sait
+   pas par quel bout reprendre. « Trois pas, et le premier ne fait que deux
+   lignes », si. */
+.impact-boite{ gap:12px; }
+.impact-boite--large{ width:min(720px, 100%); }
+
+.impact-liste{
+  display:flex; flex-direction:column; gap:2px;
+  max-height:46vh; overflow:auto;
+  margin:0 -4px;
+}
+.impact-choix{
+  display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+  width:100%; padding:8px 10px;
+  border:0; border-radius:var(--radius);
+  background:transparent; color:var(--text);
+  font:inherit; font-size:13px; text-align:left; cursor:pointer;
+}
+.impact-choix:hover{ background:rgba(110,118,129,.12); }
+.impact-choix__titre{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.impact-choix__compte{
+  flex:0 0 auto;
+  color:var(--variante, #39c5cf);
+  font:500 12px/1 "ui-monospace", SFMono-Regular, Menlo, monospace;
+  white-space:nowrap;
+}
+.impact-choix__compte--vide{ color:var(--muted); font-style:italic; }
+
+.impact-strates{ display:flex; flex-direction:column; gap:12px; max-height:52vh; overflow:auto; }
+.impact-strate{
+  padding:12px; border:1px solid var(--border); border-left-width:3px;
+  border-left-color:var(--variante-bord, rgba(57,197,207,.40));
+  border-radius:var(--radius); background:var(--bg);
+}
+.impact-strate h5{
+  display:flex; align-items:center; gap:8px;
+  margin:0 0 8px; font-size:13px; color:var(--muted); font-weight:500;
+}
+.impact-strate__rang{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; border-radius:50%;
+  background:var(--variante-fond, rgba(57,197,207,.12));
+  color:var(--variante, #39c5cf);
+  font:600 11px/1 "ui-monospace", SFMono-Regular, Menlo, monospace;
+}
+.impact-strate__compte{
+  margin-left:auto;
+  color:var(--muted);
+  font:500 11px/1 "ui-monospace", SFMono-Regular, Menlo, monospace;
+}
+.impact-lignes{ list-style:none; display:flex; flex-direction:column; gap:4px; margin:0; padding:0; }
+.impact-ligne{
+  display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+  padding:5px 8px; border-radius:var(--radius); background:var(--panel2);
+  font-size:13px;
+}
+.impact-ligne__titre{ min-width:0; color:var(--text); }
+.impact-ligne__suite{ flex:0 0 auto; color:var(--muted); font-size:12px; white-space:nowrap; }
+
+.impact-cycle{
+  display:flex; align-items:flex-start; gap:8px; margin:0;
+  padding:9px 12px; border-left:2px solid #d29922; background:rgba(210,153,34,.10);
+  color:#d29922; font-size:12.5px; line-height:1.5;
+}

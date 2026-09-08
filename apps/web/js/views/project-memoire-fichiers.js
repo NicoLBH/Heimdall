@@ -52,7 +52,18 @@ const texte = (valeur) => String(valeur ?? "").trim();
 const jeton = (type, contenu) => ({ type, texte: contenu });
 
 /** Les deux lectures d'un fichier. */
-export const LECTURE = { CODE: "code", BLAME: "blame" };
+/**
+ * Les trois façons de lire un fichier de mémoire.
+ *
+ * **Code** montre ce qui est écrit. **Origine** montre qui l'a écrit et quand.
+ * **Emplois** montre à quoi ça sert : combien de fois chaque valeur déclarée est
+ * lue par une règle, et par lesquelles.
+ *
+ * La troisième comble une lacune qui rendait `données-de-base.ddb` illisible :
+ * on savait ce que le projet pose, jamais qui s'en sert. Une donnée qu'on croit
+ * inutile est une donnée qu'on change sans regarder.
+ */
+export const LECTURE = { CODE: "code", BLAME: "blame", EMPLOIS: "emplois" };
 
 /** Une clé de chemin, utilisable comme identifiant HTML. */
 const cleHtml = (valeur) => texte(valeur).replace(/[^\w-]+/g, "-");
@@ -866,7 +877,12 @@ export function lignesAffichables(fichier, { ouEcrit = null, auteurs = null } = 
       rang += 1;
       sorties.push({
         rang, jetons: teteDuTableau(groupe.sujet), nature: "affirmation", profondeur: 0,
-        ancetres: [], ouvre: blocDuGroupe, ferme: null, assertion: groupe.entrees[0]?.assertion ?? null, position: 0
+        ancetres: [], ouvre: blocDuGroupe, ferme: null, assertion: groupe.entrees[0]?.assertion ?? null, position: 0,
+        // Cette ligne nomme la **variable**, pas l'une de ses valeurs. Elle
+        // emprunte l'affirmation de la première zone pour le blâme, et il faut
+        // pouvoir le savoir : y écrire « 3 emplois » ferait passer le compte
+        // d'une zone pour le compte de toutes.
+        teteDeGroupe: true
       });
     }
 
@@ -1081,9 +1097,73 @@ export function ligneCachee(ligne, plies) {
  * viennent toutes du même versement, et répéter le même numéro quatre fois
  * ferait croire à quatre décisions.
  */
+/**
+ * À quoi sert cette ligne, dans la gouttière.
+ *
+ * Seule la **première ligne d'un bloc** porte l'annotation : les suivantes
+ * décrivent la même affirmation, et répéter « 4 emplois » quatre fois ferait
+ * croire à seize.
+ *
+ * Trois états, et il faut les trois :
+ *
+ * - **n emplois** — le compte exact des lectures, avec les fonctions au survol ;
+ * - **aucun emploi** — personne ne s'en sert. C'est une information, pas un
+ *   vide : une donnée que rien ne lit est une donnée qu'on change sans risque,
+ *   ou une donnée qu'on a oublié de brancher ;
+ * - **rien** — les lectures n'ont pas pu être lues, ou cette ligne n'est pas une
+ *   déclaration. Ne pas savoir ne s'écrit pas « aucun emploi ».
+ */
+function renderEmploiDeLaLigne(ligne, { emplois = null, sujets = new Map() } = {}) {
+  const vide = `<span class="memoire-emploi memoire-emploi--suite" aria-hidden="true"></span>`;
+
+  const assertion = ligne?.assertion;
+  // La tête d'un bloc, et elle seule : les lignes suivantes décrivent la même
+  // affirmation, et répéter « 4 emplois » quatre fois ferait croire à seize. La
+  // tête d'un groupe de zones ne compte pas : elle nomme la variable, pas une
+  // de ses valeurs.
+  if (!assertion?.id || ligne.position !== 0 || ligne.teteDeGroupe) return vide;
+  if (!emplois) return vide;
+
+  const emploi = emplois.get(String(assertion.id));
+  if (!emploi) {
+    return `<span class="memoire-emploi memoire-emploi--orphelin"
+      title="Aucune règle du projet ne lit cette valeur. Ce n'est pas un défaut : c'est une valeur qu'on peut changer sans conséquence — ou une valeur qu'on a oublié de brancher.">aucun emploi</span>`;
+  }
+
+  const fonctions = [...emploi.sorties.entries()]
+    .map(([id, fois]) => {
+      const nom = String(sujets.get(id) ?? id);
+      return fois > 1 ? `${nom} (${fois} fois)` : nom;
+    })
+    .sort((gauche, droite) => gauche.localeCompare(droite, "fr"));
+
+  const zones = [...emploi.zones].filter(Boolean);
+
+  return `
+    <span class="memoire-emploi" title="${escapeHtml(
+      [fonctions.join("\n"), zones.length ? `— ${zones.join(", ")}` : ""].filter(Boolean).join("\n")
+    )}">
+      <b>${emploi.lectures}</b> emploi${emploi.lectures > 1 ? "s" : ""}
+      <span class="memoire-emploi__ou">${escapeHtml(
+        fonctions.length === 1 ? fonctions[0] : `${emploi.sorties.size} fonctions`
+      )}</span>
+    </span>
+  `;
+}
+
 export function renderFichier(fichier, {
   lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
-  propositions = new Map(), plies = new Set(), declares = null, variables = null, ouEcrit = null
+  propositions = new Map(), plies = new Set(), declares = null, variables = null, ouEcrit = null,
+  /**
+   * Ce qui emploie chaque affirmation — `emploisParAffirmation()`.
+   *
+   * `null` : les lectures n'ont pas pu être lues. « Personne ne s'en sert » et
+   * « je ne sais pas qui s'en sert » sont deux phrases différentes, et la vue
+   * les distingue.
+   */
+  emplois = null,
+  /** De quoi nommer les fonctions qui emploient : identifiant → sujet. */
+  sujets = new Map()
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
@@ -1098,6 +1178,8 @@ export function renderFichier(fichier, {
 
     return `
       <div class="memoire-ligne${lecture === LECTURE.BLAME ? " memoire-ligne--blame" : ""}${
+        lecture === LECTURE.EMPLOIS ? " memoire-ligne--emplois" : ""
+      }${
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
       }${replie ? " memoire-ligne--plie" : ""}${
         lecture === LECTURE.BLAME && ligne.debutDeGroupe && ligne.rang > 1 ? " memoire-ligne--versement" : ""
@@ -1126,6 +1208,7 @@ export function renderFichier(fichier, {
                 }" aria-hidden="true"></span>`
             : ""
         }
+        ${lecture === LECTURE.EMPLOIS ? renderEmploiDeLaLigne(ligne, { emplois, sujets }) : ""}
         <span class="memoire-ligne__num">${ligne.rang}</span>
         ${
           pliable
@@ -1154,7 +1237,7 @@ export function renderFichier(fichier, {
     <section class="memoire-fichier memoire-fichier--${escapeHtml(langageDeLExtension(fichier.extension))}">
       <header class="memoire-fichier__tete">
         <span class="memoire-fichier__lectures">
-          ${[[LECTURE.CODE, "Code"], [LECTURE.BLAME, "Origine"]]
+          ${[[LECTURE.CODE, "Code"], [LECTURE.BLAME, "Origine"], [LECTURE.EMPLOIS, "Emplois"]]
             .map(([cle, libelle]) => `
               <button type="button" class="memoire-lecture${lecture === cle ? " is-active" : ""}"
                 data-memoire-lecture="${cle}" aria-pressed="${lecture === cle}">${libelle}</button>
