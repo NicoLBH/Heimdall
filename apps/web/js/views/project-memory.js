@@ -120,8 +120,9 @@ import {
 } from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
+import { ouvrirLaFenetreDeVariante, renderBoutonVariante } from "./ui/fenetre-variante.js";
 import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
-import { laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
+import { altitudeDeLaMemoire, laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
 
 /**
  * Les champs interrogeables de la mémoire.
@@ -258,6 +259,8 @@ const view = {
   contestDraft: { value: "", note: "" },
   /** Vrai quand on ne montre que ce qui attend une revérification. */
   pending: false,
+  /** Sous une variante : vrai quand on ne montre que ce que la variante touche. */
+  varianteSeulement: false,
   /** La lecture ouverte : tout, hypothèses, contraintes, constats en cours. */
   reader: READER.ALL,
   /** Le formulaire d'hypothèse, quand il est ouvert. */
@@ -543,12 +546,68 @@ function renderTableHead() {
  * fonde, les états successifs, la suite des décisions — se lit derrière lui.
  * Une mémoire réduite à des titres ne se vérifie pas.
  */
+/**
+ * Ce qu'une variante fait à cette ligne, dit sur la ligne.
+ *
+ * C'était le trou du premier jet : on entrait dans une variante, la mémoire se
+ * relisait avec les nouvelles valeurs — et rien, dans le tableau, ne disait
+ * lesquelles avaient bougé. Une mémoire relue qu'on ne peut pas comparer à
+ * celle d'avant ne sert à rien : c'est l'**écart** qu'on vient lire.
+ *
+ * Quatre effets, quatre phrases, et jamais un chiffre inventé :
+ *
+ * - **variante** — la valeur qu'on a soi-même substituée ;
+ * - **recalculée** — un utilitaire rejoué a rendu autre chose ;
+ * - **supposée** — rejouée, mais en supposant l'altitude de départ, parce que
+ *   le calcul d'origine ne la conservait pas. La condition voyage avec le
+ *   chiffre : elle est écrite sur la ligne, ici comme dans la fenêtre ;
+ * - **relue** — le même utilitaire a rendu la même chose : on a regardé, et
+ *   c'est une information, différente de « on n'a pas regardé » ;
+ * - **à revérifier** — elle est concernée, et nous ne savons pas la rejouer.
+ *   Sa valeur affichée reste celle d'avant, et le mot le dit.
+ */
+const EFFETS_DE_VARIANTE = {
+  variante: { nom: "Variante", quoi: "la valeur que vous essayez" },
+  recalculee: { nom: "Recalculée", quoi: "rejouée avec la nouvelle valeur" },
+  supposee: { nom: "Supposée", quoi: "" },
+  relue: { nom: "Relue", quoi: "rejouée, et elle ne bouge pas" },
+  "a-revoir": { nom: "À revérifier", quoi: "" }
+};
+
+function renderMarqueDeVariante(assertion) {
+  const effet = assertion?.variante?.effet;
+  const dit = EFFETS_DE_VARIANTE[effet];
+  if (!dit) return "";
+
+  const avant = String(assertion?.variante?.avant ?? "").trim();
+  const apres = String(assertion?.payload?.value ?? "").trim();
+  const pourquoi = String(assertion?.variante?.pourquoi ?? "").trim();
+
+  return `
+    <span class="memory-row__variante memory-row__variante--${escapeHtml(effet)}">
+      <span class="memory-row__variante-nom">${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(dit.nom)}</span>
+      ${
+        // L'écart, quand il y en a un. On ne l'écrit jamais pour « à
+        // revérifier » : il n'y a pas de valeur nouvelle, et en montrer une
+        // ferait passer du propagé pour du calculé.
+        effet !== "a-revoir" && avant && avant !== apres
+          ? `<span class="memory-row__variante-avant">${escapeHtml(avant)}</span>
+             ${svgIcon("arrow-right", { className: "octicon" })}
+             <span class="memory-row__variante-apres">${escapeHtml(apres)}</span>
+             ${pourquoi ? `<span class="memory-row__variante-quoi">${escapeHtml(pourquoi)}</span>` : ""}`
+          : `<span class="memory-row__variante-quoi">${escapeHtml(pourquoi || dit.quoi || `la valeur affichée est celle d'avant`)}</span>`
+      }
+    </span>
+  `;
+}
+
 function renderAssertion(assertion) {
   const remplacee = Boolean(assertion.superseded_by);
   const ecartee = assertion.status === MEMORY.REJECTED;
+  const effet = assertion?.variante?.effet;
 
   return `
-    <li class="memory-row${remplacee ? " memory-row--superseded" : ""}">
+    <li class="memory-row${remplacee ? " memory-row--superseded" : ""}${effet ? ` memory-row--variante memory-row--variante-${effet}` : ""}">
       <span class="memory-row__mark" title="${escapeHtml(kindLabel(assertion.kind))}">
         ${svgIcon(kindIcon(assertion.kind), { className: "octicon" })}
       </span>
@@ -565,6 +624,7 @@ function renderAssertion(assertion) {
             ${escapeHtml(ecartee ? "Écartée" : "Assumée")}
           </span>
         </div>
+        ${renderMarqueDeVariante(assertion)}
         ${renderHypothesisState(assertion)}
         ${renderReviewBanner(assertion)}
         ${assertion.detail ? `<span class="memory-row__detail">${escapeHtml(assertion.detail)}</span>` : ""}
@@ -1387,6 +1447,13 @@ export function renderMemoryHead(resume, { busy = false } = {}) {
               ? `<span class="memory-head__variante">Lecture seule : on regarde une variante.</span>`
               : `${renderExportButton(resume, busy)}
                  ${renderVerserButton(busy)}
+                 ${
+                   // On lit une mémoire, on en essaie une variante, on regarde
+                   // ce que ça change : le geste part d'ici, pas d'un autre
+                   // onglet. Il ne s'offre que s'il y a une altitude à faire
+                   // varier — un bouton qui refuse est un bouton de trop.
+                   altitudeDeLaMemoire(view.assertions ?? []) ? renderBoutonVariante() : ""
+                 }
                  <button type="button" class="gh-btn gh-btn--primary" data-memory-declare ${busy ? "disabled" : ""}>
                    ${svgIcon("plus", { className: "octicon" })} Déclarer une hypothèse
                  </button>`
@@ -1870,7 +1937,13 @@ function lignesVisibles() {
 
   // « À revérifier » se coche par-dessus les autres filtres : c'est une urgence,
   // pas une catégorie.
-  return view.pending ? pendingReviews(filtrees) : filtrees;
+  const retenues = view.pending ? pendingReviews(filtrees) : filtrees;
+
+  // Sous une variante, ne garder que ce qu'elle touche. « Relue » en fait
+  // partie : savoir qu'une valeur a été rejouée sans bouger est le contraire de
+  // ne rien savoir d'elle.
+  if (!varianteEnCours() || !view.varianteSeulement) return retenues;
+  return retenues.filter((assertion) => Boolean(assertion?.variante?.effet));
 }
 
 function renderContent(root) {
@@ -1912,7 +1985,7 @@ function renderContent(root) {
       <section class="project-simple-page project-simple-page--memory"
       style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
         <div class="propositions-shell overlay-chrome overlay-chrome--proposition" data-memory-chrome>
-          ${renderBandeauVariante(varianteEnCours(), { aBouge: laMemoireABouge(varianteEnCours(), view.memoire ?? []) })}
+          ${renderBandeauVariante(varianteEnCours(), { aBouge: laMemoireABouge(varianteEnCours(), view.memoire ?? []), seulement: view.varianteSeulement })}
           ${renderMemoryDetail(view.assertions, view.open)}
         </div>
       </section>
@@ -1941,7 +2014,7 @@ function renderContent(root) {
     <section class="project-simple-page project-simple-page--memory"
       style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
       <div class="propositions-shell">
-        ${renderBandeauVariante(varianteEnCours(), { aBouge: laMemoireABouge(varianteEnCours(), view.memoire ?? []) })}
+        ${renderBandeauVariante(varianteEnCours(), { aBouge: laMemoireABouge(varianteEnCours(), view.memoire ?? []), seulement: view.varianteSeulement })}
         ${renderMemoryHead(resume, { busy: view.busy })}
 
         <div class="project-rail-layout${view.navCollapsed ? " project-rail-layout--collapsed" : ""}">
@@ -2452,6 +2525,8 @@ function bind(root) {
   bindListDelegation(root);
   bindExportButton(root);
   brancherLeBandeauVariante(root);
+  brancherLeFiltreDeVariante(root);
+  brancherLaFenetreDeVariante(root);
   brancherLeCompactage(root);
   brancherLEspace(root);
   brancherLesRecherches(root);
@@ -2956,6 +3031,33 @@ function bindTabReset() {
 let abonneALaVariante = false;
 
 /**
+ * Ouvrir la fenêtre des variantes depuis la barre de la mémoire.
+ *
+ * La mémoire lue est passée telle quelle : c'est celle qui est à l'écran, et la
+ * relire en base risquerait de calculer une variante sur une autre liste que
+ * celle qu'on regarde.
+ */
+function brancherLeFiltreDeVariante(root) {
+  for (const bouton of root.querySelectorAll("[data-variante-filtre]")) {
+    bouton.addEventListener("click", () => {
+      view.varianteSeulement = !view.varianteSeulement;
+      view.page = 1;
+      renderContent(root);
+    });
+  }
+}
+
+function brancherLaFenetreDeVariante(root) {
+  for (const bouton of root.querySelectorAll("[data-variante-ouvrir]")) {
+    bouton.addEventListener("click", () => {
+      // Rien à faire en entrant : on est déjà sur la mémoire, et l'abonnement
+      // au magasin la redessine.
+      void ouvrirLaFenetreDeVariante({ assertions: view.memoire ?? [] });
+    });
+  }
+}
+
+/**
  * Se redessiner quand on entre dans une variante, ou qu'on en sort.
  *
  * La sortie peut venir d'ailleurs que de cet écran — d'un autre onglet, d'un
@@ -2966,8 +3068,12 @@ function brancherLaVariante() {
   if (abonneALaVariante) return;
   abonneALaVariante = true;
 
-  quandLaVarianteChange(() => {
+  quandLaVarianteChange((variante) => {
     if (!mountedRoot?.isConnected) return;
+    // En entrant, on ne montre que l'écart : c'est ce qu'on vient voir, et sur
+    // trois cents lignes il est introuvable autrement. Le bandeau porte le
+    // bouton qui rouvre la mémoire entière.
+    view.varianteSeulement = Boolean(variante);
     // On revient à la liste : le détail ouvert parlait d'une valeur qui vient
     // de changer sous lui, et le relire tel quel montrerait un titre d'un monde
     // et un raisonnement de l'autre.

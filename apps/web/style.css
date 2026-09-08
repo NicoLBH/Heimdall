@@ -16442,8 +16442,13 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   border-bottom:0; padding-bottom:0;
 }
 .memory-head .settings-card__head-title{ border-bottom:0; }
-.memory-head__actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.memory-head__actions .gh-btn{ display:inline-flex; align-items:center; gap:6px; }
+/* Les gestes restent sur une ligne : c'est le titre qui cède, pas eux. Avec
+   quatre boutons, un retour à la ligne renvoyait « Déclarer une hypothèse »
+   sous les autres, et la barre se lisait comme deux barres. */
+.memory-head__actions{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap; }
+.memory-head .settings-card__head-title{ align-items:center; }
+.memory-head .settings-card__head-title > h4{ min-width:0; }
+.memory-head__actions .gh-btn{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 
 /* Les étiquettes de vocabulaire, sur la ligne d'une affirmation. « Sans
    domaine » se lit comme les autres : une mémoire dont on ne voit pas les trous
@@ -21315,12 +21320,11 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   --variante-bord:rgba(57,197,207,.40);
 }
 
-/* La barre au-dessus du tableau des propositions : les filtres, et l'essai. */
-.propositions-barre{
-  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+.variante-ouvrir{
+  flex:0 0 auto; white-space:nowrap;
+  border-color:var(--variante-bord); background:var(--variante-fond); color:var(--variante);
 }
-.propositions-barre .propositions-filters{ flex:1 1 auto; }
-.variante-ouvrir{ flex:0 0 auto; white-space:nowrap; }
+.variante-ouvrir:hover{ border-color:var(--variante); background:rgba(57,197,207,.18); }
 
 /* La fenêtre : une ligne de question, puis trois rangs de conséquences. */
 .variante-boite{ gap:12px; }
@@ -21409,3 +21413,54 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   border-bottom:1px solid var(--variante-bord); background:var(--variante-fond);
   color:var(--variante); font-size:12px; line-height:1.5;
 }
+
+/* Ce qu'une variante fait à une ligne, dit sur la ligne. Sans cela, la mémoire
+   se relit avec d'autres valeurs sans que rien ne dise lesquelles ont bougé —
+   or c'est l'écart qu'on vient lire, pas la mémoire. */
+.memory-row__variante{
+  display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;
+  align-self:flex-start;
+  padding:3px 8px; border:1px solid var(--variante-bord); border-radius:999px;
+  background:var(--variante-fond); font-size:12px; line-height:1.4;
+}
+.memory-row__variante-nom{
+  display:inline-flex; align-items:center; gap:4px;
+  color:var(--variante); font-weight:600; white-space:nowrap;
+}
+.memory-row__variante-avant{ color:var(--muted); text-decoration:line-through; }
+.memory-row__variante-apres{ color:var(--success); font-weight:600; }
+.memory-row__variante-quoi{ color:var(--muted); }
+.memory-row__variante .octicon{ width:12px; height:12px; }
+
+.memory-row__variante--recalculee{ border-color:rgba(63,185,80,.45); background:rgba(63,185,80,.10); }
+.memory-row__variante--recalculee .memory-row__variante-nom{ color:var(--success); }
+.memory-row__variante--a-revoir{ border-color:rgba(210,153,34,.50); background:rgba(210,153,34,.10); }
+.memory-row__variante--a-revoir .memory-row__variante-nom{ color:#d29922; }
+.memory-row__variante--relue{ border-color:var(--border); background:transparent; }
+.memory-row__variante--relue .memory-row__variante-nom{ color:var(--muted); }
+
+/* Le filet à gauche de la ligne : on repère l'écart en balayant la colonne,
+   sans lire une seule étiquette. */
+.memory-row--variante{ box-shadow:inset 3px 0 0 var(--variante); }
+.memory-row--variante-recalculee{ box-shadow:inset 3px 0 0 var(--success); }
+.memory-row--variante-a-revoir{ box-shadow:inset 3px 0 0 #d29922; }
+.memory-row--variante-relue{ box-shadow:inset 3px 0 0 var(--border); }
+
+.variante-bandeau__filtre{ flex:0 0 auto; white-space:nowrap; }
+.variante-bandeau__filtre.est-actif{
+  border-color:var(--variante-bord); background:var(--variante-fond); color:var(--variante);
+}
+
+/* Une valeur supposée porte sa condition partout où elle apparaît : sans elle,
+   le chiffre devient indiscernable d'un chiffre calculé. */
+.memory-row__variante--supposee{ border-color:rgba(57,197,207,.55); background:rgba(57,197,207,.12); }
+.memory-row__variante--supposee .memory-row__variante-nom{ color:var(--variante); }
+.memory-row--variante-supposee{ box-shadow:inset 3px 0 0 var(--variante); }
+.variante-ligne--supposee{ border-left:2px solid var(--variante-bord); }
+.variante-ligne__pourquoi--suppose{ color:var(--variante); }
+.variante-supposer{ align-self:flex-start; margin-top:6px; }
+.variante-rang__suppose{
+  display:inline-flex; align-items:center; gap:6px; margin:6px 0 0;
+  color:var(--variante); font-size:12px;
+}
+.variante-rang__suppose .octicon{ width:12px; height:12px; }

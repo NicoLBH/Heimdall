@@ -33,7 +33,7 @@ import {
   altitudeDeLaMemoire, altitudeEnTexte, consequencesDeLaVariante, lireUnNombre, variantePourLEcran
 } from "../../services/variante-altitude.js";
 import { essayerLaVariante } from "../../services/variante-en-cours.js";
-import { phraseDeReserve } from "../../utilitaires/reserves.js";
+import { RESERVE, phraseDeReserve } from "../../utilitaires/reserves.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -43,13 +43,17 @@ const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulie
 /**
  * Le bouton qui ouvre la fenêtre.
  *
- * Il est au-dessus du tableau des propositions parce que c'est là qu'on range
- * ce qui n'est pas encore vrai. Il est vert parce qu'il n'écrit rien : il ouvre
- * une lecture, et une lecture ne se craint pas.
+ * Il est dans la barre de la mémoire, à gauche de « Déclarer une hypothèse » :
+ * on lit une mémoire, on en essaie une variante, on regarde ce que ça change.
+ * Le geste part de là où l'on lit, pas d'un autre onglet.
+ *
+ * Il porte le cyan des variantes plutôt que le vert de la déclaration : deux
+ * boutons verts côte à côte se liraient comme deux gestes de même poids, or
+ * l'un écrit en mémoire et l'autre ne fait qu'ouvrir une lecture.
  */
 export function renderBoutonVariante() {
   return `
-    <button type="button" class="gh-btn gh-btn--primary variante-ouvrir" data-variante-ouvrir>
+    <button type="button" class="gh-btn variante-ouvrir" data-variante-ouvrir>
       ${svgIcon("beaker", { className: "octicon" })} Tester une variante
     </button>
   `;
@@ -123,7 +127,7 @@ function renderRecalculee(ligne) {
   const levees = ligne.reservesAvant.filter((code) => !ligne.reservesApres.includes(code));
 
   return `
-    <li class="variante-ligne variante-ligne--${bouge ? "bouge" : "stable"}">
+    <li class="variante-ligne variante-ligne--${bouge ? "bouge" : "stable"}${ligne.suppose ? " variante-ligne--supposee" : ""}">
       <span class="variante-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
       <span class="variante-ligne__valeurs">
         <b class="variante-ligne__avant">${escapeHtml(ligne.avant)}</b>
@@ -136,7 +140,26 @@ function renderRecalculee(ligne) {
       </span>
       ${nees.length ? `<span class="variante-ligne__reserve variante-ligne__reserve--nee">Réserve : ${escapeHtml(nees.map(phraseDeReserve).filter(Boolean).join(" · "))}</span>` : ""}
       ${levees.length ? `<span class="variante-ligne__reserve variante-ligne__reserve--levee">Réserve levée : ${escapeHtml(levees.map(phraseDeReserve).filter(Boolean).join(" · "))}</span>` : ""}
-      ${!nees.length && !levees.length ? renderReserves(ligne.reservesApres) : ""}
+      ${
+        // « ce calcul ne dit pas sur quoi il a été fait » et « supposée
+        // calculée à 13 m » disent la même chose deux fois. La seconde est plus
+        // utile : elle nomme la valeur supposée.
+        !nees.length && !levees.length
+          ? renderReserves(ligne.suppose
+              ? ligne.reservesApres.filter((code) => code !== RESERVE.ENTREES_INCONNUES)
+              : ligne.reservesApres)
+          : ""
+      }
+      ${
+        // La supposition ne se dit pas une fois pour toutes en haut du bloc :
+        // elle se dit sur chaque ligne qu'elle porte, sans quoi on retiendrait
+        // le chiffre sans retenir sa condition.
+        ligne.suppose
+          ? `<span class="variante-ligne__pourquoi variante-ligne__pourquoi--suppose">
+              supposée calculée à ${escapeHtml(altitudeEnTexte(ligne.altitudeDepart))} — ce calcul ne conservait pas ses entrées
+            </span>`
+          : ""
+      }
     </li>
   `;
 }
@@ -151,16 +174,21 @@ function renderARevoir(ligne) {
         <span class="variante-ligne__egal">à revérifier</span>
       </span>
       <span class="variante-ligne__pourquoi">${
-        ligne.motif === "lit-altitude"
+        // La raison précise plutôt que la phrase générale : « à revérifier »
+        // sans motif est une inquiétude sans adresse, et l'on ne sait pas s'il
+        // faut corriger la donnée ou l'outil.
+        escapeHtml(ligne.pourquoi || (ligne.motif === "lit-altitude"
           ? "lit l'altitude, et nous ne savons pas rejouer son calcul ici"
-          : "repose sur une valeur qui vient de bouger"
+          : "repose sur une valeur qui vient de bouger"))
       }${ligne.provenance ? ` — ${escapeHtml(ligne.provenance)}` : ""}</span>
     </li>
   `;
 }
 
 function renderConsequences(depart, altitude, rendu) {
-  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge).length;
+  // Une valeur supposée compte : elle bouge, sous une condition dite. Ne compter
+  // que les certaines ferait écrire « rien ne bouge » sous une liste qui bouge.
+  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length;
 
   return `
     <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Conséquences de la variante">
@@ -200,6 +228,31 @@ function renderConsequences(depart, altitude, rendu) {
               rendu.aRevoir.length
                 ? `<ul class="variante-lignes">${rendu.aRevoir.map(renderARevoir).join("")}</ul>`
                 : `<p class="variante-rang__vide">Rien de ce que le projet tient ne repose sur ce qui vient de bouger.</p>`
+            }
+            ${
+              // Une contrainte à qui il ne manque que son altitude de départ
+              // peut être relue — à condition de supposer qu'elle a été
+              // calculée sur celle que le projet dit aujourd'hui. C'est
+              // probable, ce n'est pas certain, et c'est donc une question :
+              // l'outil la pose, quelqu'un y répond. Deviner à sa place
+              // reviendrait à rendre un chiffre indiscernable d'un chiffre
+              // calculé, ce qu'on refuse partout ailleurs.
+              rendu.supposables && !rendu.suppose
+                ? `<button type="button" class="gh-btn gh-btn--sm variante-supposer" data-variante-supposer>
+                    ${svgIcon("beaker", { className: "octicon" })}
+                    Supposer ${rendu.supposables > 1 ? "qu'elles ont" : "qu'elle a"} été calculée${rendu.supposables > 1 ? "s" : ""}
+                    à ${escapeHtml(depart.valeur)}, et ${rendu.supposables > 1 ? "les" : "la"} relire
+                  </button>`
+                : ""
+            }
+            ${
+              rendu.suppose
+                ? `<p class="variante-rang__suppose">
+                    ${svgIcon("beaker", { className: "octicon" })}
+                    Relues en supposant qu'elles avaient été calculées à ${escapeHtml(depart.valeur)}.
+                    Chaque ligne concernée le dit, ici et dans la mémoire.
+                  </p>`
+                : ""
             }
           </section>
 
@@ -315,31 +368,42 @@ export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = n
     }
   };
 
-  const calculer = () => {
-    const saisie = hote.querySelector("[data-variante-valeur]")?.value ?? "";
+  /** La dernière valeur saisie, pour la retrouver en refaisant le calcul. */
+  let saisieRetenue = "";
+
+  const calculer = ({ supposer = false } = {}) => {
+    const saisie = hote.querySelector("[data-variante-valeur]")?.value ?? saisieRetenue;
+    saisieRetenue = texte(saisie);
     const altitude = lireUnNombre(saisie);
-    const rendu = consequencesDeLaVariante({ assertions: memoire ?? [], altitude });
+    const rendu = consequencesDeLaVariante({ assertions: memoire ?? [], altitude, supposer });
 
     if (!rendu.ok) {
-      montrerLaSaisie(rendu.raison, texte(saisie));
+      montrerLaSaisie(rendu.raison, saisieRetenue);
       return;
     }
 
     hote.innerHTML = renderConsequences(depart, altitude, rendu);
-    brancher(() => {
-      const variante = variantePourLEcran({ altitude, consequences: rendu });
-      essayerLaVariante(variante);
-      fermer();
-      if (typeof quandOnLit === "function") quandOnLit(variante);
-    }, () => montrerLaSaisie("", texte(saisie)));
+    brancher({
+      lire: () => {
+        const variante = variantePourLEcran({ altitude, consequences: rendu });
+        essayerLaVariante(variante);
+        fermer();
+        if (typeof quandOnLit === "function") quandOnLit(variante);
+      },
+      refaire: () => montrerLaSaisie("", saisieRetenue),
+      // Refaire le même calcul, la supposition acceptée. C'est un second passage
+      // complet, pas une retouche de l'affichage : une conséquence supposée en
+      // entraîne d'autres, et rafistoler la liste les manquerait.
+      supposer: () => calculer({ supposer: true })
+    });
   };
 
-  function brancher(lire = null, refaire = null) {
+  function brancher({ lire = null, refaire = null, supposer = null } = {}) {
     for (const bouton of hote.querySelectorAll("[data-variante-fermer]")) {
       bouton.addEventListener("click", fermer);
     }
     for (const bouton of hote.querySelectorAll("[data-variante-calculer]")) {
-      bouton.addEventListener("click", calculer);
+      bouton.addEventListener("click", () => calculer());
     }
     // Entrée calcule : on tape un nombre, on veut le résultat, pas un déplacement
     // au bouton suivant.
@@ -356,6 +420,9 @@ export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = n
     }
     if (refaire) {
       for (const bouton of hote.querySelectorAll("[data-variante-refaire]")) bouton.addEventListener("click", refaire);
+    }
+    if (supposer) {
+      for (const bouton of hote.querySelectorAll("[data-variante-supposer]")) bouton.addEventListener("click", supposer);
     }
   }
 

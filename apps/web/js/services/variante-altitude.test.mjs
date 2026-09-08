@@ -110,6 +110,82 @@ test("une contrainte déduite par une version inconnue n'est jamais recalculée"
   assert.equal(aRevoir[0].motif, "lit-altitude");
 });
 
+test("une contrainte versée sans ses entrées est nommée, jamais oubliée", () => {
+  // Le vrai défaut du premier jet : une cote hors gel écrite avant qu'on
+  // conserve les entrées tombait dans « inchangé », comptée comme sans rapport
+  // avec l'altitude. Ne pas savoir n'autorise pas à prétendre qu'il n'y a rien.
+  const sansEntrees = {
+    id: "frost", kind: "site-constraint", subject_key: "site:frost_depth", nature: "contrainte",
+    status: "assumed", superseded_by: null, decided_at: "2026-01-10T09:00:00Z",
+    statement: "Profondeur hors gel : 0.99 m",
+    payload: { subject: "Profondeur hors gel", value: "0.99 m", derived: true, reserves: ["entrees-inconnues"],
+      utilitaire: "deduction_profondeur_hors_gel_altitude_V1", inputs: null }
+  };
+
+  const rendu = consequencesDeLaVariante({ assertions: [altitude("490 m"), sansEntrees], altitude: 890 });
+
+  assert.deepEqual(rendu.recalculees, []);
+  assert.deepEqual(rendu.aRevoir.map((ligne) => ligne.sujet), ["Profondeur hors gel"]);
+  assert.equal(rendu.aRevoir[0].motif, "lit-altitude");
+  assert.match(rendu.aRevoir[0].pourquoi, /ne dit pas sur quelle altitude/);
+  assert.equal(rendu.inchangees, 0);
+});
+
+test("une version qu'on ne sait pas relire dit laquelle", () => {
+  const v2 = deduite({
+    id: "frost", sujet: "Profondeur hors gel", valeur: "0.99 m", alt: 490,
+    utilitaire: "deduction_profondeur_hors_gel_altitude_V2"
+  });
+  const rendu = consequencesDeLaVariante({ assertions: [altitude("490 m"), v2], altitude: 890 });
+  assert.match(rendu.aRevoir[0].pourquoi, /deduction_profondeur_hors_gel_altitude_V2/);
+});
+
+test("le calque garde la valeur d'avant, pour que l'écran montre l'écart", () => {
+  const memoire = [altitude("490 m"), horsGel("0.99 m", 490), neige("A2", 490)];
+  const vue = memoireAvecLaVariante(memoire, { altitude: 890 });
+
+  assert.deepEqual(vue[0].variante, { effet: "variante", avant: "490 m", pourquoi: "" });
+  assert.deepEqual(vue[1].variante, { effet: "recalculee", avant: "0.99 m", pourquoi: "" });
+  // La zone de neige ne bouge ni de valeur ni de réserve sous 890 m : elle est
+  // « relue », pas « recalculée » — on a regardé, rien n'a changé.
+  assert.deepEqual(vue[2].variante, { effet: "relue", avant: "A2", pourquoi: "" });
+});
+
+test("supposer l'altitude de départ se demande, ne se prend jamais", () => {
+  const sansEntrees = {
+    id: "frost", kind: "site-constraint", subject_key: "site:frost_depth", nature: "contrainte",
+    status: "assumed", superseded_by: null, decided_at: "2026-01-10T09:00:00Z",
+    statement: "Profondeur hors gel : 0.71 m",
+    payload: { subject: "Profondeur hors gel", value: "0.71 m", derived: true, reserves: [],
+      utilitaire: "deduction_profondeur_hors_gel_altitude_V1", inputs: null }
+  };
+  const memoire = [altitude("13 m"), sansEntrees];
+
+  // Sans le geste : nommée, pas relue — et l'écran sait qu'elle est supposable.
+  const stricte = consequencesDeLaVariante({ assertions: memoire, altitude: 890 });
+  assert.equal(stricte.recalculees.length, 0);
+  assert.equal(stricte.supposables, 1);
+
+  // Avec le geste : relue, et la ligne porte la supposition partout.
+  const supposee = consequencesDeLaVariante({ assertions: memoire, altitude: 890, supposer: true });
+  assert.equal(supposee.recalculees[0].suppose, true);
+  assert.equal(supposee.recalculees[0].altitudeDepart, 13);
+  assert.equal(supposee.recalculees[0].apres, "0.93 m");
+  assert.deepEqual(supposee.aRevoir, []);
+
+  // Et la mémoire relue le dit sur la ligne, sans quoi le chiffre supposé
+  // deviendrait indiscernable d'un chiffre calculé.
+  const gardee = variantePourLEcran({ altitude: 890, consequences: supposee });
+  assert.equal(gardee.suppose, true);
+  const vue = memoireAvecLaVariante(memoire, gardee);
+  assert.equal(vue[1].variante.effet, "supposee");
+  assert.match(vue[1].variante.pourquoi, /supposée calculée à 13 m/);
+
+  // Sans le drapeau, le calque refait le calcul strict : rien n'est supposé
+  // par accident.
+  assert.equal(memoireAvecLaVariante(memoire, { altitude: 890 })[1].variante.effet, "a-revoir");
+});
+
 test("les conséquences se rangent en trois rangs qui ne se mélangent pas", () => {
   const memoire = [
     altitude("490 m"),

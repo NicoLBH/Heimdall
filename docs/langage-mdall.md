@@ -628,6 +628,63 @@ d'affirmations**. Leur en donner une autre suffit.
 dans le même ordre, avec les objets substitués à leur place. Il n'y a pas un
 seul écran à réécrire, et rien à stocker.
 
+### Le geste part de la mémoire
+
+« Tester une variante » est dans la barre de la Mémoire, à gauche de « Déclarer
+une hypothèse ». On lit une mémoire, on en essaie une variante, on regarde ce
+que ça change, et si c'est mieux on en fait une proposition — le circuit
+habituel reprend là.
+
+Le bouton porte le cyan des variantes, pas le vert de la déclaration : deux
+boutons verts côte à côte se liraient comme deux gestes de même poids, or l'un
+écrit en mémoire et l'autre ne fait qu'ouvrir une lecture.
+
+### L'écart se lit sur les lignes, ou la variante ne sert à rien
+
+Relire la mémoire avec d'autres valeurs ne suffit pas : sans repère, on ne voit
+pas ce qui a bougé, et c'est justement l'**écart** qu'on vient lire. Chaque
+ligne touchée porte donc une étiquette et un filet coloré à sa gauche :
+
+| étiquette | ce qu'elle dit |
+| --- | --- |
+| **Variante** | la valeur qu'on a soi-même substituée |
+| **Recalculée** | un utilitaire rejoué a rendu autre chose — la valeur d'avant est barrée à côté |
+| **Supposée** | rejouée, mais en supposant l'altitude de départ (voir plus bas) |
+| **Relue** | rejouée, et elle ne bouge pas — ce n'est pas la même chose que « pas regardée » |
+| **À revérifier** | concernée, et nous ne savons pas la rejouer : la valeur affichée est celle d'avant, et le mot le dit |
+
+Et en entrant dans une variante, la liste ne montre d'abord **que ce qu'elle
+touche** : sur trois cents lignes, l'écart est introuvable autrement. Le bandeau
+porte le bouton qui rouvre la mémoire entière.
+
+### Ce qui n'a pas d'entrées se nomme, il ne disparaît pas
+
+Le premier jet reconnaissait une contrainte concernée par l'altitude à ce
+qu'elle **conservait** l'altitude sur laquelle elle avait été calculée. Toutes
+celles versées avant qu'on conserve les entrées tombaient donc dans « inchangé »,
+comptées comme sans rapport avec l'altitude — un silence, sur la déduction
+phare. Ne pas savoir n'autorise pas à prétendre qu'il n'y a rien (règle 5).
+
+Deux façons de savoir qu'une contrainte est concernée, et il faut les deux :
+elle garde son altitude d'entrée, **ou** l'utilitaire qui l'a déduite est d'une
+lignée qui lit l'altitude — la lignée, pas la version. Concernée sans être
+rejouable, elle est nommée avec sa raison exacte : « ce calcul ne dit pas sur
+quelle altitude il a été fait », ou « nous ne savons pas rejouer
+`…_V2` ».
+
+### Supposer se demande, ne se prend jamais
+
+À une contrainte qui ne manque que de son altitude de départ, on peut rendre un
+chiffre — à condition de supposer qu'elle a été calculée sur celle que le projet
+dit aujourd'hui. C'est probable ; ce n'est pas certain.
+
+L'outil pose donc la question — « Supposer qu'elle a été calculée à 13 m, et la
+relire » — et quelqu'un y répond. Accepté, le calcul est refait en entier, et la
+condition **voyage avec le chiffre** : sur la ligne de la fenêtre, sur la ligne
+de la mémoire, et dans la variante retenue. Une valeur supposée qui perdrait sa
+mention en route serait exactement le chiffre indiscernable d'un chiffre calculé
+qu'on refuse partout ailleurs.
+
 ### Les trois rangs de conséquence, et la faute à ne pas commettre
 
 Une valeur nouvelle ne produit pas un seul genre de conséquence.

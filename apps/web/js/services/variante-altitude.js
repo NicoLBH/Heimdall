@@ -140,6 +140,31 @@ export function altitudeDeLaMemoire(assertions = []) {
  * ────────────────────────────────────────────────────────────────────────── */
 
 /**
+ * Les lignées d'utilitaires qui **lisent l'altitude**, quelle que soit leur version.
+ *
+ * Elle est distincte de `RELECTURES`, et la distinction est le cœur du problème.
+ * Savoir qu'une déduction lit l'altitude et savoir la rejouer sont deux choses :
+ * la première dit qu'elle est **concernée**, la seconde qu'on peut lui rendre un
+ * chiffre. Une contrainte concernée qu'on ne sait pas rejouer doit être nommée —
+ * ne pas savoir n'autorise pas à prétendre qu'il n'y a rien (règle 5).
+ *
+ * Sans cette liste, une cote hors gel versée avant qu'on conserve les entrées
+ * n'apparaissait nulle part : elle tombait dans « inchangé », comptée comme sans
+ * rapport avec l'altitude. C'est exactement le silence qu'on veut interdire.
+ */
+const LIGNEES_QUI_LISENT_ALTITUDE = new Set([
+  "deduction_profondeur_hors_gel_altitude",
+  "deduction_zone_neige_commune"
+]);
+
+/** La lignée d'un utilitaire : son nom, sans la version. */
+function ligneeDe(reference) {
+  const brut = texte(reference);
+  const coupe = brut.lastIndexOf("_V");
+  return coupe > 0 ? brut.slice(0, coupe) : brut;
+}
+
+/**
  * Ce qu'on sait relire, et selon quelle version.
  *
  * La clé est la **référence complète** de l'utilitaire — nom et version. Le jour
@@ -190,10 +215,36 @@ function altitudeDeLEntree(assertion) {
   return Number.isFinite(metres) ? metres : null;
 }
 
-/** Une contrainte du site, déduite, qui a lu l'altitude pour se calculer. */
+/**
+ * Une contrainte du site que l'altitude concerne.
+ *
+ * Deux façons de le savoir, et il faut les deux : la contrainte **garde**
+ * l'altitude sur laquelle elle a été calculée, ou bien l'utilitaire qui l'a
+ * déduite est d'une lignée qui lit l'altitude. La première seule laissait
+ * disparaître toutes celles versées avant qu'on conserve les entrées.
+ */
 function litLAltitude(assertion) {
   if (texte(assertion?.kind) !== DERIVED_CONSTRAINT_KIND) return false;
-  return altitudeDeLEntree(assertion) !== null;
+  if (altitudeDeLEntree(assertion) !== null) return true;
+  return LIGNEES_QUI_LISENT_ALTITUDE.has(ligneeDe(assertion?.payload?.utilitaire));
+}
+
+/**
+ * Pourquoi une contrainte concernée n'a pas pu être relue.
+ *
+ * La phrase est rendue à l'écran telle quelle : « à revérifier » sans motif est
+ * une inquiétude sans adresse, et l'on ne sait pas s'il faut corriger la donnée
+ * ou l'outil.
+ */
+export const SANS_ENTREE = "ce calcul ne dit pas sur quelle altitude il a été fait";
+
+function pourquoiPasRelue(assertion) {
+  const utilitaire = texte(assertion?.payload?.utilitaire);
+  if (!utilitaire) return "cette contrainte ne dit pas quel utilitaire l'a déduite";
+  if (!RELECTURES[utilitaire]) {
+    return `nous ne savons pas rejouer ${utilitaire} — seule la version dont nous connaissons la loi est relue`;
+  }
+  return SANS_ENTREE;
 }
 
 /**
@@ -203,11 +254,15 @@ function litLAltitude(assertion) {
  * loi qu'on ne connaît pas, et il fait tomber la contrainte au rang « à
  * revérifier », où elle est nommée sans être devinée.
  */
-export function relireLaContrainte(assertion, altitude) {
+export function relireLaContrainte(assertion, altitude, { supposerDepuis = null } = {}) {
   const relecture = RELECTURES[texte(assertion?.payload?.utilitaire)];
   if (!relecture) return null;
 
-  const altitudeDepart = altitudeDeLEntree(assertion);
+  const enregistree = altitudeDeLEntree(assertion);
+  // La supposition n'est jamais prise d'office : l'appelant la demande, et la
+  // ligne rendue la porte pour que l'écran ne puisse pas l'oublier en chemin.
+  const suppose = enregistree === null && Number.isFinite(supposerDepuis);
+  const altitudeDepart = enregistree ?? (suppose ? supposerDepuis : null);
   if (altitudeDepart === null || !Number.isFinite(altitude)) return null;
 
   const avant = texte(assertion?.payload?.value);
@@ -231,7 +286,16 @@ export function relireLaContrainte(assertion, altitude) {
     // qui s'éteint, et le taire ferait passer pour identique une valeur dont on
     // ne se méfie plus de la même façon.
     reservesOntBouge: reservesAvant.join("|") !== reservesApres.join("|"),
-    altitudeDepart
+    altitudeDepart,
+    /**
+     * Vrai quand l'altitude de départ n'était pas conservée et qu'on l'a
+     * supposée.
+     *
+     * Elle voyage avec la ligne jusqu'à l'écran, et jusqu'au calque de la
+     * mémoire : une valeur supposée qui perdrait sa mention en route serait
+     * exactement le chiffre indiscernable d'un chiffre calculé qu'on refuse.
+     */
+    suppose
   };
 }
 
@@ -285,7 +349,7 @@ function cequiEnDecoule(assertions, departs) {
  * @returns {{ok: boolean, raison?: string, depart?: object, altitude?: number,
  *   recalculees?: object[], aRevoir?: object[], inchangees?: number}}
  */
-export function consequencesDeLaVariante({ assertions = [], altitude = NaN } = {}) {
+export function consequencesDeLaVariante({ assertions = [], altitude = NaN, supposer = false } = {}) {
   const toutes = Array.isArray(assertions) ? assertions : [];
   const depart = altitudeDeLaMemoire(toutes);
 
@@ -309,7 +373,10 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN } = {
 
   for (const assertion of enVigueur) {
     if (!litLAltitude(assertion)) continue;
-    const relue = relireLaContrainte(assertion, altitude);
+    // `supposer` n'est jamais vrai d'office : c'est un geste, et l'écran en
+    // porte la trace. Sans lui, une contrainte sans entrées reste au rang
+    // « à revérifier », nommée avec sa raison.
+    const relue = relireLaContrainte(assertion, altitude, { supposerDepuis: supposer ? depart.metres : null });
     if (relue) recalculees.push(relue);
     else refusees.push(assertion);
   }
@@ -340,6 +407,9 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN } = {
       // Pourquoi elle est là : parce qu'elle lit l'altitude sans qu'on sache la
       // rejouer, ou parce qu'elle repose sur quelque chose qui a bougé.
       motif: litLAltitude(assertion) ? "lit-altitude" : "en-decoule",
+      // Pourquoi elle n'a pas été relue, quand elle aurait pu l'être. Vide pour
+      // ce qui n'en découle que de proche en proche : là, la raison est le lien.
+      pourquoi: litLAltitude(assertion) ? pourquoiPasRelue(assertion) : "",
       // La provenance dit qui aurait à la refaire. Sans elle, « à revérifier »
       // est une inquiétude sans adresse.
       provenance: texte(assertion?.payload?.utilitaire)
@@ -357,6 +427,12 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN } = {
     ok: true,
     depart,
     altitude,
+    suppose: Boolean(supposer),
+    // Combien de contraintes ne manquent que de leur altitude de départ. C'est
+    // ce qui permet à l'écran de proposer la supposition plutôt que de la
+    // prendre : « supposer qu'elles ont été calculées à 13 m » est une phrase
+    // que quelqu'un accepte, pas une décision de l'outil.
+    supposables: aRevoir.filter((ligne) => ligne.pourquoi === SANS_ENTREE).length,
     recalculees,
     aRevoir,
     // Compté, jamais listé : « rien n'a bougé là » se dit par un nombre, et une
@@ -374,7 +450,7 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN } = {
  * ────────────────────────────────────────────────────────────────────────── */
 
 /** Une affirmation réécrite sans toucher à l'originale. Rien d'ici ne s'écrit. */
-function substituee(assertion, { valeur, reserves = null, effet }) {
+function substituee(assertion, { valeur, reserves = null, effet, avant = "", pourquoi = "" }) {
   const payload = { ...(assertion?.payload ?? {}) };
   const sujet = texte(payload.subject) || texte(assertion?.statement);
   payload.value = valeur;
@@ -399,7 +475,7 @@ function substituee(assertion, { valeur, reserves = null, effet }) {
      * jour quelque chose le faisait, la marque ne partirait pas en base avec le
      * reste. Un écran la lit pour dire « ceci n'est pas la mémoire ».
      */
-    variante: { effet }
+    variante: { effet, avant: texte(avant) || texte(assertion?.payload?.value), pourquoi: texte(pourquoi) }
   };
 }
 
@@ -419,23 +495,35 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
   const toutes = Array.isArray(assertions) ? assertions : [];
   if (!variante || !Number.isFinite(variante?.altitude)) return toutes;
 
-  const consequences = consequencesDeLaVariante({ assertions: toutes, altitude: variante.altitude });
+  const consequences = consequencesDeLaVariante({
+    assertions: toutes, altitude: variante.altitude, supposer: Boolean(variante.suppose)
+  });
   if (!consequences.ok) return toutes;
 
   const remplacements = new Map();
 
   remplacements.set(
     idDe(consequences.depart.assertion),
-    substituee(consequences.depart.assertion, { valeur: altitudeEnTexte(variante.altitude), effet: "variante" })
+    substituee(consequences.depart.assertion, {
+      valeur: altitudeEnTexte(variante.altitude), effet: "variante", avant: consequences.depart.valeur
+    })
   );
 
   for (const ligne of consequences.recalculees) {
     remplacements.set(
       idDe(ligne.assertion),
-      substituee(ligne.assertion, { valeur: ligne.apres, reserves: ligne.reservesApres, effet: "recalculee" })
+      substituee(ligne.assertion, {
+        valeur: ligne.apres, reserves: ligne.reservesApres,
+        // Une valeur relue à l'identique n'est pas un changement : elle se marque
+        // « relue », pour qu'on sache qu'on a regardé, sans crier au changement.
+        effet: ligne.suppose ? "supposee" : ligne.valeurABouge || ligne.reservesOntBouge ? "recalculee" : "relue",
+        avant: ligne.avant,
+        pourquoi: ligne.suppose ? `supposée calculée à ${altitudeEnTexte(ligne.altitudeDepart)}` : ""
+      })
     );
   }
 
+  const raisons = new Map(consequences.aRevoir.map((ligne) => [idDe(ligne.assertion), ligne.pourquoi]));
   const aRevoir = new Set(consequences.aRevoir.map((ligne) => idDe(ligne.assertion)));
 
   return toutes.map((assertion) => {
@@ -444,7 +532,9 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
     // On ne devine pas leur nouvelle valeur : on les marque, et l'écran dit
     // qu'elles sont à revérifier. Une valeur inventée ici serait indiscernable
     // d'une valeur calculée.
-    if (aRevoir.has(id)) return { ...assertion, variante: { effet: "a-revoir" } };
+    if (aRevoir.has(id)) {
+      return { ...assertion, variante: { effet: "a-revoir", avant: texte(assertion?.payload?.value), pourquoi: raisons.get(id) ?? "" } };
+    }
     return assertion;
   });
 }
@@ -459,6 +549,9 @@ export function variantePourLEcran({ altitude = NaN, consequences = null, par = 
   if (!consequences?.ok) return null;
 
   return {
+    // Sans elle, relire la mémoire referait le calcul sans la supposition, et
+    // l'écran montrerait autre chose que ce qu'on venait d'accepter.
+    suppose: Boolean(consequences.suppose),
     sujet: consequences.depart.sujet,
     cleSujet: texte(consequences.depart.assertion?.subject_key),
     depuis: consequences.depart.valeur,

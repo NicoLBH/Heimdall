@@ -36,8 +36,10 @@ const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulie
  * @param {object} [options]
  * @param {boolean} [options.aBouge] la mémoire a changé depuis le calcul
  */
-export function renderBandeauVariante(variante, { aBouge = false } = {}) {
+export function renderBandeauVariante(variante, { aBouge = false, seulement = false } = {}) {
   if (!variante) return "";
+
+  const touchees = Number(variante.recalculees ?? 0) + Number(variante.aRevoir ?? 0);
 
   return `
     <div class="variante-bandeau${aBouge ? " variante-bandeau--perimee" : ""}" role="status" data-variante-bandeau>
@@ -54,6 +56,19 @@ export function renderBandeauVariante(variante, { aBouge = false } = {}) {
               ${svgIcon("alert", { className: "octicon" })}
               La mémoire a bougé depuis ce calcul : ces conséquences ne valent plus.
             </span>`
+          : ""
+      }
+      ${
+        // Sur trois cents lignes, l'écart est trois lignes. Sans ce filtre il
+        // faut le chercher, et une variante qu'on ne sait pas lire ne sert à
+        // rien : c'est l'écart qu'on vient voir, pas la mémoire.
+        touchees
+          ? `<button type="button"
+              class="gh-btn gh-btn--sm variante-bandeau__filtre${seulement ? " est-actif" : ""}"
+              data-variante-filtre aria-pressed="${seulement ? "true" : "false"}">
+              ${svgIcon(seulement ? "check" : "file-diff", { className: "octicon" })}
+              Ne montrer que ce qui change
+            </button>`
           : ""
       }
       <span class="variante-bandeau__rien">Rien ne s'écrit ici.</span>
