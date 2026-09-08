@@ -21465,19 +21465,12 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   border-color:var(--variante-bord); background:var(--variante-fond); color:var(--variante);
 }
 
-/* Une valeur supposée porte sa condition partout où elle apparaît : sans elle,
-   le chiffre devient indiscernable d'un chiffre calculé. */
-.memory-row__variante--supposee{ border-color:rgba(57,197,207,.55); background:rgba(57,197,207,.12); }
-.memory-row__variante--supposee .memory-row__variante-nom{ color:var(--variante); }
-.memory-row--variante-supposee{ box-shadow:inset 3px 0 0 var(--variante); }
-.variante-ligne--supposee{ border-left:2px solid var(--variante-bord); }
-.variante-ligne__pourquoi--suppose{ color:var(--variante); }
-.variante-supposer{ align-self:flex-start; margin-top:6px; }
-.variante-rang__suppose{
+/* Une note au bas d'un rang : un cycle qui ne se stabilise pas, par exemple. */
+.variante-rang__note{
   display:inline-flex; align-items:center; gap:6px; margin:6px 0 0;
   color:var(--variante); font-size:12px;
 }
-.variante-rang__suppose .octicon{ width:12px; height:12px; }
+.variante-rang__note .octicon{ width:12px; height:12px; }
 
 /* ── « Emplois » : à quoi sert chaque valeur déclarée ──────────────────────
    La même gouttière que l'origine, et pour la même raison : une annotation qui
@@ -21704,6 +21697,12 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .audit-rang--opaque h5{ color:var(--muted); }
 /* Calculé sur une entrée qui a bougé : ni une règle qui dérive, ni un angle
    mort. Sa propre couleur, pour qu'on ne le lise pas comme l'un des deux. */
+/* L'attente d'un calcul au serveur : elle tourne, sans jamais clignoter. */
+.variante-attente{ display:flex; align-items:center; gap:8px; }
+.variante-attente .ui-icon{ flex:none; animation:variante-tourne 1.4s linear infinite; }
+@keyframes variante-tourne{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce){ .variante-attente .ui-icon{ animation:none; } }
+
 .audit-rang--perime{ border-left-color:#a371f7; }
 .audit-rang--perime h5{ color:#a371f7; }
 .audit-ligne--perime .audit-ligne__affirmee{ text-decoration:line-through; }

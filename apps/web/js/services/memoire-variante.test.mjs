@@ -58,6 +58,26 @@ const dit = (sujet, valeur) => ({
 /** La substitution telle que l'écran la formera : affirmation → valeur essayée. */
 const essayer = (id, valeur) => new Map([[id, valeur]]);
 
+/**
+ * Ce que le référentiel a répondu quand on lui a redemandé.
+ *
+ * Ce module ne calcule plus aucune loi d'utilitaire : il reçoit la réponse. Les
+ * tests la fournissent donc explicitement, ce qui a le mérite de rendre visible
+ * ce qui vient du serveur et ce qui vient d'ici.
+ */
+const repondu = (lignes = [], refusees = []) => ({
+  recalculees: lignes.map(({ assertion, avant, apres, reservesAvant = [], reservesApres = [], utilitaire = "" }) => ({
+    assertion,
+    sujet: assertion.payload.subject,
+    utilitaire: utilitaire || assertion.payload.utilitaire,
+    avant, apres,
+    valeurABouge: apres !== avant,
+    reservesAvant, reservesApres,
+    reservesOntBouge: reservesAvant.join("|") !== reservesApres.join("|")
+  })),
+  refusees
+});
+
 test("on ne fait varier que le socle, jamais ce que les règles concluent", () => {
   const memoire = [
     altitude("490 m"),
@@ -129,7 +149,12 @@ test("les conséquences se rangent en trois rangs qui ne se mélangent pas", () 
   ];
 
   const rendu = consequencesDeLaVariante({
-    assertions: memoire, substitutions: essayer("ddb-altitude", "1200 m")
+    assertions: memoire,
+    substitutions: essayer("ddb-altitude", "1200 m"),
+    relectures: repondu([
+      { assertion: memoire[1], avant: "0.99 m", apres: "1.17 m" },
+      { assertion: memoire[2], avant: "A2", apres: "A2", reservesApres: ["altitude-hors-table"] }
+    ])
   });
 
   assert.equal(rendu.ok, true);
@@ -152,7 +177,9 @@ test("une valeur recalculée à l'identique ne rend rien suspect en aval", () =>
   ];
 
   const rendu = consequencesDeLaVariante({
-    assertions: memoire, substitutions: essayer("ddb-altitude", "600 m")
+    assertions: memoire,
+    substitutions: essayer("ddb-altitude", "600 m"),
+    relectures: repondu([{ assertion: memoire[1], avant: "A2", apres: "A2" }])
   });
   assert.equal(rendu.recalculees[0].valeurABouge, false);
   assert.equal(rendu.recalculees[0].reservesOntBouge, false);
@@ -172,7 +199,9 @@ test("une relecture d'utilitaire nourrit le rejeu des règles qui la lisent", ()
   ];
 
   const rendu = consequencesDeLaVariante({
-    assertions: memoire, substitutions: essayer("ddb-altitude", "890 m")
+    assertions: memoire,
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([{ assertion: memoire[1], avant: "0.99 m", apres: "1.09 m" }])
   });
 
   assert.deepEqual(rendu.recalculees.map((l) => [l.sujet, l.apres]), [["Profondeur hors gel", "1.09 m"]]);
@@ -199,19 +228,42 @@ test("une dérive déjà présente n'est pas mise au compte de la variante", () 
   assert.deepEqual(rendu.rejouees, []);
 });
 
-test("ce qu'on ne sait pas rejouer est nommé, jamais deviné", () => {
-  const v2 = deduite({
+test("un utilitaire qui n'a pas répondu est nommé, jamais deviné", () => {
+  // Le refus vient du rejeu, avec son motif. Rendre un chiffre ici — d'après une
+  // loi recopiée, d'après la valeur d'avant — serait indiscernable d'un chiffre
+  // que le référentiel aurait donné.
+  const muet = deduite({
     id: "frost", sujet: "Profondeur hors gel", valeur: "0.99 m", alt: 490,
-    utilitaire: "deduction_profondeur_hors_gel_altitude_V2"
+    utilitaire: "deduction_profondeur_hors_gel_altitude_V1"
   });
   const rendu = consequencesDeLaVariante({
-    assertions: [altitude("490 m"), v2], substitutions: essayer("ddb-altitude", "890 m")
+    assertions: [altitude("490 m"), muet],
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([], [{ assertion: muet, refus: "injoignable" }])
   });
 
   assert.deepEqual(rendu.recalculees, []);
   assert.deepEqual(rendu.aRevoir.map((l) => l.sujet), ["Profondeur hors gel"]);
   assert.equal(rendu.aRevoir[0].motif, "utilitaire");
-  assert.match(rendu.aRevoir[0].pourquoi, /deduction_profondeur_hors_gel_altitude_V2/);
+  assert.match(rendu.aRevoir[0].pourquoi, /n'a pas répondu/);
+});
+
+test("une valeur que le serveur choisit lui-même se refuse, et dit pourquoi", () => {
+  // H0 entre dans la formule sans entrer dans l'appel : le référentiel le prend
+  // dans sa table départementale, et le lui imposer lui ferait dire autre chose
+  // que le DTU.
+  const gel = deduite({
+    id: "frost", sujet: "Profondeur hors gel", valeur: "0.99 m", alt: 490,
+    utilitaire: "deduction_profondeur_hors_gel_altitude_V1"
+  });
+  const rendu = consequencesDeLaVariante({
+    assertions: [dit("H0 retenu pour le département", "0,50 m"), gel],
+    substitutions: essayer("a-H0 retenu pour le département", "0,60 m"),
+    relectures: repondu([], [{ assertion: gel, refus: "entree-impossible" }])
+  });
+
+  assert.equal(rendu.aRevoir[0].motif, "utilitaire");
+  assert.match(rendu.aRevoir[0].pourquoi, /le serveur la choisit lui-même/);
 });
 
 test("une variante sans changement, ou vers une valeur vide, est refusée", () => {
@@ -235,7 +287,10 @@ test("la mémoire sous la variante rend une autre liste, sans rien écrire", () 
   const memoire = [altitude("490 m"), horsGel("0.99 m", 490), dit("Commune", "Grenoble")];
   const copie = JSON.parse(JSON.stringify(memoire));
 
-  const vue = memoireAvecLaVariante(memoire, { substitutions: essayer("ddb-altitude", "890 m") });
+  const vue = memoireAvecLaVariante(memoire, {
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([{ assertion: memoire[1], avant: "0.99 m", apres: "1.09 m" }])
+  });
 
   assert.equal(vue.length, memoire.length);
   assert.equal(vue[0].payload.value, "890 m");
@@ -260,7 +315,15 @@ test("le calque distingue « recalculée », « relue » et « rejouée »", () 
     dit("Fondations profondes", "non exigées")
   ];
 
-  const vue = memoireAvecLaVariante(memoire, { substitutions: essayer("ddb-altitude", "890 m") });
+  const vue = memoireAvecLaVariante(memoire, {
+    substitutions: essayer("ddb-altitude", "890 m"),
+    // Le référentiel a répondu une fois, dans la fenêtre. Le calque réapplique sa
+    // réponse ; il ne redemande pas, et il ne recalcule rien de son côté.
+    relectures: repondu([
+      { assertion: memoire[1], avant: "0.99 m", apres: "1.09 m" },
+      { assertion: memoire[2], avant: "A2", apres: "A2" }
+    ])
+  });
   const effet = (sujet) => vue.find(
     (l) => l.payload?.subject === sujet && !l.payload?.referentiel
   )?.variante?.effet;
@@ -286,7 +349,10 @@ test("ce qui reste à revérifier garde sa valeur d'avant", () => {
     dit("Ancrage des semelles", "0.99 m")
   ];
 
-  const vue = memoireAvecLaVariante(memoire, { substitutions: essayer("ddb-altitude", "890 m") });
+  const vue = memoireAvecLaVariante(memoire, {
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([{ assertion: memoire[1], avant: "0.99 m", apres: "1.09 m" }])
+  });
   const ancrage = vue.find((l) => l.payload?.subject === "Ancrage des semelles" && !l.payload?.referentiel);
 
   assert.equal(ancrage.variante.effet, "a-revoir");
@@ -295,33 +361,24 @@ test("ce qui reste à revérifier garde sa valeur d'avant", () => {
   assert.match(ancrage.variante.pourquoi, /Portance du sol/);
 });
 
-test("supposer l'altitude de départ se demande, ne se prend jamais", () => {
-  const sansEntrees = {
-    ...horsGel("0.71 m", 13),
-    payload: { ...horsGel("0.71 m", 13).payload, inputs: null }
-  };
-  const memoire = [altitude("13 m"), sansEntrees];
-  const substitutions = essayer("ddb-altitude", "890 m");
+test("la variante gardée porte les réponses du référentiel, et le calque les réapplique", () => {
+  // Sans elles, relire la mémoire sous la variante redemanderait au serveur à
+  // chaque rendu — ou, pire, recalculerait de son côté une valeur que le
+  // référentiel a déjà donnée.
+  const memoire = [altitude("490 m"), horsGel("0.99 m", 490)];
+  const relectures = repondu([{ assertion: memoire[1], avant: "0.99 m", apres: "1.09 m" }]);
 
-  // Sans le geste : nommée, pas relue — et l'écran sait qu'elle est supposable.
-  const stricte = consequencesDeLaVariante({ assertions: memoire, substitutions });
-  assert.equal(stricte.recalculees.length, 0);
-  assert.equal(stricte.supposables, 1);
+  const consequences = consequencesDeLaVariante({
+    assertions: memoire, substitutions: essayer("ddb-altitude", "890 m"), relectures
+  });
+  const gardee = variantePourLEcran({ consequences });
 
-  const supposee = consequencesDeLaVariante({ assertions: memoire, substitutions, supposer: true });
-  assert.equal(supposee.recalculees[0].suppose, true);
-  assert.equal(supposee.recalculees[0].apres, "0.93 m");
-  assert.deepEqual(supposee.aRevoir, []);
+  assert.deepEqual(gardee.relectures.recalculees.map((l) => l.apres), ["1.09 m"]);
+  assert.equal(memoireAvecLaVariante(memoire, gardee)[1].payload.value, "1.09 m");
 
-  // Et la mémoire relue le dit sur la ligne, sans quoi le chiffre supposé
-  // deviendrait indiscernable d'un chiffre calculé.
-  const gardee = variantePourLEcran({ consequences: supposee });
-  assert.equal(gardee.suppose, true);
-  assert.equal(memoireAvecLaVariante(memoire, gardee)[1].variante.effet, "supposee");
-
-  // Sans le drapeau, le calque refait le calcul strict : rien n'est supposé
-  // par accident.
-  assert.equal(memoireAvecLaVariante(memoire, { substitutions })[1].variante.effet, "a-revoir");
+  // Sans les réponses, la contrainte n'est pas devinée : elle est à revérifier.
+  const sansReponse = memoireAvecLaVariante(memoire, { substitutions: essayer("ddb-altitude", "890 m") });
+  assert.equal(sansReponse[1].payload.value, "0.99 m");
 });
 
 test("une variante sans conséquences lisibles rend la mémoire telle quelle", () => {
@@ -333,7 +390,9 @@ test("une variante sans conséquences lisibles rend la mémoire telle quelle", (
 test("une variante retient l'état de la mémoire sur laquelle elle a été faite", () => {
   const memoire = [altitude("490 m"), horsGel("0.99 m", 490)];
   const consequences = consequencesDeLaVariante({
-    assertions: memoire, substitutions: essayer("ddb-altitude", "890 m")
+    assertions: memoire,
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([{ assertion: memoire[1], avant: "0.99 m", apres: "1.09 m" }])
   });
   const gardee = variantePourLEcran({ consequences, at: "2026-02-01T10:00:00Z" });
 

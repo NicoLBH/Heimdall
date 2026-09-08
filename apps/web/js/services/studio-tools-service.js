@@ -47,7 +47,17 @@ export function buildClimateToolLocationPayload(location = {}) {
   };
 }
 
-export async function resolveStudioClimateTool({ projectId, toolKey, location } = {}) {
+/**
+ * @param {object} options
+ * @param {string} options.projectId
+ * @param {string} options.toolKey `snow`, `wind` ou `frost`
+ * @param {object} options.location l'adresse, l'altitude
+ * @param {boolean} [options.dryRun] calculer **sans rien écrire** — c'est ce qui
+ *   permet à une variante de rejouer un utilitaire pour de vrai : même table,
+ *   même version, même loi, mais rien n'entre dans le projet. Une valeur essayée
+ *   qui s'écrirait serait une valeur que personne n'a décidée.
+ */
+export async function resolveStudioClimateTool({ projectId, toolKey, location, dryRun = false } = {}) {
   const normalizedProjectId = safeString(projectId);
   const normalizedToolKey = safeString(toolKey);
 
@@ -57,7 +67,8 @@ export async function resolveStudioClimateTool({ projectId, toolKey, location } 
   const payload = {
     project_id: normalizedProjectId,
     tool_key: normalizedToolKey,
-    location: buildClimateToolLocationPayload(location)
+    location: buildClimateToolLocationPayload(location),
+    ...(dryRun ? { dry_run: true } : {})
   };
 
   try {

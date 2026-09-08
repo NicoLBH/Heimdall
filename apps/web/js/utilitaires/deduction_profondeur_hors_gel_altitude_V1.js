@@ -38,14 +38,35 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
    * verse, et les deux sont donc déclarés. Le département et le canton, non —
    * ils servent à choisir H0 au serveur, mais la mémoire ne les porte pas, et
    * déclarer un sujet que rien ne verse ferait un lien vers rien.
+   *
+   * `entree` dit **par quel champ de l'appel** ce sujet entre dans le calcul.
+   * L'altitude en a un : le serveur la reçoit et recalcule. H0 n'en a pas — le
+   * serveur le choisit lui-même dans sa table départementale, et le lui imposer
+   * reviendrait à lui faire dire autre chose que ce que le DTU dit. Un sujet sans
+   * `entree` se lit donc sans se faire varier, et l'écran le dit plutôt que de
+   * rendre un chiffre.
    */
   lit: [
     { sujet: "H0 retenu pour le département", lire: (fait) => fait?.fact_value?.h0_selected_m },
     {
       sujet: "Altitude du site",
+      entree: "altitude",
+      // L'appel attend un nombre. « 1200 m » n'en est pas un pour lui, et le
+      // laisser passer le ferait retomber sur zéro — une cote de fondation
+      // calculée au niveau de la mer, énoncée comme une règle.
+      nombre: true,
       lire: (fait) => fait?.fact_value?.inputs?.altitude ?? fait?.fact_value?.altitude
     }
   ],
+
+  /**
+   * Comment se rejouer : le même outil serveur, en mode « calcule sans écrire ».
+   *
+   * Pas de formule recopiée ici. La table départementale vit au serveur, la loi
+   * aussi, et une seconde copie dans le navigateur finirait par diverger de la
+   * première — c'est arrivé ailleurs dans ce projet. On redemande, simplement.
+   */
+  rejeu: { outil: "frost" },
 
   deduire(fait = {}) {
     const brut = fait?.fact_value?.frost_depth_m;
