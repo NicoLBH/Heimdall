@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  SIGNAL, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dispositionDuCerveau, dispositionEnVolume,
-  dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau, enveloppeConvexe, graineDe, liensDuRaisonnement,
-  noeudsIsoles, ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, stratesDuGraphe
+  GENRE, SIGNAL, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, complexiteDeLaRegle,
+  dispositionDuCerveau, dispositionEnVolume, dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau,
+  enveloppeConvexe, graineDe, lecturesAvecLesFonctions, liensDuRaisonnement, noeudsIsoles, ondeDepuis,
+  pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, stratesDuGraphe
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -44,7 +45,15 @@ const regle = (sujet, valeur, lit = []) => ({
   }
 });
 
-const lecture = (de, vers) => ({ input_assertion_id: de, output_assertion_id: vers, input_rank: 1, zone: "" });
+/**
+ * Une lecture enregistrée. La règle qui l'a faite est nommée quand il y en a une :
+ * `assertion_applications` porte la colonne, et c'est elle qui permet de dessiner
+ * le mécanisme entre son entrée et sa sortie.
+ */
+const lecture = (de, vers, regleId = null) => ({
+  input_assertion_id: de, output_assertion_id: vers,
+  rule_assertion_id: regleId, input_rank: 1, zone: ""
+});
 
 /** La chaîne complète : altitude → cote hors gel → fondations. Plus une branche. */
 const memoire = () => [
@@ -57,7 +66,12 @@ const memoire = () => [
   dit("cf", "Degré CF", "CF 1 h", "constat")
 ];
 
-const lectures = () => [lecture("alt", "gel"), lecture("gel", "fond"), lecture("cls", "cf")];
+const lectures = () => [
+  // La première n'a pas de règle : c'est un utilitaire qui a produit la cote.
+  lecture("alt", "gel"),
+  lecture("gel", "fond", "r-Fondations profondes"),
+  lecture("cls", "cf", "r-Degré CF")
+];
 
 /* ── Les strates ─────────────────────────────────────────────────────────── */
 
@@ -114,7 +128,7 @@ test("chaque nœud porte sa nature, et le compte les sépare", () => {
   );
   assert.equal(cerveau.profondeur, 2);
   assert.deepEqual(cerveau.compte, {
-    socle: 2, rejouables: 2, opaques: 1, auServeur: 1, liens: 3, poidsMax: 3
+    socle: 2, rejouables: 2, opaques: 1, fonctions: 0, auServeur: 1, liens: 3, poidsMax: 3
   });
 });
 
@@ -532,4 +546,148 @@ test("on désigne une zone en pointant le vide entre ses valeurs", () => {
   assert.equal(dansLEnveloppe({ x: 5, y: -1 }, contour), false);
   // Un contour dégénéré n'attrape rien : deux points ne font pas une zone.
   assert.equal(dansLEnveloppe({ x: 5, y: 5 }, [{ x: 0, y: 0 }, { x: 10, y: 10 }]), false);
+});
+
+/* ── Les fonctions deviennent des nœuds ──────────────────────────────────── */
+
+test("une lecture de règle se déplie en deux : l'entrée entre, la sortie sort", () => {
+  // Sans ce dépliage, la règle serait la flèche elle-même, et l'on ne pourrait
+  // rien en dire — ni sa complexité, ni ce qu'elle lit d'autre.
+  const depliees = lecturesAvecLesFonctions([lecture("gel", "fond", "r-Fondations profondes")]);
+
+  assert.deepEqual(depliees.map((l) => [l.input_assertion_id, l.output_assertion_id]), [
+    ["gel", "r-Fondations profondes"],
+    ["r-Fondations profondes", "fond"]
+  ]);
+});
+
+test("une lecture sans règle reste telle quelle", () => {
+  // Un utilitaire ne se déplie pas : il n'y a pas de règle du projet à montrer,
+  // et en inventer une ferait passer un calcul opaque pour un raisonnement lu.
+  assert.deepEqual(lecturesAvecLesFonctions([lecture("alt", "gel")]), [lecture("alt", "gel")]);
+});
+
+test("une règle sans entrée connue garde quand même sa sortie", () => {
+  // Ne pas savoir ce qu'elle a lu n'autorise pas à effacer ce qu'elle produit.
+  const depliees = lecturesAvecLesFonctions([lecture(null, "fond", "r-Fondations profondes")]);
+
+  assert.deepEqual(depliees.map((l) => [l.input_assertion_id, l.output_assertion_id]), [
+    ["r-Fondations profondes", "fond"]
+  ]);
+});
+
+test("la complexité compte ce qu'il faut tenir en tête, et les exceptions comptent double", () => {
+  // C'est là qu'on se trompe : on lit l'exception après avoir tenu tout le reste.
+  const simple = regle("Degré CF", "CF 1 h", [["Classement", "3e famille B"]]);
+  assert.deepEqual(complexiteDeLaRegle(simple), {
+    conditions: 1, sujets: 1, exceptions: 0, deuxIssues: false, zones: 0, total: 2
+  });
+
+  const tordue = {
+    ...simple,
+    zones: ["z1", "z2"],
+    payload: {
+      ...simple.payload,
+      regle: {
+        conditions: [
+          { sujet: "Classement", operateur: "=", valeur: "3e famille B" },
+          { sujet: "Hauteur du dernier plancher", operateur: ">", valeur: "8" }
+        ],
+        sauf: [{ sujet: "Sprinkleurs", operateur: "=", valeur: "oui" }],
+        sinon: "CF 1/2 h"
+      }
+    }
+  };
+
+  assert.deepEqual(complexiteDeLaRegle(tordue), {
+    conditions: 2, sujets: 3, exceptions: 1, deuxIssues: true, zones: 2, total: 10
+  });
+});
+
+test("une règle appliquée devient un nœud, entre ses entrées et sa sortie", () => {
+  const cerveau = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+  const fonctions = cerveau.noeuds.filter((noeud) => noeud.genre === GENRE.FONCTION);
+
+  assert.deepEqual(fonctions.map((noeud) => noeud.id).sort(), ["r-Degré CF", "r-Fondations profondes"]);
+  assert.equal(cerveau.compte.fonctions, 2);
+
+  // Le chemin passe **par** la règle : gel → règle → fond, jamais gel → fond.
+  const paires = cerveau.liens.map((lien) => `${lien.de}→${lien.vers}`);
+  assert.ok(paires.includes("gel→r-Fondations profondes"));
+  assert.ok(paires.includes("r-Fondations profondes→fond"));
+  assert.equal(paires.includes("gel→fond"), false);
+});
+
+test("une règle que rien n'applique n'entre pas dans le dessin", () => {
+  // La mémoire peut porter une règle sans objet. La dessiner ferait croire à un
+  // mécanisme actif là où il ne s'est rien passé.
+  const avec = [...memoire(), regle("Colonne sèche", "exigée", [["Classement", "3e famille B"]])];
+  const cerveau = cerveauDuProjet(avec, lectures(), { avecLesFonctions: true });
+
+  assert.equal(cerveau.noeuds.some((noeud) => noeud.id === "r-Colonne sèche"), false);
+});
+
+test("la profondeur du raisonnement ne change pas selon ce qu'on affiche", () => {
+  // Déplier les règles ajoute un rang par étape. Si le chiffre annoncé suivait le
+  // dessin, le même projet aurait deux profondeurs selon un bouton — et l'on
+  // aurait raison de ne plus croire aucun des deux.
+  const sans = cerveauDuProjet(memoire(), lectures());
+  const avec = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+
+  assert.equal(avec.pasDeRaisonnement, sans.pasDeRaisonnement);
+  assert.ok(avec.profondeur > sans.profondeur);
+
+  // Ici, aucun rang n'est *que* des règles : deux chaînes de longueurs
+  // différentes mettent « Profondeur hors gel » et « Degré CF » au même rang.
+  // Le nommer « les règles » nierait la valeur qui s'y trouve.
+  assert.deepEqual([...avec.rangsDeFonctions], []);
+});
+
+test("un rang qui ne porte que des règles est nommé comme tel", () => {
+  // Une seule chaîne : valeur, règle, valeur. Le rang du milieu est un mécanisme,
+  // pas un pas de raisonnement, et la colonne doit le dire.
+  const droite = [
+    dit("cls", "Classement", "3e famille B"),
+    regle("Degré CF", "CF 1 h", [["Classement", "3e famille B"]]),
+    dit("cf", "Degré CF", "CF 1 h", "constat")
+  ];
+  const cerveau = cerveauDuProjet(droite, [lecture("cls", "cf", "r-Degré CF")], { avecLesFonctions: true });
+
+  assert.deepEqual([...cerveau.rangsDeFonctions], [1]);
+});
+
+test("l'onde passe par les règles quand elle suit les lectures du cerveau", () => {
+  // C'est l'invariant du dessin : l'onde lit ce que le dessin montre. Nourrie des
+  // lectures d'origine, elle sauterait par-dessus les règles qu'on vient de
+  // dessiner, et elles ne s'allumeraient jamais.
+  const cerveau = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+  const onde = ondeDepuis("gel", cerveau.lectures);
+
+  assert.deepEqual(onde.strates.map((strate) => [...strate]), [["r-Fondations profondes"], ["fond"]]);
+});
+
+test("une règle prend le domaine de ce qu'elle produit", () => {
+  // Une règle n'a pas de domaine à elle : elle appartient à la discipline de sa
+  // conclusion. Sans cela, chaque règle ferait une zone d'un nœud.
+  const memoireDomaines = memoire().map((assertion) => (
+    assertion.id === "cf" ? { ...assertion, domain: "securite-incendie" } : assertion
+  ));
+  const cerveau = cerveauDuProjet(memoireDomaines, lectures(), { avecLesFonctions: true });
+
+  assert.equal(
+    cerveau.noeuds.find((noeud) => noeud.id === "r-Degré CF").domaine,
+    "securite-incendie"
+  );
+});
+
+test("le poids d'une règle reste son emploi, jamais sa complexité", () => {
+  // Une règle compliquée dont rien ne dépend est un coût ; une règle simple dont
+  // tout dépend est un risque. Les fondre dans un seul rayon les confondrait.
+  const cerveau = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+  const fonction = cerveau.noeuds.find((noeud) => noeud.id === "r-Degré CF");
+
+  assert.equal(fonction.poids, fonction.lectures + fonction.entrant + fonction.sortant);
+  assert.equal(fonction.entrant, 1);
+  assert.equal(fonction.sortant, 1);
+  assert.ok(fonction.complexite.total > 0);
 });

@@ -48,15 +48,30 @@
 
 import { NOEUD, natureDuNoeud, sortiesDesRegles } from "./memoire-plan.js";
 import { currentAssertions, titreDeLAffirmation } from "./project-memory.js";
-import { emploisParAffirmation, impactDe } from "./memoire-applications.js";
+import { emploisParAffirmation, impactDe, lecturesDeLaRegle } from "./memoire-applications.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
 import { utilitaireByReference } from "../utilitaires/catalogue.js";
 import { DOMAINS, domainLabel } from "./assertion-taxonomy.js";
 import { VERDICT, auditerLaMemoire } from "./memoire-audit.js";
+import { cleDuSujet } from "./memoire-identifiants.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
 const estUneRegle = (assertion) => assertion?.payload?.referentiel === true;
+
+/**
+ * Ce qu'un nœud est, du point de vue du dessin.
+ *
+ * Distinct de sa **nature** (socle, rejouable, opaque), qui dit d'où sa valeur
+ * vient. Le genre dit ce que le nœud **est** : une chose que le projet sait, ou
+ * une chose que le projet fait.
+ */
+export const GENRE = {
+  /** Une affirmation : ce que le projet tient pour vrai. */
+  VALEUR: "valeur",
+  /** Une règle appliquée : le mécanisme qui produit une valeur. */
+  FONCTION: "fonction"
+};
 
 /** Combien de tours au plus avant de déclarer qu'une composante se lit en rond. */
 const TOURS_MAX = 60;
@@ -180,20 +195,57 @@ export function stratesDuGraphe(ids = [], liens = []) {
  * @returns {{noeuds: object[], liens: object[], profondeur: number,
  *   compte: object, enregistres: boolean, cycles: string[]}}
  */
-export function cerveauDuProjet(assertions = [], applications = null) {
+export function cerveauDuProjet(assertions = [], applications = null, { avecLesFonctions = false } = {}) {
   const enVigueur = currentAssertions(Array.isArray(assertions) ? assertions : []);
 
-  // Une règle est le **texte** qui produit une valeur, pas une valeur : la
-  // dessiner ferait un nœud de plus par sujet, sans rien apprendre.
   const valeurs = enVigueur.filter((assertion) => !estUneRegle(assertion)).filter((a) => texte(a?.id));
 
+  // Les lectures que l'écran va dessiner. Dépliées, une règle cesse d'être une
+  // flèche et devient une étape : `entrée → règle → sortie`.
+  const lues = avecLesFonctions
+    ? lecturesAvecLesFonctions(Array.isArray(applications) ? applications : [])
+    : applications;
+
   const produites = sortiesDesRegles(enVigueur);
-  const { liens, enregistres } = liensDuRaisonnement(enVigueur, applications);
-  const ids = valeurs.map((assertion) => texte(assertion.id));
+  const { liens, enregistres } = liensDuRaisonnement(enVigueur, lues);
+
+  // Une règle n'entre dans le dessin que si une lecture la nomme : une règle que
+  // personne n'a appliquée est un texte, pas une étape du raisonnement de ce
+  // projet-ci, et la dessiner ferait croire qu'elle y sert.
+  const employees = new Set(liens.flatMap((lien) => [lien.de, lien.vers]));
+  const fonctions = avecLesFonctions
+    ? enVigueur.filter(estUneRegle).filter((regle) => employees.has(texte(regle.id)))
+    : [];
+
+  const dessines = [...valeurs, ...fonctions];
+  const ids = dessines.map((assertion) => texte(assertion.id));
   const { strates, enRond, profondeur } = stratesDuGraphe(ids, liens);
 
-  const emplois = emploisParAffirmation(Array.isArray(applications) ? applications : []);
+  /**
+   * La profondeur du **raisonnement**, qui n'est pas celle du dessin.
+   *
+   * Déplier les règles ajoute un niveau par étape : une chaîne de trois pas se
+   * dessine sur six rangs. « La plus longue chaîne fait N pas » doit continuer de
+   * compter les **pas**, sinon le même projet changerait de profondeur selon un
+   * bouton d'affichage — ce qui ferait douter du chiffre, à raison.
+   */
+  const pasDeRaisonnement = avecLesFonctions
+    ? stratesDuGraphe(
+        valeurs.map((assertion) => texte(assertion.id)),
+        liensDuRaisonnement(enVigueur, applications).liens
+      ).profondeur
+    : profondeur;
+
+  const emplois = emploisParAffirmation(Array.isArray(lues) ? lues : []);
   const dedans = new Set(ids);
+
+  /** La sortie d'une règle, pour lui prêter un domaine quand elle n'en a pas. */
+  const sortieDe = new Map(
+    liens.filter((lien) => employees.has(lien.de)).map((lien) => [lien.de, lien.vers])
+  );
+  const domaineDe = new Map(
+    valeurs.map((assertion) => [texte(assertion.id), texte(assertion?.domain) || texte(assertion?.payload?.domain)])
+  );
 
   // Le degré de chaque nœud : combien de liens le touchent, et dans quel sens.
   const degres = new Map(ids.map((id) => [id, { entrant: 0, sortant: 0 }]));
@@ -202,15 +254,27 @@ export function cerveauDuProjet(assertions = [], applications = null) {
     if (degres.has(lien.vers)) degres.get(lien.vers).entrant += lien.poids;
   }
 
-  const noeuds = valeurs.map((assertion) => {
+  const noeuds = dessines.map((assertion) => {
     const id = texte(assertion.id);
-    const nature = natureDuNoeud(assertion, { produites });
-    const utilitaire = texte(assertion?.payload?.utilitaire);
+    const fonction = estUneRegle(assertion);
+    // Une règle **est** le mécanisme rejouable : la ranger ailleurs ferait mentir
+    // la légende, qui dit déjà « une règle du projet le conclut ».
+    const nature = fonction ? NOEUD.REJOUABLE : natureDuNoeud(assertion, { produites });
+    const utilitaire = fonction ? "" : texte(assertion?.payload?.utilitaire);
     const degre = degres.get(id) ?? { entrant: 0, sortant: 0 };
 
     return {
       id,
       assertion,
+      genre: fonction ? GENRE.FONCTION : GENRE.VALEUR,
+      /**
+       * Ce qu'une règle demande pour être comprise, dite à part de son poids.
+       *
+       * Une règle compliquée dont rien ne dépend est un coût ; une règle simple
+       * dont tout dépend est un risque. Les fondre en un seul chiffre les
+       * confondrait.
+       */
+      complexite: fonction ? complexiteDeLaRegle(assertion) : null,
       titre: titreDeLAffirmation(assertion),
       sujet: texte(assertion?.payload?.subject) || titreDeLAffirmation(assertion),
       valeur: texte(assertion?.payload?.value),
@@ -240,7 +304,11 @@ export function cerveauDuProjet(assertions = [], applications = null) {
        * pareil, et ne compter que l'un des deux les confondrait.
        */
       poids: (emplois.get(id)?.lectures ?? 0) + degre.entrant + degre.sortant,
-      domaine: texte(assertion?.domain) || texte(assertion?.payload?.domain),
+      // Une règle sans domaine prend celui de ce qu'elle produit : elle appartient
+      // à la discipline de sa conclusion, et la laisser « sans domaine » la
+      // sortirait de la zone qu'elle sert.
+      domaine: texte(assertion?.domain) || texte(assertion?.payload?.domain)
+        || (fonction ? (domaineDe.get(sortieDe.get(id)) ?? "") : ""),
       utilitaire,
       /**
        * Un nœud opaque qui **sait se rejouer** au serveur.
@@ -253,10 +321,13 @@ export function cerveauDuProjet(assertions = [], applications = null) {
     };
   });
 
+  const valeursDessinees = noeuds.filter((n) => n.genre === GENRE.VALEUR);
   const compte = {
-    socle: noeuds.filter((n) => n.nature === NOEUD.SOCLE).length,
-    rejouables: noeuds.filter((n) => n.nature === NOEUD.REJOUABLE).length,
-    opaques: noeuds.filter((n) => n.nature === NOEUD.OPAQUE).length,
+    socle: valeursDessinees.filter((n) => n.nature === NOEUD.SOCLE).length,
+    rejouables: valeursDessinees.filter((n) => n.nature === NOEUD.REJOUABLE).length,
+    opaques: valeursDessinees.filter((n) => n.nature === NOEUD.OPAQUE).length,
+    /** Les règles dessinées : les étapes que ce projet applique vraiment. */
+    fonctions: noeuds.filter((n) => n.genre === GENRE.FONCTION).length,
     // Ceux des opaques que le serveur sait refaire : le compte honnête de ce
     // qu'une variante rendra vraiment.
     auServeur: noeuds.filter((n) => n.rejouable).length,
@@ -269,7 +340,35 @@ export function cerveauDuProjet(assertions = [], applications = null) {
     noeuds,
     liens: liens.filter((lien) => dedans.has(lien.de) && dedans.has(lien.vers)),
     profondeur,
+    pasDeRaisonnement,
+    /**
+     * Les lectures que ce cerveau dessine — dépliées ou non.
+     *
+     * C'est **elles** qu'il faut donner à l'onde, et non les lectures d'origine :
+     * sinon l'onde sauterait par-dessus les fonctions qu'on vient de dessiner, et
+     * elles ne s'allumeraient jamais. Le dessin et la propagation lisent la même
+     * chose, ou ils finissent par se contredire.
+     */
+    lectures: Array.isArray(lues) ? lues : [],
+    avecLesFonctions: Boolean(avecLesFonctions),
     compte,
+    /**
+     * Les rangs qui **ne portent que** des fonctions.
+     *
+     * L'écran nomme ses colonnes et ses coquilles avec : un rang de règles ne
+     * s'appelle pas « 2 pas », il s'appelle « les règles ». Compter des rangs de
+     * mécanismes comme des pas de raisonnement doublerait la profondeur affichée.
+     *
+     * « Que » des fonctions, et non « au moins une » : deux chaînes de longueurs
+     * différentes mettent couramment une valeur et une règle au même rang, et
+     * appeler cette colonne « les règles » nierait la valeur qui s'y trouve.
+     */
+    rangsDeFonctions: new Set(
+      [...new Set(noeuds.map((n) => n.strate))].filter((rang) => {
+        const dedans = noeuds.filter((n) => n.strate === rang);
+        return dedans.length > 0 && dedans.every((n) => n.genre === GENRE.FONCTION);
+      })
+    ),
     /** Les liens viennent-ils de lectures enregistrées, ou d'un rapprochement de noms ? */
     enregistres,
     cycles: [...enRond]
@@ -743,4 +842,108 @@ export function dansLEnveloppe(point = {}, contour = []) {
     if (traverse) dedans = !dedans;
   }
   return dedans;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Les fonctions comme nœuds
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Les lectures, réécrites en faisant passer chaque règle par elle-même.
+ *
+ * ## Le manque que cela comble
+ *
+ * Jusqu'ici une règle n'était pas un nœud : elle avait été **dissoute dans les
+ * flèches qu'elle produit**. Une lecture disait « la cote de fondation repose sur
+ * la profondeur hors gel » sans jamais nommer la règle qui fait ce lien. On ne
+ * pouvait donc ni voir une fonction, ni la peser, ni savoir laquelle est
+ * compliquée — et un cerveau qui ne montre que la mémoire n'est qu'une moitié de
+ * cerveau.
+ *
+ * ## Comment, sans rien inventer
+ *
+ * `assertion_applications` porte déjà `rule_assertion_id` : chaque lecture sait
+ * quelle règle l'a faite. Une lecture `entrée → sortie` devient donc deux :
+ * `entrée → règle` puis `règle → sortie`. Rien n'est deviné ; on déplie ce qui
+ * était écrit replié.
+ *
+ * ## Pourquoi rendre des **lectures** et pas un graphe
+ *
+ * Parce que l'onde est `impactDe`, et qu'elle doit le rester. En rendant la même
+ * forme de lignes, on la nourrit du graphe **que l'écran dessine**, sans toucher
+ * à sa fonction : le dessin et la propagation ne peuvent pas diverger, ce qui est
+ * la seule garantie qui compte ici.
+ *
+ * Une lecture sans règle nommée — celles d'un utilitaire — reste directe. Le
+ * mécanisme y est le **capteur** lui-même, et il est déjà visible : c'est le nœud
+ * opaque qui en sort.
+ */
+export function lecturesAvecLesFonctions(applications = []) {
+  const lignes = Array.isArray(applications) ? applications : [];
+  const depliees = [];
+
+  for (const ligne of lignes) {
+    const regle = texte(ligne?.rule_assertion_id);
+    const entree = texte(ligne?.input_assertion_id);
+    const sortie = texte(ligne?.output_assertion_id);
+
+    if (!regle) { depliees.push(ligne); continue; }
+
+    if (entree) depliees.push({ ...ligne, output_assertion_id: regle });
+    depliees.push({ ...ligne, input_assertion_id: regle, output_assertion_id: sortie });
+  }
+
+  return depliees;
+}
+
+/**
+ * Ce qu'une règle demande pour être comprise.
+ *
+ * ## Pourquoi ce n'est pas un poids
+ *
+ * La complexité mesure l'**effort de relecture**, pas l'importance. Une règle
+ * compliquée dont rien ne dépend est un coût : elle se relit mal pour rien. Une
+ * règle simple dont tout dépend est un risque : la corriger remue le projet
+ * entier. Ce sont deux problèmes, on n'y répond pas de la même façon, et un score
+ * unique les confondrait — c'est exactement ce que cet écran refuse ailleurs en
+ * séparant la chaleur, qui dit ce qui passe, du rouge, qui dit ce qui ne tient
+ * plus.
+ *
+ * Elle se dit donc **à part** : à l'écran par une couronne de crans, dans la
+ * bulle par son détail. La taille, elle, continue de dire le poids — comme pour
+ * tout le monde.
+ *
+ * ## Ce qu'on compte, et pourquoi
+ *
+ * Rien qui ne soit écrit dans `payload.regle`. Les **conditions**, parce que
+ * chacune est une chose à vérifier. Les **sujets distincts**, parce que lire six
+ * conditions sur deux sujets n'est pas lire six conditions sur six. Les
+ * **exceptions**, qui coûtent plus cher qu'une condition — on les lit après avoir
+ * tenu tout le reste en tête. Le **sinon**, parce qu'une règle qui a deux issues
+ * se relit deux fois. Les **zones**, parce qu'une règle qui ne s'applique pas
+ * partout demande de savoir où.
+ */
+export function complexiteDeLaRegle(regle = {}) {
+  const bloc = regle?.payload?.regle ?? {};
+  const conditions = Array.isArray(bloc.conditions) ? bloc.conditions : [];
+  const exceptions = Array.isArray(bloc.sauf) ? bloc.sauf : [];
+  const sujets = new Set(lecturesDeLaRegle(regle).map(cleDuSujet).filter(Boolean));
+  const zones = Array.isArray(regle?.zones) ? regle.zones.filter(Boolean) : [];
+
+  const detail = {
+    conditions: conditions.length,
+    sujets: sujets.size,
+    exceptions: exceptions.length,
+    /** Une règle qui a deux issues se relit deux fois. */
+    deuxIssues: texte(bloc.sinon) !== "",
+    zones: zones.length
+  };
+
+  return {
+    ...detail,
+    // Les exceptions comptent double : on les lit après avoir tenu tout le reste
+    // en tête, et c'est là qu'on se trompe.
+    total: detail.conditions + detail.sujets + detail.exceptions * 2
+      + (detail.deuxIssues ? 1 : 0) + detail.zones
+  };
 }

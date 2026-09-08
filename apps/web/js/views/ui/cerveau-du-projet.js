@@ -54,9 +54,9 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { NOEUD } from "../../services/memoire-plan.js";
 import {
-  cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe, dispositionDuCerveau,
-  dispositionEnVolume, domainesDuCerveau, enveloppeConvexe, noeudsIsoles, ondeDepuis,
-  pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit
+  GENRE, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe,
+  dispositionDuCerveau, dispositionEnVolume, domainesDuCerveau, enveloppeConvexe, noeudsIsoles,
+  ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit
 } from "../../services/memoire-cerveau.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -84,6 +84,15 @@ const NATURES = {
 
 /** Ce que l'audit signale bat de cette couleur, et d'aucune autre à l'écran. */
 const ROUGE = "248,81,73";
+
+/**
+ * Le violet d'une règle.
+ *
+ * Une règle n'a pas de nature de valeur — ce n'est pas une valeur. Lui donner le
+ * bleu du rejouable la ferait passer pour une conclusion parmi les autres, alors
+ * qu'elle est le mécanisme qui les produit.
+ */
+const REGLE = "163,113,247";
 
 /**
  * La couleur d'une impulsion, selon ce que l'écran est en train de dire.
@@ -180,7 +189,8 @@ function renderEchelleDeChaleur(cerveau, signales) {
       }
       <span class="cerveau-legende__item">
         <b>La forme dit la nature</b>
-        <small>plein pour le socle, cerclé pour ce qui se rejoue, creux pour l'opaque</small>
+        <small>plein pour le socle, cerclé pour ce qui se rejoue, creux pour l'opaque —
+          et un losange est une règle</small>
       </span>
     </div>
   `;
@@ -206,6 +216,18 @@ function renderLegende(cerveau, signales) {
               <i></i>
               <b>${auServeur} au serveur</b>
               <small>opaque, mais son référentiel sait le recalculer</small>
+            </span>`
+          : ""
+      }
+      ${
+        // Une règle n'est pas une nature de valeur : c'est un autre genre de nœud.
+        // Sa taille dit son poids comme partout ; ses crans disent sa complexité,
+        // qui est une autre question — coûteuse à relire n'est pas lourde à porter.
+        cerveau.compte.fonctions
+          ? `<span class="cerveau-legende__item cerveau-legende__item--regle">
+              <i></i>
+              <b>${cerveau.compte.fonctions} ${accorde(cerveau.compte.fonctions, "règle", "règles")}</b>
+              <small>un losange, entre ses entrées et sa sortie — les crans disent sa complexité</small>
             </span>`
           : ""
       }
@@ -261,6 +283,10 @@ function renderBarre(isoles) {
         <button type="button" class="cerveau__outil cerveau__outil--large" data-cerveau-recadrer>Recadrer</button>
       </div>
       <label class="cerveau__isoles">
+        <input type="checkbox" data-cerveau-fonctions checked>
+        <span>Montrer les règles</span>
+      </label>
+      <label class="cerveau__isoles">
         <input type="checkbox" data-cerveau-domaines checked>
         <span>Grouper par domaine</span>
       </label>
@@ -279,18 +305,34 @@ function renderBarre(isoles) {
   `;
 }
 
+/**
+ * Ce que l'écran compte, en une ligne.
+ *
+ * La profondeur affichée est celle du **raisonnement**, jamais celle du dessin :
+ * déplier les règles ajoute un rang par étape, et le même projet ne doit pas
+ * changer de profondeur selon un bouton d'affichage — ce qui ferait douter du
+ * chiffre, à raison.
+ */
+function renderResume(cerveau) {
+  const valeurs = cerveau.noeuds.filter((noeud) => noeud.genre !== GENRE.FONCTION).length;
+  const pas = cerveau.pasDeRaisonnement;
+
+  return `
+    ${valeurs} ${accorde(valeurs, "affirmation", "affirmations")}
+    ${cerveau.compte.fonctions ? `· ${cerveau.compte.fonctions} ${accorde(cerveau.compte.fonctions, "règle", "règles")}` : ""}
+    · ${cerveau.compte.liens} ${accorde(cerveau.compte.liens, "lien", "liens")}
+    · la plus longue chaîne fait <b>${pas}</b> ${accorde(pas, "pas", "pas")}
+  `;
+}
+
 function renderCadre(cerveau, isoles, signales) {
-  const { compte, profondeur, noeuds, cycles } = cerveau;
+  const { compte, noeuds, cycles } = cerveau;
 
   return `
     <div class="cerveau" role="dialog" aria-modal="true" aria-label="Le cerveau du projet">
       <header class="cerveau__tete">
         <b>${svgIcon("beaker", { className: "octicon" })} Le cerveau du projet</b>
-        <span class="cerveau__compte">
-          ${noeuds.length} ${accorde(noeuds.length, "affirmation", "affirmations")}
-          · ${compte.liens} ${accorde(compte.liens, "lien", "liens")}
-          · la plus longue chaîne fait <b>${profondeur}</b> ${accorde(profondeur, "pas", "pas")}
-        </span>
+        <span class="cerveau__compte" data-cerveau-resume>${renderResume(cerveau)}</span>
         <button type="button" class="cerveau__fermer" data-cerveau-fermer
           aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
       </header>
@@ -316,7 +358,7 @@ function renderCadre(cerveau, isoles, signales) {
       </div>
 
       <div class="cerveau__pied">
-        ${renderLegende(cerveau, signales)}
+        <div data-cerveau-legendes>${renderLegende(cerveau, signales)}</div>
         <p class="cerveau__onde" data-cerveau-onde>
           Le projet bat tout seul, et s'arrête dès que vous le survolez.
           Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
@@ -340,6 +382,75 @@ function renderCadre(cerveau, isoles, signales) {
 /* ────────────────────────────────────────────────────────────────────────────
  * Le dessin
  * ────────────────────────────────────────────────────────────────────────── */
+
+/** Le contour d'un losange : la forme d'une **fonction**, jamais d'une valeur. */
+function losange(ctx, x, y, rayon) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - rayon);
+  ctx.lineTo(x + rayon, y);
+  ctx.lineTo(x, y + rayon);
+  ctx.lineTo(x - rayon, y);
+  ctx.closePath();
+}
+
+/** Au-delà, on ne compte plus les crans : on lit « beaucoup », et c'est assez. */
+const CRANS_MAX = 9;
+
+/**
+ * La couronne d'une règle : un cran par point de complexité.
+ *
+ * ## Pourquoi des crans et pas une taille
+ *
+ * Parce que la taille dit déjà autre chose — le poids, comme pour tout le monde.
+ * Une règle **compliquée** dont rien ne dépend est un coût ; une règle **simple**
+ * dont tout dépend est un risque. Ce sont deux problèmes, on n'y répond pas de la
+ * même façon, et les fondre dans un seul rayon les confondrait.
+ *
+ * Des crans, enfin, parce qu'ils se **comptent** : on voit d'un coup d'œil qu'une
+ * règle en a sept là où sa voisine en a deux. Un dégradé ferait deviner, là où
+ * l'on peut simplement montrer.
+ */
+function couronneDeComplexite(ctx, x, y, rayon, complexite, couleur) {
+  const crans = Math.min(CRANS_MAX, Math.max(0, Number(complexite?.total) || 0));
+  if (!crans) return;
+
+  ctx.strokeStyle = couleur;
+  ctx.lineWidth = 1.4;
+  for (let i = 0; i < crans; i += 1) {
+    const angle = (i / CRANS_MAX) * Math.PI * 2 - Math.PI / 2;
+    const dedans = rayon + 3.5;
+    const dehors = dedans + 3.4;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(angle) * dedans, y + Math.sin(angle) * dedans);
+    ctx.lineTo(x + Math.cos(angle) * dehors, y + Math.sin(angle) * dehors);
+    ctx.stroke();
+  }
+}
+
+/**
+ * La complexité d'une règle, en toutes lettres.
+ *
+ * On énumère ce qui la compose plutôt que d'annoncer un score : « 7 » ne se
+ * discute pas, « 3 conditions, 2 sujets lus, 1 exception » se relit et se
+ * conteste. Le total ne sert qu'à compter les crans.
+ */
+function phraseDeLaComplexite(complexite) {
+  const morceaux = [];
+  if (complexite?.conditions) {
+    morceaux.push(`${complexite.conditions} ${accorde(complexite.conditions, "condition", "conditions")}`);
+  }
+  if (complexite?.sujets) {
+    morceaux.push(`${complexite.sujets} ${accorde(complexite.sujets, "sujet lu", "sujets lus")}`);
+  }
+  if (complexite?.exceptions) {
+    morceaux.push(`${complexite.exceptions} ${accorde(complexite.exceptions, "exception", "exceptions")}`);
+  }
+  if (complexite?.deuxIssues) morceaux.push("deux issues");
+  if (complexite?.zones) {
+    morceaux.push(`${complexite.zones} ${accorde(complexite.zones, "zone", "zones")}`);
+  }
+  return morceaux.length ? `Complexité : ${morceaux.join(" · ")}` : "Complexité : rien à tenir en tête";
+}
 
 /** L'aire d'un contour fermé, par la formule du lacet. Toujours positive. */
 function aireDuContour(contour = []) {
@@ -511,7 +622,9 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
   for (const noeud of ordonnes) {
     const { x, y, p, k } = points.get(noeud.id);
     const rayon = rayonDe(noeud) * (etat.vue === "volume" ? borne(k, 0.45, 1.8) : 1);
-    const trait = NATURES[noeud.nature]?.trait ?? "#8b949e";
+    const trait = noeud.genre === GENRE.FONCTION
+      ? `rgb(${REGLE})`
+      : NATURES[noeud.nature]?.trait ?? "#8b949e";
     const eclat = eclats.get(noeud.id) ?? 0;
     const signal = signales.get(noeud.id);
 
@@ -549,8 +662,10 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     }
 
     ctx.globalAlpha = etat.vue === "volume" ? borne(0.3 + p * 0.7, 0.25, 1) : 1;
-    ctx.beginPath();
-    ctx.arc(x, y, rayon, 0, Math.PI * 2);
+
+    const fonction = noeud.genre === GENRE.FONCTION;
+    if (fonction) losange(ctx, x, y, rayon + 1.5);
+    else { ctx.beginPath(); ctx.arc(x, y, rayon, 0, Math.PI * 2); }
 
     if (signal) {
       ctx.fillStyle = `rgba(${ROUGE},.9)`;
@@ -573,6 +688,12 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
           ctx.stroke();
         }
       }
+    } else if (fonction) {
+      ctx.fillStyle = `rgba(${REGLE},.20)`;
+      ctx.fill();
+      ctx.strokeStyle = trait;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
     } else if (noeud.nature === NOEUD.SOCLE) {
       // Plein : c'est une source. C'est de là que part une onde.
       ctx.fillStyle = trait;
@@ -588,6 +709,19 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
       ctx.strokeStyle = noeud.rejouable ? "#a371f7" : trait;
       ctx.lineWidth = noeud.rejouable ? 1.8 : 1.2;
       ctx.stroke();
+    }
+
+    if (fonction) {
+      // La couronne dit ce que la règle demande pour être comprise, en clair et
+      // à côté du poids — jamais fondu dedans.
+      couronneDeComplexite(
+        ctx, x, y, rayon + 1.5, noeud.complexite,
+        signal
+          ? `rgba(${ROUGE},.8)`
+          : etat.couleur === "chaleur"
+            ? `rgba(${teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax))},.7)`
+            : `rgba(${REGLE},.75)`
+      );
     }
 
     if (noeud.enRond) {
@@ -626,8 +760,16 @@ function dessinerLesColonnes(ctx, etat, largeur, hauteur, points) {
   ctx.textAlign = "center";
   ctx.font = "500 11px ui-monospace, SFMono-Regular, Menlo, monospace";
 
-  rangs.forEach((rang, index) => {
+  // Un rang de règles n'est pas un pas de raisonnement : c'est le mécanisme
+  // *entre* deux pas. Le compter en ferait doubler la profondeur affichée selon
+  // un bouton d'affichage, et le chiffre ne voudrait plus rien dire.
+  let pas = -1;
+
+  rangs.forEach((rang) => {
     const modele = etat.places.find((noeud) => noeud.x === rang);
+    const regles = etat.rangsDeFonctions.has(modele.strate);
+    if (!regles) pas += 1;
+
     const x = points.get(modele.id).x;
     if (x < -40 || x > largeur + 40) return;
 
@@ -638,7 +780,10 @@ function dessinerLesColonnes(ctx, etat, largeur, hauteur, points) {
     ctx.stroke();
 
     ctx.fillStyle = "rgba(139,148,158,.55)";
-    ctx.fillText(index === 0 ? "socle" : modele.enRond ? "en rond" : `${index} pas`, x, 16);
+    ctx.fillText(
+      regles ? "règles" : pas === 0 ? "socle" : modele.enRond ? "en rond" : `${pas} pas`,
+      x, 16
+    );
   });
 }
 
@@ -663,7 +808,11 @@ function dessinerLesCoquilles(ctx, etat, largeur, hauteur, points) {
 
   ctx.font = "500 11px ui-monospace, SFMono-Regular, Menlo, monospace";
 
+  let pas = -1;
+
   for (const [strate, combien] of [...parStrate.entries()].sort((g, d) => g[0] - d[0])) {
+    const regles = etat.rangsDeFonctions.has(strate);
+    if (!regles) pas += 1;
     const rayonReel = strate === 0 ? 0.24 : 0.42 + 0.58 * Math.sqrt(strate / profondeur);
     const rayon = rayonReel * echelle * (2.6 / recul);
     if (!Number.isFinite(rayon) || rayon <= 0) continue;
@@ -683,7 +832,7 @@ function dessinerLesCoquilles(ctx, etat, largeur, hauteur, points) {
     ctx.textAlign = "left";
     ctx.fillStyle = "rgba(139,148,158,.5)";
     ctx.fillText(
-      `${strate === 0 ? "socle" : `${strate} pas`} · ${combien}`,
+      `${regles ? "règles" : pas === 0 ? "socle" : `${pas} pas`} · ${combien}`,
       cx + rayon + 8, cy + 4 + strate * 15
     );
   }
@@ -899,7 +1048,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   if (ouverte && !ouverte.isConnected) ouverte = null;
   if (ouverte) return;
 
-  const cerveau = cerveauDuProjet(assertions, applications);
+  let cerveau = cerveauDuProjet(assertions, applications, { avecLesFonctions: true });
   if (!cerveau.noeuds.length) {
     if (typeof window !== "undefined" && typeof window.alert === "function") {
       window.alert("Ce projet ne porte encore aucune affirmation : il n'y a pas de raisonnement à montrer.");
@@ -907,9 +1056,8 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     return;
   }
 
-  const isoles = noeudsIsoles(cerveau);
+  let isoles = noeudsIsoles(cerveau);
   const signales = signauxDeLAudit(assertions);
-  const lectures = Array.isArray(applications) ? applications : [];
 
   const hote = document.createElement("div");
   hote.innerHTML = renderCadre(cerveau, isoles.size, [...signales.keys()].length);
@@ -917,6 +1065,8 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   ouverte = hote;
 
   const toile = hote.querySelector("[data-cerveau-toile]");
+  const resume = hote.querySelector("[data-cerveau-resume]");
+  const legendes = hote.querySelector("[data-cerveau-legendes]");
   const bulle = hote.querySelector("[data-cerveau-bulle]");
   const dit = hote.querySelector("[data-cerveau-onde]");
   const ctx = toile.getContext("2d");
@@ -933,8 +1083,13 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     mode: "vivant",
     couleur: "nature",
     parDomaine: true,
+    /** Les règles dessinées comme des nœuds, entre leurs entrées et leur sortie. */
+    avecLesFonctions: true,
     domaines: domainesDuCerveau(cerveau),
     poidsMax: cerveau.compte.poidsMax,
+    rangsDeFonctions: cerveau.rangsDeFonctions,
+    /** Valeur ou règle, pour chaque nœud du cerveau — masqué ou non. */
+    genreDe: new Map(cerveau.noeuds.map((noeud) => [noeud.id, noeud.genre])),
     places: [], parId: new Map(), points: new Map(),
     liens: cerveau.liens,
     profondeur: cerveau.profondeur,
@@ -957,6 +1112,31 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
    * dépendent de ce qu'on montre, et une disposition mise en cache finirait par
    * décrire une liste de nœuds qui n'est plus celle qu'on dessine.
    */
+  /**
+   * Redemander le cerveau au service, quand ce qu'on veut voir a changé.
+   *
+   * Le dessin n'est jamais retouché après coup : montrer ou cacher les règles
+   * change le graphe lui-même — ses nœuds, ses liens, et les lectures que l'onde
+   * suivra. Filtrer un dessin déjà fait laisserait des liens qui pointent vers
+   * des nœuds absents, et l'onde sauterait dans le vide.
+   */
+  const relire = () => {
+    cerveau = cerveauDuProjet(assertions, applications, { avecLesFonctions: etat.avecLesFonctions });
+    isoles = noeudsIsoles(cerveau);
+    etat.poidsMax = cerveau.compte.poidsMax;
+    etat.rangsDeFonctions = cerveau.rangsDeFonctions;
+    etat.genreDe = new Map(cerveau.noeuds.map((noeud) => [noeud.id, noeud.genre]));
+    etat.profondeur = cerveau.profondeur;
+    etat.impulsions = [];
+    if (resume) resume.innerHTML = renderResume(cerveau);
+    // La légende aussi : annoncer « 41 règles » sous un dessin qui n'en montre
+    // aucune ferait chercher longtemps ce qui n'y est pas.
+    if (legendes) {
+      legendes.innerHTML = renderLegende(cerveau, [...signales.keys()].length);
+      accorderLesLegendes();
+    }
+  };
+
   const recomposer = () => {
     const retenus = etat.montrerLesIsoles
       ? cerveau
@@ -999,7 +1179,10 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
    * annuler quand on change de mode.
    */
   const allumer = (depart, { duree, dire = false } = {}) => {
-    const onde = ondeDepuis(depart, lectures);
+    // Les lectures du cerveau, pas celles d'origine : dépliées, elles passent
+    // *par* les règles. Avec les lectures d'origine, l'onde sauterait par-dessus
+    // les nœuds qu'on vient de dessiner, et ils ne s'allumeraient jamais.
+    const onde = ondeDepuis(depart, cerveau.lectures);
     const debut = performance.now();
 
     etat.impulsions.push({ id: depart, debut, duree });
@@ -1016,10 +1199,21 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     const opaques = onde.strates.flat()
       .filter((id) => etat.parId.get(id)?.nature === NOEUD.OPAQUE).length;
 
+    // Une règle traversée n'est pas une affirmation qui découle : c'est le
+    // chemin. La compter dedans gonflerait le chiffre d'un facteur deux dès
+    // qu'on affiche les règles, et le même clic dirait deux choses.
+    const atteints = onde.strates.map((strate) => [...strate]
+      .filter((id) => etat.genreDe.get(id) !== GENRE.FONCTION));
+    const valeurs = atteints.reduce((total, strate) => total + strate.length, 0);
+    const regles = onde.total - valeurs;
+    const pas = atteints.filter((strate) => strate.length).length;
+
     dit.innerHTML = onde.total
-      ? `<b>${escapeHtml(noeud?.sujet ?? "")}</b> — ${onde.total}
-         ${accorde(onde.total, "affirmation en découle", "affirmations en découlent")},
-         sur ${onde.strates.length} ${accorde(onde.strates.length, "strate", "strates")}.
+      ? `<b>${escapeHtml(noeud?.sujet ?? "")}</b> — ${valeurs}
+         ${accorde(valeurs, "affirmation en découle", "affirmations en découlent")}${
+           regles ? `, par ${regles} ${accorde(regles, "règle", "règles")}` : ""
+         },
+         sur ${pas} ${accorde(pas, "strate", "strates")}.
          ${
            opaques
              ? `${opaques} ${accorde(opaques, "vient", "viennent")} d'un utilitaire : on sait
@@ -1261,19 +1455,30 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   const montrerLaBulle = (noeud, evenement) => {
     const nature = NATURES[noeud.nature];
     const signal = etat.signales.get(noeud.id);
+    const fonction = noeud.genre === GENRE.FONCTION;
 
     bulle.hidden = false;
     bulle.innerHTML = `
       <b>${escapeHtml(noeud.sujet)}</b>
       <span class="cerveau-bulle__valeur">${escapeHtml(noeud.valeur || "—")}</span>
-      <span class="cerveau-bulle__nature" style="--trait:${nature?.trait ?? "#8b949e"}">
-        ${escapeHtml(nature?.nom ?? "")}${noeud.rejouable ? " · recalculable au serveur" : ""}
-      </span>
       ${
-        noeud.lectures
-          ? `<span class="cerveau-bulle__compte">${noeud.lectures}
-              ${accorde(noeud.lectures, "emploi", "emplois")} · strate ${noeud.strate}</span>`
-          : `<span class="cerveau-bulle__compte">aucun emploi connu · strate ${noeud.strate}</span>`
+        fonction
+          ? `<span class="cerveau-bulle__nature" style="--trait:#a371f7">Règle appliquée —
+              le mécanisme, pas la valeur</span>
+             <span class="cerveau-bulle__compte">${phraseDeLaComplexite(noeud.complexite)}</span>`
+          : `<span class="cerveau-bulle__nature" style="--trait:${nature?.trait ?? "#8b949e"}">
+              ${escapeHtml(nature?.nom ?? "")}${noeud.rejouable ? " · recalculable au serveur" : ""}
+             </span>`
+      }
+      ${
+        fonction
+          ? `<span class="cerveau-bulle__compte">${noeud.entrant}
+              ${accorde(noeud.entrant, "entrée lue", "entrées lues")} · ${noeud.sortant}
+              ${accorde(noeud.sortant, "sortie", "sorties")}</span>`
+          : noeud.lectures
+            ? `<span class="cerveau-bulle__compte">${noeud.lectures}
+                ${accorde(noeud.lectures, "emploi", "emplois")} · strate ${noeud.strate}</span>`
+            : `<span class="cerveau-bulle__compte">aucun emploi connu · strate ${noeud.strate}</span>`
       }
       ${signal ? `<span class="cerveau-bulle__signal">${escapeHtml(phraseDuSignal(signal))}</span>` : ""}
       ${noeud.enRond ? `<span class="cerveau-bulle__cycle">se lit en rond</span>` : ""}
@@ -1331,15 +1536,18 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     accorderLeBattement();
   };
 
+  /** La légende suit la couleur : celle de l'autre ne dit rien de ce qu'on voit. */
+  const accorderLesLegendes = () => {
+    for (const bloc of hote.querySelectorAll("[data-cerveau-legende]")) {
+      bloc.hidden = bloc.getAttribute("data-cerveau-legende") !== etat.couleur;
+    }
+  };
+
   const changerDeCouleur = (couleur) => {
     if (etat.couleur === couleur) return;
     etat.couleur = couleur;
     marquer("couleur", couleur);
-    // La légende suit : un dégradé expliqué par une légende de natures ne dit
-    // rien de ce qu'on regarde.
-    for (const bloc of hote.querySelectorAll("[data-cerveau-legende]")) {
-      bloc.hidden = bloc.getAttribute("data-cerveau-legende") !== couleur;
-    }
+    accorderLesLegendes();
   };
 
   /* ── La boucle ─────────────────────────────────────────────────────────── */
@@ -1402,6 +1610,14 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       recomposer();
     });
   }
+  const caseDesFonctions = hote.querySelector("[data-cerveau-fonctions]");
+  if (caseDesFonctions) {
+    caseDesFonctions.addEventListener("change", () => {
+      etat.avecLesFonctions = caseDesFonctions.checked;
+      relire();
+      recomposer();
+    });
+  }
   const casedesIsoles = hote.querySelector("[data-cerveau-isoles]");
   if (casedesIsoles) {
     casedesIsoles.addEventListener("change", () => {
@@ -1419,6 +1635,6 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
 /** Pour les pages d'essai : le cadre seul, sans boucle ni pointeur. */
 export function __renderCerveauPourPreview(assertions, applications) {
-  const cerveau = cerveauDuProjet(assertions, applications);
+  const cerveau = cerveauDuProjet(assertions, applications, { avecLesFonctions: true });
   return renderCadre(cerveau, noeudsIsoles(cerveau).size, signauxDeLAudit(assertions).size);
 }
