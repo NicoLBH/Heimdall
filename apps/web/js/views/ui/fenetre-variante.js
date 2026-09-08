@@ -40,25 +40,6 @@ const texte = (valeur) => String(valeur ?? "").trim();
 /** L'accord d'un mot avec son nombre. Pas de « 1 recalculées » à l'écran. */
 const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulier);
 
-/**
- * Le bouton qui ouvre la fenêtre.
- *
- * Il est dans la barre de la mémoire, à gauche de « Déclarer une hypothèse » :
- * on lit une mémoire, on en essaie une variante, on regarde ce que ça change.
- * Le geste part de là où l'on lit, pas d'un autre onglet.
- *
- * Il porte le cyan des variantes plutôt que le vert de la déclaration : deux
- * boutons verts côte à côte se liraient comme deux gestes de même poids, or
- * l'un écrit en mémoire et l'autre ne fait qu'ouvrir une lecture.
- */
-export function renderBoutonVariante() {
-  return `
-    <button type="button" class="gh-btn variante-ouvrir" data-variante-ouvrir>
-      ${svgIcon("beaker", { className: "octicon" })} Tester une variante
-    </button>
-  `;
-}
-
 /* ────────────────────────────────────────────────────────────────────────────
  * La saisie
  * ────────────────────────────────────────────────────────────────────────── */

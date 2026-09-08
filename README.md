@@ -10,6 +10,12 @@ qu'un humain signe. [`docs/fondamentaux.md`](docs/fondamentaux.md).
 qu'elle ne contient jamais, à quoi elle ressemble et où elle vit :
 [`docs/extensions.md`](docs/extensions.md).
 
+## Rejouer la mémoire
+
+Ce qui existe, ce qui manque, et dans quel ordre le construire pour que « voir
+les conséquences d'un changement » cesse d'être une parole donnée :
+[`docs/rejouer-la-memoire.md`](docs/rejouer-la-memoire.md).
+
 ## Recette manuelle — Incendie Habitation et Copilote
 
 Les tests automatiques vérifient que les pièces fonctionnent ; ils ne vérifient

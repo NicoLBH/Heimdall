@@ -630,14 +630,24 @@ seul écran à réécrire, et rien à stocker.
 
 ### Le geste part de la mémoire
 
-« Tester une variante » est dans la barre de la Mémoire, à gauche de « Déclarer
-une hypothèse ». On lit une mémoire, on en essaie une variante, on regarde ce
-que ça change, et si c'est mieux on en fait une proposition — le circuit
-habituel reprend là.
+Le bouton **éprouvette › Tester**, dans la barre de la Mémoire, porte les trois
+usages du même moteur : **tester une variante**, **auditer la mémoire**,
+**étude d'impact**. Les mettre sous un même bouton n'est pas une économie de
+place — c'est dire qu'ils sont la même chose vue de trois côtés ; trois boutons
+épars laisseraient croire à trois mécanismes.
+
+On lit une mémoire, on en essaie une variante, on regarde ce que ça change, et
+si c'est mieux on en fait une proposition — le circuit habituel reprend là.
 
 Le bouton porte le cyan des variantes, pas le vert de la déclaration : deux
 boutons verts côte à côte se liraient comme deux gestes de même poids, or l'un
 écrit en mémoire et l'autre ne fait qu'ouvrir une lecture.
+
+Un usage que le moteur ne sert pas encore est **éteint, et dit son étape** —
+« Auditer la mémoire — étape 5 ». Le plan est dans
+[`docs/rejouer-la-memoire.md`](rejouer-la-memoire.md), et l'avancer tient dans
+une constante : `ETAPE_ATTEINTE`. Un bouton qui prétend faire ce qu'il ne fait
+pas coûte plus cher que l'absence du bouton.
 
 ### L'écart se lit sur les lignes, ou la variante ne sert à rien
 
@@ -749,3 +759,4 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/variante-en-cours.js` | la variante essayée — en portée de module, jamais rangée nulle part |
 | `apps/web/js/views/ui/fenetre-variante.js` | la fenêtre : la question d'une ligne, puis les conséquences |
 | `apps/web/js/views/ui/bandeau-variante.js` | le bandeau qui dit qu'on ne lit pas la mémoire du projet |
+| `apps/web/js/views/ui/bouton-tester.js` | les trois usages du moteur de rejeu, et l'étape où chacun s'allume |

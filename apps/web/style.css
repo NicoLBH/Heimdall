@@ -5739,6 +5739,17 @@ color:var(--text);
   background:rgba(110,118,129,.12);
 }
 
+/* Un item éteint se voit éteint. Il portait la même couleur et le même survol
+   que les autres : on cliquait, rien ne se passait, et l'écran passait pour
+   cassé au lieu de passer pour honnête. */
+.gh-menu__item:disabled{
+  color:var(--muted);
+  cursor:default;
+}
+.gh-menu__item:disabled:hover{
+  background:transparent;
+}
+
 .gh-menu__item.is-danger{
   color:#ff7b72;
 }
@@ -21320,11 +21331,14 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   --variante-bord:rgba(57,197,207,.40);
 }
 
-.variante-ouvrir{
-  flex:0 0 auto; white-space:nowrap;
+/* Le bouton « Tester » porte le cyan des variantes, pas le vert de la
+   déclaration : deux boutons verts côte à côte se liraient comme deux gestes de
+   même poids, or l'un écrit en mémoire et l'autre n'ouvre qu'une lecture. */
+.bouton-tester > .gh-btn{
   border-color:var(--variante-bord); background:var(--variante-fond); color:var(--variante);
 }
-.variante-ouvrir:hover{ border-color:var(--variante); background:rgba(57,197,207,.18); }
+.bouton-tester > .gh-btn:hover{ border-color:var(--variante); background:rgba(57,197,207,.18); }
+.bouton-tester{ flex:0 0 auto; white-space:nowrap; }
 
 /* La fenêtre : une ligne de question, puis trois rangs de conséquences. */
 .variante-boite{ gap:12px; }
