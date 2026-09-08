@@ -9,19 +9,16 @@ test("les trois usages du moteur sont nommés, et dans l'ordre où on les lit", 
   for (const usage of USAGES) assert.ok(usage.quoi.length > 20, usage.action);
 });
 
-test("un usage que le moteur ne sert pas encore dit son étape", () => {
-  // Le plan est dans `docs/rejouer-la-memoire.md`. L'étape 4 est faite : le plan
-  // de recalcul est dérivé. L'audit demande le rejeu à blanc, qui est l'étape 5.
-  assert.equal(ETAPE_ATTEINTE, 4);
+test("tous les usages sont servis, et portent leur nom sans étape", () => {
+  // Le plan est dans `docs/rejouer-la-memoire.md`. L'étape 5 est faite : le
+  // rejeu à blanc existe, et les trois usages sont servis.
+  assert.equal(ETAPE_ATTEINTE, 5);
 
-  const impact = USAGES.find((usage) => usage.action === "tester:impact");
-  const audit = USAGES.find((usage) => usage.action === "tester:audit");
-
-  assert.equal(estServi(impact), true);
-  assert.equal(libelleDeLUsage(impact), "Étude d'impact");
-
-  assert.equal(estServi(audit), false);
-  assert.equal(libelleDeLUsage(audit), "Auditer la mémoire — étape 5");
+  // Les trois sont servis : le moteur est là.
+  for (const usage of USAGES) {
+    assert.equal(estServi(usage), true, usage.action);
+    assert.equal(libelleDeLUsage(usage), usage.nom);
+  }
 });
 
 test("avancer le plan allume les usages, sans toucher au menu", () => {

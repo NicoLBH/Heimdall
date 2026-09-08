@@ -123,6 +123,7 @@ import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-v
 import { ouvrirLaFenetreDeVariante } from "./ui/fenetre-variante.js";
 import { ouvrirLEtudeDImpact } from "./ui/fenetre-impact.js";
 import { ouvrirLePlanDeRecalcul } from "./ui/fenetre-plan.js";
+import { ouvrirLAudit } from "./ui/fenetre-audit.js";
 import { planDeRecalcul } from "../services/memoire-plan.js";
 import { renderBoutonTester } from "./ui/bouton-tester.js";
 import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
@@ -3200,8 +3201,9 @@ function brancherLeBoutonTester(root) {
     if (quoi === "tester:impact") {
       ouvrirLEtudeDImpact({ assertions: view.memoire ?? [], applications: view.applications });
     }
-    // L'audit n'est pas encore servi par le moteur : son item est éteint, et
-    // rien n'arrive ici. Voir `bouton-tester.js`.
+    // L'audit se fait sur la mémoire **lue en base**, jamais sur le calque d'une
+    // variante : auditer une lecture qu'on sait fausse ne dirait rien de vrai.
+    if (quoi === "tester:audit") ouvrirLAudit({ assertions: view.memoire ?? [] });
   });
 }
 

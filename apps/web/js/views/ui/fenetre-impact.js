@@ -204,6 +204,10 @@ let ouverte = null;
  * @param {string} [options.depart] l'affirmation à interroger d'emblée
  */
 export function ouvrirLEtudeDImpact({ assertions = [], applications = null, depart = "" } = {}) {
+  // Une fenêtre dont l'hôte a quitté le document est fermée, quoi qu'en dise le
+  // verrou : sans cette ligne, un rendu qui balaie la page laisse le verrou posé
+  // et l'écran ne se rouvre plus jamais.
+  if (ouverte && !ouverte.isConnected) ouverte = null;
   if (ouverte) return;
 
   const lectures = Array.isArray(applications) ? applications : [];
