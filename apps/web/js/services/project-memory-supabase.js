@@ -255,7 +255,29 @@ export async function rememberProposition({ proposition, items = [] } = {}) {
     at: quand
   });
 
-  return { written: ecrites.length, superseded: liens.length, flagged: suspectes };
+  // Ce que les règles versées ont lu, résolu **maintenant** — contre la mémoire
+  // que ces règles ont vue — et conservé. Le lien ne bougera plus : un sujet
+  // renommé en juin ne cassera pas une lecture faite en mars. Voir
+  // `docs/rejouer-la-memoire.md`, étape 1.
+  //
+  // Isolé du reste et silencieux en cas d'échec : la mémoire est versée, et lui
+  // manquer son graphe ne doit pas défaire la fusion. `reconstruireLesApplications`
+  // rattrape ce qui manque.
+  const lectures = await enregistrerLesLectures({
+    memoire: existantes ?? [], ecrites, projectId: proposition.project_id, propositionId: proposition.id
+  });
+
+  return { written: ecrites.length, superseded: liens.length, flagged: suspectes, lectures };
+}
+
+/** Les lectures d'un versement, sans jamais faire échouer le versement. */
+async function enregistrerLesLectures(quoi) {
+  try {
+    const { enregistrerLeVersement } = await import("./memoire-applications-supabase.js");
+    return await enregistrerLeVersement(quoi);
+  } catch {
+    return 0;
+  }
 }
 
 /**

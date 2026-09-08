@@ -88,7 +88,7 @@ et ce chiffre s'affiche.
 
 ## Les six étapes
 
-### 1. Enregistrer l'application, pas sa description
+### 1. Enregistrer l'application, pas sa description — *fait*
 
 Aujourd'hui on stocke la *description* d'un appel. Il faut stocker l'**appel** :
 
@@ -98,23 +98,66 @@ règle (nom + version) · zone · quand · par quel versement
   sortie  :  { sujet, assertion_id, valeur }
 ```
 
-La différence décisive est **`assertion_id`, et non le nom**. Le lien par nom est
-résolu à la lecture, ce qui explique tout le reste : les zones qu'il faut
-re-déduire, la chaîne qui casse au premier renommage, l'impossibilité de
-compter.
+#### Ce que « enregistré » veut dire, exactement
 
-Une arête par identifiant donne d'un coup le **compte** (comptez les arêtes), le
-**sens**, l'**ordre** (tri topologique du jeu d'arêtes), et **qui emploie chaque
-donnée de base** — la même requête, prise par l'autre bout.
+Une précision qu'il a fallu faire en écrivant l'étape, et qui corrige la
+première formulation de ce document.
 
-Une **table nouvelle**, pas un élargissement de `assertion_dependencies` : son
-unicité empêche le comptage, et son rôle actuel — nourrir le drapeau — reste bon.
-Une table de plus est strictement additive ; élargir une contrainte d'unicité ne
-l'est pas.
+Le moteur qui applique les règles **ne travaille pas sur la mémoire** : il
+travaille sur un questionnaire, et il rend des conditions portant des **noms**
+(`supabase/functions/incendie-habitation/conditions.js`). Il n'a donc aucun
+identifiant à nous donner, et cette étape ne prétend pas le contraire.
 
-Pour l'existant, une **reconstruction rétroactive** par nom + zone, **marquée
-comme telle** : « lien déduit du nom, non enregistré ». Ne jamais confondre le
-graphe exact et le graphe approché, sinon on ne sait plus lequel on regarde.
+Ce qui change est ailleurs, et c'est l'essentiel : le nom est résolu **une fois,
+au moment du versement**, contre la mémoire contemporaine de la règle — les
+valeurs qu'elle a réellement vues —, puis conservé. Après quoi il ne bouge plus.
+Une lecture faite en mars continue de désigner ce que mars affirmait, même si le
+sujet est renommé en juin, même si la valeur est remplacée en juillet.
+
+C'est exactement la sémantique que `assertion_dependencies` documente déjà :
+*« la note repose sur la valeur A2 telle qu'elle était affirmée le 12 août »*.
+
+#### Ce que cela donne
+
+Une arête par identifiant, **rangée** et **zonée**, donne d'un coup le **compte**
+(comptez les lignes), le **sens**, l'**ordre**, et **qui emploie chaque donnée de
+base** — la même requête prise par l'autre bout.
+
+Une **table nouvelle**, `assertion_applications`, pas un élargissement de
+`assertion_dependencies` : son unicité empêche le comptage, et son rôle actuel —
+nourrir le drapeau « à revérifier » — reste bon. Une table de plus est
+strictement additive ; élargir une contrainte d'unicité ne l'est pas.
+
+Une lecture dont le nom ne désigne rien s'écrit quand même, avec un
+`input_assertion_id` nul : c'est le **trou du raisonnement**, et il se compte
+comme le reste. Ne rien écrire le ferait disparaître.
+
+#### Les deux résolutions, qui ne se valent pas
+
+| `resolution` | quand | ce que ça vaut |
+| --- | --- | --- |
+| `enregistre` | au versement | résolu contre la mémoire que la règle a vue ; survit à un renommage |
+| `reconstruit` | après coup | résolu contre la mémoire d'aujourd'hui ; une approximation, et l'écran le dit |
+
+La reconstruction — *Mémoire › Verser › Reconstruire les liens du raisonnement* —
+rattrape tout ce qui a été versé avant la table. Elle **ne touche jamais** une
+lecture enregistrée en son temps : un lien figé contre la mémoire d'alors vaut
+mieux qu'un rapprochement de noms fait aujourd'hui.
+
+Les liens de dépendance suivent la même hiérarchie : `listAssertionDependencies`
+sert d'abord les lectures enregistrées, et ne déduit par nom que pour les
+affirmations qui n'en ont pas. Le graphe déduit **recule** à mesure qu'on
+enregistre.
+
+#### Ce que cette étape ne couvre pas encore
+
+Les contraintes déduites par un **utilitaire** — zone de neige, profondeur hors
+gel — lisent des faits de contexte, pas des affirmations : leurs entrées n'ont
+pas d'identifiant à citer. La colonne `utility` et l'`input_assertion_id`
+nullable leur laissent la place, et rien n'aura à changer ici le jour où l'outil
+climatique nommera ses sources. En attendant, une donnée de base employée
+*uniquement* par un utilitaire n'apparaît pas encore dans le compte — celles que
+les règles citent, si.
 
 ### 2. L'index dans les deux sens
 

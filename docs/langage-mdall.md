@@ -760,3 +760,5 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/views/ui/fenetre-variante.js` | la fenêtre : la question d'une ligne, puis les conséquences |
 | `apps/web/js/views/ui/bandeau-variante.js` | le bandeau qui dit qu'on ne lit pas la mémoire du projet |
 | `apps/web/js/views/ui/bouton-tester.js` | les trois usages du moteur de rejeu, et l'étape où chacun s'allume |
+| `apps/web/js/services/memoire-applications.js` | ce qu'une règle a lu, avec son rang et sa zone — une ligne par lecture |
+| `apps/web/js/services/memoire-applications-supabase.js` | enregistre les lectures au versement, et reconstruit celles d'avant |

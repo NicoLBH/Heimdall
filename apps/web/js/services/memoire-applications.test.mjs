@@ -1,0 +1,226 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  RESOLUTION, applicationsDeLaMemoire, applicationsDuVersement,
+  dependancesDesApplications, emploisParSujet, lecturesDeLaRegle
+} from "./memoire-applications.js";
+
+/** Une règle appliquée, telle que la mémoire garde son instantané. */
+const regle = (sujet, valeur, lit = [], { zones = null, sauf = [], id = null, proposition = null } = {}) => ({
+  id: id ?? `r-${sujet}${zones ? `@${zones.join("+")}` : ""}`,
+  project_id: "p1",
+  subject_key: `regle:${sujet}`,
+  status: "assumed",
+  superseded_by: null,
+  proposition_id: proposition,
+  zones,
+  payload: {
+    subject: sujet, value: valeur, referentiel: true,
+    ...(zones ? { zones } : {}),
+    regle: {
+      conditions: lit.map((nom) => ({ sujet: nom, operateur: "=", valeur: ["x"] })),
+      sauf: sauf.map((nom) => ({ sujet: nom, operateur: "!=", valeur: ["y"] })),
+      sinon: ""
+    }
+  }
+});
+
+/** Une valeur du projet, avec sa portée. */
+const dit = (sujet, valeur, { zones = null, id = null, proposition = null, remplacee = null } = {}) => ({
+  id: id ?? `a-${sujet}${zones ? `@${zones.join("+")}` : ""}`,
+  project_id: "p1",
+  subject_key: sujet,
+  status: "assumed",
+  superseded_by: remplacee,
+  proposition_id: proposition,
+  zones,
+  payload: { subject: sujet, value: valeur, ...(zones ? { zones } : {}) }
+});
+
+test("les conditions et les exceptions se lisent dans l'ordre du texte", () => {
+  const r = regle("Colonne sèche", "exigée", ["Classement", "Hauteur"], { sauf: ["Désenfumage"] });
+  assert.deepEqual(lecturesDeLaRegle(r), ["Classement", "Hauteur", "Désenfumage"]);
+});
+
+test("une règle fait une ligne par nom lu, avec son rang", () => {
+  const memoire = [
+    regle("Colonne sèche", "exigée", ["Classement", "Hauteur"]),
+    dit("Colonne sèche", "exigée"),
+    dit("Classement", "3e famille B"),
+    dit("Hauteur", "26 m")
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+
+  assert.equal(lignes.length, 2);
+  assert.deepEqual(lignes.map((l) => [l.input_subject, l.input_rank]), [["Classement", 1], ["Hauteur", 2]]);
+  assert.equal(lignes[0].output_assertion_id, "a-Colonne sèche");
+  assert.equal(lignes[0].input_assertion_id, "a-Classement");
+  assert.equal(lignes[0].rule_assertion_id, "r-Colonne sèche");
+  assert.equal(lignes[0].zone, "");
+  assert.equal(lignes[0].resolution, RESOLUTION.RECONSTRUIT);
+});
+
+test("le même nom lu deux fois fait deux lectures", () => {
+  // C'est exactement ce que l'unicité de `assertion_dependencies` interdisait,
+  // et c'est ce qui permet de répondre à « employée combien de fois ? ».
+  const memoire = [
+    regle("Section", "0,60 m", ["Hauteur", "Hauteur"]),
+    dit("Section", "0,60 m"),
+    dit("Hauteur", "26 m")
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire);
+  assert.equal(lignes.length, 2);
+  assert.deepEqual(lignes.map((l) => l.input_rank), [1, 2]);
+  assert.equal(emploisParSujet(lignes).get("hauteur").lectures, 2);
+  // Un lien dit « repose sur », pas « combien de fois » : il ne se dédouble pas.
+  assert.equal(dependancesDesApplications(lignes).length, 1);
+});
+
+test("la même règle sur trois zones fait trois appels", () => {
+  const memoire = [
+    regle("Degré CF", "CF 1 h", ["Classement"], { zones: ["batiment-a"] }),
+    regle("Degré CF", "CF 1/2 h", ["Classement"], { zones: ["batiment-b"] }),
+    dit("Degré CF", "CF 1 h", { zones: ["batiment-a"] }),
+    dit("Degré CF", "CF 1/2 h", { zones: ["batiment-b"] }),
+    dit("Classement", "3e famille B", { zones: ["batiment-a"] }),
+    dit("Classement", "2e famille", { zones: ["batiment-b"] })
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire);
+
+  assert.equal(lignes.length, 2);
+  const parZone = new Map(lignes.map((l) => [l.zone, l]));
+  assert.equal(parZone.get("batiment-a").input_assertion_id, "a-Classement@batiment-a");
+  assert.equal(parZone.get("batiment-b").input_assertion_id, "a-Classement@batiment-b");
+  // Le degré du bâtiment A ne repose jamais sur le classement du bâtiment B.
+  assert.equal(parZone.get("batiment-a").output_assertion_id, "a-Degré CF@batiment-a");
+});
+
+test("une valeur portée l'emporte sur une valeur qui vaut partout", () => {
+  const memoire = [
+    regle("Degré CF", "CF 1 h", ["Classement"], { zones: ["batiment-a"] }),
+    dit("Degré CF", "CF 1 h", { zones: ["batiment-a"] }),
+    dit("Classement", "3e famille B"),
+    dit("Classement", "2e famille", { zones: ["batiment-a"] })
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire);
+  assert.equal(lignes[0].input_assertion_id, "a-Classement@batiment-a");
+});
+
+test("on n'emprunte jamais la valeur d'une autre zone", () => {
+  const memoire = [
+    regle("Degré CF", "CF 1 h", ["Classement"], { zones: ["batiment-a"] }),
+    dit("Degré CF", "CF 1 h", { zones: ["batiment-a"] }),
+    dit("Classement", "2e famille", { zones: ["batiment-b"] })
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire);
+  // La lecture existe — la règle a bien lu ce nom — mais elle ne désigne rien
+  // ici. Le trou se compte, il ne se comble pas avec le voisin.
+  assert.equal(lignes.length, 1);
+  assert.equal(lignes[0].input_assertion_id, null);
+  assert.equal(lignes[0].input_subject, "Classement");
+});
+
+test("un nom que personne n'a versé fait une lecture orpheline, jamais une absence", () => {
+  const memoire = [
+    regle("Colonne sèche", "exigée", ["Classement", "Portance du sol"]),
+    dit("Colonne sèche", "exigée"),
+    dit("Classement", "3e famille B")
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire);
+  assert.equal(lignes.length, 2);
+  assert.equal(lignes[1].input_assertion_id, null);
+  assert.equal(emploisParSujet(lignes).get("portance du sol").orphelines, 1);
+  // Et elle ne fabrique pas de lien : on ne repose pas sur ce qui n'existe pas.
+  assert.deepEqual(dependancesDesApplications(lignes).map((l) => l.depends_on_assertion_id), ["a-Classement"]);
+});
+
+test("une règle qui n'a rien produit dans cette zone n'y a pas servi", () => {
+  const memoire = [
+    regle("Degré CF", "CF 1 h", ["Classement"], { zones: ["batiment-a"] }),
+    dit("Classement", "3e famille B", { zones: ["batiment-a"] })
+  ];
+  assert.deepEqual(applicationsDeLaMemoire(memoire), []);
+});
+
+test("ce qui a été remplacé ne fait plus d'appel", () => {
+  const memoire = [
+    regle("Colonne sèche", "exigée", ["Classement"], { id: "r-vieille" }),
+    dit("Colonne sèche", "exigée", { id: "a-vieille", remplacee: "a-neuve" }),
+    dit("Classement", "3e famille B")
+  ];
+  // La ligne remplacée ne décrit plus l'état : son appel non plus.
+  assert.deepEqual(applicationsDeLaMemoire(memoire), []);
+});
+
+test("un versement n'écrit que les appels de ce qu'il vient d'écrire", () => {
+  // Réécrire les appels de toute la mémoire à chaque fusion remplacerait des
+  // liens enregistrés en leur temps par des liens résolus aujourd'hui.
+  const ancienne = [
+    regle("Ancrage", "0,99 m", ["Hors gel"], { id: "r-vieux" }),
+    dit("Ancrage", "0,99 m", { id: "a-vieux" }),
+    dit("Hors gel", "0,99 m", { id: "a-horsgel" })
+  ];
+  const ecrites = [
+    regle("Colonne sèche", "exigée", ["Classement"], { id: "r-neuf", proposition: "P7" }),
+    dit("Colonne sèche", "exigée", { id: "a-neuf", proposition: "P7" }),
+    dit("Classement", "3e famille B", { id: "a-classement", proposition: "P7" })
+  ];
+
+  const lignes = applicationsDuVersement({
+    memoire: ancienne, ecrites, projectId: "p1", propositionId: "P7"
+  });
+
+  assert.deepEqual(lignes.map((l) => l.output_assertion_id), ["a-neuf"]);
+  assert.equal(lignes[0].resolution, RESOLUTION.ENREGISTRE);
+  assert.equal(lignes[0].proposition_id, "P7");
+});
+
+test("une règle lit la valeur versée avec elle, pas celle qu'elle remplace", () => {
+  // Une étude verse ses conclusions et les valeurs qu'elles ont produites ; la
+  // règle a lu celles-là, pas la version d'avant qui vaut encore à cet instant.
+  const memoire = [dit("Classement", "2e famille", { id: "a-avant" })];
+  const ecrites = [
+    regle("Degré CF", "CF 1 h", ["Classement"], { id: "r-neuf", proposition: "P7" }),
+    dit("Degré CF", "CF 1 h", { id: "a-degre", proposition: "P7" }),
+    dit("Classement", "3e famille B", { id: "a-apres", proposition: "P7" })
+  ];
+
+  const lignes = applicationsDuVersement({ memoire, ecrites, projectId: "p1", propositionId: "P7" });
+  assert.equal(lignes[0].input_assertion_id, "a-apres");
+});
+
+test("une reconstruction se déclare comme telle", () => {
+  const memoire = [
+    regle("Colonne sèche", "exigée", ["Classement"]),
+    dit("Colonne sèche", "exigée"),
+    dit("Classement", "3e famille B")
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire, { projectId: "p1", resolution: RESOLUTION.RECONSTRUIT });
+  assert.equal(lignes[0].resolution, "reconstruit");
+  // Elle ne s'attribue aucun versement : elle n'en vient d'aucun.
+  assert.equal(lignes[0].proposition_id, null);
+});
+
+test("les emplois se comptent par nom, avec leurs zones et leurs sorties", () => {
+  const memoire = [
+    regle("Degré CF", "CF 1 h", ["Classement"], { zones: ["batiment-a"] }),
+    regle("Colonne sèche", "exigée", ["Classement"], { zones: ["batiment-a"] }),
+    dit("Degré CF", "CF 1 h", { zones: ["batiment-a"] }),
+    dit("Colonne sèche", "exigée", { zones: ["batiment-a"] }),
+    dit("Classement", "3e famille B", { zones: ["batiment-a"] })
+  ];
+
+  const emploi = emploisParSujet(applicationsDeLaMemoire(memoire)).get("classement");
+  assert.equal(emploi.lectures, 2);
+  assert.equal(emploi.sorties.size, 2);
+  assert.deepEqual([...emploi.zones], ["batiment-a"]);
+  assert.equal(emploi.orphelines, 0);
+});
