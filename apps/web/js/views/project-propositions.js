@@ -84,7 +84,6 @@ import { aChange, reperesDuDepot } from "../services/depot-carburants.js";
 import { limiterAuDepot } from "../services/depot-portee.js";
 import { ISSUE, passerLesControles, resumeDesControles } from "../services/depot-controles.js";
 import { bindSideResizer, renderSideResizer } from "./ui/side-resizer.js";
-import { ouvrirLaFenetreDeVariante, renderBoutonVariante } from "./ui/fenetre-variante.js";
 import { cheminDeFichier, enClair, nomDeFichier } from "../services/memoire-en-texte.js";
 import { jetonsDeLaLigne as jetonsDuTexte } from "../services/memoire-en-lecture.js";
 import { avisFromFigures, mergeAvis } from "../services/avis-from-figures.js";
@@ -181,17 +180,9 @@ function renderFilters(counts) {
   `;
 
   return `
-    <div class="propositions-barre">
-      <div class="propositions-filters">
-        ${tab(PROPOSITION.OPEN, accorde(counts.open, "ouverte", "ouvertes"), counts.open)}
-        ${tab("closed", accorde(counts.closed, "fermée", "fermées"), counts.closed)}
-      </div>
-      ${
-        // Les propositions et les variantes sont sur la même étagère : ce qui
-        // n'est pas encore vrai. L'une écrit un jour, l'autre jamais — d'où un
-        // bouton distinct, et non un article de plus dans la liste.
-        renderBoutonVariante()
-      }
+    <div class="propositions-filters">
+      ${tab(PROPOSITION.OPEN, accorde(counts.open, "ouverte", "ouvertes"), counts.open)}
+      ${tab("closed", accorde(counts.closed, "fermée", "fermées"), counts.closed)}
     </div>
   `;
 }
@@ -322,19 +313,6 @@ function renderContent(root) {
     button.addEventListener("click", () => {
       view.filter = button.getAttribute("data-propositions-filter");
       renderContent(root);
-    });
-  }
-
-  for (const button of root.querySelectorAll("[data-variante-ouvrir]")) {
-    button.addEventListener("click", () => {
-      void ouvrirLaFenetreDeVariante({
-        // Entrer dans la variante ne se lit pas ici : c'est la mémoire qu'on
-        // veut relire, et c'est elle qui porte le bandeau et la sortie.
-        quandOnLit: () => {
-          const projet = String(store.currentProjectId || "");
-          if (projet) location.hash = `#project/${projet}/memoire`;
-        }
-      });
     });
   }
 
