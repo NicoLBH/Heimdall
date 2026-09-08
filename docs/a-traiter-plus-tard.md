@@ -352,7 +352,9 @@ la moitié manquante de la métaphore.
 > tiers de **chaque** moitié. Les mêmes lobes, dans le même ordre, dans les deux
 > hémisphères — « la structure, côté mémoire » et « la structure, côté
 > raisonnement » —, et un voile par lobe et par côté plutôt qu'un seul qui
-> enjamberait l'équateur. La part de cadre qui revient à chaque moitié suit la
+> enjamberait l'équateur. **Chaque secteur porte son nom** : « INCENDIE ·
+> mémoire » et « INCENDIE · raisonnement », dans les deux vues. Un seul nom pour
+> les deux tomberait entre eux, c'est-à-dire nulle part. La part de cadre qui revient à chaque moitié suit la
 > population : la forme du projet se lit dans l'épaisseur des deux bandes.
 >
 > L'équateur est **pointillé**, jamais plein : tout le traverse, puisqu'une règle

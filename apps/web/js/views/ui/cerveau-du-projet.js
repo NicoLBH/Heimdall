@@ -114,16 +114,33 @@ const REGLE = "163,113,247";
  * En **nature**, le bleu : c'est la couleur de ce qui se rejoue, et l'onde parle
  * de rejeu.
  *
- * En **chaleur**, surtout pas. Un écran entièrement orange où l'onde passe en
- * bleu fait deux langages à la fois : on croit que le bleu **veut dire** quelque
- * chose de plus froid, alors qu'il ne dit que « ceci vient de s'allumer ». La
- * même idée doit se dire dans la même langue : l'onde y est donc du blanc chaud,
- * le haut du dégradé poussé jusqu'à l'incandescence.
+ * En **chaleur**, surtout pas de bleu pour une valeur : un écran entièrement
+ * orange où l'onde passerait en bleu ferait deux langages à la fois, et l'on
+ * croirait que le bleu *veut dire* quelque chose de plus froid, alors qu'il ne
+ * dit que « ceci vient de s'allumer ».
+ *
+ * L'éclat reste donc **dans la couleur de sa famille**, poussé au haut de son
+ * dégradé : une valeur qui s'allume devient de l'orange incandescent, une règle
+ * du bleu incandescent. Le blanc était l'erreur inverse — il effaçait la famille
+ * au moment précis où l'onde la traverse, c'est-à-dire au moment où on la
+ * regarde.
  */
 const ECLAT = {
-  nature: { vif: "88,166,255", coeur: "160,205,255" },
-  chaleur: { vif: "255,201,132", coeur: "255,243,214" }
+  nature: {
+    valeur: { vif: "88,166,255", coeur: "160,205,255" },
+    fonction: { vif: "163,113,247", coeur: "208,178,255" }
+  },
+  chaleur: {
+    valeur: { vif: "255,173,96", coeur: "255,216,167" },
+    fonction: { vif: "120,190,255", coeur: "190,226,255" }
+  }
 };
+
+/** L'éclat de la famille d'un nœud, dans la couleur en cours. */
+function eclatDeLaFamille(couleur, genre) {
+  const table = ECLAT[couleur] ?? ECLAT.nature;
+  return genre === GENRE.FONCTION ? table.fonction : table.valeur;
+}
 
 /**
  * Le dégradé de chaleur : du froid au brûlant, puis le rouge à part.
@@ -824,22 +841,32 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     const vif = Math.min(eclats.get(lien.de) ?? 0, eclats.get(lien.vers) ?? 0);
     const proche = survole && (survole === lien.de || survole === lien.vers);
     const fond = Math.min(a.p, b.p);
+    // Un lien qui touche une règle **est** un lien de règle : dans le graphe
+    // déplié, il n'a qu'une extrémité de chaque genre. Le laisser orange le
+    // rattachait visuellement à la mémoire alors qu'il en part ou y arrive.
+    const genre = parId.get(lien.de)?.genre === GENRE.FONCTION
+      || parId.get(lien.vers)?.genre === GENRE.FONCTION
+      ? GENRE.FONCTION
+      : GENRE.VALEUR;
     // Un lien est **malade** quand l'une de ses extrémités l'est : c'est par lui
     // que le défaut se propage, et le laisser gris ferait chercher d'où ça vient.
     const malade = signales.has(lien.de) || signales.has(lien.vers);
 
     if (vif > 0) {
-      const eclat = ECLAT[etat.couleur] ?? ECLAT.nature;
-      // Une impulsion brille : elle est plus claire et plus opaque que tout le
-      // reste, pour qu'on la suive à travers un écran déjà coloré.
+      const eclat = eclatDeLaFamille(etat.couleur, genre);
+      // Une impulsion brille : plus claire et plus opaque que le reste, pour
+      // qu'on la suive à travers un écran déjà coloré — mais **dans sa
+      // couleur**. Un lien qui blanchit en s'allumant perd sa famille au moment
+      // précis où on le regarde.
       ctx.strokeStyle = `rgba(${vif > 0.6 ? eclat.coeur : eclat.vif},${0.45 + 0.55 * vif})`;
     } else if (proche) {
-      ctx.strokeStyle = "rgba(240,246,252,.7)";
+      ctx.strokeStyle = `rgba(${eclatDeLaFamille(etat.couleur, genre).coeur},.8)`;
     } else if (malade) {
       ctx.strokeStyle = `rgba(${ROUGE},${0.2 + 0.3 * fond})`;
     } else if (etat.couleur === "chaleur") {
       const chaleur = chaleurDuLien(lien, etat.parId, etat.poidsMax);
-      ctx.strokeStyle = `rgba(${teinteDeLaChaleur(chaleur)},${(0.14 + 0.5 * chaleur) * (0.45 + 0.55 * fond)})`;
+      const teinte = teinteDeLaChaleur(chaleur, genre === GENRE.FONCTION ? CHALEUR_REGLE : CHALEUR);
+      ctx.strokeStyle = `rgba(${teinte},${(0.14 + 0.5 * chaleur) * (0.45 + 0.55 * fond)})`;
     } else {
       ctx.strokeStyle = `rgba(139,148,158,${(0.16 + 0.24 * fond)})`;
     }
@@ -887,7 +914,7 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
       } else {
-        const teinte = ECLAT[etat.couleur] ?? ECLAT.nature;
+        const teinte = eclatDeLaFamille(etat.couleur, noeud.genre);
         ctx.fillStyle = `rgba(${teinte.vif},${0.22 * eclat})`;
         ctx.fill();
         // Un cœur clair au centre du halo : c'est lui qui fait qu'une impulsion
@@ -906,7 +933,12 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     // la vue. Un losange au milieu d'un nuage de sphères se lit comme une
     // étiquette collée sur l'image, pas comme un objet qui s'y trouve.
     const enVolume = etat.vue === "volume";
-    const cote = rayon + (enVolume ? 2.4 : 1.5);
+    // Un multiplicateur, pas un forfait. À `rayon + 2,4`, une règle qui ne pèse
+    // presque rien recevait autant de bonus qu'une règle centrale : les petites
+    // paraissaient grosses et l'échelle des poids ne se lisait plus. Le facteur
+    // ne fait que compenser l'aire perdue par la forme — un losange et un
+    // hexagone inscrits dans le même cercle couvrent moins qu'un disque.
+    const cote = rayon * (enVolume ? 1.16 : 1.3);
     if (fonction) {
       if (enVolume) cube(ctx, x, y, cote);
       else losange(ctx, x, y, cote);
@@ -1008,7 +1040,7 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     ctx.globalAlpha = 1;
   }
 
-  if (etat.parDomaine) dessinerLesDomaines(ctx, etat, points, ou);
+  if (etat.parDomaine) dessinerLesDomaines(ctx, etat, points, ou, hauteur);
   dessinerLesNoms(ctx, etat, largeur, points, eclats);
   etat.points = points;
 }
@@ -1164,6 +1196,11 @@ function dessinerLEquateur(ctx, etat, largeur, hauteur, ou) {
   ctx.stroke();
   ctx.restore();
 
+  // Quand les secteurs sont nommés, chacun dit déjà de quel côté il est : deux
+  // mots de plus aux flancs répéteraient dix fois la même information et
+  // tomberaient sur les noms qu'ils redoublent. Le trait, lui, reste toujours.
+  if (etat.parDomaine) return;
+
   ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
   ctx.fillStyle = "rgba(139,148,158,.45)";
 
@@ -1217,19 +1254,8 @@ const MARGE_DU_VOILE = 26;
 function dessinerLesVoiles(ctx, etat, points, temps) {
   const voiles = [];
 
-  // Un domaine coupé en deux fait **deux** voiles, un par hémisphère : « la
-  // structure, côté mémoire » et « la structure, côté raisonnement ». Un seul
-  // voile enjamberait l'équateur et rendrait la séparation illisible — exactement
-  // ce qu'on venait de gagner.
-  const cotes = etat.deuxHemispheres ? [GENRE.VALEUR, GENRE.FONCTION] : [null];
-  const paquets = etat.domaines.flatMap((entree) => cotes.map((cote) => ({ entree, cote })));
-
-  for (const { entree, cote } of paquets) {
-    const siens = etat.places
-      .filter((noeud) => texte(noeud.domaine) === entree.domaine)
-      .filter((noeud) => !cote || noeud.genre === cote)
-      .map((noeud) => points.get(noeud.id))
-      .filter(Boolean);
+  for (const { entree, siens: places } of secteursDuCerveau(etat)) {
+    const siens = places.map((noeud) => points.get(noeud.id)).filter(Boolean);
     // Sous trois points il n'y a pas de territoire, seulement des points.
     if (siens.length < 3) continue;
 
@@ -1278,61 +1304,141 @@ function dessinerLesVoiles(ctx, etat, points, temps) {
 }
 
 /**
- * Le nom de chaque domaine, posé au milieu de sa zone.
+ * Les secteurs du cerveau : un domaine, d'un côté de l'équateur.
+ *
+ * Un domaine coupé en deux fait **deux** secteurs, un par hémisphère : « la
+ * structure, côté mémoire » et « la structure, côté raisonnement ». Un seul
+ * voile enjamberait l'équateur et rendrait la séparation illisible — exactement
+ * ce qu'on venait de gagner.
+ *
+ * Le voile et le nom lisent la même liste : deux regroupements calculés à part
+ * finiraient par nommer un territoire et en dessiner un autre.
+ *
+ * Un secteur trop maigre n'est pas un secteur : trois points isolés portant une
+ * étiquette feraient croire à une zone qui n'existe pas.
+ */
+function secteursDuCerveau(etat) {
+  const cotes = etat.deuxHemispheres ? [GENRE.VALEUR, GENRE.FONCTION] : [null];
+
+  return etat.domaines
+    .flatMap((entree) => cotes.map((cote) => ({
+      entree,
+      cote,
+      siens: etat.places.filter((noeud) => texte(noeud.domaine) === entree.domaine
+        && (!cote || noeud.genre === cote))
+    })))
+    .filter((secteur) => secteur.siens.length >= 3);
+}
+
+/**
+ * Le nom de chaque secteur, posé au milieu de sa zone.
  *
  * **C'est ce qui rend le regroupement utile.** Une zone dense sans nom est une
  * tache : on voit qu'il se passe quelque chose là, on ne sait pas quoi. Avec le
  * nom, on se dit « tiens, ce paquet, c'est la sécurité incendie » — et c'est
  * exactement ce qu'on est venu chercher.
  *
- * Le nom se pose au **barycentre** des nœuds du domaine, pas à l'angle théorique
- * de son secteur : le barycentre suit ce que le projet contient vraiment, et un
- * domaine à deux nœuds ne réclame pas la même place qu'un domaine à quarante.
+ * Un secteur, c'est un domaine **d'un côté de l'équateur** : la sécurité incendie
+ * a une zone de mémoire et une zone de raisonnement, et chacune porte son nom.
+ * Un seul nom pour les deux tomberait entre elles, c'est-à-dire nulle part, et
+ * l'on ne saurait pas lequel des deux paquets il désigne.
  *
- * Un domaine trop maigre ne se nomme pas : trois points isolés portant une
- * étiquette feraient croire à une zone qui n'existe pas.
+ * Le côté se dit **sous** le nom, en petit : la lecture principale reste la
+ * discipline, et l'hémisphère n'est là que pour lever l'ambiguïté entre les deux
+ * paquets d'une même discipline.
+ *
+ * Le nom se pose au **barycentre** des nœuds du secteur, pas à l'angle théorique
+ * de sa part : le barycentre suit ce que le projet contient vraiment, et un
+ * secteur à trois nœuds ne réclame pas la même place qu'un secteur à quarante.
  */
-function dessinerLesDomaines(ctx, etat, points, ou) {
+function dessinerLesDomaines(ctx, etat, points, ou, hauteur) {
   ctx.textAlign = "center";
-  ctx.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-  for (const entree of etat.domaines) {
-    ctx.fillStyle = etat.survoleLeDomaine === entree.domaine
-      ? "rgba(240,246,252,.92)"
-      : "rgba(201,209,217,.38)";
-    const siens = etat.places.filter((noeud) => texte(noeud.domaine) === entree.domaine);
-    // Trois points isolés portant une étiquette feraient croire à une zone qui
-    // n'existe pas. En dessous, on se tait.
-    if (siens.length < 3) continue;
+  const nommes = ecarterLesEtiquettes(
+    secteursDuCerveau(etat)
+      .map((secteur) => ({
+        ...secteur,
+        ancre: etat.vue === "volume"
+          ? capDuSecteur(secteur.siens, ou)
+          : barycentreDuSecteur(secteur.siens, points)
+      }))
+      .filter((secteur) => secteur.ancre),
+    hauteur
+  );
 
-    if (etat.vue !== "volume") {
-      // En strates, le barycentre suffit : les bandes sont horizontales, et la
-      // moyenne tombe au milieu de la bande.
-      const somme = siens.reduce((acc, noeud) => {
-        const point = points.get(noeud.id);
-        return point ? { x: acc.x + point.x, y: acc.y + point.y, n: acc.n + 1 } : acc;
-      }, { x: 0, y: 0, n: 0 });
-      if (!somme.n) continue;
-      ctx.fillText(entree.libelle.toUpperCase(), somme.x / somme.n, somme.y / somme.n);
-      continue;
-    }
+  for (const { entree, cote, ancre } of nommes) {
+    const vif = etat.survoleLeDomaine === entree.domaine;
+    ctx.fillStyle = vif ? "rgba(240,246,252,.92)" : "rgba(201,209,217,.38)";
 
-    // En volume, **surtout pas le barycentre** : les nœuds d'un domaine
-    // s'étalent de part et d'autre du centre, leur moyenne y retombe, et les
-    // cinq libellés s'empilent au milieu de l'écran — ce qui ne nomme plus rien.
-    //
-    // On prend la direction moyenne — une moyenne d'angles, sur le cercle — et
-    // l'on pose le nom **au bord** de cette direction, là où la zone se voit.
-    const angles = siens.map((noeud) => Math.atan2(noeud.z, noeud.x));
-    const cap = Math.atan2(
-      angles.reduce((acc, angle) => acc + Math.sin(angle), 0) / angles.length,
-      angles.reduce((acc, angle) => acc + Math.cos(angle), 0) / angles.length
-    );
-    const hauteur = siens.reduce((acc, noeud) => acc + noeud.y, 0) / siens.length;
+    ctx.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.fillText(entree.libelle.toUpperCase(), ancre.x, ancre.y);
 
-    const point = ou({ x: Math.cos(cap) * 1.12, y: hauteur, z: Math.sin(cap) * 1.12, phase: 0 });
-    ctx.fillText(entree.libelle.toUpperCase(), point.x, point.y);
+    if (!cote) continue;
+    ctx.font = "500 9.5px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.fillStyle = vif ? "rgba(201,209,217,.6)" : "rgba(139,148,158,.34)";
+    ctx.fillText(cote === GENRE.FONCTION ? "raisonnement" : "mémoire", ancre.x, ancre.y + 12);
   }
+}
+
+/** L'écart vertical au-dessous duquel deux noms de secteur se recouvrent. */
+const ECART_DES_NOMS = 30;
+
+/**
+ * Écarter les noms qui se marchent dessus.
+ *
+ * Les barycentres de cinq domaines qui traversent tous les mêmes colonnes
+ * tombent presque à la même abscisse : leurs noms s'empilent, et cinq noms
+ * empilés nomment moins qu'un seul. On les décale vers le bas, dans l'ordre où
+ * ils viennent, et seulement quand ils sont **aussi** proches horizontalement —
+ * deux noms aux deux bouts de l'écran ne se gênent pas.
+ *
+ * Le nom bouge, jamais le secteur : le voile reste où il est, et le nom lui
+ * reste assez près pour qu'on sache lequel il désigne.
+ */
+function ecarterLesEtiquettes(secteurs, hauteur) {
+  const tries = [...secteurs].sort((gauche, droite) => gauche.ancre.y - droite.ancre.y);
+  const poses = [];
+
+  for (const secteur of tries) {
+    let y = secteur.ancre.y;
+    for (const pose of poses) {
+      if (Math.abs(pose.ancre.x - secteur.ancre.x) > 110) continue;
+      if (y - pose.ancre.y < ECART_DES_NOMS) y = pose.ancre.y + ECART_DES_NOMS;
+    }
+    // Un nom poussé hors du cadre ne nomme plus rien : on le retient au bord.
+    poses.push({ ...secteur, ancre: { ...secteur.ancre, y: Math.min(hauteur - 20, y) } });
+  }
+
+  return poses;
+}
+
+/** En strates, le barycentre suffit : les bandes sont horizontales. */
+function barycentreDuSecteur(siens, points) {
+  const somme = siens.reduce((acc, noeud) => {
+    const point = points.get(noeud.id);
+    return point ? { x: acc.x + point.x, y: acc.y + point.y, n: acc.n + 1 } : acc;
+  }, { x: 0, y: 0, n: 0 });
+
+  return somme.n ? { x: somme.x / somme.n, y: somme.y / somme.n } : null;
+}
+
+/**
+ * En volume, **surtout pas le barycentre**.
+ *
+ * Les nœuds d'un secteur s'étalent de part et d'autre du centre, leur moyenne y
+ * retombe, et les libellés s'empilent au milieu de l'écran — ce qui ne nomme plus
+ * rien. On prend la direction moyenne — une moyenne d'angles, sur le cercle — et
+ * l'on pose le nom **au bord** de cette direction, là où la zone se voit.
+ */
+function capDuSecteur(siens, ou) {
+  const angles = siens.map((noeud) => Math.atan2(noeud.z, noeud.x));
+  const cap = Math.atan2(
+    angles.reduce((acc, angle) => acc + Math.sin(angle), 0) / angles.length,
+    angles.reduce((acc, angle) => acc + Math.cos(angle), 0) / angles.length
+  );
+  const hauteur = siens.reduce((acc, noeud) => acc + noeud.y, 0) / siens.length;
+
+  return ou({ x: Math.cos(cap) * 1.12, y: hauteur, z: Math.sin(cap) * 1.12, phase: 0 });
 }
 
 /**
@@ -1374,9 +1480,18 @@ function dessinerLesNoms(ctx, etat, largeur, points, eclats) {
     const aGauche = x + rayon + 10 + ctx.measureText(nom).width > largeur - 8;
     ctx.textAlign = aGauche ? "right" : "left";
     ctx.globalAlpha = etat.vue === "volume" ? borne(p * 1.3, 0.25, 1) : 1;
-    ctx.fillStyle = eclat > 0 || noeud.id === etat.survole
-      ? "#f0f6fc"
-      : signale ? `rgba(${ROUGE},.9)` : "rgba(201,209,217,.62)";
+    // Un nom qui s'allume prend la couleur de sa famille, pas du blanc. Le blanc
+    // était le seul endroit de l'écran où l'onde effaçait ce qu'elle traverse :
+    // au moment où l'on regarde un nœud, il cessait de dire s'il était une
+    // valeur ou une règle, chaude ou froide.
+    const eclatant = eclatDeLaFamille(etat.couleur, noeud.genre);
+    ctx.fillStyle = signale
+      ? `rgba(${ROUGE},.9)`
+      : eclat > 0
+        ? `rgba(${eclatant.coeur},${0.8 + 0.2 * eclat})`
+        : noeud.id === etat.survole
+          ? `rgba(${eclatant.coeur},.95)`
+          : "rgba(201,209,217,.62)";
     ctx.fillText(nom, x + (aGauche ? -(rayon + 6) : rayon + 6), y + 4);
     ctx.globalAlpha = 1;
   }
