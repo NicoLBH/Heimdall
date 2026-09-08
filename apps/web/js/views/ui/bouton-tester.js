@@ -45,10 +45,12 @@ import { renderGhActionButton } from "./gh-split-button.js";
  * 5. le rejeu à blanc
  * 6. la variante, alors triviale
  *
- * `0` : rien n'est construit. La variante existe, mais elle rejoue deux formules
- * réécrites à la main — une démonstration, pas un mécanisme.
+ * `1` : les lectures d'une règle sont enregistrées — leur rang, leur zone, et
+ * l'affirmation que chaque nom désignait au moment où la règle a servi. La
+ * variante, elle, rejoue toujours deux formules réécrites à la main : une
+ * démonstration, pas un mécanisme.
  */
-export const ETAPE_ATTEINTE = 0;
+export const ETAPE_ATTEINTE = 1;
 
 /**
  * Les trois usages, dans l'ordre où on les lit.

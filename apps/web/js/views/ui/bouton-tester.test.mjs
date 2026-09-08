@@ -10,9 +10,9 @@ test("les trois usages du moteur sont nommés, et dans l'ordre où on les lit", 
 });
 
 test("un usage que le moteur ne sert pas encore dit son étape", () => {
-  // Le plan est dans `docs/rejouer-la-memoire.md`. Tant qu'on n'en a rien fait,
-  // seuls les usages de l'étape 0 sont servis.
-  assert.equal(ETAPE_ATTEINTE, 0);
+  // Le plan est dans `docs/rejouer-la-memoire.md`. L'étape 1 est faite : les
+  // lectures d'une règle s'enregistrent. Les usages qui demandent plus attendent.
+  assert.equal(ETAPE_ATTEINTE, 1);
 
   const variante = USAGES.find((usage) => usage.action === "tester:variante");
   const audit = USAGES.find((usage) => usage.action === "tester:audit");

@@ -58,14 +58,27 @@ export async function listAssertionDependencies(projectId) {
 }
 
 /**
- * Les liens que les règles du projet dessinent d'elles-mêmes.
+ * Les liens que les règles du projet dessinent, enregistrés ou déduits.
  *
- * Ils ne sont pas dans la table, et ils n'ont pas à y être : une règle dit déjà
- * ce qu'elle a lu, et le stocker en ferait une seconde vérité qui divergerait
- * au premier versement (`docs/fondamentaux.md`, règle 4).
+ * ## Deux sources, et l'une prime
  *
- * Les rangées stockées restent lues : le projet en porte, déclarées à la main
- * du temps où c'était le seul moyen. Elles restent vraies.
+ * Les **lectures enregistrées** — `assertion_applications` — disent ce que
+ * chaque règle a lu, résolu au moment où elle a servi et conservé depuis. Elles
+ * priment : un lien figé contre la mémoire que la règle a vue vaut mieux qu'un
+ * rapprochement de noms fait aujourd'hui, et il survit à un renommage.
+ *
+ * Les liens **déduits à la lecture** comblent le reste — tout ce qui a été versé
+ * avant que la table existe, et qu'aucune reconstruction n'a encore rattrapé.
+ * Ils se déduisent par nom, donc ils cassent au premier renommage : c'est
+ * précisément ce que l'étape 1 remplace, et ils reculent à mesure qu'on
+ * enregistre. Voir `docs/rejouer-la-memoire.md`.
+ *
+ * On ne mélange jamais les deux pour une même sortie : une affirmation dont les
+ * lectures sont enregistrées ne reçoit pas en plus des liens rapprochés par nom,
+ * qui feraient réapparaître ceux que le renommage a fait disparaître.
+ *
+ * Les rangées déclarées à la main, du temps où c'était le seul moyen, restent
+ * lues à part : elles restent vraies.
  *
  * Un échec de lecture rend une liste vide, pas `null` : ne pas savoir déduire
  * les liens ne doit pas faire croire qu'on n'a pas su lire la table.
@@ -77,9 +90,34 @@ async function dependancesDeduites(projectId) {
       import("./memoire-raisonnement.js")
     ]);
 
-    return dependancesDeLaMemoire((await listProjectAssertions(projectId)) ?? []);
+    const memoire = (await listProjectAssertions(projectId)) ?? [];
+    const enregistrees = await lecturesEnregistrees(projectId);
+
+    // `null` : la table n'a pas répondu. On déduit tout plutôt que de rendre un
+    // graphe amputé — un graphe incomplet se lit comme un graphe complet.
+    if (enregistrees === null) return dependancesDeLaMemoire(memoire);
+
+    const { dependancesDesApplications } = await import("./memoire-applications.js");
+    const couvertes = new Set(
+      enregistrees.map((ligne) => String(ligne?.output_assertion_id ?? "")).filter(Boolean)
+    );
+
+    return [
+      ...dependancesDesApplications(enregistrees),
+      ...dependancesDeLaMemoire(memoire).filter((lien) => !couvertes.has(String(lien.assertion_id)))
+    ];
   } catch {
     return [];
+  }
+}
+
+/** Les lectures enregistrées, ou `null` si la table n'a pas répondu. */
+async function lecturesEnregistrees(projectId) {
+  try {
+    const { listerLesApplications } = await import("./memoire-applications-supabase.js");
+    return await listerLesApplications(projectId);
+  } catch {
+    return null;
   }
 }
 

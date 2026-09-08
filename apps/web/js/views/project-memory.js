@@ -1518,7 +1518,18 @@ function renderVerserButton(busy = false) {
     size: "md",
     disabled: busy,
     items: [
-      { action: "verser:site", label: "Verser les contraintes du site" }
+      { action: "verser:site", label: "Verser les contraintes du site" },
+      { separator: true },
+      {
+        action: "verser:lectures",
+        label: "Reconstruire les liens du raisonnement",
+        // Ce n'est pas un versement : rien n'entre en mémoire. C'est une
+        // relecture de ce que les règles disent déjà, écrite là où elle se
+        // compte. Elle est ici parce que c'est le même geste — rendre explicite
+        // ce qui était implicite — et parce qu'elle écrit, donc elle se demande.
+        title: "Relit ce que chaque règle a lu, et l'enregistre avec son rang et sa zone. "
+          + "Les liens résolus après coup sont marqués comme tels."
+      }
     ]
   });
 }
@@ -1536,6 +1547,7 @@ function bindVerserButton(root) {
   action.addEventListener("ghaction:action", (event) => {
     const quoi = String(event.detail?.action || "");
     if (quoi === "verser:site") void versSiteConstraints(root);
+    if (quoi === "verser:lectures") void reconstruireLesLectures(root);
   });
 }
 
@@ -2839,6 +2851,48 @@ async function copyContext(root) {
  * Le message dit ce qui porte une réserve, parce que c'est la seule chose que
  * le lecteur ait à faire ensuite : vérifier une entrée, pas juger une règle.
  */
+/**
+ * Relire ce que chaque règle a lu, et l'enregistrer.
+ *
+ * Rien n'entre en mémoire : on écrit le **graphe**, pas des affirmations. C'est
+ * néanmoins un geste — il écrit —, et il se demande.
+ *
+ * Ce qui a été enregistré au versement n'est pas touché : un lien résolu contre
+ * la mémoire que la règle a vue vaut mieux qu'un lien résolu contre celle
+ * d'aujourd'hui, et l'écran doit pouvoir dire lequel des deux il montre.
+ */
+async function reconstruireLesLectures(root) {
+  if (view.busy) return;
+  view.busy = true;
+  view.notice = "Relecture des règles…";
+  renderContent(root);
+
+  try {
+    const { reconstruireLesApplications } = await import("../services/memoire-applications-supabase.js");
+    const rendu = await reconstruireLesApplications(view.projectId);
+
+    if (!rendu) {
+      view.notice = "Les liens n'ont pas pu être relus. La mémoire reste ce qu'elle était.";
+    } else if (!rendu.lues) {
+      // Ne pas savoir n'autorise pas à prétendre qu'il n'y a rien : on dit d'où
+      // ces liens viendraient plutôt que « aucun lien ».
+      view.notice =
+        "Aucune règle appliquée dans ce projet : il n'y a pas de lecture à enregistrer. "
+        + "Les règles arrivent avec une étude de l'Atelier.";
+    } else {
+      view.notice =
+        `${rendu.lues} lecture(s) relue(s) : ${rendu.ecrites} enregistrée(s) après coup`
+        + `${rendu.deja ? `, ${rendu.deja} laissée(s) telle(s) quelle(s) — déjà enregistrée(s) au versement` : ""}. `
+        + "Un lien résolu après coup l'est contre la mémoire d'aujourd'hui, pas contre celle que la règle a vue.";
+    }
+  } catch {
+    view.notice = "Les liens n'ont pas pu être relus. La mémoire reste ce qu'elle était.";
+  }
+
+  view.busy = false;
+  renderContent(root);
+}
+
 async function versSiteConstraints(root) {
   if (view.busy) return;
   view.busy = true;
