@@ -226,7 +226,7 @@ function renderNavIcon(name) {
   const icons = {
     general: svgIcon("gear", { className: "octicon octicon-gear" }),
     people: svgIcon("people", { className: "octicon octicon-people" }),
-    pin: svgIcon("pin", { className: "octicon" }),
+    pin: svgIcon("location", { className: "octicon" }),
     book: svgIcon("book", { className: "octicon" }),
     shield: svgIcon("shield", { className: "octicon" }),
     checklist: svgIcon("checklist", { className: "octicon" })
@@ -244,7 +244,7 @@ const PARAMETRES_NAV_GROUPS = [
   {
     sectionLabel: "Données de base projet",
     items: [
-      { targetId: "parametres-localisation", label: "Localisation", icon: "pin" },
+      { targetId: "parametres-localisation", label: "Localisation", icon: "location" },
       { targetId: "parametres-phase", label: "Phases", icon: "checklist" },
       { targetId: "parametres-lots", label: "Lots", icon: "book" },
       { targetId: "parametres-collaborateurs", label: "Collaborateurs", icon: "people" },

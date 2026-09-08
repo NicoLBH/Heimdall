@@ -1592,7 +1592,7 @@ export function getLocalisationProjectParametresTab() {
   return {
     id: "parametres-localisation",
     label: "Localisation",
-    iconName: "pin",
+    iconName: "location",
     isPrimary: false,
     renderContent: () => renderLocalisationParametresContent(),
     bind: (root) => bindLocalisationParametresSection(root)

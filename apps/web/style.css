@@ -16584,8 +16584,79 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   .memory-detail__panneau--pleine{ margin-left:0; margin-right:0; padding-left:0; padding-right:0; }
 }
 .memory-detail__tags{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:0 0 4px; }
-.memory-detail__tags-label{ color:var(--muted); font-size:11px; }
 .memory-detail__tags .memory-tag{ margin-right:2px; }
+
+/* ── Les recherches qu'on épingle ───────────────────────────────────────────
+   Au repos, la barre ne porte que sa loupe : deux boutons de plus en feraient
+   une barre d'outils, alors qu'on vient y taper. Ils paraissent au survol et
+   quand le champ a le focus — c'est là qu'on décide d'épingler ou d'effacer. */
+.memory-search__gestes{
+  position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  display:flex; gap:2px;
+  opacity:0; transition:opacity .12s ease;
+  pointer-events:none;
+}
+.memory-search:hover .memory-search__gestes,
+.memory-search:focus-within .memory-search__gestes{ opacity:1; pointer-events:auto; }
+.memory-search__geste{ width:26px; height:26px; justify-content:center; }
+.memory-search__geste:disabled{ opacity:.35; cursor:default; }
+.memory-search__geste:disabled:hover{ background:transparent; color:var(--muted); }
+/* La place des deux gestes est réservée : sans cela le texte passerait dessous
+   au survol, et l'on perdrait la fin de ce qu'on vient de taper. */
+.memory-search__input{ padding-right:64px; }
+
+.memory-rail__vide{
+  margin:4px var(--nav-list-gutter, 10px) 0;
+  padding:0 12px;
+  color:var(--muted); font-size:12px; line-height:1.5;
+}
+.project-rail.is-collapsed .memory-rail__vide{ display:none; }
+
+/* ── Qui assume, quand, et pour quelle partie de l'ouvrage ──────────────────
+   « Provenance · Nature · Domaine · État · Zones » alignés en colonnes se
+   lisaient comme un formulaire : on les parcourait sans les lire. Une
+   affirmation de projet est un **engagement de quelqu'un**, et une phrase le
+   dit. Les caractéristiques suivent, une fois la phrase lue. */
+.memory-detail__provenance{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  color:var(--muted); font-size:14px; line-height:22px;
+}
+.memory-detail__qui{ color:var(--muted); }
+/* Le nom se souligne : c'est une personne, et c'est elle qui engage. */
+.memory-detail__qui b{ color:var(--muted); font-weight:400; text-decoration:underline; text-underline-offset:3px; }
+.memory-detail__trait{ color:var(--muted); }
+
+/* La valeur en bleu, sans bordure, à chasse fixe : elle se détache de la phrase
+   grise sans se donner l'air d'un bouton. */
+.memory-tag--valeur{
+  border:none;
+  padding:1px 6px;
+  border-radius:6px;
+  background:rgba(56, 139, 253, 0.1);
+  color:rgb(68, 147, 248);
+  font-size:12px;
+  line-height:18px;
+}
+.memory-tag--valeur.memory-tag--unknown{
+  background:transparent;
+  border:1px dashed var(--border2, #30363d);
+  color:var(--muted);
+}
+
+/* La zone prend la place de la clé métier, à droite du titre : la clé n'était
+   que la translittération de ce qui est écrit au-dessus, la zone ne se lisait
+   nulle part alors qu'elle change tout. */
+.memory-zone-chip{
+  display:inline-flex; align-items:center;
+  padding:2px 10px;
+  border-radius:999px;
+  background:rgba(56, 139, 253, 0.1);
+  color:rgb(68, 147, 248);
+  font-family:var(--mono);
+  font-size:12px;
+  line-height:18px;
+}
+.memory-zone-chip + .memory-zone-chip{ margin-left:4px; }
 /* Dans la barre compactée : les valeurs, sur une ligne, sans repli — un titre
    qui change de hauteur au défilement fait sauter tout ce qui est dessous. */
 .memory-detail__tags--compacts{ display:inline-flex; align-items:center; gap:6px; flex-wrap:nowrap; overflow:hidden; margin:0; }
@@ -17696,7 +17767,9 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .memory-detail__head{
   padding:12px 0 14px;
   background:var(--bg);
-  border-bottom:1px solid var(--border);
+  /* Sans filet : la rangée d'onglets en pose déjà un juste dessous, et deux
+     traits parallèles à quatre pixels d'intervalle se lisent comme un défaut. */
+  border:none;
 }
 .overlay-chrome--compact .memory-detail__head{ padding:6px 0; }
 
@@ -17743,7 +17816,6 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   .memory-detail__tagsrow--pleine{ margin-left:0; margin-right:0; padding-left:0; padding-right:0; }
 }
 .memory-detail__section{ margin:0; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-.memory-detail__back{ margin:0; color:var(--muted); font-size:12px; font-style:italic; }
 
 .memory-facts{
   display:grid;
@@ -20284,10 +20356,22 @@ body.proposition-merge-open{ overflow:hidden; }
   font-size:12px;
 }
 .raison-espace__titre{ color:var(--text); font-size:13px; flex:0 0 auto; }
-.raison-espace__resume{ color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.raison-espace__outils{ margin-left:auto; display:flex; gap:2px; flex:0 0 auto; }
+/* Le constat dont on lit le raisonnement : en plein écran, sa barre de titre
+   n'est plus là, et sans son nom on ne sait plus de quoi on lit la chaîne. */
+.raison-espace__sujet{
+  flex:0 1 auto; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  padding-left:10px; margin-left:2px;
+  border-left:1px solid var(--border);
+  color:var(--text);
+}
+.raison-espace__resume{ color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:0 1 auto; }
+.raison-espace__outils{ margin-left:auto; display:flex; align-items:center; gap:2px; flex:0 0 auto; }
 .raison-espace__outil{ width:28px; height:28px; justify-content:center; }
+/* L'icône dit l'état, pas le geste : pleine, le panneau est là ; vide, il ne
+   l'est pas. La couleur suit — ce qui est ouvert se voit d'un coup d'œil. */
 .raison-espace__outil.est-actif{ color:var(--graphe-contraste); }
+.raison-espace__separateur{ width:1px; height:18px; margin:0 4px; background:var(--border); }
 
 /* Le schéma : sa hauteur se tire, elle ne se subit pas. Un raisonnement de
    trois étapes n'a pas besoin de la même place qu'un de quinze. */
@@ -20300,9 +20384,13 @@ body.proposition-merge-open{ overflow:hidden; }
      une variable posée sur un ancêtre ne l'emporte pas sur celle de l'élément. */
   --graphe-contraste:#58a6ff;
   --graphe-contraste-fond:rgba(56,139,253,.15);
-  flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+  /* `min-width:0` : sans lui, un élément flex ne descend pas sous la largeur de
+     son contenu, et la barre d'outils du schéma — donc les boutons de zoom —
+     sortait sous la colonne de discussion. */
+  flex:1 1 auto; min-height:0; min-width:0; display:flex; flex-direction:column;
   border:0; border-radius:0; background:transparent; margin:0;
 }
+.raison-espace__schema .graphe__tete{ min-width:0; }
 .raison-espace__schema .graphe__tete{
   margin:0; padding:8px 12px; flex:0 0 auto;
   border-bottom:1px solid var(--border);
@@ -20328,7 +20416,16 @@ body.proposition-merge-open{ overflow:hidden; }
    messages, et une colonne haute de la moitié de l'écran n'en montre que deux.
    Elle est donc à côté de tout le reste, pas seulement du code. */
 .raison-espace__corps{ display:flex; min-height:0; flex:1 1 auto; }
-.raison-espace__principal{ display:flex; flex-direction:column; min-width:0; min-height:0; flex:1 1 auto; }
+/* Les deux colonnes s'empilent dans l'ordre où on les lit, et **la discussion
+   passe devant** : les cartes du schéma sont positionnées — c'est ce qui permet
+   d'y tracer les liens —, et une carte positionnée recouvre un voisin qui ne
+   l'est pas. Elles passaient donc sous la colonne de droite. */
+.raison-espace__principal{
+  position:relative; z-index:0;
+  display:flex; flex-direction:column; min-width:0; min-height:0; flex:1 1 auto; overflow:hidden;
+}
+.raison-espace__poignee--verticale,
+.raison-espace__copilote{ position:relative; z-index:1; }
 .raison-espace__code{
   flex:1 1 auto; min-width:0; min-height:0;
   overflow:auto;
@@ -20382,7 +20479,29 @@ body.memoire-raisonnement-plein-ecran .project-tabs{
   line-height:1.9;
 }
 .raison-ligne{ display:contents; }
-.raison-ligne__code{ padding:0 12px; white-space:pre; }
+/* Les filets de retrait, un par cran. Les couleurs apparient une borne à sa
+   jumelle ; le filet, lui, montre l'**étendue** du bloc — où il commence,
+   jusqu'où il descend. Sur une fonction de trente lignes, c'est ce qui évite de
+   remonter à la main pour savoir de quel `si` dépend le `enregistre` qu'on lit.
+
+   Un dégradé répété plutôt que des éléments : trois cents lignes feraient neuf
+   cents nœuds de plus dans le DOM pour dessiner neuf cents traits d'un pixel. */
+.raison-ligne__code{
+  padding:0 12px;
+  white-space:pre;
+  background-image:repeating-linear-gradient(
+    to right,
+    var(--raison-guide, rgba(110,118,129,.32)) 0 1px,
+    transparent 1px calc(var(--raison-cran, 3ch))
+  );
+  background-repeat:no-repeat;
+  /* Exactement le nombre de crans de la ligne : au-delà, le filet dirait un
+     bloc qui n'existe pas. */
+  background-size:calc(var(--raison-crans, 0) * var(--raison-cran, 3ch)) 100%;
+  background-position:12px 0;
+}
+/* La tête de grille n'est pas du code : elle n'a pas de retrait à montrer. */
+.raison-ligne--tete .raison-ligne__code{ background-image:none; }
 
 /* Les valeurs et les numéros restent collés au bord gauche pendant que le code
    défile sous eux. Une citation d'arrêté fait mille pixels : sans cela, la lire
