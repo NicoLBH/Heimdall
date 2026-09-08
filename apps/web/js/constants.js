@@ -67,7 +67,10 @@ export const PROJECT_TABS = [
   {
     id: PROJECT_TAB_IDS.MEMOIRE,
     label: "Mémoire",
-    icon: svgIcon("history", { className: "octicon octicon-history" })
+    // Une base de données traversée d'un éclair : cet onglet ne range plus la
+    // mémoire, il l'**exécute** — les règles s'y rejouent. L'horloge de
+    // l'historique disait ce qu'il était, pas ce qu'il est devenu.
+    icon: svgIcon("memoire-vive", { className: "octicon octicon-memoire-vive" })
   },
   {
     id: PROJECT_TAB_IDS.STUDIO,

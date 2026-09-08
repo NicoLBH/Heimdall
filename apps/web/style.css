@@ -21586,3 +21586,69 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .memory-row__variante--rejouee{ border-color:rgba(63,185,80,.45); background:rgba(63,185,80,.10); }
 .memory-row__variante--rejouee .memory-row__variante-nom{ color:var(--success); }
 .memory-row--variante-rejouee{ box-shadow:inset 3px 0 0 var(--success); }
+
+/* La marque d'une ligne reste **grise**, comme dans le rail : c'est le dessin
+   qui dit la nature, pas la couleur. Le vert, l'ambre et le violet ont déjà un
+   sens ici — recalculé, à revérifier, fermé — et les réemployer pour une nature
+   ferait dire deux choses à une même teinte. */
+
+/* ── Le plan de recalcul : la forme du raisonnement, et sa frontière ───────
+   Le compte des pas se lit à côté du volume : « 3 pas » dit ce qu'aucun autre
+   compteur ne dit — jusqu'où le projet enchaîne. */
+.memory-counts__item--plan{ color:var(--variante, #39c5cf); }
+.memory-counts__item--plan b{ color:var(--variante, #39c5cf); }
+.memory-counts__part{ margin-left:6px; color:var(--muted); font-size:12px; }
+
+.plan-boite{ width:min(720px, 100%); gap:12px; }
+
+.plan-resume{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 20px;
+  padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg); font-size:13px; color:var(--muted);
+}
+.plan-chiffre b{ margin-right:4px; font-size:17px; color:var(--text); }
+.plan-chiffre--rejouable b{ color:var(--success); }
+.plan-chiffre--opaque b{ color:#d29922; }
+.plan-chiffre--socle b{ color:var(--muted); }
+.plan-part{ margin-left:auto; color:var(--variante, #39c5cf); }
+
+.plan-zones{ display:flex; flex-direction:column; gap:18px; max-height:56vh; overflow:auto; }
+.plan-zone{ display:flex; flex-direction:column; gap:8px; }
+.plan-zone__tete{
+  display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+  padding-bottom:6px; border-bottom:1px solid var(--border);
+  font-size:13px; color:var(--muted);
+}
+.plan-zone__tete b{ color:var(--text); font-size:14px; }
+
+.plan-strate{
+  padding:10px 12px; border:1px solid var(--border); border-left-width:3px;
+  border-left-color:var(--variante-bord, rgba(57,197,207,.40));
+  border-radius:var(--radius); background:var(--bg);
+}
+.plan-strate h5{
+  display:flex; align-items:center; gap:8px;
+  margin:0 0 6px; font-size:13px; font-weight:500; color:var(--muted);
+}
+.plan-strate p{ margin:0 0 8px; font-size:12px; line-height:1.5; color:var(--muted); }
+.plan-strate__rang{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; border-radius:50%;
+  background:var(--variante-fond, rgba(57,197,207,.12));
+  color:var(--variante, #39c5cf);
+  font:600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.plan-strate__compte{
+  margin-left:auto; color:var(--muted);
+  font:500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Les opaques et les cycles n'ont pas de rang : ils bordent le plan, ils n'y
+   entrent pas. Un filet ambre le dit sans qu'on lise le titre. */
+.plan-strate--opaque, .plan-strate--cycle{ border-left-color:#d29922; }
+.plan-strate--opaque h5, .plan-strate--cycle h5{ color:#d29922; }
+
+.plan-lignes{ list-style:none; display:flex; flex-wrap:wrap; gap:4px; margin:0; padding:0; }
+.plan-ligne{
+  padding:3px 8px; border-radius:var(--radius);
+  background:var(--panel2); color:var(--text); font-size:12.5px;
+}

@@ -184,3 +184,32 @@ test("ce qui a été remplacé ne se rejoue pas", () => {
   ];
   assert.deepEqual(rejouerLesRegles(memoire).conclusions, []);
 });
+
+
+test("dans l'ordre du plan, un seul tour suffit", () => {
+  // Quatre règles en chaîne. Sans ordre, il fallait un tour par pas — et l'on
+  // ne savait pas d'avance combien. Avec le plan, chaque règle lit des valeurs
+  // déjà refaites.
+  const memoire = [
+    dit("Hauteur", "26 m"),
+    regle("Classement", "3e famille B", [auPlus("Hauteur", "28", "m")], { sinon: "4e famille" }),
+    dit("Classement", "3e famille B"),
+    regle("Degré CF", "CF 1 h", [egal("Classement", "3e famille B")], { sinon: "CF 1 h 1/2" }),
+    dit("Degré CF", "CF 1 h"),
+    regle("Épaisseur", "16 cm", [egal("Degré CF", "CF 1 h")], { sinon: "20 cm" }),
+    dit("Épaisseur", "16 cm"),
+    regle("Ferraillage", "HA12", [egal("Épaisseur", "16 cm")], { sinon: "HA14" }),
+    dit("Ferraillage", "HA12")
+  ];
+
+  const rendu = rejouerLesRegles(memoire, { substitutions: new Map([["a-Hauteur", "31 m"]]) });
+
+  // Les quatre valeurs basculent, et la boucle n'a eu qu'à constater qu'elle
+  // n'avait plus rien à faire : deux tours, dont le second ne change rien.
+  assert.deepEqual(
+    rendu.conclusions.map((c) => c.sujet),
+    ["Classement", "Degré CF", "Épaisseur", "Ferraillage"]
+  );
+  assert.equal(rendu.tours, 2);
+  assert.equal(rendu.borne, false);
+});

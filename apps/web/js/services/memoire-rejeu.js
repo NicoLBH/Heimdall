@@ -36,6 +36,7 @@ import { zonesLisibles } from "./memoire-blame.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { sujetDe, valeurDuSujet } from "./memoire-raisonnement.js";
 import { VERDICT, lecteurDeValeurs, rejouerLaRegle } from "./memoire-evaluateur.js";
+import { ordreDeLaZone } from "./memoire-plan.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -71,13 +72,25 @@ export function porteesDuRejeu(assertions = []) {
   return [...zones];
 }
 
-/** Les règles qui s'appliquent dans cette zone : les siennes, et celles de partout. */
+/**
+ * Les règles qui s'appliquent dans cette zone, **dans l'ordre du plan**.
+ *
+ * Rejouées dans cet ordre, chacune lit des valeurs déjà refaites, et un seul
+ * tour suffit. Celles que le plan n'a pas su placer — une sortie qu'aucune
+ * affirmation ne porte, une composante cyclique — viennent après, dans l'ordre
+ * du fichier : la boucle les rattrape.
+ */
 function reglesDeLaZone(assertions, zone) {
-  return assertions.filter((assertion) => {
+  const regles = assertions.filter((assertion) => {
     if (!estUneRegle(assertion) || !enVigueur(assertion)) return false;
     const portees = porteesDe(assertion);
     return portees.length ? portees.includes(zone) : zone === "";
   });
+
+  const rang = new Map(ordreDeLaZone(assertions, zone).map((cle, index) => [cle, index]));
+  const place = (regle) => rang.get(cleDuSujet(sujetDe(regle))) ?? Number.MAX_SAFE_INTEGER;
+
+  return [...regles].sort((gauche, droite) => place(gauche) - place(droite));
 }
 
 /**
