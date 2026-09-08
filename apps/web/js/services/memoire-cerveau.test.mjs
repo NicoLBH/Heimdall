@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  SIGNAL, cerveauDuProjet, dispositionDuCerveau, dispositionEnVolume, graineDe, liensDuRaisonnement,
-  noeudsIsoles, ondeDepuis, phraseDuSignal, signauxDeLAudit, stratesDuGraphe
+  SIGNAL, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dispositionDuCerveau, dispositionEnVolume,
+  domainesDuCerveau, graineDe, liensDuRaisonnement, noeudsIsoles, ondeDepuis, pencherVersLesDomaines,
+  phraseDuSignal, signauxDeLAudit, stratesDuGraphe
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -112,7 +113,9 @@ test("chaque nœud porte sa nature, et le compte les sépare", () => {
     ]
   );
   assert.equal(cerveau.profondeur, 2);
-  assert.deepEqual(cerveau.compte, { socle: 2, rejouables: 2, opaques: 1, auServeur: 1, liens: 3 });
+  assert.deepEqual(cerveau.compte, {
+    socle: 2, rejouables: 2, opaques: 1, auServeur: 1, liens: 3, poidsMax: 3
+  });
 });
 
 test("un nœud opaque dit s'il sait se rejouer au serveur", () => {
@@ -360,4 +363,129 @@ test("tout tient dans la boule de rayon un : c'est ce que l'écran suppose", () 
 test("une mémoire vide ne remplit aucun volume, et ne casse pas", () => {
   assert.deepEqual(dispositionEnVolume(cerveauDuProjet([], [])), []);
   assert.deepEqual(dispositionEnVolume(null), []);
+});
+
+/* ── Le poids et la chaleur ──────────────────────────────────────────────── */
+
+test("le poids compte les emplois et les liens, pas l'un ou l'autre", () => {
+  // Une donnée lue dix fois par une seule règle et une donnée lue une fois par
+  // dix règles ne pèsent pas pareil. Ne compter que l'un des deux les
+  // confondrait, et l'écran les dessinerait de la même taille.
+  const cerveau = cerveauDuProjet(memoire(), lectures());
+  const par = (id) => cerveau.noeuds.find((n) => n.id === id);
+
+  // La cote hors gel : lue une fois, un lien entrant, un lien sortant.
+  assert.deepEqual(
+    [par("gel").lectures, par("gel").entrant, par("gel").sortant, par("gel").poids],
+    [1, 1, 1, 3]
+  );
+  // Une conclusion terminale ne pèse que son lien entrant.
+  assert.equal(par("fond").poids, 1);
+  assert.equal(cerveau.compte.poidsMax, 3);
+});
+
+test("la chaleur s'étale en racine : le milieu doit se voir", () => {
+  // Les poids d'un projet ne se répartissent pas également. Une échelle linéaire
+  // écraserait tout le milieu contre le froid, et l'on ne verrait que les
+  // extrêmes — ce qu'on savait déjà.
+  assert.equal(chaleurDuNoeud({ poids: 100 }, 100), 1);
+  assert.equal(chaleurDuNoeud({ poids: 0 }, 100), 0);
+  assert.equal(chaleurDuNoeud({ poids: 25 }, 100), 0.5);
+  // Un quart du poids maximal ressort à la moitié de l'échelle, pas au quart.
+  assert.ok(chaleurDuNoeud({ poids: 25 }, 100) > 25 / 100);
+});
+
+test("un lien prend la chaleur de sa plus chaude extrémité, pas leur moyenne", () => {
+  // Un lien qui part d'une donnée lue quarante fois est un lien important, même
+  // s'il aboutit à une conclusion dont rien ne dépend. La moyenne le
+  // refroidirait de moitié et effacerait les branches maîtresses.
+  const parId = new Map([["chaud", { poids: 100 }], ["froid", { poids: 1 }]]);
+  assert.equal(chaleurDuLien({ de: "chaud", vers: "froid" }, parId, 100), 1);
+  assert.equal(chaleurDuLien({ de: "froid", vers: "chaud" }, parId, 100), 1);
+});
+
+test("une chaleur ne dépasse jamais l'échelle, même sans maximum connu", () => {
+  assert.equal(chaleurDuNoeud({ poids: 50 }, 0), 1);
+  assert.equal(chaleurDuNoeud({}, 10), 0);
+  assert.equal(chaleurDuNoeud(null, 10), 0);
+});
+
+/* ── Le regroupement par domaine ─────────────────────────────────────────── */
+
+/** Une valeur d'un domaine donné. */
+const dansLeDomaine = (id, sujet, domaine) => ({ ...dit(id, sujet, "v"), domain: domaine });
+
+test("les domaines sont dans l'ordre du vocabulaire, pas dans celui du projet", () => {
+  // Deux projets doivent placer l'incendie au même endroit, sans quoi on ne peut
+  // pas dire « la zone dense, là, c'est l'incendie » d'un projet à l'autre.
+  const desordre = [
+    dansLeDomaine("a", "A", "incendie"),
+    dansLeDomaine("b", "B", "structure"),
+    dansLeDomaine("c", "C", "sol"),
+    dit("d", "Sans domaine", "v")
+  ];
+
+  assert.deepEqual(
+    domainesDuCerveau(cerveauDuProjet(desordre, [])).map((d) => d.libelle),
+    ["Structure", "Sol", "Incendie", "Sans domaine"]
+  );
+});
+
+test("un domaine groupe sans se refermer : la zone se reconnaît, la chaîne se suit", () => {
+  const beaucoup = [];
+  for (const [i, domaine] of [...Array(32).keys()].map((i) => [i, ["structure", "sol", "incendie", "accessibilite"][i % 4]])) {
+    beaucoup.push(dansLeDomaine(`n${i}`, `Sujet ${i}`, domaine));
+  }
+  const cerveau = cerveauDuProjet(beaucoup, []);
+  const penche = pencherVersLesDomaines(dispositionEnVolume(cerveau), cerveau);
+
+  const capMoyen = (domaine) => {
+    const angles = penche.filter((n) => n.domaine === domaine).map((n) => Math.atan2(n.z, n.x));
+    return Math.atan2(
+      angles.reduce((s, a) => s + Math.sin(a), 0) / angles.length,
+      angles.reduce((s, a) => s + Math.cos(a), 0) / angles.length
+    );
+  };
+
+  const caps = ["structure", "sol", "incendie", "accessibilite"].map(capMoyen);
+  // Quatre directions distinctes : chaque domaine occupe son quartier.
+  for (let i = 0; i < caps.length; i += 1) {
+    for (let j = i + 1; j < caps.length; j += 1) {
+      const ecart = Math.abs(Math.atan2(Math.sin(caps[i] - caps[j]), Math.cos(caps[i] - caps[j])));
+      assert.ok(ecart > 0.9, `${i} et ${j} se confondent`);
+    }
+  }
+
+  // Et à l'intérieur d'un quartier, les nœuds restent dispersés : un domaine est
+  // une zone, pas un bloc. Regrouper franchement ferait huit paquets séparés, et
+  // l'on perdrait les chaînes qui traversent les disciplines.
+  const angles = penche.filter((n) => n.domaine === "incendie").map((n) => Math.atan2(n.z, n.x));
+  const moyen = capMoyen("incendie");
+  const dispersion = angles
+    .map((a) => Math.abs(Math.atan2(Math.sin(a - moyen), Math.cos(a - moyen))))
+    .reduce((s, x) => s + x, 0) / angles.length;
+  assert.ok(dispersion > 0.15, "un domaine ne doit pas se réduire à un point");
+});
+
+test("sans domaine renseigné, le regroupement ne déplace rien", () => {
+  const sansDomaine = [...Array(6)].map((_, i) => dit(`n${i}`, `Sujet ${i}`, "v"));
+  const cerveau = cerveauDuProjet(sansDomaine, []);
+  const brutes = dispositionEnVolume(cerveau);
+
+  assert.deepEqual(pencherVersLesDomaines(brutes, cerveau), brutes);
+});
+
+test("le regroupement laisse la strate tranquille : elle porte le raisonnement", () => {
+  // Grouper d'abord et stratifier ensuite casserait la lecture des chaînes, qui
+  // est la raison d'être de l'écran.
+  const memoireAvecDomaines = memoire().map((a) =>
+    a.payload?.referentiel ? a : { ...a, domain: a.id === "cf" ? "incendie" : "sol" });
+  const cerveau = cerveauDuProjet(memoireAvecDomaines, lectures());
+  const brutes = dispositionDuCerveau(cerveau);
+  const penche = pencherVersLesDomaines(brutes, cerveau);
+
+  for (const place of penche) {
+    const avant = brutes.find((b) => b.id === place.id);
+    assert.equal(place.x, avant.x, `${place.sujet} a changé de strate`);
+  }
 });

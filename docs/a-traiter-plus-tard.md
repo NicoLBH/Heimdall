@@ -210,91 +210,100 @@ quelqu'un, un jour, recopiera de travers.
 
 ---
 
-## 5. Le cerveau du projet — *les deux modes sont faits*
+## 5. Le cerveau du projet — *fait*
 
-**État :** deux vues, deux modes, la navigation · **Reste :** leur cumul, à juger
-sur pièce.
+**État :** fait · **Reste :** rien de nommé. Ce qui viendra viendra de l'usage.
 
 ### Ce qui manquait
 
 On ne voyait pas l'ensemble du raisonnement. On le **lisait** — un tableau, une
-étude d'impact, un audit — et chacun de ces écrans répond à une question, posée
-une à une. Aucun ne montrait la forme : combien de strates, où est le socle, où
-sont les nœuds qu'on ne sait pas refaire, et jusqu'où une valeur se propage.
+étude d'impact, un audit — et chacun répond à une question, posée une à une.
+Aucun ne montrait la forme. Un projet de quatre cents affirmations se lisait par
+le trou d'une serrure.
 
-Un projet de quatre cents affirmations se lisait par le trou d'une serrure.
+### Deux vues
 
-### Deux vues, et elles ne disent pas la même chose
+**Les strates** rangent les nœuds en colonnes, une par pas depuis le socle : la
+vue qui répond à *dans quel ordre*. **Le volume** met le socle au centre et
+éloigne chaque strate en coquilles concentriques, réparties à la spirale d'or :
+la vue qui répond à *où est la matière*. Le nœud le plus employé du socle est
+exactement au centre — le centre névralgique.
 
-**Les strates** rangent les nœuds en colonnes, une par pas depuis le socle, chaque
-colonne nommée : *socle*, *1 pas*, *2 pas*. C'est la vue qui répond à *dans quel
-ordre* — on suit une chaîne de gauche à droite, on compte les pas.
+### Trois modes, dont le cumul
 
-**Le volume** met le socle au centre et éloigne chaque strate en coquilles
-concentriques, réparties à la spirale d'or. C'est la vue qui répond à *où est la
-matière* : une strate chargée fait une coquille dense, une strate maigre un semis
-clairsemé. Les colonnes ne montraient pas cela — sur un vrai projet, elles
-empilaient trois cents nœuds sur une seule verticale.
+**Vivant**, par défaut : le projet bat tout seul, s'arrête dès qu'on le survole,
+repart quand on s'éloigne, et un clic lance l'onde. C'est le cumul des deux
+autres, et il règle ce que chacun avait de gênant — le battement seul finit par
+gêner au moment précis où l'on veut lire quelque chose, l'onde seule laisse un
+écran mort tant qu'on n'a rien demandé.
 
-Le nœud le plus employé du socle est **exactement au centre**. C'est le centre
-névralgique : la valeur dont le plus de choses dépendent, et l'on doit pouvoir la
-montrer du doigt.
+**Onde au clic** et **Battement** restent disponibles pour qui veut l'un sans
+l'autre.
 
-### Deux modes, et ils ne posent pas la même question
+### Deux couleurs
 
-**L'onde au clic** répond à *qu'est-ce qui repose là-dessus ?*. Elle part d'une
-valeur et remonte les liens strate par strate.
+**Nature** : socle, rejouable, opaque — ce que chaque valeur *est*.
 
-**Le battement** répond à *où ça ne va pas ?*. Le projet pense tout seul — les
-impulsions partent du socle en boucle, une par seconde — et ce que l'audit signale
-bat en rouge, sans qu'on ait rien demandé. Trois motifs, et ils se distinguent au
-survol : une règle qui dérive, une règle qui a perdu son objet, un calcul fait sur
-une entrée que le projet a changée depuis.
+**Chaleur** : un dégradé d'orange selon ce qui passe par là. Le **poids** d'un
+nœud réunit ses emplois et son degré, parce qu'une donnée lue dix fois par une
+règle et une donnée lue une fois par dix règles ne pèsent pas pareil. La taille
+suit le même poids, en racine — les poids d'un projet ne se répartissent pas
+également, et une échelle linéaire ferait trois grosses billes au milieu d'une
+poussière.
+
+**Le rouge est hors de l'échelle**, et c'est le point qui compte. Il ne dit pas
+« très chaud », il dit « l'audit signale ». Si le rouge était le bout du dégradé,
+un nœud très employé se lirait comme un nœud malade, et l'on apprendrait à
+ignorer la couleur qui compte. Un lien dont une extrémité est malade passe au
+rouge aussi : c'est par lui que le défaut se propage.
+
+### Le regroupement par domaine
+
+Chaque domaine reçoit un secteur — un quartier du volume, une bande en strates —
+avec un tiers de chevauchement entre voisins. On reconnaît une zone sans pouvoir
+tracer la frontière, ce qui est exactement l'état de la réalité : une hauteur de
+plancher sert l'incendie **et** l'accessibilité.
+
+L'ordre des secteurs vient du vocabulaire, pas du projet : deux projets placent
+l'incendie au même endroit, faute de quoi « la zone dense, là, c'est l'incendie »
+ne voudrait rien dire d'un projet à l'autre.
+
+**Le nom se pose au bord du secteur, pas au barycentre.** En volume, les nœuds
+d'un domaine s'étalent de part et d'autre du centre et leur moyenne y retombe :
+les cinq libellés s'empilaient au milieu de l'écran. On prend donc la direction
+moyenne — une moyenne d'angles, sur le cercle — et l'on pose le nom là où la zone
+se voit. Un domaine de moins de trois nœuds ne se nomme pas : trois points isolés
+portant une étiquette feraient croire à une zone qui n'existe pas.
+
+Et le regroupement ne touche **jamais** à la strate : c'est elle qui porte le
+raisonnement. Grouper d'abord et stratifier ensuite casserait la lecture des
+chaînes, qui est la raison d'être de l'écran.
 
 ### La navigation
 
-Molette pour zoomer — **sous le curseur**, sinon approcher un détail le fait fuir
-hors de l'écran. Glissé pour déplacer en strates, pour **tourner** en volume : on
-ne déplace pas une sphère centrée, on l'oriente. Un seuil de quatre pixels
-distingue le glissé du clic, sans quoi se promener déclencherait une onde à chaque
-relâchement.
+Molette pour zoomer — sous le curseur. Glissé pour déplacer en strates, pour
+tourner en volume. Un seuil de quatre pixels distingue le glissé du clic.
 
 ### Ce qui est masqué, compté, et récupérable
 
-Sur le projet réel, trois cent onze affirmations pour quatre-vingt-quatorze liens :
-la plupart des nœuds ne sont touchés par **aucun** lien, et les dessiner tous fait
-un mur dans lequel on ne distingue plus les soixante qui forment le raisonnement.
-
-Ils sont donc masqués par défaut, **comptés dans la barre**, et une case les
-remet. Leur absence de lien a deux causes qui ne se confondent pas — ou bien rien
-ne repose sur eux, et c'est une information ; ou bien leurs lectures n'ont pas été
-enregistrées, et c'est une lacune de l'outil. On ne sait pas laquelle, et l'écran
-ne le fait pas croire.
+Les nœuds qu'aucun lien ne touche : la majorité sur un vrai projet. Masqués par
+défaut, comptés dans la barre, une case les remet. Leur absence de lien a deux
+causes qui ne se confondent pas — rien ne repose sur eux, ou leurs lectures n'ont
+pas été enregistrées — et l'écran ne fait pas croire qu'il sait laquelle.
 
 ### Les garde-fous, tenus
 
 **L'onde est `impactDe`** et **les signaux sont `auditerLaMemoire`**, sans une
 ligne de plus. Si ce dessin ment, l'étude d'impact et l'audit mentent aussi, et
-les trois se corrigent ensemble. Deux écrans qui jugeraient chacun de leur côté
-finiraient par ne pas signaler les mêmes choses, et l'on ne saurait plus lequel
-croire.
+les trois se corrigent ensemble.
 
-**Un nœud opaque ne s'allume pas comme les autres** : halo creux, compté à part.
-**Les liens disent d'où ils viennent** : sans lectures enregistrées, un bandeau dit
-qu'ils sont déduits d'une ressemblance de noms. **Les étiquettes ne s'écrivent que
-tant qu'elles se lisent**, et le seuil compte les nœuds **visibles à l'écran** —
-c'est ce qui fait que zoomer en fait réapparaître, et c'est à cela que sert le
-zoom.
+**Les liens disent d'où ils viennent** : sans lectures enregistrées, un bandeau
+dit qu'ils sont déduits d'une ressemblance de noms. **Les étiquettes ne s'écrivent
+que tant qu'elles se lisent**, et le seuil compte les nœuds visibles à l'écran —
+c'est ce qui fait que zoomer en fait réapparaître.
 
-### Ce qui reste : le cumul des deux modes
+### Ce qui reste
 
-Le battement au repos, l'arrêt au survol, l'onde au clic. C'est probablement le
-bon enchaînement — mais il se juge sur pièce, et maintenant que le battement
-tourne on peut le juger. Deux questions à trancher en le regardant : est-ce que le
-battement fatigue au bout de deux minutes, et est-ce qu'un arrêt au survol se
-comprend ou surprend ?
-
-### Ce qui se passe si on le laisse
-
-Rien. Les deux modes marchent séparément, et le bouton pour passer de l'un à
-l'autre est à côté. Le cumul est un confort, pas une capacité.
+Rien de nommé, et c'est volontaire. L'écran a maintenant assez de réglages pour
+qu'on s'en serve un moment avant de savoir ce qui lui manque vraiment. La
+prochaine chose à faire viendra de l'usage, pas d'une liste.

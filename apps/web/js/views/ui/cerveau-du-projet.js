@@ -54,8 +54,8 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { NOEUD } from "../../services/memoire-plan.js";
 import {
-  cerveauDuProjet, dispositionDuCerveau, dispositionEnVolume, noeudsIsoles, ondeDepuis,
-  phraseDuSignal, signauxDeLAudit
+  cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dispositionDuCerveau, dispositionEnVolume,
+  domainesDuCerveau, noeudsIsoles, ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit
 } from "../../services/memoire-cerveau.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -85,6 +85,38 @@ const NATURES = {
 const ROUGE = "248,81,73";
 
 /**
+ * Le dégradé de chaleur : du froid au brûlant, puis le rouge à part.
+ *
+ * L'orange est celui de l'écran Incendie (`#f0883e`), où ce dégradé est né. Le
+ * réemployer plutôt que d'en inventer un évite d'apprendre deux langages pour la
+ * même idée : *plus c'est chaud, plus il s'en passe*.
+ *
+ * Le **rouge est hors de l'échelle**, et c'est délibéré. Il ne dit pas « très
+ * chaud », il dit « l'audit signale ». Si le rouge était le bout du dégradé, un
+ * nœud très employé se lirait comme un nœud malade, et l'on apprendrait à ignorer
+ * la couleur qui compte.
+ */
+const CHALEUR = [
+  { a: 0, teinte: [88, 110, 140] },
+  { a: 0.35, teinte: [187, 128, 9] },
+  { a: 0.7, teinte: [240, 136, 62] },
+  { a: 1, teinte: [255, 173, 96] }
+];
+
+/** La teinte d'une chaleur, interpolée entre deux arrêts du dégradé. */
+function teinteDeLaChaleur(chaleur) {
+  const t = borne(Number(chaleur) || 0, 0, 1);
+  for (let i = 1; i < CHALEUR.length; i += 1) {
+    if (t > CHALEUR[i].a) continue;
+    const bas = CHALEUR[i - 1];
+    const haut = CHALEUR[i];
+    const part = (t - bas.a) / (haut.a - bas.a || 1);
+    return bas.teinte.map((canal, k) => Math.round(canal + (haut.teinte[k] - canal) * part)).join(",");
+  }
+  return CHALEUR.at(-1).teinte.join(",");
+}
+
+/**
  * Le cadrage de départ de chaque vue.
  *
  * Elles n'ont pas le même cadrage naturel : les colonnes remplissent la largeur
@@ -101,11 +133,46 @@ const CADRAGE = {
  * Le cadre
  * ────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * L'échelle de chaleur, dite en clair.
+ *
+ * Un dégradé sans échelle est une décoration : on voit que c'est plus orange à
+ * droite sans savoir ce que « plus orange » veut dire. Ici, il veut dire *plus de
+ * raisonnement passe par là* — et le rouge, à part, veut dire tout autre chose.
+ */
+function renderEchelleDeChaleur(cerveau, signales) {
+  const bande = [0, 0.2, 0.4, 0.6, 0.8, 1]
+    .map((chaleur) => `<i style="--trait:rgb(${teinteDeLaChaleur(chaleur)})"></i>`).join("");
+
+  return `
+    <div class="cerveau-legende" data-cerveau-legende="chaleur" hidden>
+      <span class="cerveau-legende__item cerveau-legende__echelle">
+        <span class="cerveau-echelle">${bande}</span>
+        <b>Ce qui passe par là</b>
+        <small>emplois et liens réunis — la taille suit le même poids</small>
+      </span>
+      ${
+        signales
+          ? `<span class="cerveau-legende__item cerveau-legende__item--signale">
+              <i></i>
+              <b>${signales} ${accorde(signales, "signalée", "signalées")}</b>
+              <small>hors de l'échelle : le rouge dit que l'audit signale, pas que c'est chaud</small>
+            </span>`
+          : ""
+      }
+      <span class="cerveau-legende__item">
+        <b>La forme dit la nature</b>
+        <small>plein pour le socle, cerclé pour ce qui se rejoue, creux pour l'opaque</small>
+      </span>
+    </div>
+  `;
+}
+
 function renderLegende(cerveau, signales) {
   const auServeur = cerveau.compte.auServeur;
 
   return `
-    <div class="cerveau-legende">
+    <div class="cerveau-legende" data-cerveau-legende="nature">
       ${Object.entries(NATURES).map(([nature, quoi]) => `
         <span class="cerveau-legende__item cerveau-legende__item--${nature}">
           <i style="--trait:${quoi.trait}"></i>
@@ -134,6 +201,7 @@ function renderLegende(cerveau, signales) {
           : ""
       }
     </div>
+    ${renderEchelleDeChaleur(cerveau, signales)}
   `;
 }
 
@@ -160,15 +228,24 @@ function renderBarre(isoles) {
         { cle: "strates", nom: "Strates", icone: "stack", quoi: "Une colonne par pas depuis le socle : dans quel ordre le raisonnement se fait." },
         { cle: "volume", nom: "Volume", icone: "north-star", quoi: "Le socle au centre, les strates en coquilles : où se trouve la matière." }
       ])}
-      ${renderChoix("mode", "onde", [
-        { cle: "onde", nom: "Onde au clic", icone: "graph", quoi: "Cliquez une valeur : ce qui en découle s'allume, strate par strate." },
-        { cle: "battement", nom: "Battement", icone: "pulse", quoi: "Le projet pense tout seul, et ce que l'audit signale bat en rouge." }
+      ${renderChoix("mode", "vivant", [
+        { cle: "vivant", nom: "Vivant", icone: "heimdall", quoi: "Le projet bat tout seul ; il s'arrête quand vous survolez, et repart quand vous partez. Un clic lance l'onde." },
+        { cle: "onde", nom: "Onde au clic", icone: "graph", quoi: "Rien ne bouge tant qu'on ne demande rien : cliquez une valeur." },
+        { cle: "battement", nom: "Battement", icone: "pulse", quoi: "Le projet pense tout seul, sans jamais s'arrêter." }
+      ])}
+      ${renderChoix("couleur", "nature", [
+        { cle: "nature", nom: "Nature", icone: "labels-distribution", quoi: "Socle, rejouable, opaque : ce que chaque valeur est." },
+        { cle: "chaleur", nom: "Chaleur", icone: "fire", quoi: "Du froid au brûlant selon ce qui passe par là. Le rouge reste à ce que l'audit signale." }
       ])}
       <div class="cerveau__navigation">
         <button type="button" class="cerveau__outil" data-cerveau-zoom="-1" aria-label="Reculer">−</button>
         <button type="button" class="cerveau__outil" data-cerveau-zoom="1" aria-label="Approcher">+</button>
         <button type="button" class="cerveau__outil cerveau__outil--large" data-cerveau-recadrer>Recadrer</button>
       </div>
+      <label class="cerveau__isoles">
+        <input type="checkbox" data-cerveau-domaines checked>
+        <span>Grouper par domaine</span>
+      </label>
       ${
         // Les isolés se comptent et se remettent. Leur absence de lien a deux
         // causes qui ne se confondent pas, et l'écran ne choisit pas pour vous.
@@ -223,6 +300,7 @@ function renderCadre(cerveau, isoles, signales) {
       <div class="cerveau__pied">
         ${renderLegende(cerveau, signales)}
         <p class="cerveau__onde" data-cerveau-onde>
+          Le projet bat tout seul, et s'arrête dès que vous le survolez.
           Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
           Molette pour zoomer, glissé pour déplacer.
         </p>
@@ -251,9 +329,19 @@ function abrege(sujet, max = 26) {
   return brut.length > max ? `${brut.slice(0, max - 1)}…` : brut;
 }
 
-/** Le rayon d'un nœud : ce qui sert le plus est plus gros, sans écraser le reste. */
+/**
+ * Le rayon d'un nœud : ce qui pèse le plus est plus gros, sans écraser le reste.
+ *
+ * Le **poids**, pas les seuls emplois : une donnée lue dix fois par une seule
+ * règle et une donnée lue une fois par dix règles ne pèsent pas pareil dans un
+ * raisonnement, et ne compter que les lectures les dessinerait identiques.
+ *
+ * En racine, comme la chaleur, et pour la même raison : les poids d'un projet ne
+ * se répartissent pas également, et une échelle linéaire ferait trois grosses
+ * billes au milieu d'une poussière.
+ */
 function rayonDe(noeud) {
-  return 4 + Math.min(7, Math.sqrt(noeud.lectures) * 2.2);
+  return 3.6 + Math.min(9, Math.sqrt(Math.max(0, noeud.poids ?? noeud.lectures ?? 0)) * 2.1);
 }
 
 /**
@@ -342,6 +430,11 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
 
   // Les liens. Une courbe, pas une droite : à cette densité, des droites font un
   // treillis dans lequel on ne suit plus rien.
+  //
+  // Ils étaient trop pâles pour qu'on suive une chaîne : à `0.05` de base, un
+  // lien entre deux nœuds éloignés disparaissait dans le fond. Le plancher est
+  // remonté, et un lien **chaud** se voit de loin — c'est par eux que passe le
+  // gros du raisonnement, et ce sont eux qu'on cherche à suivre.
   for (const lien of etat.liens) {
     const a = points.get(lien.de);
     const b = points.get(lien.vers);
@@ -350,11 +443,24 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     const vif = Math.min(eclats.get(lien.de) ?? 0, eclats.get(lien.vers) ?? 0);
     const proche = survole && (survole === lien.de || survole === lien.vers);
     const fond = Math.min(a.p, b.p);
+    // Un lien est **malade** quand l'une de ses extrémités l'est : c'est par lui
+    // que le défaut se propage, et le laisser gris ferait chercher d'où ça vient.
+    const malade = signales.has(lien.de) || signales.has(lien.vers);
 
-    ctx.strokeStyle = vif > 0
-      ? `rgba(88,166,255,${0.35 + 0.5 * vif})`
-      : proche ? "rgba(139,148,158,.55)" : `rgba(139,148,158,${0.05 + 0.13 * fond})`;
-    ctx.lineWidth = Math.min(3, 0.6 + lien.poids * 0.35) * (vif > 0 ? 2 : 1);
+    if (vif > 0) {
+      ctx.strokeStyle = `rgba(88,166,255,${0.4 + 0.5 * vif})`;
+    } else if (proche) {
+      ctx.strokeStyle = "rgba(240,246,252,.7)";
+    } else if (malade) {
+      ctx.strokeStyle = `rgba(${ROUGE},${0.2 + 0.3 * fond})`;
+    } else if (etat.couleur === "chaleur") {
+      const chaleur = chaleurDuLien(lien, etat.parId, etat.poidsMax);
+      ctx.strokeStyle = `rgba(${teinteDeLaChaleur(chaleur)},${(0.14 + 0.5 * chaleur) * (0.45 + 0.55 * fond)})`;
+    } else {
+      ctx.strokeStyle = `rgba(139,148,158,${(0.16 + 0.24 * fond)})`;
+    }
+
+    ctx.lineWidth = Math.min(3.4, 0.8 + lien.poids * 0.4) * (vif > 0 ? 2 : 1);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.bezierCurveTo((a.x + b.x) / 2, a.y, (a.x + b.x) / 2, b.y, b.x, b.y);
@@ -407,6 +513,24 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     if (signal) {
       ctx.fillStyle = `rgba(${ROUGE},.9)`;
       ctx.fill();
+    } else if (etat.couleur === "chaleur") {
+      // La chaleur dit **combien de raisonnement passe par là**, et rien d'autre.
+      // La nature reste lisible à la forme : plein pour une source, cerclé pour
+      // ce qui se rejoue, creux pour ce qu'on ne sait pas refaire.
+      const chaud = teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax));
+      if (noeud.nature === NOEUD.OPAQUE) {
+        ctx.strokeStyle = `rgba(${chaud},.85)`;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = `rgba(${chaud},${noeud.nature === NOEUD.SOCLE ? 0.95 : 0.6})`;
+        ctx.fill();
+        if (noeud.nature === NOEUD.REJOUABLE) {
+          ctx.strokeStyle = `rgba(${chaud},.95)`;
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+        }
+      }
     } else if (noeud.nature === NOEUD.SOCLE) {
       // Plein : c'est une source. C'est de là que part une onde.
       ctx.fillStyle = trait;
@@ -442,6 +566,7 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     ctx.globalAlpha = 1;
   }
 
+  if (etat.parDomaine) dessinerLesDomaines(ctx, etat, points, ou);
   dessinerLesNoms(ctx, etat, largeur, points, eclats);
   etat.points = points;
 }
@@ -519,6 +644,62 @@ function dessinerLesCoquilles(ctx, etat, largeur, hauteur, points) {
       `${strate === 0 ? "socle" : `${strate} pas`} · ${combien}`,
       cx + rayon + 8, cy + 4 + strate * 15
     );
+  }
+}
+
+/**
+ * Le nom de chaque domaine, posé au milieu de sa zone.
+ *
+ * **C'est ce qui rend le regroupement utile.** Une zone dense sans nom est une
+ * tache : on voit qu'il se passe quelque chose là, on ne sait pas quoi. Avec le
+ * nom, on se dit « tiens, ce paquet, c'est la sécurité incendie » — et c'est
+ * exactement ce qu'on est venu chercher.
+ *
+ * Le nom se pose au **barycentre** des nœuds du domaine, pas à l'angle théorique
+ * de son secteur : le barycentre suit ce que le projet contient vraiment, et un
+ * domaine à deux nœuds ne réclame pas la même place qu'un domaine à quarante.
+ *
+ * Un domaine trop maigre ne se nomme pas : trois points isolés portant une
+ * étiquette feraient croire à une zone qui n'existe pas.
+ */
+function dessinerLesDomaines(ctx, etat, points, ou) {
+  ctx.textAlign = "center";
+  ctx.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  ctx.fillStyle = "rgba(201,209,217,.38)";
+
+  for (const entree of etat.domaines) {
+    const siens = etat.places.filter((noeud) => texte(noeud.domaine) === entree.domaine);
+    // Trois points isolés portant une étiquette feraient croire à une zone qui
+    // n'existe pas. En dessous, on se tait.
+    if (siens.length < 3) continue;
+
+    if (etat.vue !== "volume") {
+      // En strates, le barycentre suffit : les bandes sont horizontales, et la
+      // moyenne tombe au milieu de la bande.
+      const somme = siens.reduce((acc, noeud) => {
+        const point = points.get(noeud.id);
+        return point ? { x: acc.x + point.x, y: acc.y + point.y, n: acc.n + 1 } : acc;
+      }, { x: 0, y: 0, n: 0 });
+      if (!somme.n) continue;
+      ctx.fillText(entree.libelle.toUpperCase(), somme.x / somme.n, somme.y / somme.n);
+      continue;
+    }
+
+    // En volume, **surtout pas le barycentre** : les nœuds d'un domaine
+    // s'étalent de part et d'autre du centre, leur moyenne y retombe, et les
+    // cinq libellés s'empilent au milieu de l'écran — ce qui ne nomme plus rien.
+    //
+    // On prend la direction moyenne — une moyenne d'angles, sur le cercle — et
+    // l'on pose le nom **au bord** de cette direction, là où la zone se voit.
+    const angles = siens.map((noeud) => Math.atan2(noeud.z, noeud.x));
+    const cap = Math.atan2(
+      angles.reduce((acc, angle) => acc + Math.sin(angle), 0) / angles.length,
+      angles.reduce((acc, angle) => acc + Math.cos(angle), 0) / angles.length
+    );
+    const hauteur = siens.reduce((acc, noeud) => acc + noeud.y, 0) / siens.length;
+
+    const point = ou({ x: Math.cos(cap) * 1.12, y: hauteur, z: Math.sin(cap) * 1.12, phase: 0 });
+    ctx.fillText(entree.libelle.toUpperCase(), point.x, point.y);
   }
 }
 
@@ -621,7 +802,11 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   const etat = {
     vue: "strates",
-    mode: "onde",
+    mode: "vivant",
+    couleur: "nature",
+    parDomaine: true,
+    domaines: domainesDuCerveau(cerveau),
+    poidsMax: cerveau.compte.poidsMax,
     places: [], parId: new Map(), points: new Map(),
     liens: cerveau.liens,
     profondeur: cerveau.profondeur,
@@ -646,7 +831,9 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       ? cerveau
       : { ...cerveau, noeuds: cerveau.noeuds.filter((noeud) => !isoles.has(noeud.id)) };
 
-    etat.places = etat.vue === "volume" ? dispositionEnVolume(retenus) : dispositionDuCerveau(retenus);
+    const brutes = etat.vue === "volume" ? dispositionEnVolume(retenus) : dispositionDuCerveau(retenus);
+    etat.domaines = domainesDuCerveau(retenus);
+    etat.places = etat.parDomaine ? pencherVersLesDomaines(brutes, retenus) : brutes;
     etat.parId = new Map(etat.places.map((noeud) => [noeud.id, noeud]));
     const dedans = new Set(etat.places.map((noeud) => noeud.id));
     etat.liens = cerveau.liens.filter((lien) => dedans.has(lien.de) && dedans.has(lien.vers));
@@ -748,10 +935,30 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   const arreterLeBattement = () => { clearInterval(pouls); pouls = null; };
 
-  const demarrerLeBattement = () => {
+  /**
+   * Le cumul des deux modes : le projet bat, et se tait quand on le regarde.
+   *
+   * Le battement seul finit par fatiguer, et il gêne au moment précis où l'on
+   * veut lire quelque chose — on survole un nœud pour lire sa bulle, et le fond
+   * continue de clignoter derrière. L'onde seule, elle, laisse un écran mort tant
+   * qu'on n'a rien demandé, et l'on ne voit pas ce qui va mal.
+   *
+   * Ensemble : ça bat tant qu'on ne s'approche pas, ça s'arrête dès qu'on
+   * survole, et ça repart quand on s'éloigne. Le clic garde son onde. Personne
+   * n'a rien à régler — c'est le mode par défaut.
+   */
+  const accorderLeBattement = () => {
+    const doitBattre = etat.mode === "battement"
+      || (etat.mode === "vivant" && !etat.survole && !glisse);
+
+    if (doitBattre && !pouls) demarrerLeBattement({ dire: false });
+    else if (!doitBattre && pouls) arreterLeBattement();
+  };
+
+  const demarrerLeBattement = ({ dire = true } = {}) => {
     arreterLeBattement();
     const combien = etat.signales.size;
-    dit.innerHTML = combien
+    if (dire) dit.innerHTML = combien
       ? `Le projet pense tout seul. <b>${combien}
          ${accorde(combien, "valeur bat", "valeurs battent")} en rouge</b> :
          ${escapeHtml(phraseDuSignal([...etat.signales.values()][0]))}${combien > 1 ? ", entre autres" : ""}.
@@ -812,12 +1019,14 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       }
       toile.style.cursor = "grabbing";
       bulle.hidden = true;
+      accorderLeBattement();
       return;
     }
 
     const noeud = sousLeCurseur(evenement);
     etat.survole = noeud?.id ?? "";
     toile.style.cursor = noeud ? "pointer" : "grab";
+    accorderLeBattement();
     if (!noeud) { bulle.hidden = true; return; }
     montrerLaBulle(noeud, evenement);
   };
@@ -826,6 +1035,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     const bouge = glisse?.bouge;
     glisse = null;
     toile.style.cursor = "grab";
+    accorderLeBattement();
     if (bouge) return;
     const noeud = sousLeCurseur(evenement);
     if (noeud) { etat.choisi = noeud.id; allumer(noeud.id, { duree: TENUE.onde, dire: true }); }
@@ -910,11 +1120,36 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     etat.mode = mode;
     etat.impulsions = [];
     marquer("mode", mode);
-    if (mode === "battement") demarrerLeBattement();
-    else {
-      arreterLeBattement();
+    arreterLeBattement();
+
+    if (mode === "onde") {
       dit.innerHTML = `Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
         Molette pour zoomer, glissé pour ${etat.vue === "volume" ? "tourner" : "déplacer"}.`;
+      return;
+    }
+
+    const combien = etat.signales.size;
+    dit.innerHTML = `${
+      mode === "vivant"
+        ? "Le projet bat tout seul, et s'arrête dès que vous le survolez. Un clic lance l'onde."
+        : "Le projet pense tout seul, sans s'arrêter."
+    } ${
+      combien
+        ? `<b>${combien} ${accorde(combien, "valeur bat", "valeurs battent")} en rouge</b> :
+           ${escapeHtml(phraseDuSignal([...etat.signales.values()][0]))}${combien > 1 ? ", entre autres" : ""}.`
+        : "<b>L'audit ne signale rien.</b>"
+    }`;
+    accorderLeBattement();
+  };
+
+  const changerDeCouleur = (couleur) => {
+    if (etat.couleur === couleur) return;
+    etat.couleur = couleur;
+    marquer("couleur", couleur);
+    // La légende suit : un dégradé expliqué par une légende de natures ne dit
+    // rien de ce qu'on regarde.
+    for (const bloc of hote.querySelectorAll("[data-cerveau-legende]")) {
+      bloc.hidden = bloc.getAttribute("data-cerveau-legende") !== couleur;
     }
   };
 
@@ -945,7 +1180,11 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   toile.addEventListener("pointermove", auPointeurBouge);
   toile.addEventListener("pointerup", auPointeurHaut);
   toile.addEventListener("pointercancel", () => { glisse = null; });
-  toile.addEventListener("pointerleave", () => { etat.survole = ""; bulle.hidden = true; });
+  toile.addEventListener("pointerleave", () => {
+    etat.survole = "";
+    bulle.hidden = true;
+    accorderLeBattement();
+  });
   toile.addEventListener("wheel", alaMolette, { passive: false });
 
   for (const bouton of hote.querySelectorAll("[data-cerveau-fermer]")) {
@@ -963,6 +1202,16 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   for (const bouton of hote.querySelectorAll("[data-cerveau-recadrer]")) {
     bouton.addEventListener("click", recadrer);
   }
+  for (const bouton of hote.querySelectorAll("[data-cerveau-couleur]")) {
+    bouton.addEventListener("click", () => changerDeCouleur(bouton.getAttribute("data-cerveau-couleur")));
+  }
+  const caseDesDomaines = hote.querySelector("[data-cerveau-domaines]");
+  if (caseDesDomaines) {
+    caseDesDomaines.addEventListener("change", () => {
+      etat.parDomaine = caseDesDomaines.checked;
+      recomposer();
+    });
+  }
   const casedesIsoles = hote.querySelector("[data-cerveau-isoles]");
   if (casedesIsoles) {
     casedesIsoles.addEventListener("change", () => {
@@ -974,6 +1223,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   toile.style.cursor = "grab";
   redimensionner();
+  accorderLeBattement();
   image = requestAnimationFrame(boucle);
 }
 
