@@ -210,10 +210,10 @@ quelqu'un, un jour, recopiera de travers.
 
 ---
 
-## 5. Le cerveau du projet — *l'onde au clic est faite*
+## 5. Le cerveau du projet — *les deux modes sont faits*
 
-**État :** premier mode fait · **Reste :** le battement permanent, puis le cumul
-des deux.
+**État :** deux vues, deux modes, la navigation · **Reste :** leur cumul, à juger
+sur pièce.
 
 ### Ce qui manquait
 
@@ -224,57 +224,77 @@ sont les nœuds qu'on ne sait pas refaire, et jusqu'où une valeur se propage.
 
 Un projet de quatre cents affirmations se lisait par le trou d'une serrure.
 
-### Ce qui est fait : le mode A, l'onde au clic
+### Deux vues, et elles ne disent pas la même chose
 
-Un plein écran depuis le menu **Tester**. Les nœuds rangés en colonnes — une
-colonne par strate, nommée : *socle*, *1 pas*, *2 pas*… —, disposés de façon
-organique à l'intérieur, avec une respiration lente. Le plus employé d'une
-colonne est au centre : c'est là que l'œil va, et c'est là que se trouve ce dont
-tout dépend.
+**Les strates** rangent les nœuds en colonnes, une par pas depuis le socle, chaque
+colonne nommée : *socle*, *1 pas*, *2 pas*. C'est la vue qui répond à *dans quel
+ordre* — on suit une chaîne de gauche à droite, on compte les pas.
 
-Trois natures, trois formes, et ce sont celles de la mémoire : **socle** plein,
-**rejouable** cerclé, **opaque** creux. Les arêtes en courbe, épaisses du nombre
-de lectures.
+**Le volume** met le socle au centre et éloigne chaque strate en coquilles
+concentriques, réparties à la spirale d'or. C'est la vue qui répond à *où est la
+matière* : une strate chargée fait une coquille dense, une strate maigre un semis
+clairsemé. Les colonnes ne montraient pas cela — sur un vrai projet, elles
+empilaient trois cents nœuds sur une seule verticale.
 
-On clique une valeur : une **onde** part d'elle et remonte les liens strate par
-strate. « La plus longue chaîne fait huit pas » cesse d'être un chiffre et devient
-huit pulsations qu'on regarde passer.
+Le nœud le plus employé du socle est **exactement au centre**. C'est le centre
+névralgique : la valeur dont le plus de choses dépendent, et l'on doit pouvoir la
+montrer du doigt.
 
-### Les trois garde-fous, tenus
+### Deux modes, et ils ne posent pas la même question
 
-**L'onde est la fonction de l'étude d'impact**, sans une ligne de plus : `ondeDepuis`
-appelle `impactDe`. Si le dessin ment, l'étude d'impact ment aussi, et les deux se
-corrigent ensemble. Un écran avec sa propre vérité finirait par montrer autre chose
-que ce que l'outil décide.
+**L'onde au clic** répond à *qu'est-ce qui repose là-dessus ?*. Elle part d'une
+valeur et remonte les liens strate par strate.
 
-**Un nœud opaque ne s'allume pas comme les autres** : halo creux, et la phrase du
-bas le compte à part — « 1 vient d'un utilitaire : on sait qu'elle dépend, l'onde
-ne prétend pas la recalculer ici ». La frontière de ce que Mdall sait rejouer est
-une forme, pas une note de bas de page.
+**Le battement** répond à *où ça ne va pas ?*. Le projet pense tout seul — les
+impulsions partent du socle en boucle, une par seconde — et ce que l'audit signale
+bat en rouge, sans qu'on ait rien demandé. Trois motifs, et ils se distinguent au
+survol : une règle qui dérive, une règle qui a perdu son objet, un calcul fait sur
+une entrée que le projet a changée depuis.
 
-**Les liens disent d'où ils viennent.** Sans lectures enregistrées, un bandeau dit
-qu'ils sont déduits d'une ressemblance de noms. Une belle image tirée
-d'à-peu-près serait le pire de ce qu'on puisse produire.
+### La navigation
 
-Deux choix de dessin méritent d'être notés : les **étiquettes** ne s'écrivent que
-tant qu'elles se lisent — au-delà de 45 nœuds, seuls le socle, ce qui est survolé
-et ce que l'onde touche portent leur nom, parce qu'une bouillie grise donne
-l'impression d'avoir été lue ; et la **disposition est stable** d'une ouverture à
-l'autre, tirée des identifiants, sans quoi « le gros paquet en haut à droite » ne
-voudrait pas dire la même chose demain.
+Molette pour zoomer — **sous le curseur**, sinon approcher un détail le fait fuir
+hors de l'écran. Glissé pour déplacer en strates, pour **tourner** en volume : on
+ne déplace pas une sphère centrée, on l'oriente. Un seuil de quatre pixels
+distingue le glissé du clic, sans quoi se promener déclencherait une onde à chaque
+relâchement.
 
-### Ce qui reste : le mode B, puis leur cumul
+### Ce qui est masqué, compté, et récupérable
 
-**Le battement permanent.** Les impulsions partent du socle en boucle, et les nœuds
-que l'audit signale — dérive, entrée périmée — pulsent en rouge. Le projet
-« pense » tout seul, et ce qui ne va pas se voit sans qu'on ait rien demandé.
+Sur le projet réel, trois cent onze affirmations pour quatre-vingt-quatorze liens :
+la plupart des nœuds ne sont touchés par **aucun** lien, et les dessiner tous fait
+un mur dans lequel on ne distingue plus les soixante qui forment le raisonnement.
 
-**Le cumul des deux**, à décider : le battement au repos, l'arrêt au survol, l'onde
-au clic. C'est probablement le bon enchaînement, mais il se juge sur pièce — il
-faut d'abord voir le battement tourner pour savoir s'il aide ou s'il fatigue.
+Ils sont donc masqués par défaut, **comptés dans la barre**, et une case les
+remet. Leur absence de lien a deux causes qui ne se confondent pas — ou bien rien
+ne repose sur eux, et c'est une information ; ou bien leurs lectures n'ont pas été
+enregistrées, et c'est une lacune de l'outil. On ne sait pas laquelle, et l'écran
+ne le fait pas croire.
 
-### Ce qui se passe si on laisse le reste
+### Les garde-fous, tenus
 
-Rien. Le mode A répond déjà à la question « qu'est-ce qui repose là-dessus ? » de
-façon qu'on la comprenne d'un coup d'œil. Le mode B répond à une autre — « où ça
-ne va pas ? » — que l'audit traite déjà en mots.
+**L'onde est `impactDe`** et **les signaux sont `auditerLaMemoire`**, sans une
+ligne de plus. Si ce dessin ment, l'étude d'impact et l'audit mentent aussi, et
+les trois se corrigent ensemble. Deux écrans qui jugeraient chacun de leur côté
+finiraient par ne pas signaler les mêmes choses, et l'on ne saurait plus lequel
+croire.
+
+**Un nœud opaque ne s'allume pas comme les autres** : halo creux, compté à part.
+**Les liens disent d'où ils viennent** : sans lectures enregistrées, un bandeau dit
+qu'ils sont déduits d'une ressemblance de noms. **Les étiquettes ne s'écrivent que
+tant qu'elles se lisent**, et le seuil compte les nœuds **visibles à l'écran** —
+c'est ce qui fait que zoomer en fait réapparaître, et c'est à cela que sert le
+zoom.
+
+### Ce qui reste : le cumul des deux modes
+
+Le battement au repos, l'arrêt au survol, l'onde au clic. C'est probablement le
+bon enchaînement — mais il se juge sur pièce, et maintenant que le battement
+tourne on peut le juger. Deux questions à trancher en le regardant : est-ce que le
+battement fatigue au bout de deux minutes, et est-ce qu'un arrêt au survol se
+comprend ou surprend ?
+
+### Ce qui se passe si on le laisse
+
+Rien. Les deux modes marchent séparément, et le bouton pour passer de l'un à
+l'autre est à côté. Le cumul est un confort, pas une capacité.
