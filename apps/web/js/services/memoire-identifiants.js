@@ -107,15 +107,26 @@ export function sujetsDeclares(assertions = []) {
  * s'accorder avec ce que la ligne contient réellement.
  */
 export function roleDesJetons(jetons = []) {
-  const premier = (Array.isArray(jetons) ? jetons : []).find((jeton) => jeton?.type && jeton.type !== "neutre");
-  const mot = texte(premier?.type);
+  const parlants = (Array.isArray(jetons) ? jetons : []).filter((jeton) => jeton?.type && jeton.type !== "neutre");
+  const mot = texte(parlants[0]?.type);
 
   // `importe (variable: X, …)` cite X, il ne le pose pas — c'est même sa raison
   // d'être : dire d'où vient ce qu'on emprunte. Le lire comme une déclaration
   // ferait de chaque emprunt une définition, et plus rien ne manquerait jamais.
-  return mot === "mot-condition" || mot === "mot-exception" || mot === "mot-natif"
-    ? ROLE.RENVOI
-    : ROLE.DECLARATION;
+  if (mot === "mot-condition" || mot === "mot-exception" || mot === "mot-natif" || mot === "mot-importe") {
+    return ROLE.RENVOI;
+  }
+
+  // `Accès des véhicules lourds: "interdit"` dans un `enregistre` : un nom suivi
+  // de deux-points est un **champ**, pas une déclaration. La règle qui écrit
+  // cette ligne pose le nom dans sa tête, pas ici — et le lire comme une
+  // seconde déclaration le colorait comme tel, alors qu'il renvoie à celle du
+  // dessus. Une tête d'affirmation, elle, porte un `=` et non un `:`.
+  if (mot === "sujet" && texte(parlants[1]?.type) === "ponctuation" && texte(parlants[1]?.texte) === ":") {
+    return ROLE.RENVOI;
+  }
+
+  return ROLE.DECLARATION;
 }
 
 /**

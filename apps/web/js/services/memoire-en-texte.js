@@ -164,8 +164,13 @@
  * `importe` d'où viennent ses entrées, `enregistre` où va son résultat, et la
  * portée est son premier paramètre. Une déclaration de variable porte ce qu'elle
  * désigne, ce à quoi elle sert et où elle sert déjà.
+ *
+ * v4.4 — le commentaire passe **dans** la fonction, pour qu'elle se copie
+ * entière d'un projet à l'autre ; `importe` porte la zone de ce qu'il emprunte ;
+ * et une variable s'écrit une fois, avec ses valeurs par zone en tableau —
+ * `Sujet = [ Bâtiment A: …, Bâtiment B: … ];`.
  */
-export const ECRITURE = "4.3";
+export const ECRITURE = "4.4";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
@@ -214,10 +219,22 @@ export const JETON = {
   MOT_SOIT: "mot-soit",
   /** `const` — le mot qui déclare une variable du projet. */
   MOT_CONST: "mot-const",
-  /** `importe`, `enregistre`, `décision humaine assumée` — les verbes du langage. */
+  /** `enregistre`, `décision humaine assumée` — les verbes qui agissent. */
   MOT_NATIF: "mot-natif",
-  /** Le nom d'un fichier, cité dans un `importe` ou un `enregistre`. */
-  FICHIER: "fichier",
+  /**
+   * `importe` — le seul verbe qui n'agit pas : il déclare une dépendance, comme
+   * un `import` de module. Il prend donc la couleur des mots-clés, pas celle
+   * des appels.
+   */
+  MOT_IMPORTE: "mot-importe",
+  /**
+   * Le chemin d'un fichier, cité dans un `importe` ou un `enregistre`.
+   *
+   * `chemin` et non `fichier` : `mdall-fichier` désigne déjà, dans la feuille
+   * de style, la **carte** qui encadre un fichier de l'Atelier. Deux sens pour
+   * une classe donnaient une bordure autour d'un chemin.
+   */
+  CHEMIN: "chemin",
   /** `zones` — le paramètre de portée, cité comme tel. */
   PORTEE: "portee",
   /** Le nom d'une locale : `texte`, `document`, `parce que`. */
@@ -603,7 +620,7 @@ export function ligneDeDecision({ quoi = "", par = "", le = "" } = {}, profondeu
 }
 
 /**
- * `importe (variable: Champ d'application du titre VI, depuis: variables-du-projet.ref);`
+ * `importe (variable: Champ d'application du titre VI, depuis: memoire/incendie.ctr, zones: zones);`
  *
  * ## Pourquoi une règle dit d'où viennent ses entrées
  *
@@ -618,13 +635,13 @@ export function ligneDeDecision({ quoi = "", par = "", le = "" } = {}, profondeu
  * Un import par ligne : ajouter une entrée ajoute exactement une ligne, et le
  * diff dit « une entrée de plus » plutôt que de redessiner un bloc.
  */
-export function ligneDImport({ variable = "", depuis = "" } = {}, profondeur = 1) {
+export function ligneDImport({ variable = "", depuis = "", zones = "zones" } = {}, profondeur = 1) {
   const nom = texte(variable);
   if (!nom) return null;
 
   return [
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
-    jeton(JETON.MOT_NATIF, "importe"),
+    jeton(JETON.MOT_IMPORTE, "importe"),
     espace(),
     jeton(JETON.PONCTUATION, "("),
     jeton(JETON.LOCALE, "variable"),
@@ -636,7 +653,16 @@ export function ligneDImport({ variable = "", depuis = "" } = {}, profondeur = 1
     jeton(JETON.LOCALE, "depuis"),
     jeton(JETON.PONCTUATION, ":"),
     espace(),
-    jeton(JETON.FICHIER, texte(depuis) || "inconnu"),
+    jeton(JETON.CHEMIN, texte(depuis) || "inconnu"),
+    jeton(JETON.PONCTUATION, ","),
+    espace(),
+    // La zone fait partie de l'emprunt : une variable n'a pas une valeur, elle
+    // en a une **par partie d'ouvrage**. Importer sans dire laquelle
+    // reviendrait à en prendre une au hasard.
+    jeton(JETON.LOCALE, "zones"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.PORTEE, texte(zones) || "zones"),
     jeton(JETON.PONCTUATION, ")"),
     jeton(JETON.PONCTUATION, ";")
   ];
@@ -682,7 +708,7 @@ export function blocDEnregistrement({ sujet = "", valeur = "", unite = "", dans 
     jeton(JETON.LOCALE, "dans"),
     jeton(JETON.PONCTUATION, ":"),
     espace(),
-    jeton(JETON.FICHIER, texte(dans) || "inconnu"),
+    jeton(JETON.CHEMIN, texte(dans) || "inconnu"),
     jeton(JETON.PONCTUATION, ",")
   ]);
 
@@ -813,7 +839,7 @@ export function blocDeVariable({
       jeton(JETON.SUJET, texte(usage.fonction)),
       espace(),
       jeton(JETON.PONCTUATION, "("),
-      jeton(JETON.FICHIER, texte(usage.fichier) || "inconnu"),
+      jeton(JETON.CHEMIN, texte(usage.fichier) || "inconnu"),
       jeton(JETON.PONCTUATION, ")"),
       ...(rang < emplois.length - 1 ? [jeton(JETON.PONCTUATION, ",")] : [])
     ]);
@@ -1100,16 +1126,21 @@ export function blocDeRegle({
     ...ligneDeDonnee(sujet, entrees, commeUneRegle)
   ];
 
-  // Le commentaire qui dit à quoi la fonction sert, au-dessus d'elle. Une
-  // fonction sans lui oblige à lire ses conditions pour deviner son objet — et
-  // sur douze mille fonctions, personne ne le fera.
-  const avant = ligneDeCommentaire(quoi, profondeur);
+  // Le commentaire vit **dans** la fonction, en première ligne. Au-dessus, il
+  // appartenait au fichier : copier la fonction pour la porter dans un autre
+  // projet — ce qu'on fait, et ce qu'on fera de plus en plus — laissait
+  // l'explication derrière. Une fonction auto-portée emporte ce qu'elle dit
+  // d'elle-même.
+  const dit = ligneDeCommentaire(quoi, dedans);
 
-  const bloc = corps.length
-    ? [[...tete, espace(), jeton(JETON.ACCOLADE, "{")], ...corps, ligneFermante(profondeur)]
+  return corps.length || dit
+    ? [
+        [...tete, espace(), jeton(JETON.ACCOLADE, "{")],
+        ...(dit ? [dit, ...(corps.length ? [ligneVide()] : [])] : []),
+        ...corps,
+        ligneFermante(profondeur)
+      ]
     : [tete];
-
-  return avant ? [avant, ...bloc] : bloc;
 }
 
 /**
@@ -1149,7 +1180,8 @@ export function lignesDeConclusion(mot, enregistre = {}, profondeur = 1) {
  * d'accolades : une paire de bornes autour de rien serait du bruit.
  */
 export function blocDAffirmation({
-  sujet = "", valeur = "", unite = "", provenance = null, preuve = "", statut = "", le = ""
+  sujet = "", valeur = "", unite = "", provenance = null, preuve = "", statut = "", le = "",
+  zone = "", virgule = false
 } = {}, profondeur = 0) {
   const dedans = profondeur + 1;
   const corps = [];
@@ -1168,14 +1200,90 @@ export function blocDAffirmation({
   const etat = ligneDeStatut(statut, dedans);
   if (etat) corps.push(etat);
 
-  const tete = [
-    espace(RETRAIT.repeat(Math.max(0, profondeur))),
-    ...ligneDAffirmation({ sujet, valeur, unite })
-  ];
+  // Dans un tableau de valeurs, la tête porte la **zone** et non le sujet : le
+  // sujet est écrit une fois, au-dessus. `Bâtiment A: "CF 1/2 h"` — un
+  // deux-points, comme un champ, parce que c'en est un.
+  const tete = texte(zone)
+    ? [
+        espace(RETRAIT.repeat(Math.max(0, profondeur))),
+        jeton(JETON.ZONE, texte(zone)),
+        jeton(JETON.PONCTUATION, ":"),
+        espace(),
+        ...jetonsDeValeur(valeur, unite)
+      ]
+    : [
+        espace(RETRAIT.repeat(Math.max(0, profondeur))),
+        ...ligneDAffirmation({ sujet, valeur, unite })
+      ];
+
+  const fin = virgule ? [jeton(JETON.PONCTUATION, ",")] : [];
 
   return corps.length
-    ? [[...tete, espace(), jeton(JETON.ACCOLADE, "{")], ...corps, ligneFermante(profondeur)]
-    : [tete];
+    ? [
+        [...tete, espace(), jeton(JETON.ACCOLADE, "{")],
+        ...corps,
+        [...ligneFermante(profondeur), ...fin]
+      ]
+    : [[...tete, ...fin]];
+}
+
+/**
+ * Une variable et ses valeurs, une par zone.
+ *
+ * ```
+ * Degré coupe-feu des planchers = [
+ *    Toutes zones: "CF 1 h" {
+ *       règle: arrêté du 31 janvier 1986, article 6
+ *       statut: retenu
+ *    },
+ *    Bâtiment A: "CF 1/2 h" { … }
+ * ];
+ * ```
+ *
+ * ## Pourquoi un tableau, et non trois sections
+ *
+ * Le fichier se découpait par zone, et le nom de la variable se répétait dans
+ * chacune. Trois fois le même nom à trois endroits différents, pour une seule
+ * chose : **une variable du projet, qui prend une valeur par partie
+ * d'ouvrage**. Chercher « degré coupe-feu des planchers » donnait trois
+ * réponses sans dire qu'il s'agissait de la même.
+ *
+ * Écrite ainsi, la question qu'il faut se poser devient impossible à éviter :
+ * *dans quelle zone ?*. C'est pour cela que `importe` porte lui aussi une
+ * portée — emprunter une variable sans dire laquelle reviendrait à en prendre
+ * une au hasard.
+ *
+ * Chaque entrée garde sa provenance et son statut : ce sont deux décisions
+ * différentes, prises peut-être par deux personnes, à deux dates. Les mettre en
+ * commun effacerait ce que la mémoire existe pour tenir.
+ *
+ * Une valeur unique qui vaut partout n'ouvre pas de tableau : une paire de
+ * crochets autour d'une seule entrée serait du bruit.
+ */
+export function blocParZone({ sujet = "", valeurs = [] } = {}, profondeur = 0) {
+  const entrees = (Array.isArray(valeurs) ? valeurs : []).filter((entree) => entree);
+  if (!entrees.length) return [];
+
+  const seule = entrees.length === 1 && texte(entrees[0].zone) === TOUTES_ZONES;
+  if (seule) return blocDAffirmation({ ...entrees[0], sujet, zone: "" }, profondeur);
+
+  const dedans = profondeur + 1;
+
+  return [
+    [
+      espace(RETRAIT.repeat(Math.max(0, profondeur))),
+      jeton(JETON.SUJET, texte(sujet)),
+      espace(),
+      jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
+      espace(),
+      jeton(JETON.PONCTUATION, "[")
+    ],
+    ...entrees.flatMap((entree, rang) => blocDAffirmation(
+      { ...entree, sujet, zone: texte(entree.zone) || TOUTES_ZONES, virgule: rang < entrees.length - 1 },
+      dedans
+    )),
+    [espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.PONCTUATION, "]"), jeton(JETON.PONCTUATION, ";")]
+  ];
 }
 
 /**

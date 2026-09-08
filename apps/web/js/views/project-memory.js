@@ -23,6 +23,7 @@
  */
 
 import { escapeHtml } from "../utils/escape-html.js";
+import { copierDansLePressePapiers } from "./ui/bouton-copier.js";
 import { store } from "../store.js";
 import { svgIcon } from "../ui/icons.js";
 import {
@@ -107,6 +108,9 @@ import {
 } from "../services/hypothesis-acts.js";
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
 import { enClair } from "../services/memoire-en-texte.js";
+import { lignesDeLAssertion, ouChaqueValeurEstEcrite } from "./project-memoire-fichiers.js";
+import { fichiersDeLaMemoire } from "../services/memoire-blame.js";
+import { chaineDuRaisonnement, traceDesLignes } from "../services/memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 
 /**
@@ -796,6 +800,7 @@ export function renderMemoryDetail(assertions, cible = {}) {
 
       ${renderActsPanel(courante)}
       ${renderDependencyPanel(courante)}
+      ${renderRaisonnement(courante)}
 
       <h3 class="memory-detail__section">Son histoire</h3>
       <ol class="memory-steps">${suite.map(etape).join("")}</ol>
@@ -1400,6 +1405,106 @@ function renderActsPanel(courante) {
  * geste manuel du plan — celui qui existe **à défaut** que la proposition le
  * dise elle-même.
  */
+/**
+ * Comment on en est arrivé là — le code, et ce qu'il vaut.
+ *
+ * ## Pourquoi deux fenêtres
+ *
+ * Une seule ne peut pas répondre aux deux questions qu'on se pose devant une
+ * valeur qu'on ne s'explique pas. À gauche, **le raisonnement** : les fonctions
+ * qui ont mené là, dans l'ordre où on les lit, avec leurs conditions et leurs
+ * textes. À droite, **l'état du projet** : ce que chaque nom cité vaut
+ * aujourd'hui, dans la zone de la contrainte qu'on regarde.
+ *
+ * Mélangées, elles donneraient un code truffé de valeurs — c'est-à-dire un
+ * raisonnement vrai d'un seul bâtiment, exactement ce que le langage refuse
+ * d'écrire. Côte à côte, la comparaison se fait de l'œil, ligne à ligne.
+ *
+ * ## Ce qu'on ne fait pas
+ *
+ * Pas de verdict « vrai / faux » en face des conditions : ce serait rejouer le
+ * référentiel dans le navigateur, et un verdict faux affiché avec aplomb est
+ * pire que pas de verdict. On montre ce que le projet dit, et le lecteur
+ * conclut — il a la ligne sous les yeux.
+ */
+function renderRaisonnement(courante) {
+  const assertions = view.assertions ?? [];
+  const zone = (zonesOf(courante) ?? [])[0] ?? "";
+  const sujet = String(courante?.payload?.subject ?? courante?.subject_key ?? "").trim();
+  const { fonctions, entrees, manquants } = chaineDuRaisonnement(sujet, assertions, { zone });
+
+  if (!fonctions.length) {
+    return `
+      <div class="memory-raisonnement memory-raisonnement--vide">
+        <h3 class="memory-detail__section">Comment on en est arrivé là</h3>
+        <p>Aucune règle du projet ne produit cette valeur : elle a été relevée ou décidée,
+        pas déduite. Sa provenance, ci-dessus, dit d'où elle vient.</p>
+      </div>
+    `;
+  }
+
+  // Le code, dans l'ordre de lecture : ce dont une règle a besoin avant elle.
+  // Avec le même contexte que les fichiers — d'où viennent les entrées, où va
+  // le résultat —, sinon on lirait ici un code qui n'est pas celui du dépôt.
+  const ouEcrit = ouChaqueValeurEstEcrite(fichiersDeLaMemoire(assertions));
+  const lignes = fonctions.flatMap((regle, rang) => [
+    ...(rang > 0 ? [{ jetons: [], nature: "vide" }] : []),
+    ...lignesDeLAssertion(regle, 0, { ouEcrit })
+  ]);
+  const trace = traceDesLignes(lignes, { assertions, zone });
+
+  const codeHtml = lignes.map((ligne, rang) => `
+    <div class="memory-raisonnement__ligne">
+      <span class="memory-raisonnement__num">${rang + 1}</span>
+      <span class="memory-raisonnement__code">${renderJetonsDuRaisonnement(ligne.jetons)}</span>
+    </div>
+  `).join("");
+
+  const etatHtml = trace.map((entree, rang) => `
+    <div class="memory-raisonnement__ligne${entree.manquant ? " memory-raisonnement__ligne--manquante" : ""}">
+      <span class="memory-raisonnement__num">${rang + 1}</span>
+      <span class="memory-raisonnement__etat">${
+        !entree.sujet
+          ? ""
+          : entree.manquant
+            ? `<span class="memory-raisonnement__trou">personne ne l'a versée</span>`
+            : `<b>${escapeHtml(entree.valeur)}</b>${
+                entree.zone ? `<span class="memory-raisonnement__zone">${escapeHtml(entree.zone)}</span>` : ""}`
+      }</span>
+    </div>
+  `).join("");
+
+  return `
+    <div class="memory-raisonnement">
+      <h3 class="memory-detail__section">Comment on en est arrivé là</h3>
+      <p class="memory-raisonnement__lead">
+        ${escapeHtml(`${fonctions.length} fonction${fonctions.length > 1 ? "s" : ""}`)},
+        ${escapeHtml(`${entrees.length} donnée${entrees.length > 1 ? "s" : ""} d'entrée`)}${
+          manquants.length
+            ? ` — <b class="memory-raisonnement__trou">${escapeHtml(`${manquants.length} que personne n'a versée${manquants.length > 1 ? "s" : ""}`)}</b>`
+            : ""}${zone ? ` · lu pour ${escapeHtml(zone)}` : ""}
+      </p>
+      <div class="memory-raisonnement__deux">
+        <section class="memory-raisonnement__volet">
+          <header class="memory-raisonnement__tete">Le raisonnement</header>
+          <div class="memory-raisonnement__corps">${codeHtml}</div>
+        </section>
+        <section class="memory-raisonnement__volet">
+          <header class="memory-raisonnement__tete">Ce que le projet dit aujourd'hui</header>
+          <div class="memory-raisonnement__corps">${etatHtml}</div>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
+/** Les jetons d'une ligne, colorés comme dans un fichier. */
+function renderJetonsDuRaisonnement(jetons = []) {
+  return (jetons ?? [])
+    .map((jeton) => `<span class="mdall-${escapeHtml(jeton.type)}">${escapeHtml(jeton.texte)}</span>`)
+    .join("");
+}
+
 function renderDependencyPanel(courante) {
   const liens = view.dependencies;
   if (liens === null) {
@@ -2048,12 +2153,12 @@ async function copyContext(root) {
     generatedAt: new Date().toISOString()
   });
 
-  try {
-    await navigator.clipboard.writeText(texte);
-    view.notice = "Le dossier de contexte est dans le presse-papiers.";
-  } catch {
-    view.notice = "Le presse-papiers a refusé la copie. Le dossier n'a pas été copié.";
-  }
+  // Le repli du composant — une invite qui garde le texte — n'est pas une
+  // copie : la phrase le dit, plutôt que d'annoncer un succès qui n'a pas eu
+  // lieu.
+  view.notice = await copierDansLePressePapiers(texte)
+    ? "Le dossier de contexte est dans le presse-papiers."
+    : "Le presse-papiers a refusé la copie. Le texte vous a été proposé à la main.";
   renderContent(root);
 }
 

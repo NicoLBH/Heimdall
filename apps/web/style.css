@@ -6419,11 +6419,15 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
 .documents-breadcrumb__link:focus-visible{
   text-decoration:underline;
 }
-.documents-breadcrumb__sep{color:var(--muted);}
-/* Copier le chemin : c'est ce qu'on colle dans un message pour dire où
-   regarder. Discret tant qu'on ne le cherche pas, franc au survol. */
-.documents-breadcrumb__copier{
-  margin-left:6px;
+/* ── Copier dans le presse-papiers ──────────────────────────────────────────
+   Un seul dessin pour un seul geste. Il était écrit sept fois, avec sept
+   comportements : deux montraient une coche, un une classe `is-done`, quatre ne
+   montraient rien. Or c'est le retour qui compte — le presse-papiers est le
+   seul endroit de l'interface qu'on ne peut pas regarder. */
+.bouton-copier{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   padding:2px;
   border:0;
   border-radius:4px;
@@ -6431,13 +6435,17 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   color:var(--muted);
   line-height:0;
   cursor:pointer;
-  opacity:.55;
-  transition:opacity .12s ease, color .12s ease;
+  transition:opacity .12s ease, color .12s ease, background .12s ease;
 }
-.documents-breadcrumb:hover .documents-breadcrumb__copier{ opacity:1; }
-.documents-breadcrumb__copier:hover{ background:rgba(110,118,129,.16); color:var(--text); }
+.bouton-copier:hover{ background:rgba(110,118,129,.16); color:var(--text); }
 /* Copié : la coche est verte le temps qu'on la voie, sans message à fermer. */
-.documents-breadcrumb__copier.is-copie{ color:rgb(63,185,80); opacity:1; }
+.bouton-copier.is-copied{ color:rgb(63,185,80); opacity:1; background:transparent; }
+
+.documents-breadcrumb__sep{color:var(--muted);}
+/* Copier le chemin : c'est ce qu'on colle dans un message pour dire où
+   regarder. Discret tant qu'on ne le cherche pas, franc au survol. */
+.documents-breadcrumb__copier{ margin-left:6px; opacity:.55; }
+.documents-breadcrumb:hover .documents-breadcrumb__copier{ opacity:1; }
 .documents-breadcrumb__link:first-of-type{font-weight:600;}
 .documents-breadcrumb__current{font-size:15px;line-height:24px;font-weight:600;color:rgb(240, 246, 252);}
 .documents-repo__message-main{
@@ -12949,24 +12957,10 @@ circle.situation-trajectory__hierarchy-link--blocked,
   margin-bottom:10px;
 }
 
-.arkolia-identity-preview__copy{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:32px;
-  height:32px;
-  border:none;
-  border-radius:8px;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-}
-
-.arkolia-identity-preview__copy:hover,
-.arkolia-identity-preview__copy.is-copied{
-  color:var(--blueLink);
-  background:rgba(56,139,253,.1);
-}
+/* Le dessin vient de `.bouton-copier` ; il ne reste ici que la taille propre à
+   cet écran, où le bouton s'aligne sur des champs de saisie. */
+.arkolia-identity-preview__copy{ width:32px; height:32px; border-radius:8px; }
+.arkolia-identity-preview__copy:hover{ color:var(--blueLink); background:rgba(56,139,253,.1); }
 
 .arkolia-identity-preview__textarea{
   min-height:120px;
@@ -16684,10 +16678,12 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   border:0; border-radius:6px; background:transparent; color:var(--muted);
   cursor:pointer; opacity:.55; transition:opacity .12s ease;
 }
+/* Le bouton de copie du fil prend la coche de tout le monde ; `is-done` était
+   la même chose sous un autre nom, et une seule des deux se maintenait. */
 .copilote-msg--assistant:hover .copilote-msg__action,
 .copilote-msg__action:focus-visible{ opacity:1; }
 .copilote-msg__action:hover{ background:var(--panel2); color:var(--text); }
-.copilote-msg__action.is-done{ opacity:1; color:var(--success); }
+.copilote-msg__action.is-copied{ opacity:1; }
 .copilote-msg__action.is-failed{ opacity:1; color:var(--danger); }
 
 .copilote-tokens{
@@ -19775,16 +19771,8 @@ body.proposition-merge-open{ overflow:hidden; }
   cursor:pointer;
 }
 .diff-groupe__titre:hover{ text-decoration:underline; }
-.diff-groupe__copier{
-  display:inline-flex;
-  padding:3px;
-  border:0;
-  border-radius:6px;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-}
-.diff-groupe__copier:hover{ background:rgba(110,118,129,.14); color:var(--text); }
+/* Le dessin vient de `.bouton-copier` : ces règles n'ajoutaient qu'un rayon. */
+.diff-groupe__copier{ border-radius:6px; padding:3px; }
 .diff-groupe__compte{ margin-left:auto; color:var(--muted); font-size:11px; }
 .diff-groupe__corps{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
 
@@ -20096,12 +20084,17 @@ body.proposition-merge-open{ overflow:hidden; }
    couleur. Le nom qui suit reste blanc — c'est un nom, pas un mot-clé. */
 .mdall-mot-soit,
 .mdall-mot-const{ color:rgb(255,123,114); }
-/* Les verbes du langage — `importe`, `enregistre`, `décision humaine assumée`.
-   Ce sont des appels, et ils prennent la couleur d'un nom de fonction. */
+/* Les verbes qui **agissent** — `enregistre`, `décision humaine assumée`. Ce
+   sont des appels, et ils prennent la couleur d'un nom de fonction. */
 .mdall-mot-natif{ color:rgb(210,168,255); }
+/* `importe` n'agit pas : il déclare une dépendance, comme un `import` de
+   module. Il prend donc la couleur des mots-clés. */
+.mdall-mot-importe{ color:rgb(255,123,114); }
 /* Un chemin de fichier, cité dans un `importe` ou un `enregistre` : la même
-   couleur que l'en-tête `fichier:`, parce que c'est la même chose. */
-.mdall-fichier{ color:rgb(255,166,87); }
+   couleur que l'en-tête `fichier:`, parce que c'est la même chose.
+   `mdall-chemin` et non `mdall-fichier` — cette classe-là encadre déjà les
+   cartes de fichiers de l'Atelier, et sa bordure entourait le chemin. */
+.mdall-chemin{ color:rgb(255,166,87); }
 /* La portée passée à une fonction : c'est son paramètre, pas une valeur. */
 .mdall-portee{ color:var(--text); }
 .mdall-locale{ color:var(--text); }
@@ -20156,6 +20149,65 @@ body.proposition-merge-open{ overflow:hidden; }
    plus comment un nom s'écrit. */
 .memoire-variables__barre{ display:flex; align-items:center; gap:8px; }
 .memoire-variables__barre input{ flex:1 1 auto; max-width:420px; }
+
+/* ── Comment on en est arrivé là ────────────────────────────────────────────
+   Deux fenêtres côte à côte : le raisonnement à gauche, l'état du projet à
+   droite. Mélangées, elles donneraient un code truffé de valeurs — un
+   raisonnement vrai d'un seul bâtiment, ce que le langage refuse d'écrire. */
+.memory-raisonnement{ margin-top:20px; }
+.memory-raisonnement__lead{ margin:0 0 10px; color:var(--muted); font-size:12px; }
+.memory-raisonnement__trou{ color:rgb(255,123,114); }
+.memory-raisonnement--vide p{ margin:0; color:var(--muted); font-size:13px; max-width:70ch; }
+
+.memory-raisonnement__deux{
+  display:grid;
+  grid-template-columns:minmax(0, 1.6fr) minmax(0, 1fr);
+  gap:12px;
+  align-items:start;
+}
+/* Sous 900 pixels, les deux colonnes se suivent : à côté, elles seraient trop
+   étroites pour qu'une ligne de code tienne, et l'on comparerait deux
+   enroulements plutôt que deux lignes. */
+@media (max-width: 900px){
+  .memory-raisonnement__deux{ grid-template-columns:minmax(0, 1fr); }
+}
+
+.memory-raisonnement__volet{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:rgb(13,17,23);
+  overflow:hidden;
+}
+.memory-raisonnement__tete{
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel2);
+  color:var(--muted);
+  font-size:12px;
+}
+.memory-raisonnement__corps{
+  padding:10px 0;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;
+  line-height:1.9;
+  overflow-x:auto;
+}
+/* Les deux volets numérotent les mêmes lignes : c'est ce qui permet de suivre
+   du regard d'une colonne à l'autre sans compter. */
+.memory-raisonnement__ligne{ display:flex; align-items:baseline; gap:12px; padding:0 12px; white-space:pre; }
+.memory-raisonnement__num{
+  flex:0 0 auto;
+  min-width:26px;
+  color:var(--muted);
+  font-size:11px;
+  text-align:right;
+  user-select:none;
+}
+.memory-raisonnement__code{ min-width:0; }
+.memory-raisonnement__etat{ min-width:0; white-space:normal; }
+.memory-raisonnement__etat b{ color:rgb(165,214,255); font-weight:600; }
+.memory-raisonnement__zone{ margin-left:8px; color:var(--muted); font-size:11px; }
+.memory-raisonnement__ligne--manquante{ background:rgba(248,81,73,.08); }
 
 /* ── Les variables du projet ────────────────────────────────────────────────
    Ce que le projet partage d'une discipline à l'autre : un nom déclaré quelque
@@ -20686,16 +20738,8 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
   font-size:12px;
   font-weight:600;
 }
-.memoire-fichier__copier{
-  display:inline-flex;
-  padding:3px;
-  border:0;
-  border-radius:6px;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-}
-.memoire-fichier__copier:hover{ background:rgba(110,118,129,.14); color:var(--text); }
+/* Le dessin vient de `.bouton-copier` : ces règles n'ajoutaient qu'un rayon. */
+.memoire-fichier__copier{ border-radius:6px; padding:3px; }
 /* La bascule est à gauche : c'est le geste qu'on fait le plus souvent, et une
    commande qu'on cherche à droite se cherche deux fois. La mesure la suit, le
    presse-papiers ferme la barre. */

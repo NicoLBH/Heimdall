@@ -62,6 +62,7 @@ import {
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
 import { normalizeSubjectKey } from "../../../services/project-memory.js";
+import { copierDansLePressePapiers } from "../../ui/bouton-copier.js";
 import { fichierDeLEtude, fichierDesRegles } from "../../../services/incendie-en-texte.js";
 import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
 import { zoneChoices, ZONE_TOUT_LOUVRAGE } from "../../../services/project-zones.js";
@@ -1478,23 +1479,28 @@ async function copierLaNotice(root) {
         "text/plain": new Blob([texte], { type: "text/plain" })
       })]);
     } else {
-      await navigator.clipboard.writeText(texte);
+      // Le repli du composant partagé : même presse-papiers, même invite quand
+      // il refuse. Ce bouton garde son propre retour — il porte un libellé, pas
+      // une icône, et échanger l'un contre une coche ne dirait rien.
+      etat.noticeCopiee = await copierDansLePressePapiers(texte);
+      dessinerLeRetourDeCopie(root, etat.noticeCopiee);
+      return;
     }
     etat.noticeCopiee = true;
   } catch {
-    try {
-      await navigator.clipboard.writeText(texte);
-      etat.noticeCopiee = true;
-    } catch {
-      etat.noticeCopiee = false;
-    }
+    etat.noticeCopiee = await copierDansLePressePapiers(texte);
   }
+  dessinerLeRetourDeCopie(root, etat.noticeCopiee);
+}
+
+/** Le retour du bouton de notice : un libellé qui change, puis revient. */
+function dessinerLeRetourDeCopie(root, copiee) {
   const bouton = root.querySelector("[data-notice-copier]");
   if (bouton) {
     bouton.classList.add("est-copiee");
     bouton.setAttribute("aria-live", "polite");
     const ancien = bouton.textContent;
-    bouton.textContent = etat.noticeCopiee ? " Copiée" : " La copie a échoué";
+    bouton.textContent = copiee ? " Copiée" : " La copie a échoué";
     setTimeout(() => {
       if (!bouton.isConnected) return;
       bouton.classList.remove("est-copiee");

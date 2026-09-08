@@ -119,36 +119,67 @@ test("jetonsDeLAssertion rend la ligne de valeur, pas son détail", () => {
   assert.equal(enClair(jetons), "Zone de vent = 2");
 });
 
-test("replier une zone emporte tout ce qu'elle contient, pas seulement ses têtes", () => {
-  // Le défaut : replier la zone ne cachait que les têtes de bloc — leurs
-  // détails restaient à l'écran, orphelins, sous une zone fermée.
-  const fichier = {
-    lignes: [], ecartees: [],
-    sections: [{
-      zone: "Toutes zones",
-      lignes: [
-        { nature: "contrainte", payload: { subject: "Colonne sèche", value: "exigée", source: "arrêté" } },
-        { nature: "contrainte", payload: { subject: "Degré coupe-feu", value: "CF 1 h", source: "arrêté" } }
-      ]
-    }]
-  };
+test("replier une variable emporte toutes ses zones, pas seulement leurs têtes", () => {
+  // Le défaut : replier ne cachait que les têtes de bloc — leurs détails
+  // restaient à l'écran, orphelins, sous un bloc fermé.
+  const valeur = (zone, valeur) => ({
+    nature: "contrainte",
+    payload: { subject: "Degré coupe-feu", value: valeur, source: "arrêté", zones: [zone] }
+  });
 
-  const lignes = lignesAffichables(fichier);
-  const zone = lignes[0].ouvre;
-  assert.ok(zone, "la zone ouvre un bloc");
+  const lignes = lignesAffichables({
+    lignes: [valeur("Bâtiment A", "CF 1 h"), valeur("Bâtiment B", "CF 1/2 h")],
+    ecartees: []
+  });
 
-  const plies = new Set([zone]);
-  const visibles = lignes.filter((ligne) => !ligneCachee(ligne, plies));
+  const variable = lignes[0].ouvre;
+  assert.ok(variable, "la variable ouvre un tableau");
 
-  // La tête de la zone et sa seule accolade fermante : rien d'autre.
-  assert.deepEqual(visibles.map((ligne) => enClair(ligne.jetons)), ["zone: Toutes zones {", "}"]);
+  const visibles = lignes.filter((ligne) => !ligneCachee(ligne, new Set([variable])));
 
-  // Replier un bloc ne touche pas au reste du fichier.
-  const bloc = lignes.find((ligne) => ligne.ouvre && ligne.ouvre !== zone).ouvre;
-  const apres = lignes.filter((ligne) => !ligneCachee(ligne, new Set([bloc])));
-  assert.equal(apres.length, lignes.length - 2, "seuls les deux détails du bloc se cachent");
+  // La tête du tableau et sa seule fermeture : rien d'autre.
+  assert.deepEqual(visibles.map((ligne) => enClair(ligne.jetons)), ["Degré coupe-feu = [", "];"]);
+
+  // Replier une zone ne touche pas au reste du tableau.
+  const zone = lignes.find((ligne) => ligne.ouvre && ligne.ouvre !== variable).ouvre;
+  const apres = lignes.filter((ligne) => !ligneCachee(ligne, new Set([zone])));
+  assert.ok(apres.length < lignes.length, "les détails de cette zone se cachent");
+  assert.ok(apres.some((ligne) => enClair(ligne.jetons).includes("Bâtiment B")), "l'autre zone reste");
   // Sa fermeture reste : un bloc replié garde ses deux bornes.
-  assert.ok(apres.some((ligne) => ligne.ferme === bloc));
+  assert.ok(apres.some((ligne) => ligne.ferme === zone));
+});
+
+test("une variable ne s'écrit qu'une fois, avec ses valeurs par zone", () => {
+  // Le nom se répétait dans chaque section de zone : trois fois le même nom à
+  // trois endroits, pour une seule chose. Chercher « Degré coupe-feu » donnait
+  // trois réponses sans dire qu'il s'agissait de la même variable.
+  const valeur = (zone, valeur) => ({
+    nature: "contrainte", payload: { subject: "Degré coupe-feu", value: valeur, zones: [zone] }
+  });
+
+  const texte = texteDesLignes(lignesAffichables({
+    lignes: [valeur("Bâtiment B", "CF 1/2 h"), valeur("Bâtiment A", "CF 1 h")],
+    ecartees: []
+  }).map((ligne) => ligne.jetons));
+
+  assert.equal((texte.match(/Degré coupe-feu/g) ?? []).length, 1);
+  assert.match(texte, /Degré coupe-feu = \[/);
+  assert.match(texte, /Bâtiment A: "CF 1 h" \{/);
+  assert.match(texte, /Bâtiment B: "CF 1\/2 h" \{/);
+  // La virgule sépare les entrées : c'est un tableau, et la dernière n'en a pas.
+  assert.match(texte, /\},\n/);
+  assert.match(texte, /\];/);
+});
+
+test("une valeur qui vaut partout n'ouvre pas de tableau", () => {
+  // Une paire de crochets autour d'une seule entrée serait du bruit.
+  const texte = texteDesLignes(lignesAffichables({
+    lignes: [{ nature: "contrainte", payload: { subject: "Colonne sèche", value: "exigée" } }],
+    ecartees: []
+  }).map((ligne) => ligne.jetons));
+
+  assert.match(texte, /^Colonne sèche = "exigée" \{$/m);
+  assert.equal(texte.includes("["), false);
 });
 
 test("l'origine s'écrit une fois par versement, pas devant chaque bloc", () => {
@@ -158,8 +189,7 @@ test("l'origine s'écrit une fois par versement, pas devant chaque bloc", () => 
   });
 
   const lignes = grouperParVersement(lignesAffichables({
-    lignes: [], ecartees: [],
-    sections: [{ zone: "", lignes: [bloc("A", "p1"), bloc("B", "p1"), bloc("C", "p2")] }]
+    lignes: [bloc("A", "p1"), bloc("B", "p1"), bloc("C", "p2")], ecartees: []
   }));
 
   // Un seul début de groupe par versement : le premier bloc de p1, puis le
@@ -210,10 +240,11 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
   // Auto-portée : ce qu'elle fait, d'où viennent ses entrées, ce qui la fonde,
   // ce qu'elle conclut. La portée est son premier paramètre.
   assert.equal(texte, [
-    "// À DÉCRIRE — à quoi sert « Classement du bâtiment » ? Ce que la fonction établit, et dans quel cas on l\'applique.",
     "fonction Classement du bâtiment(zones, Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
-    "   importe (variable: Logements superposés, depuis: variables-du-projet.ref);",
-    "   importe (variable: Hauteur du plancher bas du logement le plus haut, depuis: variables-du-projet.ref);",
+    "   // À DÉCRIRE — à quoi sert « Classement du bâtiment » ? Ce que la fonction établit, et dans quel cas on l\'applique.",
+    "",
+    "   importe (variable: Logements superposés, depuis: variables-du-projet.ref, zones: zones);",
+    "   importe (variable: Hauteur du plancher bas du logement le plus haut, depuis: variables-du-projet.ref, zones: zones);",
     "",
     '   soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°)";',
     '   soit parce que = "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes.";',
@@ -226,7 +257,7 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
   ].join("\n"));
 
   // Pas de `=` sur la tête : la règle ne dit pas ce que vaut la donnée ici.
-  assert.equal(texte.split("\n")[1].includes(" = "), false);
+  assert.equal(texte.split("\n")[0].includes(" = "), false);
   // Et pas de statut : un référentiel n'a pas d'état dans un projet.
   assert.equal(texte.includes("statut"), false);
 });
@@ -377,7 +408,7 @@ test("une règle dit d'où viennent ses entrées et où va son résultat", () =>
   const texte = texteDesLignes(lignesAffichables(ref, { ouEcrit: memoire.ouEcrit }).map((ligne) => ligne.jetons));
 
   // L'entrée vient du fichier qui la déclare, le résultat va où il est écrit.
-  assert.match(texte, /importe \(variable: Classement du bâtiment, depuis: memoire\/donnees-de-base\.ddb\);/);
+  assert.match(texte, /importe \(variable: Classement du bâtiment, depuis: memoire\/donnees-de-base\.ddb, zones: zones\);/);
   assert.match(texte, /dans: memoire\/incendie\.ctr,/);
 });
 

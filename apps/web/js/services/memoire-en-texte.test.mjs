@@ -238,9 +238,10 @@ test("une fonction est auto-portée : elle dit ce qu'elle fait, d'où et vers o�
   });
 
   assert.deepEqual(lignes.map(clair), [
-    "// Définit si un parc d'habitation peut accueillir des véhicules de plus de 3,5 t.",
     "fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {",
-    `${RETRAIT}importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);`,
+    `${RETRAIT}// Définit si un parc d'habitation peut accueillir des véhicules de plus de 3,5 t.`,
+    "",
+    `${RETRAIT}importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb, zones: zones);`,
     "",
     `${RETRAIT}soit texte = "arrêté du 31 janvier 1986 modifié, article 79";`,
     "",

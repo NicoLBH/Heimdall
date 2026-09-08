@@ -45,11 +45,12 @@ change réécrirait l'histoire en silence.
 point-virgule sur ce que la règle pose.
 
 ```
-// Classe le bâtiment en famille au sens de l'article 3 : c'est le nom que
-// presque toutes les autres exigences citent.
 fonction Classement du bâtiment(zones, Logements superposés, Hauteur du plancher bas) {
-   importe (variable: Logements superposés, depuis: donnees-de-base.ddb);
-   importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb);
+   // Classe le bâtiment en famille au sens de l'article 3 : c'est le nom que
+   // presque toutes les autres exigences citent.
+
+   importe (variable: Logements superposés, depuis: memoire/donnees-de-base.ddb, zones: zones);
+   importe (variable: Hauteur du plancher bas, depuis: memoire/donnees-de-base.ddb, zones: zones);
 
    soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°";
    soit parce que = "Troisième famille B : habitations ne satisfaisant pas à…";
@@ -70,16 +71,19 @@ fonction Classement du bâtiment(zones, Logements superposés, Hauteur du planch
 - La parenthèse de tête nomme les **entrées** : on voit de quoi la règle a
   besoin sans lire ses conditions. Elle ne se stocke pas — les entrées **sont**
   les sujets des conditions, et une signature recopiée diverge.
-- **Un commentaire dit à quoi elle sert**, toujours. Sans lui il faut lire les
-  conditions pour deviner l'objet, et sur douze mille fonctions personne ne le
-  fera. Une fonction qui n'en a pas porte, à sa place, une ligne qui appelle :
-  `// À DÉCRIRE — à quoi sert « … » ?`.
+- **Un commentaire dit à quoi elle sert**, en première ligne **du corps**. Au-
+  dessus de la tête, il appartiendrait au fichier : copier la fonction pour la
+  porter dans un autre projet laisserait l'explication derrière. Une fonction ne
+  dépend pas de son contexte. Celle qui n'a pas de commentaire porte, à sa
+  place, une ligne qui appelle : `// À DÉCRIRE — à quoi sert « … » ?`.
 - **La portée est un paramètre**, et le premier. Un raisonnement ne s'applique
   pas « dans le bâtiment A », il s'applique : un `.ref` ne se découpe donc pas
   par zone et n'y répète pas une fonction. La même recopiée trois fois ferait
   trois versions à corriger, et deux d'entre elles resteraient en arrière.
-- **`importe` dit d'où vient chaque entrée** : le fichier qui la déclare, ou le
-  dictionnaire à défaut — c'est là qu'on verra qu'elle manque.
+- **`importe` dit d'où vient chaque entrée**, et **pour quelle zone** : le
+  fichier qui la déclare, ou le dictionnaire à défaut — c'est là qu'on verra
+  qu'elle manque. Une variable n'a pas une valeur, elle en a une par partie
+  d'ouvrage.
 - **Ce qui fonde la règle se déclare en tête**, comme les `const` d'une
   fonction : `soit texte = …` porte la provenance, `soit parce que = …` la
   citation. Le nom de la locale **est** le type de provenance — `soit
@@ -182,11 +186,22 @@ Colonne sèche = "exigée, une colonne sèche de 65 mm par escalier" {
    règle: Colonne sèche — arrêté du 31 janvier 1986, article 98
    statut: retenu
 }
+
+Degré coupe-feu des planchers = [
+   Toutes zones: "CF 1 h" { règle: arrêté …, article 6   statut: retenu },
+   Bâtiment A: "CF 1/2 h" { règle: arrêté …, article 7   statut: supposé }
+];
 ```
 
 Une paire, sa provenance, son statut : la forme d'un objet, et c'est bien ce que
 c'est. La règle n'est pas recopiée ici — elle a son fichier à côté, et la ligne
 dit seulement de laquelle la valeur sort.
+
+**Une variable, un bloc, ses valeurs par zone.** Le fichier se découpait par
+zone et répétait le nom dans chacune : trois fois la même chose à trois endroits.
+Écrite ainsi, la question devient impossible à éviter — *dans quelle zone ?* —
+et chaque entrée garde sa provenance et son statut, parce que ce sont deux
+décisions différentes.
 
 ---
 

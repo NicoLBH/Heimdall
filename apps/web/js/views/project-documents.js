@@ -4,6 +4,7 @@ import { PROJECT_TAB_RESELECTED_EVENT } from "./project-header.js";
 import { brancherLaZoneDeDepot } from "./ui/zone-de-depot.js";
 import { setProjectViewHeader, clearProjectActiveScrollSource, debugProjectScrollPolicy, resetProjectShellCompactState, bindProjectDocumentChromeCompact } from "./project-shell-chrome.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
+import { brancherLesBoutonsCopier, copierDansLePressePapiers } from "./ui/bouton-copier.js";
 import {
   bindGhActionButtons,
   initGhActionButton,
@@ -692,7 +693,7 @@ function bindPdfPreviewControls(root) {
     if (action === "copy-selection") {
       const selectedText = String(window.getSelection?.()?.toString?.() || "").trim();
       if (selectedText && navigator?.clipboard?.writeText) {
-        navigator.clipboard.writeText(selectedText).catch(() => {});
+        void copierDansLePressePapiers(selectedText, { replier: false });
       }
       return;
     }
@@ -2276,33 +2277,15 @@ function bindLaMemoire(root) {
     });
   }
 
-  // Le chemin où l'on se trouve, copié tel qu'on le cite. Le même geste des deux
-  // côtés de l'onglet : le fil d'Ariane est le même composant.
-  for (const bouton of root.querySelectorAll("[data-fil-copier]")) {
-    bouton.addEventListener("click", async () => {
-      const chemin = bouton.getAttribute("data-fil-copier") || "";
-      try {
-        await navigator.clipboard.writeText(chemin);
-        bouton.classList.add("is-copie");
-        setTimeout(() => bouton.classList.remove("is-copie"), 1200);
-      } catch {
-        window.prompt("Le presse-papiers a été refusé — copiez le chemin ci-dessous.", chemin);
-      }
-    });
-  }
-
-  root.querySelector("[data-memoire-copier]")?.addEventListener("click", async () => {
-    const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
-    const fichier = fichierDuChemin(memoire, docsViewState.memoireChemin ?? []);
-    if (!fichier) return;
-
-    const texte = fichierEnClair(fichier, { enClair });
-    try {
-      await navigator.clipboard.writeText(texte);
-    } catch {
-      // Un presse-papiers refusé n'est pas une raison de perdre le texte : on
-      // l'affiche, il reste sélectionnable.
-      window.prompt("Le presse-papiers a été refusé — copiez le texte ci-dessous.", texte);
+  // Un seul composant pour tous les boutons de copie de l'onglet : le chemin du
+  // fil d'Ariane, et le fichier de mémoire entier. Le texte du second ne voyage
+  // pas dans un attribut — trois cents lignes n'ont rien à faire dans du HTML.
+  brancherLesBoutonsCopier(root, {
+    texteDe: (cible) => {
+      if (!cible.startsWith("fichier:")) return "";
+      const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
+      const fichier = fichierDuChemin(memoire, cible.slice("fichier:".length).split("/").filter(Boolean));
+      return fichier ? fichierEnClair(fichier, { enClair }) : "";
     }
   });
 

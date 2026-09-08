@@ -24,6 +24,7 @@ import {
   setProjectViewHeader
 } from "./project-shell-chrome.js";
 import { bindOverlayChromeCompact, renderOverlayChromeHead } from "./ui/overlay-chrome.js";
+import { brancherLesBoutonsCopier, renderBoutonCopier } from "./ui/bouton-copier.js";
 import { bindGhActionButtons, renderGhActionButton } from "./ui/gh-split-button.js";
 import { bindLightTabs, renderLightTabs } from "./ui/light-tabs.js";
 import {
@@ -2801,10 +2802,12 @@ function renderDiffGroupe(groupe) {
         <button type="button" class="diff-groupe__titre" data-diff-groupe-fold="${escapeHtml(groupe.cle)}">
           ${escapeHtml(fichier)}
         </button>
-        <button type="button" class="diff-groupe__copier" data-diff-copier="${escapeHtml(groupe.cle)}"
-          title="Copier ce diff dans le presse-papiers" aria-label="Copier ce diff dans le presse-papiers">
-          ${svgIcon("copy", { className: "octicon" })}
-        </button>
+        ${renderBoutonCopier({
+          cible: `diff:${groupe.cle}`,
+          className: "diff-groupe__copier",
+          titre: "Copier ce diff dans le presse-papiers",
+          titreCopie: "Diff copié"
+        })}
         <span class="diff-groupe__compte">${groupe.lignes.length} entrée${groupe.lignes.length > 1 ? "s" : ""}</span>
       </header>
       ${replie ? "" : `<div class="diff-groupe__corps">${numerotees.map((ligne) => renderDiffLigne(groupe, ligne)).join("")}</div>`}
@@ -3741,24 +3744,16 @@ function bindReview(root) {
   }
 
   // Copier un diff : c'est ce qu'on colle dans une conversation quand on veut
-  // montrer ce qu'on voit. L'écriture s'y prête — elle est déjà du texte.
-  for (const bouton of root.querySelectorAll("[data-diff-copier]")) {
-    bouton.addEventListener("click", async () => {
-      const cle = bouton.getAttribute("data-diff-copier");
+  // montrer ce qu'on voit. L'écriture s'y prête — elle est déjà du texte. Le
+  // composant s'occupe du reste, coche verte comprise.
+  brancherLesBoutonsCopier(root, {
+    texteDe: (cible) => {
+      if (!cible.startsWith("diff:")) return "";
       const groupe = arbreDesReperes(view.review?.diffDuDepot?.lignes ?? [])
-        .find((candidat) => candidat.cle === cle);
-      if (!groupe) return;
-
-      const texte = diffEnClair(groupe);
-      try {
-        await navigator.clipboard.writeText(texte);
-      } catch {
-        // Un presse-papiers refusé n'est pas une raison de perdre le texte : on
-        // l'affiche, il reste sélectionnable.
-        window.prompt("Le presse-papiers a été refusé — copiez le texte ci-dessous.", texte);
-      }
-    });
-  }
+        .find((candidat) => candidat.cle === cible.slice("diff:".length));
+      return groupe ? diffEnClair(groupe) : "";
+    }
+  });
 
   bindDiffTreeResize(root);
   bindDiffComment(root);

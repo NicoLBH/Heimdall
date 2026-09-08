@@ -5,6 +5,7 @@ import { renderProjectLocationMapCard } from "../../shared/project-location-map-
 import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.js";
 import { resolveStudioClimateTool } from "../../../services/studio-tools-service.js";
 import { svgIcon } from "../../../ui/icons.js";
+import { copierDansLePressePapiers, marquerCopie, ICONES } from "../../ui/bouton-copier.js";
 import { store } from "../../../store.js";
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
 
@@ -47,39 +48,10 @@ const arkoliaUiState = {
 
 let currentRoot = null;
 
-const COPY_ICON_HTML = svgIcon('copy', { className: 'octicon octicon-copy' });
-const COPY_SUCCESS_ICON_HTML = svgIcon('check', {
-  className: 'octicon octicon-check',
-  style: 'color: var(--success);'
-});
-
-function resetCopyButtonState(button, defaultTitle) {
-  if (!button) return;
-  const resetTimerId = Number(button.dataset.arkoliaCopyResetTimer || 0);
-  if (resetTimerId) {
-    window.clearTimeout(resetTimerId);
-  }
-  button.classList.remove('is-copied');
-  button.innerHTML = COPY_ICON_HTML;
-  button.removeAttribute('data-arkolia-copy-reset-timer');
-  if (defaultTitle) {
-    button.setAttribute('title', defaultTitle);
-    button.setAttribute('aria-label', defaultTitle);
-  }
-}
-
-function showCopyButtonSuccess(button, copiedTitle, defaultTitle) {
-  if (!button) return;
-  resetCopyButtonState(button, defaultTitle);
-  button.classList.add('is-copied');
-  button.innerHTML = COPY_SUCCESS_ICON_HTML;
-  button.setAttribute('title', copiedTitle);
-  button.setAttribute('aria-label', copiedTitle);
-  const timerId = window.setTimeout(() => {
-    resetCopyButtonState(button, defaultTitle);
-  }, 2000);
-  button.dataset.arkoliaCopyResetTimer = String(timerId);
-}
+// La coche verte de cet écran est devenue celle de toute l'application : elle
+// vit dans `ui/bouton-copier.js`, et six autres boutons de copie la portent
+// désormais. Voir son en-tête — c'est le retour qui compte, parce que le
+// presse-papiers est le seul endroit de l'interface qu'on ne peut pas regarder.
 
 function getArkoliaDetailsExpandedStorageKey() {
   const projectId = String(store.currentProjectId || "default").trim() || "default";
@@ -261,9 +233,12 @@ function renderIdentityCheckboxGroup(name, options, selectedValues = []) {
 
 function renderCopyButton({ action, title, ariaLabel, value = '' }) {
   const valueAttr = value ? ` data-arkolia-copy-value="${escapeAttribute(value)}"` : '';
+  // L'écouteur de cet écran reste le sien — il choisit le champ à sélectionner
+  // quand le presse-papiers refuse. Seule l'icône vient du composant, pour que
+  // la coche soit la même partout.
   return `
-    <button type="button" class="arkolia-identity-preview__copy" ${action}${valueAttr} title="${escapeAttribute(title)}" aria-label="${escapeAttribute(ariaLabel || title)}">
-      ${COPY_ICON_HTML}
+    <button type="button" class="bouton-copier arkolia-identity-preview__copy" ${action}${valueAttr} title="${escapeAttribute(title)}" aria-label="${escapeAttribute(ariaLabel || title)}">
+      ${ICONES.copier}
     </button>
   `;
 }
@@ -896,30 +871,20 @@ async function copyIdentityText({ button, text, textarea = null, copiedTitle, de
     ? currentRoot?.querySelector('[data-arkolia-reference-input]')
     : null;
 
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else if (textarea) {
-      textarea.removeAttribute('readonly');
-      textarea.focus();
-      textarea.select();
-      document.execCommand('copy');
-      textarea.setAttribute('readonly', 'readonly');
-    } else if (referenceInput) {
-      referenceInput.focus();
-      referenceInput.select();
-      document.execCommand('copy');
-    }
-    showCopyButtonSuccess(button, copiedTitle, defaultTitle);
-  } catch (_error) {
-    if (textarea) {
-      textarea.focus();
-      textarea.select();
-    } else if (referenceInput) {
-      referenceInput.focus();
-      referenceInput.select();
-    }
+  // Le repli propre à cet écran : un champ qu'on sélectionne. Il vaut mieux que
+  // l'invite du composant quand le texte est déjà à l'écran — on voit ce qu'on
+  // copie, et le geste reste dans la page.
+  if (await copierDansLePressePapiers(text, { replier: false })) {
+    marquerCopie(button, { titre: defaultTitle, titreCopie: copiedTitle });
+    return;
   }
+
+  const champ = textarea || referenceInput;
+  if (!champ) return;
+  if (textarea) textarea.removeAttribute('readonly');
+  champ.focus();
+  champ.select();
+  if (textarea) textarea.setAttribute('readonly', 'readonly');
 }
 
 function syncIdentityControls() {

@@ -111,7 +111,7 @@ export function sectionsDuFichier(lignes = []) {
  * `payload` garde ce que l'utilisateur a écrit. C'est celui-là qu'on montre :
  * un dossier nommé « escalier-b » se lit moins bien qu'« Escalier B ».
  */
-function zonesLisibles(assertion = {}) {
+export function zonesLisibles(assertion = {}) {
   const dites = assertion?.payload?.zones;
   if (Array.isArray(dites) && dites.length) return dites.map(texte).filter(Boolean);
   return (Array.isArray(assertion?.zones) ? assertion.zones : []).map(texte).filter(Boolean);
