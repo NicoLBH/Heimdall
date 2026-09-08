@@ -119,6 +119,9 @@ import {
   renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES, VUES
 } from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
+import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
+import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
+import { laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
 
 /**
  * Les champs interrogeables de la mémoire.
@@ -235,8 +238,14 @@ function repliRetenu() {
 
 const view = {
   loading: true,
-  /** `null` : la lecture a échoué. `[]` : le projet n'a rien versé. */
-  assertions: null,
+  /**
+   * La mémoire telle qu'elle a été lue en base.
+   *
+   * `null` : la lecture a échoué. `[]` : le projet n'a rien versé. Une variante
+   * ne la touche jamais — elle se superpose à la lecture, et disparaît sans
+   * laisser de trace.
+   */
+  memoire: null,
   projectId: "",
   query: "",
   /** La nature et le domaine voulus. `"none"` demande ce qui n'est pas classé. */
@@ -278,6 +287,41 @@ const view = {
   detailOnglet: "etablit",
   page: 1
 };
+
+/**
+ * Ce que l'écran lit : la mémoire, ou la mémoire vue sous une variante.
+ *
+ * Tous les écrans de la mémoire — la liste, le détail, la chaîne du
+ * raisonnement, le schéma des dépendances — sont des fonctions d'une liste
+ * d'affirmations. Leur en donner une autre suffit : c'est ce qui rend une
+ * variante gratuite, et c'est pourquoi il n'y a pas un seul écran à réécrire.
+ *
+ * `view.assertions` reste ce qu'il était pour tout le fichier — la liste à
+ * lire —, et `view.memoire` porte ce qui vient de la base. Écrire dans l'un
+ * remplit l'autre : ainsi aucune variante ne peut être prise pour la mémoire,
+ * même par un chemin qu'on aurait oublié.
+ */
+let calqueDeLaVariante = { source: null, variante: null, rendu: null };
+
+Object.defineProperty(view, "assertions", {
+  enumerable: true,
+  get() {
+    const source = view.memoire;
+    const variante = varianteEnCours();
+    if (!variante || !Array.isArray(source)) return source;
+
+    // Le calque se recalcule quand la mémoire ou la variante change, jamais à
+    // chaque lecture : un rendu touche cette propriété une dizaine de fois.
+    if (calqueDeLaVariante.source === source && calqueDeLaVariante.variante === variante) {
+      return calqueDeLaVariante.rendu;
+    }
+    calqueDeLaVariante = { source, variante, rendu: memoireAvecLaVariante(source, variante) };
+    return calqueDeLaVariante.rendu;
+  },
+  set(valeur) {
+    view.memoire = valeur;
+  }
+});
 
 /**
  * Prête un état à l'écran, pour une page d'aperçu.
@@ -1197,6 +1241,10 @@ export function renderMemoryForPreview(assertions = [], {
 export function __mountMemoryForPreview(root) {
   if (!root) return;
   mountedRoot = root;
+  // Le vrai écran s'abonne aux variantes en se montant : une page d'essai qui
+  // ne le ferait pas laisserait croire que sortir d'une variante ne redessine
+  // rien — et c'est précisément ce qu'il faut pouvoir vérifier.
+  brancherLaVariante();
   renderContent(root);
 }
 
@@ -1246,6 +1294,9 @@ function renderZonePicker() {
 
 function renderHypothesisForm() {
   if (!view.declaring) return "";
+  // Une hypothèse déclarée depuis une variante serait décidée d'après une
+  // lecture fausse. Le bouton a disparu de la tête ; le formulaire aussi.
+  if (varianteEnCours()) return "";
 
   const option = (valeur, label) =>
     `<option value="${escapeHtml(valeur)}"${valeur === view.draft.domain ? " selected" : ""}>${escapeHtml(label)}</option>`;
@@ -1320,16 +1371,26 @@ function titreDeLaLecture() {
 }
 
 export function renderMemoryHead(resume, { busy = false } = {}) {
+  // Sous une variante, on lit une mémoire qui n'existe pas. Y écrire — verser,
+  // déclarer — ferait entrer en base une valeur décidée d'après une lecture
+  // fausse ; l'exporter la ferait circuler comme si elle était vraie. C'est le
+  // seul moyen qu'une variante avait de salir le projet, et on le ferme.
+  const enVariante = Boolean(varianteEnCours());
+
   return `
     <header class="memory-head settings-card__head">
       <span class="settings-card__head-title">
         <h4>${escapeHtml(titreDeLaLecture())}</h4>
         <div class="memory-head__actions">
-          ${renderExportButton(resume, busy)}
-          ${renderVerserButton(busy)}
-          <button type="button" class="gh-btn gh-btn--primary" data-memory-declare ${busy ? "disabled" : ""}>
-            ${svgIcon("plus", { className: "octicon" })} Déclarer une hypothèse
-          </button>
+          ${
+            enVariante
+              ? `<span class="memory-head__variante">Lecture seule : on regarde une variante.</span>`
+              : `${renderExportButton(resume, busy)}
+                 ${renderVerserButton(busy)}
+                 <button type="button" class="gh-btn gh-btn--primary" data-memory-declare ${busy ? "disabled" : ""}>
+                   ${svgIcon("plus", { className: "octicon" })} Déclarer une hypothèse
+                 </button>`
+          }
         </div>
       </span>
     </header>
@@ -1772,7 +1833,9 @@ async function markAsReviewed(root, assertionId) {
   // On met à jour ce qu'on a sous la main plutôt que de tout relire : la base a
   // pris, l'écran doit le montrer, et relire trois cents lignes pour une date
   // ferait clignoter la page.
-  view.assertions = (view.assertions ?? []).map((entry) =>
+  // La source, pas la lecture : sous une variante, réécrire `view.assertions`
+  // ferait entrer le calque dans ce qu'on croit avoir lu en base.
+  view.memoire = (view.memoire ?? []).map((entry) =>
     entry.id === assertionId ? { ...entry, reviewed_at: quand, reviewed_by: store.user?.id ?? null } : entry
   );
   renderContent(root);
@@ -1849,6 +1912,7 @@ function renderContent(root) {
       <section class="project-simple-page project-simple-page--memory"
       style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
         <div class="propositions-shell overlay-chrome overlay-chrome--proposition" data-memory-chrome>
+          ${renderBandeauVariante(varianteEnCours(), { aBouge: laMemoireABouge(varianteEnCours(), view.memoire ?? []) })}
           ${renderMemoryDetail(view.assertions, view.open)}
         </div>
       </section>
@@ -1877,6 +1941,7 @@ function renderContent(root) {
     <section class="project-simple-page project-simple-page--memory"
       style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
       <div class="propositions-shell">
+        ${renderBandeauVariante(varianteEnCours(), { aBouge: laMemoireABouge(varianteEnCours(), view.memoire ?? []) })}
         ${renderMemoryHead(resume, { busy: view.busy })}
 
         <div class="project-rail-layout${view.navCollapsed ? " project-rail-layout--collapsed" : ""}">
@@ -2151,6 +2216,18 @@ function monterLeCopilote(espace) {
   const hote = espace.querySelector("[data-raison-discussion]");
   if (!hote) return;
 
+  // Le copilote lit la mémoire du projet, pas la variante affichée. Il ne ment
+  // donc pas — mais il répondrait « 0,99 m » devant un écran qui montre
+  // « 1,17 m », et c'est indiscernable d'une panne. On le dit avant qu'il parle.
+  if (varianteEnCours() && !espace.querySelector(".raison-espace__variante")) {
+    const note = document.createElement("p");
+    note.className = "raison-espace__variante";
+    note.textContent = "Le copilote répond sur la mémoire du projet, pas sur la variante affichée.";
+    // Avant l'hôte, pas dedans : `renderCopilote` réécrit tout son contenu, et
+    // la note disparaîtrait à la première réponse.
+    hote.insertAdjacentElement("beforebegin", note);
+  }
+
   void import("./studio/copilote/copilote.js")
     .then(({ renderCopilote }) => {
       if (hote.isConnected) renderCopilote(hote, { garderLeDefilement: true });
@@ -2374,6 +2451,7 @@ function bindListDelegation(root) {
 function bind(root) {
   bindListDelegation(root);
   bindExportButton(root);
+  brancherLeBandeauVariante(root);
   brancherLeCompactage(root);
   brancherLEspace(root);
   brancherLesRecherches(root);
@@ -2874,12 +2952,38 @@ function bindTabReset() {
   });
 }
 
+/** Une seule inscription pour tout l'onglet, quel que soit le nombre de montages. */
+let abonneALaVariante = false;
+
+/**
+ * Se redessiner quand on entre dans une variante, ou qu'on en sort.
+ *
+ * La sortie peut venir d'ailleurs que de cet écran — d'un autre onglet, d'un
+ * bouton qu'on ajoutera demain. Redessiner depuis le magasin plutôt que depuis
+ * le bouton garantit qu'aucune page ne reste sur une lecture qui n'a plus cours.
+ */
+function brancherLaVariante() {
+  if (abonneALaVariante) return;
+  abonneALaVariante = true;
+
+  quandLaVarianteChange(() => {
+    if (!mountedRoot?.isConnected) return;
+    // On revient à la liste : le détail ouvert parlait d'une valeur qui vient
+    // de changer sous lui, et le relire tel quel montrerait un titre d'un monde
+    // et un raisonnement de l'autre.
+    view.open = null;
+    view.page = 1;
+    renderContent(mountedRoot);
+  });
+}
+
 export function renderProjectMemory(root) {
   if (!root) return;
   root.className = "project-shell__content";
   clearProjectActiveScrollSource();
   mountedRoot = root;
   bindTabReset();
+  brancherLaVariante();
 
   setProjectViewHeader({ contextLabel: "Mémoire", variant: "memory", hideBar: true });
 
