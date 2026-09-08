@@ -21,15 +21,26 @@ const deduite = ({ id, sujet, valeur, utilitaire, alt, reserves = [], at = "2026
   payload: { subject: sujet, value: valeur, derived: true, utilitaire, reserves, inputs: { altitude: alt } }
 });
 
-/** Une règle appliquée, qui lit un sujet et en produit un autre. */
-const regle = (sujet, valeur, lit = []) => ({
+/**
+ * Une règle appliquée, qui lit un sujet et en produit un autre.
+ *
+ * Ses conditions sont écrites pour **tenir** sur la mémoire d'essai : depuis
+ * l'évaluateur, une règle dont les conditions ne tiennent pas est déclarée sans
+ * objet, et une condition posée au hasard fabriquerait une dérive qui n'existe
+ * pas.
+ */
+const regle = (sujet, valeur, lit = [], { sinon = "" } = {}) => ({
   id: `r-${sujet}`, subject_key: `regle:${sujet}`, status: "assumed", superseded_by: null,
   decided_at: "2026-01-10T09:00:00Z",
   payload: {
     subject: sujet, value: valeur, referentiel: true,
-    regle: { conditions: lit.map((nom) => ({ sujet: nom, operateur: "=", valeur: ["x"] })), sauf: [] }
+    regle: { conditions: lit, sinon, sauf: [] }
   }
 });
+
+/** Une condition de seuil, celle que le référentiel écrit le plus souvent. */
+const auPlus = (sujet, seuil, unite) => ({ sujet, operateur: "<=", valeur: seuil, unite });
+const auMoins = (sujet, seuil, unite) => ({ sujet, operateur: ">=", valeur: seuil, unite });
 
 /** Une valeur simple du projet. */
 const dit = (sujet, valeur) => ({
@@ -191,8 +202,13 @@ test("les conséquences se rangent en trois rangs qui ne se mélangent pas", () 
     altitude("490 m"),
     horsGel("0.99 m", 490),
     neige("A2", 490),
-    // Ce qui repose sur la cote hors gel : nommé, jamais recalculé ici.
-    regle("Ancrage des semelles", "0.99 m", ["Profondeur hors gel"]),
+    // Ce qui repose sur la cote hors gel, sans qu'on sache le rejouer : la règle
+    // la lit — d'où le lien —, mais elle lit aussi un sujet que personne n'a
+    // versé, et « vrai et ? » ne tranche pas.
+    regle("Ancrage des semelles", "0.99 m", [
+      auMoins("Profondeur hors gel", "0,50", "m"),
+      auPlus("Portance du sol", "0,2", "MPa")
+    ]),
     dit("Ancrage des semelles", "0.99 m"),
     // Ce qui ne dépend de rien de tout cela.
     dit("Classement du bâtiment", "3e famille B")
@@ -215,7 +231,7 @@ test("une valeur recalculée à l'identique ne rend rien suspect en aval", () =>
   const memoire = [
     altitude("490 m"),
     neige("A2", 490),
-    regle("Charge de neige", "0,45 kN/m²", ["Zone de neige"]),
+    regle("Charge de neige", "0,45 kN/m²", [{ sujet: "Zone de neige", operateur: "=", valeur: "A2" }]),
     dit("Charge de neige", "0,45 kN/m²")
   ];
 
@@ -262,7 +278,12 @@ test("ce qu'on ne sait pas rejouer est marqué, jamais deviné", () => {
   const memoire = [
     altitude("490 m"),
     horsGel("0.99 m", 490),
-    regle("Ancrage des semelles", "0.99 m", ["Profondeur hors gel"]),
+    // Sa règle lit la cote hors gel — d'où le lien — et un sujet que personne
+    // n'a versé : elle reste indécidable, et la valeur reste celle d'avant.
+    regle("Ancrage des semelles", "0.99 m", [
+      auMoins("Profondeur hors gel", "0,50", "m"),
+      auPlus("Portance du sol", "0,2", "MPa")
+    ]),
     dit("Ancrage des semelles", "0.99 m")
   ];
 
@@ -300,4 +321,66 @@ test("une altitude s'écrit comme la mémoire l'écrit", () => {
   assert.equal(altitudeEnTexte(890), "890 m");
   assert.equal(altitudeEnTexte(490.03), "490,03 m");
   assert.equal(altitudeEnTexte(NaN), "");
+});
+
+
+test("une règle dont les entrées bougent se rejoue, et rend une vraie valeur", () => {
+  // C'est le gain de l'étape 3 : jusqu'ici, tout ce qui reposait sur ce qui
+  // bouge tombait dans « à revérifier », et l'écran ne rendait que des noms.
+  const memoire = [
+    altitude("490 m"),
+    horsGel("0.99 m", 490),
+    regle("Fondations profondes", "non exigées", [auPlus("Profondeur hors gel", "1,00", "m")], {
+      sinon: "exigées"
+    }),
+    dit("Fondations profondes", "non exigées")
+  ];
+
+  // À 890 m, la cote hors gel passe à 1.09 m : la règle bascule.
+  const rendu = consequencesDeLaVariante({ assertions: memoire, altitude: 890 });
+
+  assert.deepEqual(rendu.rejouees.map((l) => [l.sujet, l.avant, l.apres]), [
+    ["Fondations profondes", "non exigées", "exigées"]
+  ]);
+  // Elle n'est plus « à revérifier » : elle a une valeur.
+  assert.deepEqual(rendu.aRevoir, []);
+  // Et la trace dit ce que la règle a lu pour conclure.
+  assert.deepEqual(rendu.rejouees[0].trace.map((c) => [c.sujet, c.lu, c.verite]), [
+    ["Profondeur hors gel", "1.09 m", false]
+  ]);
+});
+
+test("le calque porte la valeur rejouée, et dit qu'elle vient d'une règle", () => {
+  const memoire = [
+    altitude("490 m"),
+    horsGel("0.99 m", 490),
+    regle("Fondations profondes", "non exigées", [auPlus("Profondeur hors gel", "1,00", "m")], {
+      sinon: "exigées"
+    }),
+    dit("Fondations profondes", "non exigées")
+  ];
+
+  const vue = memoireAvecLaVariante(memoire, { altitude: 890 });
+  const fondations = vue.find((l) => l.payload?.subject === "Fondations profondes" && !l.payload?.referentiel);
+
+  assert.equal(fondations.variante.effet, "rejouee");
+  assert.equal(fondations.payload.value, "exigées");
+  assert.equal(fondations.variante.avant, "non exigées");
+});
+
+test("une dérive déjà présente n'est pas mise au compte de la variante", () => {
+  // La règle conclut déjà autre chose que ce que le projet affirme : c'est un
+  // défaut de la mémoire, que l'audit dira. L'attribuer à la variante ferait
+  // porter à celui qui essaie une valeur la dérive de ceux qui l'ont précédé.
+  const memoire = [
+    altitude("490 m"),
+    dit("Classement", "3e famille B"),
+    regle("Degré CF", "CF 1 h", [{ sujet: "Classement", operateur: "=", valeur: "2e famille" }], {
+      sinon: "CF 1/2 h"
+    }),
+    dit("Degré CF", "CF 1 h")
+  ];
+
+  const rendu = consequencesDeLaVariante({ assertions: memoire, altitude: 890 });
+  assert.deepEqual(rendu.rejouees, []);
 });

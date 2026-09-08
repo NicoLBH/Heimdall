@@ -61,6 +61,12 @@ import { RESERVE, RESERVES } from "../utilitaires/reserves.js";
 import { describeProvenance, utilitaireByReference } from "../utilitaires/catalogue.js";
 import { currentAssertions } from "./project-memory.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
+import { rejouerLesRegles } from "./memoire-rejeu.js";
+// Une seule définition de « lire un nombre écrit à la française » : deux copies
+// finiraient par diverger sur l'espace fine ou la virgule décimale.
+import { lireUnNombre } from "./memoire-en-texte.js";
+
+export { lireUnNombre };
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -78,25 +84,6 @@ function estLAltitude(assertion) {
   if (classifyAssertion(assertion).nature !== NATURE.DONNEE_BASE) return false;
   const sujet = texte(assertion?.payload?.subject) || texte(assertion?.statement);
   return /altitude/i.test(sujet);
-}
-
-/**
- * Un nombre lu d'un texte français ou anglais.
- *
- * « 490,03 m », « 490.03 », « 1 200 m » disent tous le même nombre. Rendre `NaN`
- * plutôt que zéro : `Number("")` vaut zéro, et une altitude à zéro se calcule
- * sans broncher jusqu'à une cote de fondation fausse.
- */
-export function lireUnNombre(valeur) {
-  if (typeof valeur === "number") return Number.isFinite(valeur) ? valeur : NaN;
-  const brut = texte(valeur)
-    .replace(/ | /g, "")
-    .replace(/\s/g, "")
-    .replace(",", ".")
-    .replace(/[^0-9.+-]/g, "");
-  if (!brut) return NaN;
-  const nombre = Number(brut);
-  return Number.isFinite(nombre) ? nombre : NaN;
 }
 
 /**
@@ -307,6 +294,25 @@ export function relireLaContrainte(assertion, altitude, { supposerDepuis = null 
 const idDe = (assertion) => texte(assertion?.id);
 
 /**
+ * Ce qu'un rejeu a conclu, indexé par ce qu'il produit.
+ *
+ * Sert à comparer deux rejeux — celui de la mémoire telle quelle, et celui de la
+ * variante — pour n'attribuer à la variante que ce qu'elle change vraiment.
+ */
+function etatDuRejeu(rejeu) {
+  return {
+    conclusions: new Map(
+      (rejeu?.conclusions ?? [])
+        .filter((ligne) => texte(ligne?.sortie?.id))
+        .map((ligne) => [texte(ligne.sortie.id), texte(ligne.apres)])
+    ),
+    sansObjet: new Set(
+      (rejeu?.sansObjet ?? []).map((ligne) => texte(ligne?.sortie?.id)).filter(Boolean)
+    )
+  };
+}
+
+/**
  * Ce qui repose, de proche en proche, sur les affirmations qui ont bougé.
  *
  * Les liens se déduisent des conditions écrites dans les règles — c'est
@@ -391,6 +397,57 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN, supp
   ].filter(Boolean));
 
   const recalculeesIds = new Set(recalculees.map((ligne) => idDe(ligne.assertion)));
+
+  // Les règles se **rejouent** : jusqu'ici, tout ce qui reposait sur ce qui
+  // bouge tombait dans « à revérifier », et l'écran ne rendait que des noms.
+  // Avec l'évaluateur, une règle dont les entrées changent conclut pour de bon.
+  //
+  // On lui donne ce que la variante vient d'établir — l'altitude substituée, et
+  // les contraintes relues — et il propage de règle en règle.
+  const substitutions = new Map([
+    [idDe(depart.assertion), altitudeEnTexte(altitude)],
+    ...recalculees.map((ligne) => [idDe(ligne.assertion), ligne.apres])
+  ].filter(([id]) => id));
+
+  // Deux rejeux, et c'est la différence qui compte. Une règle qui conclut déjà
+  // autre chose que ce que le projet affirme est un **défaut de la mémoire** —
+  // le rejeu à blanc de l'étape 5 le dira —, pas une conséquence de la variante.
+  // L'attribuer à la variante ferait porter à celui qui essaie une valeur la
+  // dérive de ceux qui l'ont précédé.
+  const avantLaVariante = etatDuRejeu(rejouerLesRegles(enVigueur));
+  const rejeu = rejouerLesRegles(enVigueur, { substitutions });
+
+  const rejouees = rejeu.conclusions
+    .filter((conclusion) => {
+      const id = texte(conclusion?.sortie?.id);
+      // Rien de neuf si le rejeu à blanc concluait déjà cela : la variante n'y
+      // est pour rien.
+      return !id || avantLaVariante.conclusions.get(id) !== texte(conclusion.apres);
+    })
+    .filter((conclusion) => texte(conclusion?.sortie?.id))
+    .map((conclusion) => ({
+      assertion: conclusion.sortie,
+      sujet: conclusion.sujet,
+      avant: conclusion.avant,
+      apres: conclusion.apres,
+      zone: conclusion.zone,
+      regle: conclusion.regle,
+      trace: conclusion.trace
+    }));
+  const rejoueesIds = new Set(rejouees.map((ligne) => idDe(ligne.assertion)));
+
+  // Une règle qui ne s'applique plus ne rend pas de valeur : elle retire le
+  // fondement de celle que le projet tient. Ce n'est pas un recalcul, c'est une
+  // vérification à faire — et il faut le dire avec ces mots-là.
+  const sansFondement = new Map(
+    rejeu.sansObjet
+      .filter((ligne) => texte(ligne?.sortie?.id))
+      // Déjà sans objet avant la variante : c'est une dérive de la mémoire, et
+      // elle se dira à l'audit. Pas ici.
+      .filter((ligne) => !avantLaVariante.sansObjet.has(texte(ligne.sortie.id)))
+      .map((ligne) => [texte(ligne.sortie.id), ligne])
+  );
+
   const heritiers = cequiEnDecoule(enVigueur, departs);
 
   const aRevoir = enVigueur
@@ -398,28 +455,37 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN, supp
       const id = idDe(assertion);
       if (!id || id === idDe(depart.assertion)) return false;
       if (recalculeesIds.has(id)) return false;
-      return refusees.some((autre) => idDe(autre) === id) || heritiers.has(id);
+      // Rejouée pour de bon : elle n'est plus « à revérifier », elle a une
+      // valeur. C'est tout l'objet de l'évaluateur.
+      if (rejoueesIds.has(id)) return false;
+      return sansFondement.has(id) || refusees.some((autre) => idDe(autre) === id) || heritiers.has(id);
     })
-    .map((assertion) => ({
+    .map((assertion) => {
+      const id = idDe(assertion);
+      return {
       assertion,
       sujet: texte(assertion?.payload?.subject) || texte(assertion?.statement),
       valeur: texte(assertion?.payload?.value),
       // Pourquoi elle est là : parce qu'elle lit l'altitude sans qu'on sache la
       // rejouer, ou parce qu'elle repose sur quelque chose qui a bougé.
-      motif: litLAltitude(assertion) ? "lit-altitude" : "en-decoule",
+      motif: sansFondement.has(id) ? "sans-objet" : litLAltitude(assertion) ? "lit-altitude" : "en-decoule",
       // Pourquoi elle n'a pas été relue, quand elle aurait pu l'être. Vide pour
       // ce qui n'en découle que de proche en proche : là, la raison est le lien.
-      pourquoi: litLAltitude(assertion) ? pourquoiPasRelue(assertion) : "",
+      pourquoi: sansFondement.has(id)
+        ? `la règle qui la concluait ne s'applique plus, et elle n'a rien à dire à la place`
+        : litLAltitude(assertion) ? pourquoiPasRelue(assertion) : "",
       // La provenance dit qui aurait à la refaire. Sans elle, « à revérifier »
       // est une inquiétude sans adresse.
       provenance: texte(assertion?.payload?.utilitaire)
         ? describeProvenance(utilitaireByReference(texte(assertion.payload.utilitaire)))
         : ""
-    }));
+      };
+    });
 
   const touchees = new Set([
     idDe(depart.assertion),
     ...recalculees.map((ligne) => idDe(ligne.assertion)),
+    ...rejouees.map((ligne) => idDe(ligne.assertion)),
     ...aRevoir.map((ligne) => idDe(ligne.assertion))
   ]);
 
@@ -434,6 +500,12 @@ export function consequencesDeLaVariante({ assertions = [], altitude = NaN, supp
     // que quelqu'un accepte, pas une décision de l'outil.
     supposables: aRevoir.filter((ligne) => ligne.pourquoi === SANS_ENTREE).length,
     recalculees,
+    // Les règles rejouées : une vraie valeur, produite par la règle du projet
+    // avec les nouvelles entrées, et sa trace.
+    rejouees,
+    // Les zones où le rejeu n'a pas convergé. Rien n'en sort : un état de
+    // passage n'est pas un résultat.
+    cycles: rejeu.cycles,
     aRevoir,
     // Compté, jamais listé : « rien n'a bougé là » se dit par un nombre, et une
     // liste de soixante lignes identiques noierait les trois qui comptent.
@@ -519,6 +591,16 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
         effet: ligne.suppose ? "supposee" : ligne.valeurABouge || ligne.reservesOntBouge ? "recalculee" : "relue",
         avant: ligne.avant,
         pourquoi: ligne.suppose ? `supposée calculée à ${altitudeEnTexte(ligne.altitudeDepart)}` : ""
+      })
+    );
+  }
+
+  for (const ligne of consequences.rejouees) {
+    remplacements.set(
+      idDe(ligne.assertion),
+      substituee(ligne.assertion, {
+        valeur: ligne.apres, effet: "rejouee", avant: ligne.avant,
+        pourquoi: `règle rejouée${ligne.zone ? ` — ${ligne.zone}` : ""}`
       })
     );
   }

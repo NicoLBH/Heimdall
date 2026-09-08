@@ -167,9 +167,9 @@ le compte exact au lieu du nombre de fonctions.
 
 Premier bénéfice visible, et il ne demande pas d'évaluateur.
 
-### 3. L'évaluateur du `.ref`
+### 3. L'évaluateur du `.ref` — *fait*
 
-Sans lui, rien de ce qui précède ne rejoue quoi que ce soit.
+Sans lui, rien de ce qui précède ne rejouait quoi que ce soit.
 
 Le langage a un vocabulaire fermé — `OPERATEUR`, `MOTS`, `si/alors/sinon/sauf`,
 `importe`, `enregistre`. Un interpréteur de ce vocabulaire est un travail borné,
@@ -180,6 +180,82 @@ Une exigence non négociable : l'évaluateur ne donne à une règle **que ses en
 déclarées**. Une règle qui lit ce qu'elle n'a pas déclaré échoue bruyamment au
 lieu de diverger en silence. C'est ainsi qu'on **gagne** le droit d'écrire
 « rejouable ».
+
+#### Trois valeurs de vérité, et la troisième est celle qui compte
+
+`vrai`, `faux`, et **`null` — indécidable**. Une condition dont l'entrée manque
+n'est pas fausse : on ne sait pas. Les confondre ferait conclure `sinon` sur une
+règle qu'on n'a pas pu évaluer, c'est-à-dire rendre un chiffre indiscernable
+d'un chiffre calculé.
+
+    faux et ?  = faux        vrai ou ?  = vrai
+    vrai et ?  = ?           faux ou ?  = ?
+
+Toutes les clauses sont évaluées, y compris celles qu'un court-circuit rendrait
+inutiles : la trace sert à comprendre, et une trace qui s'arrête au premier faux
+n'explique rien.
+
+#### Quatre verdicts, et le quatrième a été une surprise
+
+| verdict | ce que ça dit |
+| --- | --- |
+| **identique** | la règle rend ce que le projet affirme. On a regardé |
+| **différente** | elle rend autre chose. Sur des entrées inchangées, c'est un défaut de la mémoire |
+| **indécidable** | une entrée manque, une unité ne se compare pas. Nommé, jamais deviné |
+| **sans objet** | « si A alors B », sans `sinon`, ne dit **rien** quand A est faux |
+
+Le quatrième a failli manquer. Faire conclure une valeur vide à une règle qui ne
+s'applique plus **effacerait** ce que le projet tient — et une valeur effacée se
+lit comme une valeur. Ce n'est pas un recalcul, c'est la disparition du fondement
+d'une valeur qui reste écrite : cela se dit avec d'autres mots, et cela va au
+rang « à revérifier ».
+
+#### Les unités ne se supposent pas
+
+`si Hauteur ≤ 28 m` contre « 26 cm » : comparer 26 à 28 rendrait « vrai » par
+accident. Deux unités différentes de part et d'autre rendent la comparaison
+**indécidable**, nommément.
+
+#### L'ordre des clauses : de gauche à droite, sans priorité
+
+`si (A) et (B) ou (C)` se lit `((A et B) ou C)`. Il n'y a pas de parenthèses
+entre clauses dans l'écriture, et inventer une priorité que le lecteur ne voit
+pas serait la pire des libertés. Le mélange des deux joncteurs est **signalé** :
+le référentiel n'en produit pas, et une règle écrite à la main qui en contient
+mérite d'être relue.
+
+#### Le rejeu : un point fixe, pas encore un plan
+
+Les règles s'enchaînent. On repasse donc sur toutes tant qu'une valeur change, et
+l'on s'arrête quand plus rien ne bouge — **par zone**, parce que le classement du
+bâtiment A et celui du bâtiment B ne se mélangent pas.
+
+Ce n'est pas le plan en strates : c'est l'étape 4, et elle apportera l'ordre, le
+parallélisme et l'affichage. Le point fixe rend le même résultat sans connaître
+l'ordre ; il coûte quelques tours de plus, et il est juste. Il est **borné** :
+une zone qui ne se stabilise pas ne rend **rien**, et se signale — ses valeurs
+intermédiaires ne sont pas des conclusions, et en montrer une ferait passer un
+état de passage pour un résultat.
+
+#### La variante ne rend plus seulement des noms
+
+C'est le gain visible. Jusqu'ici, tout ce qui reposait sur ce qui bouge tombait
+dans « à revérifier ». Maintenant :
+
+    Altitude du site : 13 m → 2 000 m
+    Profondeur hors gel    0.71 m → 1.21 m
+    Fondations profondes   non exigées → exigées   règle rejouée · 1 condition relue
+    Type de semelle        filante → sur pieux     règle rejouée · 1 condition relue
+    À revérifier : rien
+
+Chaque règle rejouée dit au survol ce qu'elle a lu pour conclure —
+`Profondeur hors gel <= 1,00 → 1.21 m`. Une valeur nouvelle sans sa trace est une
+affirmation qu'il faut croire sur parole.
+
+**Deux rejeux, et c'est leur différence qui compte.** Une règle qui conclut déjà
+autre chose que ce que le projet affirme est un défaut de la mémoire — l'audit le
+dira — et non une conséquence de la variante. L'attribuer à la variante ferait
+porter à celui qui essaie une valeur la dérive de ceux qui l'ont précédé.
 
 ### 4. Le plan de recalcul, en strates
 
@@ -262,7 +338,7 @@ Ils s'allument à mesure que le plan avance.
 
 | usage | s'allume à | ce qu'il fera |
 | --- | --- | --- |
-| **Tester une variante** | déjà là, honnête à l'étape 3 | changer une valeur du socle, voir les conséquences, ne rien écrire |
+| **Tester une variante** | déjà là, honnête depuis l'étape 3 | changer une valeur du socle, rejouer les règles, ne rien écrire |
 | **Auditer la mémoire** | étape 5 | rejouer à blanc, et dire ce qui a dérivé |
 | **Étude d'impact** | étape 2 — *allumé* | « qu'est-ce qui repose sur cette valeur ? », par strates, avec le compte exact |
 
@@ -274,10 +350,29 @@ l'absence du bouton.
 
 ## L'état d'aujourd'hui, sans complaisance
 
-La variante livrée rejoue **deux formules** réécrites à la main dans une table de
-correspondance (`RELECTURES`, dans `variante-altitude.js`). Ce n'est pas un
-mécanisme : c'est une démonstration sur deux cas, encadrée de garde-fous
-précisément parce qu'elle ne généralise pas.
+### Ce que l'étape 3 a corrigé
 
-Cette table doit **disparaître** à l'étape 3, au lieu de s'allonger d'un cas à
-chaque projet. C'est elle, la poudre aux yeux.
+La variante ne rejoue plus **deux formules** : elle exécute les **règles du
+projet**, toutes, avec les valeurs nouvelles, et rend leurs conclusions avec la
+trace de ce qu'elles ont lu. Ce n'est plus une démonstration sur deux cas.
+
+### Ce qui reste, et qui ne disparaîtra pas là
+
+Une correction à ce document : j'avais écrit que l'évaluateur ferait
+**disparaître** la table `RELECTURES` de `variante-altitude.js`. C'est faux, et
+la raison est structurelle.
+
+`RELECTURES` ne relit pas des règles : elle relit des **utilitaires** — la
+profondeur hors gel, la zone de neige. Ils calculent au serveur, sur des faits de
+contexte, et l'évaluateur du `.ref` ne sait rien d'eux. Deux mondes différents,
+et le second ne se replie pas dans le premier.
+
+Ce que l'étape 3 change pour elle est donc plus modeste, mais réel : la table
+cesse d'**être** le mécanisme pour redevenir ce qu'elle aurait toujours dû être —
+deux exceptions nommées au bord d'un moteur qui, lui, généralise. Elle ne
+s'allongera pas d'un cas à chaque projet : les projets apportent des règles, et
+les règles se rejouent.
+
+Elle disparaîtra le jour où les utilitaires **nommeront leurs sources** et
+seront rejouables comme le reste. Ce n'est pas une étape de ce plan ; c'est un
+chantier serveur, et il vaut d'être posé à part.
