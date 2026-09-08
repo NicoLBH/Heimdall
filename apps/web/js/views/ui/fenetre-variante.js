@@ -145,6 +145,36 @@ function renderRecalculee(ligne) {
   `;
 }
 
+/**
+ * Une règle rejouée : la valeur que la règle du projet conclut avec les
+ * nouvelles entrées, et ce qu'elle a lu pour y arriver.
+ *
+ * La trace n'est pas un détail : une valeur nouvelle sans elle est une
+ * affirmation qu'il faut croire sur parole, et c'est exactement ce que Mdall
+ * existe pour éviter.
+ */
+function renderRejouee(ligne) {
+  const lues = (ligne.trace ?? [])
+    .map((clause) => `${clause.sujet} ${clause.operateur} ${(clause.attendu ?? []).join(" ou ")} → ${clause.lu || "—"}`)
+    .join("\n");
+
+  return `
+    <li class="variante-ligne variante-ligne--bouge">
+      <span class="variante-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
+      <span class="variante-ligne__valeurs">
+        <b class="variante-ligne__avant">${escapeHtml(ligne.avant || "—")}</b>
+        ${svgIcon("arrow-right", { className: "octicon" })}
+        <b class="variante-ligne__apres">${escapeHtml(ligne.apres)}</b>
+      </span>
+      <span class="variante-ligne__pourquoi" title="${escapeHtml(lues)}">
+        règle rejouée${ligne.zone ? ` — ${escapeHtml(ligne.zone)}` : ""} · ${
+          (ligne.trace ?? []).length
+        } ${(ligne.trace ?? []).length > 1 ? "conditions relues" : "condition relue"}
+      </span>
+    </li>
+  `;
+}
+
 /** Une ligne devenue suspecte : nommée, jamais devinée. */
 function renderARevoir(ligne) {
   return `
@@ -169,7 +199,8 @@ function renderARevoir(ligne) {
 function renderConsequences(depart, altitude, rendu) {
   // Une valeur supposée compte : elle bouge, sous une condition dite. Ne compter
   // que les certaines ferait écrire « rien ne bouge » sous une liste qui bouge.
-  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length;
+  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length
+    + (rendu.rejouees ?? []).length;
 
   return `
     <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Conséquences de la variante">
@@ -182,7 +213,9 @@ function renderConsequences(depart, altitude, rendu) {
         </header>
 
         <p class="variante-lead">
-          ${rendu.recalculees.length} ${accorde(rendu.recalculees.length, "valeur relue", "valeurs relues")}
+          ${rendu.recalculees.length + (rendu.rejouees ?? []).length} ${
+            accorde(rendu.recalculees.length + (rendu.rejouees ?? []).length, "valeur relue", "valeurs relues")
+          }
           · ${rendu.aRevoir.length} ${accorde(rendu.aRevoir.length, "à revérifier", "à revérifier")}
           · ${rendu.inchangees} ${accorde(rendu.inchangees, "sans rapport", "sans rapport")}.
           Rien n'a été écrit.
@@ -191,11 +224,25 @@ function renderConsequences(depart, altitude, rendu) {
         <div class="variante-rangs">
           <section class="variante-rang variante-rang--calcule">
             <h5>${svgIcon("check-circle", { className: "octicon" })} Recalculé</h5>
-            <p>Un utilitaire déterministe a été rejoué avec la nouvelle valeur. Ces chiffres-là sont vrais.</p>
+            <p>
+              Les utilitaires déterministes et les <b>règles du projet</b> ont été rejoués avec la
+              nouvelle valeur. Ces chiffres-là sont vrais, et chaque règle dit au survol ce qu'elle
+              a lu pour conclure.
+            </p>
             ${
-              rendu.recalculees.length
-                ? `<ul class="variante-lignes">${rendu.recalculees.map(renderRecalculee).join("")}</ul>`
-                : `<p class="variante-rang__vide">Aucune déduction du projet ne lit cette donnée d'une façon que nous savons rejouer.</p>`
+              rendu.recalculees.length || (rendu.rejouees ?? []).length
+                ? `<ul class="variante-lignes">${[
+                    ...rendu.recalculees.map(renderRecalculee),
+                    ...(rendu.rejouees ?? []).map(renderRejouee)
+                  ].join("")}</ul>`
+                : `<p class="variante-rang__vide">Aucune déduction ni aucune règle du projet ne lit cette donnée d'une façon que nous savons rejouer.</p>`
+            }
+            ${
+              (rendu.cycles ?? []).length
+                ? `<p class="variante-rang__suppose">${svgIcon("alert", { className: "octicon" })}
+                    ${rendu.cycles.length} ${rendu.cycles.length > 1 ? "zones ne se stabilisent" : "zone ne se stabilise"} pas :
+                    leurs règles se lisent en rond. Rien n'en sort — un état de passage n'est pas un résultat.</p>`
+                : ""
             }
           </section>
 

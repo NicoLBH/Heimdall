@@ -568,6 +568,9 @@ function renderTableHead() {
  *
  * - **variante** — la valeur qu'on a soi-même substituée ;
  * - **recalculée** — un utilitaire rejoué a rendu autre chose ;
+ * - **rejouée** — la **règle du projet** a été exécutée avec les nouvelles
+ *   entrées et conclut autre chose. Ce n'est plus une propagation : c'est un
+ *   raisonnement refait ;
  * - **supposée** — rejouée, mais en supposant l'altitude de départ, parce que
  *   le calcul d'origine ne la conservait pas. La condition voyage avec le
  *   chiffre : elle est écrite sur la ligne, ici comme dans la fenêtre ;
@@ -579,6 +582,7 @@ function renderTableHead() {
 const EFFETS_DE_VARIANTE = {
   variante: { nom: "Variante", quoi: "la valeur que vous essayez" },
   recalculee: { nom: "Recalculée", quoi: "rejouée avec la nouvelle valeur" },
+  rejouee: { nom: "Rejouée", quoi: "" },
   supposee: { nom: "Supposée", quoi: "" },
   relue: { nom: "Relue", quoi: "rejouée, et elle ne bouge pas" },
   "a-revoir": { nom: "À revérifier", quoi: "" }

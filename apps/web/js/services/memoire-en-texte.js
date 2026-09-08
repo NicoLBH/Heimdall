@@ -393,6 +393,31 @@ export function couperLUnite(valeur) {
  * trois quoi, ou la chaîne « 3 » ? La question se pose vraiment : la famille
  * d'un bâtiment est la catégorie « 3 », pas le nombre trois.
  */
+/**
+ * Le nombre qu'un texte porte, ou `NaN`.
+ *
+ * « 490,03 m », « 490.03 », « 1 200 m » disent le même nombre : la virgule
+ * décimale, l'espace fine des milliers et l'unité qui suit sont des façons
+ * d'écrire, pas des valeurs différentes.
+ *
+ * `NaN` plutôt que zéro quand il n'y a rien à lire. `Number("")` vaut zéro, et
+ * une altitude à zéro se calcule sans broncher jusqu'à une cote de fondation
+ * fausse — c'est arrivé.
+ */
+export function lireUnNombre(valeur) {
+  if (typeof valeur === "number") return Number.isFinite(valeur) ? valeur : NaN;
+
+  const brut = texte(valeur)
+    .replace(/[\u202f\u00a0]/g, "")
+    .replace(/\s/g, "")
+    .replace(",", ".")
+    .replace(/[^0-9.+-]/g, "");
+  if (!brut) return NaN;
+
+  const nombre = Number(brut);
+  return Number.isFinite(nombre) ? nombre : NaN;
+}
+
 export function estMesuree(valeur) {
   const { nombre } = couperLUnite(valeur);
   return /^-?\d+(?:[.,\s]\d+)*$/.test(texte(nombre));

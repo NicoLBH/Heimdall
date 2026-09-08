@@ -21579,3 +21579,10 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   padding:9px 12px; border-left:2px solid #d29922; background:rgba(210,153,34,.10);
   color:#d29922; font-size:12.5px; line-height:1.5;
 }
+
+/* Une règle rejouée : le raisonnement du projet, refait avec les nouvelles
+   entrées. Le vert du recalculé, parce que c'en est — et non le cyan de la
+   supposition, qui vaut sous condition. */
+.memory-row__variante--rejouee{ border-color:rgba(63,185,80,.45); background:rgba(63,185,80,.10); }
+.memory-row__variante--rejouee .memory-row__variante-nom{ color:var(--success); }
+.memory-row--variante-rejouee{ box-shadow:inset 3px 0 0 var(--success); }

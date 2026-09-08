@@ -45,12 +45,12 @@ import { renderGhActionButton } from "./gh-split-button.js";
  * 5. le rejeu à blanc
  * 6. la variante, alors triviale
  *
- * `2` : les lectures sont enregistrées et l'index se lit dans les deux sens —
- * qui emploie chaque valeur, combien de fois, dans quelles zones. L'étude
- * d'impact en vit. La variante, elle, rejoue toujours deux formules réécrites à
- * la main : une démonstration, pas un mécanisme, jusqu'à l'évaluateur.
+ * `3` : l'évaluateur exécute les règles du projet. La variante ne se contente
+ * plus de nommer ce qui devient suspect — elle rejoue les règles et rend de
+ * vraies valeurs, avec la trace de ce qu'elles ont lu. L'audit attend encore le
+ * plan de recalcul et le rejeu à blanc.
  */
-export const ETAPE_ATTEINTE = 2;
+export const ETAPE_ATTEINTE = 3;
 
 /**
  * Les trois usages, dans l'ordre où on les lit.
