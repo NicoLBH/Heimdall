@@ -5,7 +5,7 @@ import {
   ECRITURE, JETON, MOTS, RETRAIT, OPERATEUR, PROVENANCE, STATUT,
   ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
   ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate,
-  blocDeRegle, blocDAffirmation,
+  blocDeRegle, blocDAffirmation, blocDeVariable,
   enTeteDeFichier, nomDeFichier, cheminDeFichier, enClair, texteDesLignes,
   natureDeLaLigne, couperLUnite, estMesuree
 } from "./memoire-en-texte.js";
@@ -106,7 +106,7 @@ test("une règle ne porte aucune valeur de projet", () => {
   // Les locales d'abord, comme les `const` d'une fonction : ce qui fonde la
   // règle se lit avant ce qu'elle fait.
   assert.deepEqual(lignes.map(clair), [
-    "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    "fonction Classement du bâtiment(zones, Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
     `${RETRAIT}soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°)";`,
     `${RETRAIT}soit parce que = "Troisième famille B : habitations ne satisfaisant pas à l'une des conditions précédentes.";`,
     "",
@@ -224,4 +224,93 @@ test("chaque jeton porte un type que la feuille de style sait colorer", () => {
       assert.ok(types.has(jeton.type), `type inconnu : ${jeton.type}`);
     }
   }
+});
+
+test("une fonction est auto-portée : elle dit ce qu'elle fait, d'où et vers où", () => {
+  const lignes = blocDeRegle({
+    sujet: "Accès des véhicules lourds",
+    quoi: "Définit si un parc d'habitation peut accueillir des véhicules de plus de 3,5 t.",
+    importe: [{ variable: "Champ d'application du titre VI", depuis: "donnees-de-base.ddb" }],
+    conditions: [{ sujet: "Champ d'application du titre VI", operateur: OPERATEUR.EGAL, valeur: "dans le champ" }],
+    alors: "interdit au-delà de 3,5 t",
+    provenance: { type: PROVENANCE.TEXTE, quoi: "arrêté du 31 janvier 1986 modifié, article 79" },
+    enregistre: { dans: "incendie.ctr" }
+  });
+
+  assert.deepEqual(lignes.map(clair), [
+    "// Définit si un parc d'habitation peut accueillir des véhicules de plus de 3,5 t.",
+    "fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {",
+    `${RETRAIT}importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);`,
+    "",
+    `${RETRAIT}soit texte = "arrêté du 31 janvier 1986 modifié, article 79";`,
+    "",
+    `${RETRAIT}si (Champ d'application du titre VI = "dans le champ")`,
+    `${RETRAIT}alors (`,
+    `${RETRAIT}${RETRAIT}enregistre (`,
+    `${RETRAIT}${RETRAIT}${RETRAIT}Accès des véhicules lourds: "interdit au-delà de 3,5 t",`,
+    `${RETRAIT}${RETRAIT}${RETRAIT}dans: incendie.ctr,`,
+    `${RETRAIT}${RETRAIT}${RETRAIT}zones: zones`,
+    `${RETRAIT}${RETRAIT})`,
+    `${RETRAIT});`,
+    "}"
+  ]);
+});
+
+test("une règle peut conclure sans rien écrire", () => {
+  // Toutes ne posent pas une valeur du projet : certaines produisent une donnée
+  // intermédiaire que d'autres reprennent. Inventer un fichier pour celles-là
+  // ferait lire « écrit dans incendie.ctr » là où rien n'est écrit.
+  const lignes = blocDeRegle({
+    sujet: "Classement du bâtiment",
+    conditions: [{ sujet: "Hauteur", operateur: OPERATEUR.AU_PLUS, valeur: "28", unite: "m" }],
+    alors: "3e famille B"
+  });
+
+  assert.equal(lignes.some((ligne) => clair(ligne).includes("enregistre")), false);
+  assert.ok(lignes.some((ligne) => clair(ligne).includes('alors ("3e famille B");')));
+});
+
+test("une décision porte un nom et une date, sinon ce n'est plus une décision", () => {
+  const signee = ligneDeProvenance(
+    { type: PROVENANCE.DECISION, quoi: "réunion de chantier du 3 mars", par: "Nicolas L.", le: "12 mars 2026" }, 1
+  );
+  assert.equal(clair(signee),
+    `${RETRAIT}décision humaine assumée (réunion de chantier du 3 mars, par: Nicolas L., le: 12 mars 2026);`);
+
+  // Sans l'un ni l'autre, la ligne reste ce qu'elle était : on n'invente pas de
+  // signataire.
+  assert.equal(clair(ligneDeProvenance({ type: PROVENANCE.DECISION, quoi: "réunion" }, 1)),
+    `${RETRAIT}décision: réunion`);
+});
+
+test("une déclaration de variable dit ce qu'elle désigne et où elle sert", () => {
+  const lignes = blocDeVariable({
+    nom: "Hauteur du plancher bas", type: "mesure", unite: "m",
+    description: "Hauteur du dernier niveau accessible, depuis le sol.",
+    utilisation: "Entrée du classement en famille.",
+    usages: [{ fonction: "Classement du bâtiment", fichier: "incendie.ref" }]
+  });
+
+  assert.deepEqual(lignes.map(clair), [
+    "const Hauteur du plancher bas = {",
+    `${RETRAIT}type: "mesure",`,
+    `${RETRAIT}unité: "m",`,
+    `${RETRAIT}description: "Hauteur du dernier niveau accessible, depuis le sol.",`,
+    `${RETRAIT}utilisation: "Entrée du classement en famille.",`,
+    `${RETRAIT}déjà utilisé dans: [`,
+    `${RETRAIT}${RETRAIT}Classement du bâtiment (incendie.ref)`,
+    `${RETRAIT}]`,
+    "};"
+  ]);
+});
+
+test("ce qui manque à une déclaration s'appelle par son nom", () => {
+  // Un champ absent ne se voit pas ; une question posée se voit. Sur douze
+  // mille variables, c'est toute la différence entre en réutiliser une et en
+  // recréer une treize millième.
+  const lignes = blocDeVariable({ nom: "Logements superposés", type: "inconnu" }).map(clair);
+
+  assert.ok(lignes.some((ligne) => ligne.includes('description: "À DÉCRIRE')));
+  assert.ok(lignes.some((ligne) => ligne.includes('utilisation: "À DÉCRIRE')));
+  assert.ok(lignes.some((ligne) => ligne.includes("déjà utilisé dans: []")));
 });

@@ -175,6 +175,14 @@ export function donneesDeBaseVersables(vue, zone = "") {
     valeur: classement,
     nature: NATURE.DONNEE_BASE,
     domaine: DOMAIN.INCENDIE,
+    // Ce que le nom désigne, et ce à quoi il sert. Une variable qu'on ne sait
+    // pas décrire se fait recréer plutôt que réutiliser — voir
+    // `docs/langage-mdall.md`, « une déclaration doit être explicite ».
+    quoi: "Famille de classement du bâtiment d'habitation au sens de l'article 3 de "
+      + "l'arrêté du 31 janvier 1986 : 1re, 2e, 3e A, 3e B ou 4e famille.",
+    utilisation: "Entrée de presque toutes les exigences de l'arrêté — degrés coupe-feu, "
+      + "encloisonnement des escaliers, colonnes sèches, désenfumage. C'est le nom que le "
+      + "reste du référentiel incendie cite.",
     source,
     article: "article 3",
     provenance: { type: PROVENANCE.REGLE, quoi: `Classement du bâtiment — ${source}` },

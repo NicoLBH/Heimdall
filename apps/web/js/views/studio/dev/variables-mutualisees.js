@@ -11,9 +11,9 @@
  * tableau ne peut pas en rendre compte sans mentir un peu.
  *
  * Le fichier `Mémoire/variables-du-projet.ref`, lui, ne porte que les
- * **définitions** : le nom, son type, son unité. C'est ce qu'on lit avant
- * d'écrire une règle — pour réutiliser un nom qui existe plutôt que d'en
- * inventer un voisin.
+ * **définitions** : le nom, son type, son unité, ce qu'il désigne, ce à quoi il
+ * sert et où il sert déjà. C'est ce qu'on lit avant d'écrire une règle — pour
+ * réutiliser un nom qui existe plutôt que d'en inventer un voisin.
  *
  * ## Ce que cet écran sert à faire
  *
@@ -63,7 +63,7 @@ export async function lireLesVariables(projet) {
   const assertions = (await listProjectAssertions(projet)) ?? [];
   const memoire = preparerLaMemoire(assertions);
   const fichiers = (memoire.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
-  return variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
+  return variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier, { ouEcrit: memoire.ouEcrit }));
 }
 
 /** Ce que la recherche retient : le nom, et rien d'autre — c'est lui qu'on cherche. */
@@ -71,6 +71,13 @@ export function variablesFiltrees(variables = [], recherche = "") {
   const cherche = texte(recherche).toLowerCase();
   if (!cherche) return variables;
   return variables.filter((variable) => texte(variable.nom).toLowerCase().includes(cherche));
+}
+
+/** Les fonctions qui l'emploient, nommément — c'est ce qu'on veut au survol. */
+function usagesEnClair(variable) {
+  const usages = Array.isArray(variable?.usages) ? variable.usages : [];
+  if (usages.length) return usages.map((usage) => `${usage.fonction} (${usage.fichier})`).join("\n");
+  return (variable?.citeePar ?? []).join("\n");
 }
 
 /**
@@ -91,7 +98,7 @@ function renderLigne(variable) {
           : "personne ne l'a versée"
       }</span>
       <span class="memoire-variable__ou">${variable.declaree ? escapeHtml(variable.declarePar) : ""}</span>
-      <span class="memoire-variable__usages" title="${escapeHtml(variable.citeePar.join(", "))}">${
+      <span class="memoire-variable__usages" title="${escapeHtml(usagesEnClair(variable))}">${
         variable.citeePar.length
           ? `${variable.citeePar.length} usage${variable.citeePar.length > 1 ? "s" : ""}`
           : "aucun usage"

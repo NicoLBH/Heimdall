@@ -7,7 +7,8 @@ import {
 } from "./memoire-en-texte.js";
 import {
   lireUnFichier, lireUneCondition, lireUneValeur, lireUneTete,
-  dependancesDuBloc, grapheDesBlocs, aRevoirSi, jetonsDeLaLigne, lireUneLocale, estUnCommentaire
+  dependancesDuBloc, grapheDesBlocs, aRevoirSi, jetonsDeLaLigne, lireUneLocale, estUnCommentaire,
+  lireUnImport, lireUneDecision
 } from "./memoire-en-lecture.js";
 
 /** Ce que le référentiel incendie porte, en petit. */
@@ -393,4 +394,66 @@ test("lireUneLocale rend le nom et la valeur, sans les bornes", () => {
   assert.deepEqual(lireUneLocale('texte = "arrêté, article 98";'), { nom: "texte", valeur: "arrêté, article 98" });
   assert.deepEqual(lireUneLocale('parce que = "une phrase"'), { nom: "parce que", valeur: "une phrase" });
   assert.equal(lireUneLocale("rien du tout"), null);
+});
+
+test("une fonction auto-portée se relit sans perdre son raisonnement", () => {
+  // `importe`, `enregistre` et le commentaire portent ce qui se **déduit** :
+  // ils rendent la fonction lisible seule, et ne se conservent pas. Ce qui se
+  // conserve est la règle — ses conditions, ce qu'elle pose, ce qui la fonde.
+  const lu = lireUnFichier([
+    "// Définit si un parc peut accueillir des véhicules lourds.",
+    "fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {",
+    "   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);",
+    "",
+    '   soit texte = "arrêté du 31 janvier 1986 modifié, article 79";',
+    "",
+    '   si (Champ d\'application du titre VI = "dans le champ")',
+    "   alors (",
+    "      enregistre (",
+    '         Accès des véhicules lourds: "interdit au-delà de 3,5 t",',
+    "         dans: incendie.ctr,",
+    "         zones: zones",
+    "      )",
+    "   );",
+    "}"
+  ].join("\n"));
+
+  assert.deepEqual(lu.refus, []);
+  assert.equal(lu.blocs.length, 1);
+  assert.equal(lu.blocs[0].sujet, "Accès des véhicules lourds");
+  assert.equal(lu.blocs[0].alors, "interdit au-delà de 3,5 t");
+  assert.deepEqual(lu.blocs[0].conditions.map((c) => c.sujet), ["Champ d'application du titre VI"]);
+  assert.deepEqual(lu.blocs[0].provenance, { type: "texte", quoi: "arrêté du 31 janvier 1986 modifié, article 79" });
+});
+
+test("chaque ligne d'une fonction auto-portée se recolore telle quelle", () => {
+  const rendre = (ligne) => jetonsDeLaLigne(ligne).map((j) => j.texte).join("");
+  for (const ligne of [
+    "   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);",
+    "   alors (",
+    "      enregistre (",
+    '         Accès des véhicules lourds: "interdit au-delà de 3,5 t",',
+    "         dans: incendie.ctr,",
+    "         zones: zones",
+    "      )",
+    "   );",
+    "   décision humaine assumée (réunion du 3 mars, par: Nicolas L., le: 12 mars 2026);"
+  ]) {
+    assert.equal(rendre(ligne), ligne);
+  }
+});
+
+test("un import se lit, une décision aussi", () => {
+  assert.deepEqual(
+    lireUnImport("importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb);"),
+    { variable: "Hauteur du plancher bas", depuis: "donnees-de-base.ddb" }
+  );
+  assert.equal(lireUnImport("importe ();"), null);
+
+  assert.deepEqual(
+    lireUneDecision("décision humaine assumée (réunion du 3 mars, par: Nicolas L., le: 12 mars 2026);"),
+    { quoi: "réunion du 3 mars", par: "Nicolas L.", le: "12 mars 2026" }
+  );
+  // Sans provenance, la ligne ne dit rien : on ne fabrique pas une décision vide.
+  assert.equal(lireUneDecision("décision humaine assumée (par: Nicolas L.);"), null);
 });

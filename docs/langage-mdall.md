@@ -14,6 +14,9 @@ définit un nom du projet, et `//` ouvre un commentaire. Ils le sont parce qu'un
 se relit pas sans bornes. Le reste du langage vient de l'écrit technique et
 juridique, et les autres extensions n'en portent aucun.
 
+Les **verbes**, eux, sont propres au métier : `importe`, `enregistre`,
+`décision humaine assumée`. Voir « Les verbes du langage ».
+
 ---
 
 ## Les cinq objets, et pourquoi ils ne se mélangent pas
@@ -22,9 +25,13 @@ juridique, et les autres extensions n'en portent aucun.
 | --- | --- | --- |
 | la **donnée** | « Hauteur du plancher bas du logement le plus haut » | le sujet, en tête de ligne |
 | la **valeur** | « 26 m » | après le `=` |
-| la **règle** | `si … alors …` | un fichier `.ref` |
-| la **preuve** | la provenance, puis sa citation | `texte:` puis `parce que:` |
+| la **règle** | `fonction … si … alors …` | un fichier `.ref` |
+| la **preuve** | la provenance, puis sa citation | `soit texte = …` puis `soit parce que = …` |
 | le **statut** | « retenu », « supposé » | `statut:`, sur sa ligne |
+
+Et un sixième, qui n'est aucun des cinq : la **déclaration de variable**. Elle
+ne dit pas ce qu'un nom vaut, elle dit ce qu'il **est** — voir « Une déclaration
+de variable doit être explicite ».
 
 ---
 
@@ -51,30 +58,39 @@ en plus ce qu'elle voulait dire.
 
 ```
 fichier: memoire/incendie.ctr             le chemin du fichier
-note: écriture Mdall v4.0                 une note, jamais interprétée
+note: écriture Mdall v4.3                 une note, jamais interprétée
 
 zone: Bâtiment A {                        une section de portée
 
    Sujet = valeur {                       une affirmation
       le: 12 mars 2026                    quand — pour un constat
       texte: arrêté …, article 3, 3°)     d'où cela vient, typé par le mot-clé
+      décision humaine assumée (…)       ou : quelqu'un a tranché, et il signe
          parce que: "citation exacte"     la preuve, sous sa provenance
       statut: retenu                      l'état du raisonnement ici
    }
 
-   fonction Sujet(entrée, entrée) {       la tête d'une règle, et ses entrées
-      soit texte = "…";                   d'où elle sort, déclaré en tête
-      soit parce que = "…";               la citation qui la fonde
-      // un commentaire, jamais interprété
-      si (Sujet <= 28 m)                  une condition
-      et (Sujet = "collective")
-      ou (Sujet parmi "a" ou "b")
-      non (Sujet = "x")
-      alors ("3e famille B");             ce que la règle pose
-      sinon ("3e famille A");
-      sauf si (Sujet = oui)               ce qui la borne
-   }
+}
 
+// à quoi la fonction sert                un commentaire, jamais interprété
+fonction Sujet(zones, entrée) {           la tête d'une règle, portée d'abord
+   importe (variable: entrée,             d'où vient chaque entrée
+            depuis: donnees-de-base.ddb);
+   soit texte = "…";                      d'où elle sort, déclaré en tête
+   soit parce que = "…";                  la citation qui la fonde
+   si (Sujet <= 28 m)                     une condition
+   et (Sujet = "collective")
+   ou (Sujet parmi "a" ou "b")
+   non (Sujet = "x")
+   sauf si (Sujet = oui)                  ce qui la borne
+   alors (                                ce que la règle pose…
+      enregistre (
+         Sujet: "3e famille B",
+         dans: incendie.ctr,              …et où cela s'écrit
+         zones: zones
+      )
+   );
+   sinon ("3e famille A");                ou : conclure sans rien écrire
 }
 ```
 
@@ -126,50 +142,187 @@ valeur ni de la règle : c'est ce que **ce projet** en fait aujourd'hui.
 
 ---
 
-## Une règle se lit comme une fonction
+## À quoi sert tout ceci
+
+Mdall code la **mémoire d'un projet** : les données factuelles, et surtout les
+raisonnements. Capitaliser, et rendre explicite ce qui d'ordinaire reste
+implicite.
+
+L'objectif tient en une scène. Je lis dans `incendie.ctr` :
 
 ```
-fonction Classement du bâtiment(Habitation individuelle ou collective, Nombre d'étages retenu pour le classement) {
-   soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 2°), quatrième tiret";
-   soit parce que = "habitations collectives comportant au plus trois étages sur rez-de-chaussée.";
+Blocs-portes des ensembles celliers ou caves = "CF 1/2 h"
+```
 
-   si (Habitation individuelle ou collective = "collective")
-   et (Nombre d'étages retenu pour le classement <= 3)
-   alors ("2e famille");
+Très bien — mais **comment est-on arrivé là ?** La mémoire doit répondre sans
+qu'on aille demander à quelqu'un :
+
+```
+données de base employées  →  enchaînement des fonctions, et leurs fichiers  →  résultat
+```
+
+C'est cette chaîne que la forme d'une fonction rend lisible. Tout ce qui suit
+en découle.
+
+---
+
+## Une fonction est auto-portée
+
+Une fonction qu'on lit seule doit se comprendre seule. Sans cela, il faut ouvrir
+les autres fichiers pour reconstituer la chaîne — et c'est précisément ce que la
+mémoire existe pour éviter.
+
+```
+// Définit si un parc de stationnement d'habitation, non soumis aux règles
+// ERP PS, peut accueillir des véhicules de plus de 3,5 t.
+fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {
+   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);
+
+   soit texte = "arrêté du 31 janvier 1986 modifié, article 79";
+   soit parce que = "L'accès des parcs est interdit aux véhicules de plus de 3,5 t de poids total en charge.";
+
+   si (Champ d'application du titre VI = "dans le champ")
+   alors (
+      enregistre (
+         Accès des véhicules lourds: "interdit au-delà de 3,5 t",
+         dans: incendie.ctr,
+         zones: zones
+      )
+   );
 }
 ```
 
-**Ce qui fonde la règle se déclare en tête**, comme les `const` d'une fonction :
-`soit texte = …` porte la provenance, `soit parce que = …` la citation, et le
-nom de la locale **est** le type de provenance. En bas, après la conclusion, on
-ne les cherchait plus.
+Six obligations, et une seule raison derrière chacune : **qu'on n'ait pas à
+chercher ailleurs**.
 
-**Les commentaires** s'écrivent `// …` ou `/* … */`, et se lisent en gris. Ils
-ne posent rien : dire *pourquoi* une condition existe est autre chose que dire
-ce qu'elle teste, et une règle de quinze lignes en a besoin.
+### 1. Un commentaire dit à quoi elle sert
 
-**Un `.ref` est le seul fichier qui s'exécute**, et sa ponctuation le dit : une
-parenthèse par clause, un point-virgule sur ce que la règle pose. Trois
-conditions enchaînées sans bornes ne se relisent déjà pas ; elles ne se
-parseraient pas du tout. Les autres fichiers n'en portent pas : un `.ctr` énonce
-des paires, il n'a pas de clause à borner.
+Au-dessus de la fonction, toujours. Sans lui, il faut lire les conditions pour
+deviner l'objet — et sur douze mille fonctions, personne ne le fera. Une
+fonction sans commentaire porte donc, à sa place, une ligne qui **appelle** :
+`// À DÉCRIRE — à quoi sert « … » ?`. Une absence qui se voit vaut mieux qu'une
+absence silencieuse.
 
-La ponctuation rend la règle exécutable, elle ne la rend pas obligatoire : un
-fichier tapé à la main sans parenthèses se lit exactement pareil.
+### 2. La portée est un paramètre, jamais un rangement
 
-La parenthèse nomme les **entrées**, et c'est ce qui manquait le plus : on voit
-d'un coup d'œil de quoi la règle a besoin sans lire ses conditions. Ce n'est pas
-une concession à l'informatique — un article d'arrêté commence lui aussi par
-dire de quoi il parle.
+`zones` est le premier paramètre, presque toujours. Une règle est le **capital
+de raisonnement** du projet : la même recopiée dans trois zones ferait trois
+versions à corriger le jour où l'arrêté bouge, et deux d'entre elles resteraient
+en arrière.
 
-**Elle ne se stocke pas** : les entrées *sont* les sujets des conditions, et une
-signature recopiée diverge le jour où quelqu'un ajoute une condition. Elle se
-calcule à l'écriture.
+Un fichier `.ref` ne se découpe donc pas par zone, et n'y répète pas une
+fonction. Ce sont les **valeurs** qui portent une zone, pas les raisonnements.
 
-Les accolades bornent la règle : on voit où elle commence et où elle finit,
-même sur un écran où l'indentation se perd. Mais pas de `retourne(…)` :
-`alors` dit déjà ce que la règle pose, et deux façons d'écrire la même chose
-finissent par ne plus dire la même chose.
+### 3. `importe` dit d'où vient chaque entrée
+
+Un import par ligne : ajouter une entrée ajoute exactement une ligne, et le diff
+dit « une entrée de plus » plutôt que de redessiner un bloc. Le fichier nommé
+est celui qui **déclare** la variable ; à défaut, `variables-du-projet.ref`, qui
+les liste toutes — et c'est là qu'on verra qu'elle manque.
+
+### 4. `soit` déclare ce qui la fonde
+
+Comme les `const` d'une fonction, en tête. Le nom de la locale **est** le type
+de provenance : `soit texte = …`, `soit document = …`, `soit règle = …`. Plus
+`soit parce que = …` pour la citation. En bas, après la conclusion, on ne les
+cherchait plus.
+
+### 5. `enregistre` dit où va le résultat
+
+C'est la question qui vient toujours après « alors quoi ? ». Le bloc y répond
+sur place : le sujet posé, le fichier qui reçoit, la portée sur laquelle cela
+vaut. Trois lignes plutôt qu'une, parce que chacun de ces trois champs peut
+changer seul.
+
+Une règle peut conclure sans rien écrire — `alors ("2e famille");` — quand elle
+produit une valeur intermédiaire que d'autres reprennent.
+
+### 6. Les commentaires sont du langage
+
+`// …` et `/* … */`, en gris. Ils ne posent rien, ne conditionnent rien : dire
+*pourquoi* une condition existe est autre chose que dire ce qu'elle teste, et
+une règle de quinze lignes en a besoin.
+
+---
+
+## Les verbes du langage
+
+Un langage de métier a des **verbes** : les gestes qui reviennent dans tous les
+projets. Les écrire en prose à chaque fois donnerait mille formulations pour une
+seule chose.
+
+| verbe | ce qu'il fait |
+| --- | --- |
+| `importe (variable: X, depuis: f)` | dit d'où vient une entrée, et où aller la lire |
+| `enregistre (X: v, dans: f, zones: z)` | écrit une valeur dans un fichier, sur une portée |
+| `décision humaine assumée (quoi, par: X, le: d)` | quelqu'un a tranché, et il signe |
+
+`décision humaine assumée` remplace la ligne `décision:` dès qu'on sait qui a
+tranché et quand. La différence n'est pas cosmétique : une hypothèse **se lève**
+quand la donnée arrive, une décision **se conteste** devant celui qui l'a prise.
+Sans nom ni date, une valeur choisie à la main se relit six mois plus tard comme
+un fait établi, et personne ne sait plus que c'était un choix.
+
+**La liste est fermée**, et c'est ce qui en fait un langage : un verbe inventé au
+fil de l'eau ne se relirait nulle part. Ceux que le besoin nommera ensuite :
+
+- `constate (X: v, le: d, document: f)` — une observation datée ;
+- `suppose (X: v, jusqu'à: ce qui la lèverait)` — une hypothèse et sa sortie ;
+- `sans objet (raison)` — le référentiel ne s'applique pas, ce qui n'est **pas**
+  une condition fausse : « aucune exigence » et « exigence non satisfaite » sont
+  deux phrases différentes ;
+- `à vérifier (question, pour: qui)` — la machine s'arrête et appelle quelqu'un,
+  plutôt que de conclure à sa place.
+
+---
+
+## Une déclaration de variable doit être explicite
+
+Dix-huit mois de chantier et douze mois d'études font des milliers de noms. Si
+personne ne sait dire ce que fait celui-ci, **chacun en recréera un voisin** — et
+la mémoire se remplira de synonymes qui ne se rejoignent jamais.
+
+Une déclaration doit donc suffire à décider, seule, si l'on réutilise ce nom ou
+si l'on en crée un autre. Six champs, et aucun n'est décoratif :
+
+```
+const Hauteur du plancher bas = {
+   type: "mesure",
+   unité: "m",
+   description: "Hauteur du plancher bas du dernier niveau accessible au public, mesurée depuis le niveau du sol.",
+   utilisation: "Entrée du classement en famille (article 3), et du désenfumage des locaux de grande surface selon l'IT 246.",
+   déjà utilisé dans: [
+      Classement du bâtiment (incendie.ref),
+      Désenfumage des circulations (incendie.ref)
+   ]
+};
+```
+
+| champ | pourquoi il est obligatoire |
+| --- | --- |
+| **nom** | explicite, pas une abréviation : c'est lui qu'on cherchera |
+| **type** | `mesure`, `texte`, `logique` — sinon on ne sait pas comparer |
+| **unité** | une mesure sans unité n'est pas une mesure |
+| **description** | ce que le nom **désigne**, exactement |
+| **utilisation** | ce à quoi il **sert**, et selon quel texte |
+| **déjà utilisé dans** | les fonctions qui l'emploient, et leurs fichiers |
+
+Les trois premiers se **déduisent** des valeurs déjà versées ; les deux suivants
+ne se déduisent de rien et se versent avec l'affirmation ; le dernier se
+recalcule à chaque nouvelle utilisation. Ce qui manque porte, à sa place, un
+`À DÉCRIRE —` suivi de la question à laquelle il faut répondre. Un champ absent
+ne se voit pas ; une question posée se voit.
+
+Ces déclarations vivent dans `Mémoire/variables-du-projet.ref`, à la racine — le
+dictionnaire du projet. Il s'engendre depuis les autres fichiers : le verser en
+ferait une seconde vérité, qui divergerait au premier versement.
+
+**Ce qu'il ne dit pas :** ce qu'une variable *vaut*. Elle prend plusieurs valeurs
+au fil d'une étude, et une définition qui en porterait une cesserait d'être vraie
+au premier versement. La valeur du jour, le fichier qui la déclare et le compte
+des usages relèvent de l'analyse : c'est l'écran `Atelier › Développements ›
+Suivre les variables mutualisées`, et le survol d'un nom dans n'importe quel
+fichier.
 
 ---
 
@@ -209,17 +362,21 @@ L'unité de production est le **domaine** : une étude incendie touche plusieurs
 zones d'un coup. Avec la zone en répertoire, une seule étude se dispersait en
 autant de fichiers, donc autant de groupes dans le diff, pour un seul acte.
 
-La zone est une **facette**, pas un lieu. Elle ouvre une section dans le
-fichier, et « Toutes zones » vient toujours en premier : ce qui vaut partout se
-lit avant ce qui ne vaut qu'ici.
+La zone est une **facette**, pas un lieu. Elle ouvre une section dans les
+fichiers de **valeurs**, et « Toutes zones » vient toujours en premier : ce qui
+vaut partout se lit avant ce qui ne vaut qu'ici.
+
+**Un `.ref` fait exception** : il ne se découpe pas par zone. Un raisonnement ne
+s'applique pas « dans le bâtiment A », il s'applique — et la partie d'ouvrage
+est un paramètre de la fonction. Voir « Une fonction est auto-portée ».
 
 ```
 zone: Toutes zones {
-   Champ d'application de l'arrêté (Hauteur du plancher bas) { … }
+   Champ d'application de l'arrêté = "dans le champ" { … }
 }
 
 zone: Bâtiment A {
-   Classement du bâtiment (Habitation individuelle ou collective, Nombre d'étages) { … }
+   Classement du bâtiment = "3e famille B" { … }
 }
 ```
 
