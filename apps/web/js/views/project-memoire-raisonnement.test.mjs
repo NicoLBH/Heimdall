@@ -93,7 +93,8 @@ test("l'espace ne dessine sa discussion que lorsqu'on l'appelle", () => {
   assert.match(ouvert, /data-raison-discussion/);
   // Le bouton et l'hôte ne partagent pas leur attribut : le même pour les deux
   // faisait monter le fil de discussion à l'intérieur du bouton.
-  assert.notEqual(ouvert.indexOf("data-raison-copilote"), ouvert.indexOf("data-raison-discussion"));
+  assert.match(ouvert, /data-raison-panneau="copiloteOuvert"/);
+  assert.equal(ouvert.includes('data-raison-discussion="'), false);
 });
 
 test("les trois zones se tirent, et leurs bornes sont dites", () => {

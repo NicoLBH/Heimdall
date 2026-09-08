@@ -109,6 +109,9 @@ import {
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
 import { renderLightTabs, bindLightTabs } from "./ui/light-tabs.js";
 import { renderSharedDetailsTitleWrap } from "./ui/detail-header.js";
+import {
+  recherchesEpinglees, epingler, renommerLaRecherche, oublierLaRecherche
+} from "../services/memoire-recherches.js";
 import { renderOverlayChromeHead, bindOverlayChromeCompact } from "./ui/overlay-chrome.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
@@ -254,6 +257,8 @@ const view = {
   /** Le formulaire d'hypothèse, quand il est ouvert. */
   declaring: false,
   navCollapsed: repliRetenu(),
+  /** Les recherches épinglées de ce projet. Elles vivent dans le navigateur. */
+  recherches: [],
   /** La proposition retenue dans la liste de complétion. */
   suggestion: -1,
   navWidth: largeurRetenue(),
@@ -391,6 +396,20 @@ function renderSearch() {
         aria-label="Chercher dans la mémoire"
         data-memory-search
       >
+      ${/* Dans le champ, pas après lui : la loupe est un bloc qui suit la barre,
+           et poser les gestes par-dessus les aurait mis sur elle. */""}
+      <div class="memory-search__gestes">
+        <button type="button" class="bouton-discret memory-search__geste" data-memory-epingler
+          title="Épingler cette recherche" aria-label="Épingler cette recherche"
+          ${view.query.trim() ? "" : "disabled"}>
+          ${svgIcon("pin", { className: "octicon" })}
+        </button>
+        <button type="button" class="bouton-discret memory-search__geste" data-memory-vider
+          title="Effacer la recherche" aria-label="Effacer la recherche"
+          ${view.query.trim() ? "" : "disabled"}>
+          ${svgIcon("x", { className: "octicon" })}
+        </button>
+      </div>
       </div>
       <span class="memory-search__icon" aria-hidden="true">${svgIcon("search", { className: "octicon" })}</span>
       <div class="memory-search__suggestions" data-memory-suggestions hidden role="listbox"
@@ -712,18 +731,22 @@ function renderList(lignes, page = 1) {
  * aller combler. C'est la même forme que dans le tableau : on retrouve d'un
  * écran à l'autre les mêmes pastilles, aux mêmes couleurs.
  */
-function pastillesDuDetail(assertion, ecartee) {
+function pastillesDuDetail(assertion) {
   const { nature, domain } = classifyAssertion(assertion);
   const portees = zonesOf(assertion);
 
+  // La valeur en bleu, sans bordure, dans la fonte à chasse fixe : elle se
+  // détache de la phrase grise sans se donner l'air d'un bouton. Ce qui manque
+  // garde le trait discontinu — « cette case est vide » est une information.
   const pastille = (valeur, vide) =>
-    `<span class="memory-tag${vide ? " memory-tag--unknown" : " memory-tag--nature"}">${escapeHtml(valeur)}</span>`;
+    `<span class="memory-tag memory-tag--valeur mono${vide ? " memory-tag--unknown" : ""}">${escapeHtml(valeur)}</span>`;
 
   return [
     { label: "Provenance", html: pastille(kindLabel(assertion.kind) || "Inconnue", !assertion.kind) },
     { label: "Nature", html: pastille(nature ? natureLabel(nature) : UNCLASSIFIED_LABEL, !nature) },
     { label: "Domaine", html: pastille(domain ? domainLabel(domain) : "Sans domaine", !domain) },
-    { label: "État", html: pastille(ecartee ? "Écartée" : "Assumée", false) },
+    // Pas d'« État » : la pastille qui ouvre la ligne dit déjà « Assumé », et le
+    // répéter deux centimètres plus loin fait relire pour rien.
     {
       label: "Zones",
       html: portees.length === 0
@@ -731,18 +754,69 @@ function pastillesDuDetail(assertion, ecartee) {
         // valeur par défaut, et une valeur par défaut se signale partout de la
         // même façon — sinon on croit que l'un des deux écrans en sait plus.
         ? pastille(ZONE_TOUT_LOUVRAGE_LABEL, true)
-        : portees.map((cle) => pastille(zoneLabel(cle, view.assertions ?? []), false)).join("")
+        // Le libellé écrit, pas la clé : « batiment-a » se lit moins bien que
+        // « Bâtiment A », et c'est le même endroit de l'ouvrage.
+        : zonesDuDetail(assertion).map((zone) => pastille(zone, false)).join("")
     }
   ];
 }
 
-function renderDetailTags(assertion, ecartee) {
+/** Les zones d'une affirmation, en clair. Le libellé écrit d'abord, la clé sinon. */
+function zonesDuDetail(assertion) {
+  const dits = zonesLisibles(assertion);
+  if (dits.length) return dits;
+  return zonesOf(assertion).map((cle) => zoneLabel(cle, view.assertions ?? []));
+}
+
+/** La pastille d'état : haute, ronde, la même que « Fusionnée » sur une proposition. */
+function renderPastilleDEtat(ecartee) {
+  return `<span class="gh-state ${ecartee ? "gh-state--rejected" : "gh-state--closed"}">
+    <span class="gh-state-dot" aria-hidden="true">${svgIcon(ecartee ? "x-circle-fill" : "shield", { style: "color: #fff" })}</span>
+    ${ecartee ? "Écarté" : "Assumé"}</span>`;
+}
+
+/**
+ * Qui assume, quand, et pour quelle partie de l'ouvrage.
+ *
+ * ## Pourquoi une phrase, et non un tableau
+ *
+ * « Provenance · Nature · Domaine · État · Zones » alignés en colonnes se lisent
+ * comme un formulaire : on les parcourt sans les lire. Une affirmation de projet
+ * est un **engagement de quelqu'un**, et une phrase le dit — « Nicolas a assumé
+ * ce constat le 12 mars pour le bâtiment A ».
+ *
+ * Les caractéristiques suivent, en pastilles, une fois la phrase lue. Elles
+ * répondent à une autre question — « de quel genre est-ce ? » — et ne sont pas
+ * ce qu'on cherche en ouvrant l'écran.
+ *
+ * ## Le singulier et le pluriel s'écrivent
+ *
+ * « pour la (les) zone(s) » fait lire deux mots pour n'en retenir aucun. On
+ * accorde : une zone, ou plusieurs.
+ */
+function renderProvenanceDuDetail(assertion, suite = [], ecartee = false) {
+  const portees = zonesDuDetail(assertion);
+  const qui = nameOf(assertion.decided_by);
+  const quand = formatDate(assertion.decided_at);
+  const verbe = ecartee ? "écarté" : "assumé";
+
+  const ou = portees.length === 0
+    ? "pour l'ouvrage entier"
+    : portees.length === 1
+      ? `pour la zone ${portees[0]}`
+      : `pour les zones ${portees.join(", ")}`;
+
+  const histoire = suite.length > 1 ? ` · ${suite.length} états successifs` : "";
+
   return `
-    <div class="memory-detail__tags">
-      ${pastillesDuDetail(assertion, ecartee)
-        .map(({ label, html }) => `<span class="memory-detail__tags-label">${escapeHtml(label)}</span>${html}`)
+    <span class="memory-detail__provenance">
+      ${renderPastilleDEtat(ecartee)}
+      <span class="memory-detail__qui"><b>${escapeHtml(qui)}</b> a ${escapeHtml(verbe)} ce constat
+        le ${escapeHtml(quand)} ${escapeHtml(ou)}${escapeHtml(histoire)}</span>
+      ${pastillesDuDetail(assertion)
+        .map(({ label, html }) => `<span class="memory-detail__trait">${escapeHtml(label)}</span>${html}`)
         .join("")}
-    </div>
+    </span>
   `;
 }
 
@@ -754,9 +828,9 @@ function renderDetailTags(assertion, ecartee) {
  * comme une nature sans qu'on écrive « Nature » devant. Ce sont les valeurs
  * qu'on cherche du regard en faisant défiler.
  */
-function renderDetailTagsCompacts(assertion, ecartee) {
+function renderDetailTagsCompacts(assertion) {
   return `<span class="memory-detail__tags memory-detail__tags--compacts">${
-    pastillesDuDetail(assertion, ecartee).map(({ html }) => html).join("")}</span>`;
+    pastillesDuDetail(assertion).map(({ html }) => html).join("")}</span>`;
 }
 
 /**
@@ -844,20 +918,22 @@ export function renderMemoryDetail(assertions, cible = {}) {
   const titreEtendu = renderSharedDetailsTitleWrap(courante, {
     emptyText: "Aucune affirmation",
     buildTitleTextHtml: () => `<span class="details-title-text">${escapeHtml(titre)}</span>`,
-    buildIdHtml: () => escapeHtml(courante.subject_key ?? ""),
-    buildExpandedBottomHtml: () => `<span class="details-title-meta">${escapeHtml(
-      `${suite.length > 1 ? `${suite.length} états successifs` : "un seul état"} · ${
-        ecartee ? "écartée aujourd'hui" : "assumée aujourd'hui"}`)}</span>`,
+    // La clé métier ne s'écrit plus à droite du titre : elle en est la
+    // translittération — « degre-coupe-feu-des-planchers@batiment-a » redit
+    // mot pour mot ce qui est déjà lu au-dessus, en moins lisible. La **zone**,
+    // elle, ne se lisait nulle part alors qu'elle change tout : c'est elle qui
+    // prend la place.
+    buildIdHtml: () => zonesDuDetail(courante)
+      .map((zone) => `<span class="memory-zone-chip">${escapeHtml(zone)}</span>`).join(""),
+    buildExpandedBottomHtml: () => renderProvenanceDuDetail(courante, suite, ecartee),
     buildCompactConfig: (_, { titleTextHtml }) => ({
       variant: "grid",
       wrapClass: "details-title--compact-grid",
-      leftHtml: `<span class="memory-pill memory-pill--${ecartee ? "rejected" : "assumed"}">
-        ${svgIcon(ecartee ? "x-circle-fill" : "check-circle-fill", { className: "octicon" })}
-        ${escapeHtml(ecartee ? "Écartée" : "Assumée")}</span>`,
+      leftHtml: renderPastilleDEtat(ecartee),
       topHtml: titleTextHtml,
       // Les valeurs seules : dans une ligne, les intitulés prennent la moitié
       // de la place pour ne rien apprendre.
-      bottomHtml: renderDetailTagsCompacts(courante, ecartee)
+      bottomHtml: renderDetailTagsCompacts(courante)
     })
   });
 
@@ -872,10 +948,6 @@ export function renderMemoryDetail(assertions, cible = {}) {
         // comme le titre d'autre chose.
         headClassName: `memory-detail__head${pleine ? " memory-detail__head--pleine" : ""}`
       })}
-
-      <div class="memory-detail__tagsrow${pleine ? " memory-detail__tagsrow--pleine" : ""}">
-        ${renderDetailTags(courante, ecartee)}
-      </div>
 
       <div class="memory-detail__tagsrow${pleine ? " memory-detail__tagsrow--pleine" : ""}">
         ${renderLightTabs({
@@ -903,7 +975,6 @@ export function renderMemoryDetail(assertions, cible = {}) {
         }
       </div>
 
-      <p class="memory-detail__back">Re-cliquez l'onglet « Mémoire » pour revenir à la liste.</p>
     </section>
   `;
 }
@@ -959,6 +1030,11 @@ function renderMemoryNav() {
     });
   };
 
+  // Les cinq lectures ensemble : ce sont cinq filtres sur la même table, et
+  // isoler l'une d'elles sous un trait laissait croire qu'elle était d'une autre
+  // nature. Sous le trait vient ce qui **appartient à qui lit** : ses recherches.
+  const lectures = [READER.ALL, READER.HYPOTHESES, READER.CONSTRAINTS, READER.FINDINGS, READER.BASE_DATA];
+
   return renderProjectRail({
     id: "memoryRail",
     label: "Lectures de la mémoire",
@@ -966,13 +1042,62 @@ function renderMemoryNav() {
     navHtml: renderNavList({
       label: "Lectures de la mémoire",
       html: `
-        ${renderNavListGroup({
-          items: [READER.ALL, READER.HYPOTHESES, READER.CONSTRAINTS, READER.FINDINGS].map(entree)
-        })}
+        ${renderNavListGroup({ items: lectures.map(entree) })}
         ${renderNavListDivider()}
-        ${renderNavListGroup({ items: [entree(READER.BASE_DATA)] })}
+        ${renderRecherchesEpinglees(replie)}
       `
     })
+  });
+}
+
+/**
+ * Les recherches épinglées, sous le trait.
+ *
+ * On revient toujours aux mêmes questions — « les hypothèses du bâtiment A »,
+ * « ce qui reste sans domaine ». Les retaper à chaque fois use, et l'on finit
+ * par ne plus filtrer du tout, c'est-à-dire par lire trois cents lignes à l'œil.
+ *
+ * Le menu est celui des discussions du copilote : renommer, effacer. Deux
+ * dessins pour deux listes qu'on entretient de la même façon finiraient par ne
+ * plus se ressembler.
+ */
+function renderRecherchesEpinglees(replie) {
+  const liste = view.recherches ?? [];
+
+  if (liste.length === 0) {
+    return replie ? "" : `<p class="memory-rail__vide">Épinglez une recherche depuis la barre de recherche : elle se
+      rangera ici, prête à rejouer.</p>`;
+  }
+
+  return renderNavListGroup({
+    label: "Recherches",
+    items: liste.map((recherche) => renderNavListItem({
+      label: recherche.titre,
+      title: recherche.requete,
+      iconHtml: svgIcon("pin", { className: "octicon" }),
+      isActive: view.query.trim() === recherche.requete,
+      dataAttributes: {
+        "data-memory-recherche": recherche.id,
+        "data-tooltip": replie ? recherche.titre : ""
+      },
+      actionHtml: `
+        <button type="button" class="nav-list__action-btn" data-recherche-menu="${escapeHtml(recherche.id)}"
+          aria-haspopup="menu" aria-expanded="false"
+          aria-label="Actions sur cette recherche" title="Actions">
+          ${svgIcon("kebab-horizontal")}
+        </button>
+        <div class="copilote-fil-menu" role="menu" data-recherche-menu-for="${escapeHtml(recherche.id)}" hidden>
+          <button type="button" class="copilote-fil-menu__item" role="menuitem"
+            data-recherche-renommer="${escapeHtml(recherche.id)}">
+            ${svgIcon("pencil")}<span>Renommer</span>
+          </button>
+          <button type="button" class="copilote-fil-menu__item is-danger" role="menuitem"
+            data-recherche-oublier="${escapeHtml(recherche.id)}">
+            ${svgIcon("trash")}<span>Désépingler</span>
+          </button>
+        </div>
+      `
+    }))
   });
 }
 
@@ -1042,11 +1167,18 @@ export function renderMemoryFormForPreview() {
  * Exportée pour qu'un aperçu monte **cette** navigation-ci, et non une copie de
  * son HTML qui vieillirait à part.
  */
-export function renderMemoryForPreview(assertions = [], { reader = READER.ALL, collapsed = false } = {}) {
+export function renderMemoryForPreview(assertions = [], { reader = READER.ALL, collapsed = false, projet = "" } = {}) {
   view.assertions = assertions;
   view.query = onlyFilters(view.query, MEMORY_FIELDS, READER_FILTERS[reader] ?? {});
   view.navCollapsed = collapsed;
-  return `<div class="project-rail-layout${collapsed ? " project-rail-layout--collapsed" : ""}">${renderMemoryNav()}<div class="project-rail-layout__content">${renderReaderLead()}</div></div>`;
+  // Les recherches épinglées font partie du rail : une page d'essai qui les
+  // ignorerait ne montrerait que la moitié de ce qu'on regarde.
+  if (projet) {
+    view.projectId = projet;
+    view.recherches = recherchesEpinglees(projet);
+  }
+  return `<div class="project-rail-layout${collapsed ? " project-rail-layout--collapsed" : ""}">${
+    renderMemoryNav()}<div class="project-rail-layout__content">${renderSearch()}${renderReaderLead()}</div></div>`;
 }
 
 /**
@@ -1579,7 +1711,9 @@ function renderRaisonnement(courante) {
         : ""}${zoneEnClair ? ` · lu pour ${escapeHtml(zoneEnClair)}` : ""}`;
 
   return renderEspaceDuRaisonnement({
-    graphe, lignes, trace, ancres: ancres.parRang, resume, etat: view.raisonnement
+    graphe, lignes, trace, ancres: ancres.parRang, resume,
+    titre: titreDeLAffirmation(courante),
+    etat: view.raisonnement
   });
 }
 
@@ -1870,8 +2004,13 @@ function brancherLesGestesDeLEspace(root, espace) {
       return;
     }
 
-    if (evenement.target?.closest?.("[data-raison-copilote]")) {
-      etat.copiloteOuvert = !etat.copiloteOuvert;
+    // Les trois panneaux : le schéma, le code, la discussion. Chacun porte le
+    // nom du champ qu'il commande — un seul geste, aucune table de
+    // correspondance à tenir à jour.
+    const panneau = evenement.target?.closest?.("[data-raison-panneau]");
+    if (panneau) {
+      const cle = panneau.dataset.raisonPanneau;
+      etat[cle] = etat[cle] === false;
       renderContent(root);
     }
   });
@@ -1963,10 +2102,10 @@ function brancherLesPoignees(root, espace) {
  * plus où l'on a posé quoi.
  */
 function monterLeCopilote(espace) {
-  // `data-raison-discussion`, et non `data-raison-copilote` : ce dernier est le
-  // **bouton** qui ouvre la colonne. Le même attribut pour les deux faisait
-  // monter le fil de discussion à l'intérieur du bouton — vingt-huit pixels de
-  // côté, et l'on cherchait la panne dans le composant.
+  // `data-raison-discussion` désigne l'**hôte**, pas le bouton qui l'ouvre. Les
+  // deux ont partagé un attribut, et le fil de discussion se montait alors à
+  // l'intérieur du bouton — vingt-huit pixels de côté, et l'on cherchait la
+  // panne dans le composant.
   const hote = espace.querySelector("[data-raison-discussion]");
   if (!hote) return;
 
@@ -2031,6 +2170,91 @@ function brancherLeCompactage(root) {
   );
 }
 
+/**
+ * Les recherches épinglées : les poser, les rejouer, les entretenir.
+ *
+ * Tout par délégation sur la racine, qui ne change pas : le rail et la barre de
+ * recherche se refont à chaque rendu, et des écouteurs posés sur eux partiraient
+ * avec eux.
+ */
+function brancherLesRecherches(root) {
+  if (root.dataset.recherchesBranche === "true") return;
+  root.dataset.recherchesBranche = "true";
+
+  const fermerLesMenus = () => {
+    for (const menu of root.querySelectorAll("[data-recherche-menu-for]")) menu.hidden = true;
+    for (const bouton of root.querySelectorAll("[data-recherche-menu]")) bouton.setAttribute("aria-expanded", "false");
+  };
+
+  root.addEventListener("click", async (evenement) => {
+    const menu = evenement.target.closest?.("[data-recherche-menu]");
+    if (menu) {
+      evenement.stopPropagation();
+      const cible = root.querySelector(`[data-recherche-menu-for="${menu.dataset.rechercheMenu}"]`);
+      const ouvert = cible?.hidden === false;
+      fermerLesMenus();
+      if (cible) cible.hidden = ouvert;
+      menu.setAttribute("aria-expanded", ouvert ? "false" : "true");
+      return;
+    }
+
+    const renommer = evenement.target.closest?.("[data-recherche-renommer]");
+    if (renommer) {
+      evenement.stopPropagation();
+      fermerLesMenus();
+      const id = renommer.dataset.rechercheRenommer;
+      const actuelle = (view.recherches ?? []).find((entree) => entree.id === id);
+      const propose = window.prompt("Renommer cette recherche", actuelle?.titre ?? "");
+      if (propose === null) return;
+      view.recherches = renommerLaRecherche(clefDesRecherches(), id, propose);
+      renderContent(root);
+      return;
+    }
+
+    const oublier = evenement.target.closest?.("[data-recherche-oublier]");
+    if (oublier) {
+      evenement.stopPropagation();
+      fermerLesMenus();
+      view.recherches = oublierLaRecherche(clefDesRecherches(), oublier.dataset.rechercheOublier);
+      renderContent(root);
+      return;
+    }
+
+    const rejouer = evenement.target.closest?.("[data-memory-recherche]");
+    if (rejouer) {
+      const trouvee = (view.recherches ?? []).find((entree) => entree.id === rejouer.dataset.memoryRecherche);
+      if (!trouvee) return;
+      view.query = trouvee.requete;
+      view.page = 1;
+      renderContent(root);
+      return;
+    }
+
+    if (evenement.target.closest?.("[data-memory-epingler]")) {
+      // Le titre proposé est la requête elle-même : c'est ce qu'on reconnaît,
+      // et il se renomme ensuite. Demander un nom avant d'épingler ferait
+      // renoncer une fois sur deux.
+      view.recherches = epingler(clefDesRecherches(), view.query);
+      renderContent(root);
+      return;
+    }
+
+    if (evenement.target.closest?.("[data-memory-vider]")) {
+      view.query = "";
+      view.page = 1;
+      renderContent(root);
+      return;
+    }
+
+    fermerLesMenus();
+  });
+}
+
+/** Le projet sous lequel les recherches se rangent. */
+function clefDesRecherches() {
+  return String(view.projectId || "").trim();
+}
+
 /** Les propositions, retrouvables par leur identifiant — pour les intitulés. */
 function propositionsParId() {
   return new Map((view.propositions ?? []).map((proposition) => [String(proposition.id), proposition]));
@@ -2089,6 +2313,7 @@ function bind(root) {
   bindExportButton(root);
   brancherLeCompactage(root);
   brancherLEspace(root);
+  brancherLesRecherches(root);
 
   // Les trois lectures d'une affirmation. Changer d'onglet ne touche à rien
   // d'autre : la recherche, la page et l'affirmation ouverte restent.
@@ -2614,6 +2839,9 @@ export function renderProjectMemory(root) {
       // L'identifiant de route n'est pas celui de la base : les lire l'un pour
       // l'autre rend une liste vide sans erreur, ce qui est la pire des pannes.
       view.projectId = (await resolveCurrentBackendProjectId().catch(() => "")) || "";
+      // Les recherches épinglées de ce projet-ci : rangées par projet, elles ne
+      // suivent pas d'un chantier à l'autre.
+      view.recherches = recherchesEpinglees(view.projectId);
       view.assertions = view.projectId ? await memoire.listProjectAssertions(view.projectId) : null;
 
       // Le graphe des dépendances se lit avec la mémoire : sans lui, une

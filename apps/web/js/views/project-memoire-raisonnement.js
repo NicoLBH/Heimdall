@@ -71,6 +71,41 @@ export const BORNES = {
   copilote: { min: 280, max: 620, defaut: 360 }
 };
 
+/**
+ * Les trois panneaux, et le champ d'état qui commande chacun.
+ *
+ * ## Pourquoi on peut les masquer
+ *
+ * Les trois ne servent pas en même temps. On ouvre le schéma pour comprendre la
+ * forme, puis on le ferme et l'on descend dans le code ; on ouvre la discussion
+ * pour poser une question, et le code n'a plus à tenir la moitié de l'écran. Un
+ * poste de travail dont on ne peut rien fermer oblige à tout regarder.
+ *
+ * L'icône dit l'état, pas le geste : pleine, le panneau est là ; vide, il ne
+ * l'est pas. C'est la convention d'un éditeur de code, et elle se lit sans
+ * légende.
+ */
+export const PANNEAUX = [
+  { cle: "schemaOuvert", icone: "panneau-haut", nom: "le schéma des dépendances" },
+  { cle: "codeOuvert", icone: "panneau-bas", nom: "le code" },
+  { cle: "copiloteOuvert", icone: "panneau-droite", nom: "la discussion" }
+];
+
+/** Une bascule, dessinée. */
+function renderBasculeDePanneau(panneau, etat) {
+  const ouvert = etat[panneau.cle] !== false;
+  const dit = `${ouvert ? "Masquer" : "Afficher"} ${panneau.nom}`;
+
+  return `
+    <button type="button" class="bouton-discret raison-espace__outil${ouvert ? " est-actif" : ""}"
+      data-raison-panneau="${escapeHtml(panneau.cle)}"
+      aria-pressed="${ouvert ? "true" : "false"}"
+      title="${escapeHtml(dit)}" aria-label="${escapeHtml(dit)}">
+      ${svgIcon(ouvert ? panneau.icone : `${panneau.icone}-masque`, { className: "octicon" })}
+    </button>
+  `;
+}
+
 /** L'état d'un espace, à sa première ouverture. */
 export function espaceParDefaut() {
   return {
@@ -78,6 +113,10 @@ export function espaceParDefaut() {
     survol: null,
     zoom: 1,
     pleinEcran: false,
+    // Le schéma et le code à l'ouverture, la discussion sur demande : elle
+    // prendrait le tiers de l'écran à quelqu'un qui vient lire un raisonnement.
+    schemaOuvert: true,
+    codeOuvert: true,
     copiloteOuvert: false,
     hauteurSchema: BORNES.schema.defaut,
     largeurEtat: BORNES.etat.defaut,
@@ -124,6 +163,7 @@ function renderEtat(entree) {
  */
 function renderGrille(lignes = [], trace = [], ancres = new Map()) {
   const paires = niveauxDesPaires(lignes);
+  const retraits = profondeursDuRetrait(lignes);
 
   const rangees = lignes.map((ligne, rang) => {
     const dite = trace[rang] ?? {};
@@ -137,7 +177,8 @@ function renderGrille(lignes = [], trace = [], ancres = new Map()) {
         ${ancre ? `data-raison-ancre="${escapeHtml(ancre)}"` : ""} data-raison-rang="${rang}">
         <span class="raison-ligne__etat">${renderEtat(dite)}</span>
         <span class="raison-ligne__num">${rang + 1}</span>
-        <span class="raison-ligne__code">${renderJetons(ligne.jetons, paires.get(rang))}</span>
+        <span class="raison-ligne__code" style="--raison-crans:${retraits[rang] ?? 0}">${
+          renderJetons(ligne.jetons, paires.get(rang))}</span>
       </div>
     `;
   }).join("");
@@ -153,6 +194,46 @@ function renderGrille(lignes = [], trace = [], ancres = new Map()) {
       ${rangees}
     </div>
   `;
+}
+
+/** Le retrait d'un niveau, en espaces. C'est celui que l'écriture pose. */
+const PAS_DU_RETRAIT = 3;
+
+/**
+ * De combien de crans chaque ligne est en retrait.
+ *
+ * ## À quoi cela sert
+ *
+ * À tirer un filet vertical par cran, comme dans un éditeur de code. Les
+ * couleurs apparient une borne à sa jumelle ; le filet, lui, montre **l'étendue
+ * du bloc** — où il commence, jusqu'où il descend. Sur une fonction qui tient
+ * sur trente lignes, c'est ce qui évite de remonter à la main pour savoir de
+ * quel `si` dépend le `enregistre` qu'on lit.
+ *
+ * ## Les lignes vides héritent
+ *
+ * Une ligne vide au milieu d'un bloc n'a pas de retrait à elle. Lui en donner
+ * zéro couperait les filets en deux et ferait croire à deux blocs là où il n'y
+ * en a qu'un. Elle prend donc le plus petit de ses deux voisins — c'est le
+ * niveau qui les contient tous les deux.
+ *
+ * @returns {number[]} un cran par ligne
+ */
+export function profondeursDuRetrait(lignes = []) {
+  const dites = (Array.isArray(lignes) ? lignes : []).map((ligne) => {
+    const texteDeLaLigne = (ligne?.jetons ?? []).map((jeton) => String(jeton?.texte ?? "")).join("");
+    if (!texteDeLaLigne.trim()) return null;
+    return Math.floor((texteDeLaLigne.length - texteDeLaLigne.trimStart().length) / PAS_DU_RETRAIT);
+  });
+
+  return dites.map((crans, rang) => {
+    if (crans !== null) return crans;
+
+    const avant = dites.slice(0, rang).reverse().find((autre) => autre !== null);
+    const apres = dites.slice(rang + 1).find((autre) => autre !== null);
+    if (avant === undefined || apres === undefined) return 0;
+    return Math.min(avant, apres);
+  });
 }
 
 /** Ce qui ouvre un niveau, et ce qui le ferme. */
@@ -220,11 +301,13 @@ export function niveauxDesPaires(lignes = []) {
  * @param {object[]} options.trace ce que le projet dit de chaque ligne
  * @param {Map<number,string>} options.ancres rang de ligne → carte du schéma
  * @param {string} options.resume la phrase de tête
+ * @param {string} [options.titre] le constat dont on lit le raisonnement — en
+ *   plein écran, sa barre de titre n'est plus là pour le dire
  * @param {object} options.etat ce que l'écran garde entre deux rendus
  */
 export function renderEspaceDuRaisonnement({
   graphe = { noeuds: [], liens: [] }, lignes = [], trace = [], ancres = new Map(),
-  resume = "", etat = espaceParDefaut()
+  resume = "", titre = "", etat = espaceParDefaut()
 } = {}) {
   const style = [
     `--raison-schema:${Math.round(etat.hauteurSchema)}px`,
@@ -237,15 +320,13 @@ export function renderEspaceDuRaisonnement({
       etat.copiloteOuvert ? " est-accompagne" : ""}" style="${style}" data-raison-espace>
       <header class="raison-espace__barre">
         <b class="raison-espace__titre">Comment on en est arrivé là</b>
+        ${/* En plein écran, la barre de titre du constat n'est plus là : sans
+             son nom, on ne sait plus de quoi on lit le raisonnement. */""}
+        ${titre ? `<span class="raison-espace__sujet">${escapeHtml(titre)}</span>` : ""}
         <span class="raison-espace__resume">${resume}</span>
         <div class="raison-espace__outils">
-          <button type="button" class="bouton-discret raison-espace__outil${
-            etat.copiloteOuvert ? " est-actif" : ""}" data-raison-copilote
-            aria-pressed="${etat.copiloteOuvert ? "true" : "false"}"
-            title="${etat.copiloteOuvert ? "Fermer la discussion" : "En parler au copilote"}"
-            aria-label="${etat.copiloteOuvert ? "Fermer la discussion" : "En parler au copilote"}">
-            ${svgIcon("comment-discussion", { className: "octicon" })}
-          </button>
+          ${PANNEAUX.map((panneau) => renderBasculeDePanneau(panneau, etat)).join("")}
+          <span class="raison-espace__separateur" role="separator" aria-orientation="vertical"></span>
           <button type="button" class="bouton-discret raison-espace__outil${
             etat.pleinEcran ? " est-actif" : ""}" data-raison-plein-ecran
             aria-pressed="${etat.pleinEcran ? "true" : "false"}"
@@ -258,16 +339,16 @@ export function renderEspaceDuRaisonnement({
 
       <div class="raison-espace__corps">
         <div class="raison-espace__principal">
-          ${graphe.noeuds.length ? `
+          ${graphe.noeuds.length && etat.schemaOuvert !== false ? `
             <div class="raison-espace__schema" data-raison-schema>
               ${dessinerGrapheLiaisons({
                 graphe,
                 selection: etat.carte,
                 zoom: etat.zoom,
-                legende: "<b>Le schéma des dépendances</b> — de gauche à droite : ce qui décide, "
-                  + "puis ce qui en découle. La colonne de gauche est ce qu'aucune règle ne produit : "
-                  + "les données de base. Survolez une carte pour voir ses liens, cliquez-la pour aller "
-                  + "à sa fonction dans le code.",
+                // Le mode d'emploi ne reste pas à l'écran : on le lit une fois, il
+                // occupe deux lignes pour toujours, et il prenait la place des
+                // boutons de zoom.
+                legende: "<b>Le schéma des dépendances</b>",
                 rangNomme: "Étape",
                 // L'espace porte déjà le sien, dans sa barre : deux boutons pour
                 // un même geste font douter qu'ils fassent la même chose.
@@ -278,9 +359,10 @@ export function renderEspaceDuRaisonnement({
               data-raison-poignee="schema" role="separator" aria-orientation="horizontal"
               aria-label="Changer la hauteur du schéma"></div>` : ""}
 
-          <div class="raison-espace__code" data-raison-code>
-            ${renderGrille(lignes, trace, ancres)}
-          </div>
+          ${etat.codeOuvert === false ? "" : `
+            <div class="raison-espace__code" data-raison-code>
+              ${renderGrille(lignes, trace, ancres)}
+            </div>`}
         </div>
 
         ${etat.copiloteOuvert ? `
