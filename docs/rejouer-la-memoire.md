@@ -230,12 +230,11 @@ Les règles s'enchaînent. On repasse donc sur toutes tant qu'une valeur change,
 l'on s'arrête quand plus rien ne bouge — **par zone**, parce que le classement du
 bâtiment A et celui du bâtiment B ne se mélangent pas.
 
-Ce n'est pas le plan en strates : c'est l'étape 4, et elle apportera l'ordre, le
-parallélisme et l'affichage. Le point fixe rend le même résultat sans connaître
-l'ordre ; il coûte quelques tours de plus, et il est juste. Il est **borné** :
-une zone qui ne se stabilise pas ne rend **rien**, et se signale — ses valeurs
-intermédiaires ne sont pas des conclusions, et en montrer une ferait passer un
-état de passage pour un résultat.
+*Depuis l'étape 4, l'ordre vient du plan* : les règles se rejouent par strates,
+et un seul tour suffit quand le graphe n'a pas de cycle. La boucle reste, bornée,
+pour ce que le plan ne sait pas placer. Une zone qui ne se stabilise pas ne rend
+**rien**, et se signale — ses valeurs intermédiaires ne sont pas des conclusions,
+et en montrer une ferait passer un état de passage pour un résultat.
 
 #### La variante ne rend plus seulement des noms
 
@@ -257,7 +256,7 @@ autre chose que ce que le projet affirme est un défaut de la mémoire — l'aud
 dira — et non une conséquence de la variante. L'attribuer à la variante ferait
 porter à celui qui essaie une valeur la dérive de ceux qui l'ont précédé.
 
-### 4. Le plan de recalcul, en strates
+### 4. Le plan de recalcul, en strates — *fait*
 
 Le sous-graphe dérivé, trié topologiquement, montré non comme une liste de 460
 étapes — illisible — mais comme des **niveaux** : strate 1, ce qui ne dépend que

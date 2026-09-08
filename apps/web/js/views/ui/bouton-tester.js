@@ -45,12 +45,12 @@ import { renderGhActionButton } from "./gh-split-button.js";
  * 5. le rejeu à blanc
  * 6. la variante, alors triviale
  *
- * `3` : l'évaluateur exécute les règles du projet. La variante ne se contente
- * plus de nommer ce qui devient suspect — elle rejoue les règles et rend de
- * vraies valeurs, avec la trace de ce qu'elles ont lu. L'audit attend encore le
- * plan de recalcul et le rejeu à blanc.
+ * `4` : le plan de recalcul est dérivé — les strates, la profondeur, et le
+ * compte de ce qui se rejoue face à ce qui reste opaque. Le rejeu suit cet
+ * ordre, et un seul tour suffit. L'audit attend encore le rejeu à blanc, qui
+ * est l'étape 5.
  */
-export const ETAPE_ATTEINTE = 3;
+export const ETAPE_ATTEINTE = 4;
 
 /**
  * Les trois usages, dans l'ordre où on les lit.

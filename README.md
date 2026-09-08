@@ -16,6 +16,12 @@ Ce qui existe, ce qui manque, et dans quel ordre le construire pour que « voir
 les conséquences d'un changement » cesse d'être une parole donnée :
 [`docs/rejouer-la-memoire.md`](docs/rejouer-la-memoire.md).
 
+## À traiter plus tard
+
+Les chantiers vus, compris, et repoussés — avec la raison, ce qu'ils
+débloqueraient, et ce qui se passe si on les laisse :
+[`docs/a-traiter-plus-tard.md`](docs/a-traiter-plus-tard.md).
+
 ## Recette manuelle — Incendie Habitation et Copilote
 
 Les tests automatiques vérifient que les pièces fonctionnent ; ils ne vérifient

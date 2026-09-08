@@ -764,4 +764,6 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/memoire-applications-supabase.js` | enregistre les lectures au versement, et reconstruit celles d'avant |
 | `apps/web/js/views/ui/fenetre-impact.js` | ce qui repose sur une valeur, rangé par distance |
 | `apps/web/js/services/memoire-evaluateur.js` | exécute une règle : trois valeurs de vérité, quatre verdicts |
-| `apps/web/js/services/memoire-rejeu.js` | rejoue toutes les règles, zone par zone, jusqu'au point fixe |
+| `apps/web/js/services/memoire-rejeu.js` | rejoue toutes les règles, zone par zone, dans l'ordre du plan |
+| `apps/web/js/services/memoire-plan.js` | le plan de recalcul : strates, profondeur, couverture, cycles |
+| `apps/web/js/views/ui/fenetre-plan.js` | montre le plan — la forme du raisonnement, et sa frontière |

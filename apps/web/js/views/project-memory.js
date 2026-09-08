@@ -122,6 +122,8 @@ import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
 import { ouvrirLaFenetreDeVariante } from "./ui/fenetre-variante.js";
 import { ouvrirLEtudeDImpact } from "./ui/fenetre-impact.js";
+import { ouvrirLePlanDeRecalcul } from "./ui/fenetre-plan.js";
+import { planDeRecalcul } from "../services/memoire-plan.js";
 import { renderBoutonTester } from "./ui/bouton-tester.js";
 import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
 import { altitudeDeLaMemoire, laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
@@ -400,7 +402,50 @@ function kindIcon(kind) {
   return KIND_ICON[String(kind ?? "")] ?? "dot-fill-pending";
 }
 
-function renderCounts(resume, vocabulaire, enAttente = 0) {
+/** L'icône de chaque lecture, dans le rail — et sur les lignes qu'elle retient. */
+const READER_ICONS = {
+  [READER.ALL]: "book",
+  [READER.HYPOTHESES]: "issue-opened",
+  [READER.CONSTRAINTS]: "shield",
+  [READER.FINDINGS]: "tools",
+  [READER.BASE_DATA]: "north-star"
+};
+
+/**
+ * La marque d'une ligne : l'icône de sa **nature**.
+ *
+ * C'était une pastille grise — la même pour tout ce que la table ne savait pas
+ * nommer par sa provenance. Elle ne disait rien, et elle occupait la place où
+ * l'œil cherche à quoi il a affaire.
+ *
+ * On y met l'icône que le rail emploie déjà pour cette nature : le bouclier des
+ * contraintes, la question des hypothèses, la lunette des constats, l'étoile des
+ * données de base. Deux dessins pour une même chose obligeraient à apprendre
+ * deux vocabulaires pour un seul.
+ *
+ * À défaut de nature — un document, un rattachement —, la provenance reprend la
+ * main : c'est elle qui dit alors quelque chose.
+ */
+const NATURE_ICON = {
+  [NATURE.HYPOTHESE]: READER_ICONS[READER.HYPOTHESES],
+  [NATURE.CONTRAINTE]: READER_ICONS[READER.CONSTRAINTS],
+  [NATURE.CONSTAT]: READER_ICONS[READER.FINDINGS],
+  [NATURE.DONNEE_BASE]: READER_ICONS[READER.BASE_DATA]
+};
+
+function marqueDeLaLigne(assertion) {
+  const { nature } = classifyAssertion(assertion);
+  const icone = NATURE_ICON[String(nature ?? "")];
+  return {
+    icone: icone ?? kindIcon(assertion?.kind),
+    // L'infobulle dit la nature quand on la connaît, la provenance sinon : le
+    // mot doit correspondre au dessin.
+    titre: icone ? natureLabel(nature) : kindLabel(assertion?.kind),
+    nature: icone ? String(nature) : ""
+  };
+}
+
+function renderCounts(resume, vocabulaire, enAttente = 0, plan = { derivees: 0 }) {
   const cellule = (valeur, mot, className = "") =>
     `<span class="memory-counts__item${className}"><b>${valeur}</b> ${escapeHtml(mot)}</span>`;
 
@@ -430,6 +475,18 @@ function renderCounts(resume, vocabulaire, enAttente = 0) {
                <b>${vocabulaire.unclassifiedDomain}</b> sans domaine
              </button>`
           : cellule(0, "sans domaine")
+      }
+      ${
+        // La forme du raisonnement, à côté de son volume. « 3 pas » dit ce
+        // qu'aucun autre compteur ne dit : jusqu'où le projet enchaîne. Le
+        // bouton ouvre le plan, où l'on voit aussi ce qui ne se rejoue pas —
+        // et ce chiffre-là est la mesure honnête de ce qu'on promet.
+        plan.derivees > 0
+          ? `<button type="button" class="memory-counts__item memory-counts__item--plan" data-memory-plan>
+               <b>${plan.profondeur}</b> ${plan.profondeur > 1 ? "pas" : "pas"} de raisonnement
+               <span class="memory-counts__part">${plan.rejouables}/${plan.derivees} rejouables</span>
+             </button>`
+          : ""
       }
     </div>
   `;
@@ -622,9 +679,11 @@ function renderAssertion(assertion) {
 
   return `
     <li class="memory-row${remplacee ? " memory-row--superseded" : ""}${effet ? ` memory-row--variante memory-row--variante-${effet}` : ""}">
-      <span class="memory-row__mark" title="${escapeHtml(kindLabel(assertion.kind))}">
-        ${svgIcon(kindIcon(assertion.kind), { className: "octicon" })}
-      </span>
+      ${(() => {
+        const marque = marqueDeLaLigne(assertion);
+        return `<span class="memory-row__mark${marque.nature ? ` memory-row__mark--${escapeHtml(marque.nature)}` : ""}"
+          title="${escapeHtml(marque.titre)}">${svgIcon(marque.icone, { className: "octicon" })}</span>`;
+      })()}
       <div class="memory-row__body">
         <div class="memory-row__head">
           <button
@@ -1253,13 +1312,6 @@ let railDetacher = null;
 let poigneeDetacher = null;
 
 /** L'icône de chaque lecture. Une lecture sans icône se cherche, repliée. */
-const READER_ICONS = {
-  [READER.ALL]: "book",
-  [READER.HYPOTHESES]: "issue-opened",
-  [READER.CONSTRAINTS]: "shield",
-  [READER.FINDINGS]: "tools",
-  [READER.BASE_DATA]: "north-star"
-};
 
 /** La phrase de la lecture en cours, au-dessus de la liste. */
 function renderReaderLead() {
@@ -2034,6 +2086,9 @@ function renderContent(root) {
   const vocabulaire = summarizeTaxonomy(currentAssertions(view.assertions));
   const lignes = lignesVisibles();
   const enAttente = pendingReviews(currentAssertions(view.assertions)).length;
+  // La forme du raisonnement se dérive avec le reste : rien n'est stocké, et un
+  // plan gardé de côté divergerait dès la règle suivante.
+  const plan = planDeRecalcul(view.assertions ?? []);
 
   // Le navigateur de fichiers a déménagé dans l'onglet Fichiers : les PDF et
   // les fichiers de mémoire sont la même matière — les **sources** du projet.
@@ -2058,7 +2113,7 @@ function renderContent(root) {
 
             ${view.notice ? `<div class="propositions-empty propositions-empty--warn"><p>${escapeHtml(view.notice)}</p></div>` : ""}
 
-            ${renderCounts(resume, vocabulaire, enAttente)}
+            ${renderCounts(resume, vocabulaire, enAttente, plan)}
             ${renderSearch()}
             <div class="memory-table">
               ${renderTableHead()}
@@ -2654,6 +2709,12 @@ function bind(root) {
     view.query = withFilter(view.query, MEMORY_FIELDS, "domaine", "none");
     view.page = 1;
     renderContent(root);
+  });
+
+  // Le compte des pas mène au plan : un chiffre qu'on ne peut pas ouvrir ne
+  // fait que décorer.
+  root.querySelector("[data-memory-plan]")?.addEventListener("click", () => {
+    ouvrirLePlanDeRecalcul({ assertions: view.assertions ?? [] });
   });
 
   for (const bouton of root.querySelectorAll("[data-memory-pending]")) {

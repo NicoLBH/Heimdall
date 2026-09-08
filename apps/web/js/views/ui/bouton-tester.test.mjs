@@ -10,9 +10,9 @@ test("les trois usages du moteur sont nommés, et dans l'ordre où on les lit", 
 });
 
 test("un usage que le moteur ne sert pas encore dit son étape", () => {
-  // Le plan est dans `docs/rejouer-la-memoire.md`. L'étape 3 est faite :
-  // l'évaluateur exécute les règles. L'audit demande le rejeu à blanc.
-  assert.equal(ETAPE_ATTEINTE, 3);
+  // Le plan est dans `docs/rejouer-la-memoire.md`. L'étape 4 est faite : le plan
+  // de recalcul est dérivé. L'audit demande le rejeu à blanc, qui est l'étape 5.
+  assert.equal(ETAPE_ATTEINTE, 4);
 
   const impact = USAGES.find((usage) => usage.action === "tester:impact");
   const audit = USAGES.find((usage) => usage.action === "tester:audit");
