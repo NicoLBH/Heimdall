@@ -122,6 +122,7 @@ import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
 import { ouvrirLaFenetreDeVariante } from "./ui/fenetre-variante.js";
 import { ouvrirLEtudeDImpact } from "./ui/fenetre-impact.js";
+import { ouvrirLeCerveau } from "./ui/cerveau-du-projet.js";
 import { ouvrirLePlanDeRecalcul } from "./ui/fenetre-plan.js";
 import { ouvrirLAudit } from "./ui/fenetre-audit.js";
 import { planDeRecalcul } from "../services/memoire-plan.js";
@@ -3212,6 +3213,11 @@ function brancherLeBoutonTester(root) {
     // L'audit se fait sur la mémoire **lue en base**, jamais sur le calque d'une
     // variante : auditer une lecture qu'on sait fausse ne dirait rien de vrai.
     if (quoi === "tester:audit") ouvrirLAudit({ assertions: view.memoire ?? [] });
+    // Le cerveau montre la forme du raisonnement du projet, pas celle d'une
+    // lecture qu'on essaie : la mémoire en base, pour la même raison que l'audit.
+    if (quoi === "tester:cerveau") {
+      ouvrirLeCerveau({ assertions: view.memoire ?? [], applications: view.applications });
+    }
   });
 }
 

@@ -235,7 +235,14 @@ export function planDeRecalcul(assertions = []) {
 }
 
 /** Les affirmations qu'une règle du projet produit, toutes zones confondues. */
-function sortiesDesRegles(assertions) {
+/**
+ * Les affirmations qu'une règle du projet produit, toutes zones confondues.
+ *
+ * Exportée parce que trois écrans en ont besoin pour la même raison — savoir ce
+ * qui est **dérivé d'une règle** avant de dire sa nature —, et qu'une seconde
+ * définition finirait par ranger un nœud dans deux natures selon l'écran.
+ */
+export function sortiesDesRegles(assertions) {
   const sujets = new Set(
     assertions.filter(estUneRegle).map((regle) => cleDuSujet(sujetDe(regle))).filter(Boolean)
   );
