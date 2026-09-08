@@ -54,9 +54,9 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { NOEUD } from "../../services/memoire-plan.js";
 import {
-  GENRE, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe,
+  GENRE, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe,
   dispositionDuCerveau, dispositionEnVolume, domainesDuCerveau, enveloppeConvexe, noeudsIsoles,
-  ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit
+  ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, valeursDeLOnde
 } from "../../services/memoire-cerveau.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -80,6 +80,19 @@ const NATURES = {
   [NOEUD.SOCLE]: { nom: "Socle", trait: "#3fb950", quoi: "ce que le projet pose, suppose ou constate" },
   [NOEUD.REJOUABLE]: { nom: "Rejouable", trait: "#58a6ff", quoi: "une règle du projet le conclut : il se rejoue ici" },
   [NOEUD.OPAQUE]: { nom: "Opaque", trait: "#8b949e", quoi: "un utilitaire le déduit : on sait qu'il dépend" }
+};
+
+/**
+ * Les mêmes trois couleurs, en composantes.
+ *
+ * Le canevas dessine en `rgba(...)` avec une opacité calculée ; répéter les
+ * hexadécimaux ici ferait deux tables d'une seule vérité, et le jour où l'une
+ * change l'autre ne suit pas.
+ */
+const TEINTES = {
+  [NOEUD.SOCLE]: "63,185,80",
+  [NOEUD.REJOUABLE]: "88,166,255",
+  [NOEUD.OPAQUE]: "139,148,158"
 };
 
 /** Ce que l'audit signale bat de cette couleur, et d'aucune autre à l'écran. */
@@ -228,6 +241,17 @@ function renderLegende(cerveau, signales) {
               <i></i>
               <b>${cerveau.compte.fonctions} ${accorde(cerveau.compte.fonctions, "règle", "règles")}</b>
               <small>un losange, entre ses entrées et sa sortie — les crans disent sa complexité</small>
+            </span>`
+          : ""
+      }
+      ${
+        // Sans cette ligne, les points en orbite passeraient pour un effet.
+        cerveau.compte.familles
+          ? `<span class="cerveau-legende__item cerveau-legende__item--famille">
+              <i></i>
+              <b>${cerveau.compte.familles} ${accorde(cerveau.compte.familles, "sujet", "sujets")}
+                à plusieurs valeurs</b>
+              <small>un électron par valeur, en orbite — le sien est le plus vif</small>
             </span>`
           : ""
       }
@@ -396,6 +420,72 @@ function losange(ctx, x, y, rayon) {
 /** Au-delà, on ne compte plus les crans : on lit « beaucoup », et c'est assez. */
 const CRANS_MAX = 9;
 
+/** Au-delà, les électrons se recouvrent et l'on ne les compte plus. La bulle dit le nombre exact. */
+const ELECTRONS_MAX = 8;
+
+/** Un tour d'orbite, en millisecondes. Lent : ça respire, ça ne clignote pas. */
+const TOUR_DELECTRON = 7400;
+
+/**
+ * Les électrons d'un nœud : une par valeur que son sujet prend.
+ *
+ * ## Ce qu'ils disent
+ *
+ * Qu'un chiffre lu à l'écran n'est **pas le seul** pour ce sujet. Le
+ * rez-de-chaussée est un ERP, les étages du logement : deux valeurs vraies en
+ * même temps, chacune avec sa portée. Un nœud sans électron porte la seule valeur
+ * de son sujet, et on peut le lire sans se demander s'il en cache d'autres.
+ *
+ * ## Pourquoi le sien est plus vif
+ *
+ * Parce que ce nœud **est** l'une d'elles, pas leur résumé. L'électron clair dit
+ * « celle-ci, c'est moi » ; les autres disent « et il y en a trois autres ». Sans
+ * cette distinction, le nœud se lirait comme un total, et un total de valeurs qui
+ * ne s'additionnent pas ne veut rien dire.
+ *
+ * ## Pourquoi une ellipse, et inclinée
+ *
+ * Un cercle plat se confondrait avec l'anneau du cycle et avec le halo de l'onde.
+ * L'ellipse inclinée se lit comme une orbite vue de biais — et l'inclinaison,
+ * tirée de l'identifiant, empêche deux nœuds voisins de tourner comme un seul.
+ */
+function dessinerLesElectrons(ctx, noeud, x, y, rayon, temps, couleur, respire) {
+  const total = noeud.famille?.total ?? 0;
+  if (total < 2 || rayon < 3) return;
+
+  const combien = Math.min(ELECTRONS_MAX, total);
+  const sien = Math.max(0, noeud.famille.valeurs.findIndex((autre) => autre.id === noeud.id));
+  // Assez loin du bord pour ne pas se confondre avec lui : une bille collée au
+  // nœud se lit comme une bavure, pas comme une valeur qui lui appartient.
+  const orbite = rayon * 1.2 + 11;
+  const inclinaison = noeud.phase * 0.5;
+  const cos = Math.cos(inclinaison);
+  const sin = Math.sin(inclinaison);
+  // Un pas figé quand on a demandé moins de mouvement : les électrons restent —
+  // ils portent une information — mais ils ne tournent pas.
+  const avance = respire ? (temps / TOUR_DELECTRON) * Math.PI * 2 : 0;
+
+  for (let i = 0; i < combien; i += 1) {
+    const angle = avance + noeud.phase + (i / combien) * Math.PI * 2;
+    // Une orbite aplatie sur un axe, puis penchée : de face on verrait un anneau.
+    const ex = Math.cos(angle) * orbite;
+    const ey = Math.sin(angle) * orbite * 0.42;
+    const px = x + ex * cos - ey * sin;
+    const py = y + ex * sin + ey * cos;
+
+    // Devant ou derrière : c'est ce qui fait qu'on lit une orbite plutôt qu'un
+    // anneau de points. Sans cela, le mouvement se voit et le volume ne se voit
+    // pas — et l'on ne distingue plus une bille qui passe d'une bille arrêtée.
+    const devant = (Math.sin(angle) + 1) / 2;
+    const propre = i === sien % combien;
+
+    ctx.beginPath();
+    ctx.arc(px, py, (propre ? 2.1 : 1.5) * (0.78 + 0.34 * devant), 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${couleur},${(propre ? 0.95 : 0.55) * (0.55 + 0.45 * devant)})`;
+    ctx.fill();
+  }
+}
+
 /**
  * La couronne d'une règle : un cran par point de complexité.
  *
@@ -450,6 +540,57 @@ function phraseDeLaComplexite(complexite) {
     morceaux.push(`${complexite.zones} ${accorde(complexite.zones, "zone", "zones")}`);
   }
   return morceaux.length ? `Complexité : ${morceaux.join(" · ")}` : "Complexité : rien à tenir en tête";
+}
+
+/**
+ * Ce qui dépend d'une règle, en toutes lettres.
+ *
+ * Dit à côté de la complexité, et jamais mélangé avec : la complexité est ce
+ * qu'il faut tenir en tête pour la relire, l'aval est ce que la corriger
+ * remuerait. Une règle compliquée dont rien ne dépend est un **coût** ; une règle
+ * simple dont tout dépend est un **risque**. On n'y répond pas de la même façon.
+ *
+ * Une règle dont rien ne découle n'est pas une règle inutile : sa conclusion est
+ * peut-être le résultat qu'on cherchait. On dit ce qu'on sait, pas ce qu'on en
+ * conclut.
+ */
+function phraseDeLAval(aval) {
+  if (!aval?.valeurs) return "Rien ne repose sur sa conclusion.";
+
+  return `Ce qui en dépend : ${aval.valeurs}
+    ${accorde(aval.valeurs, "affirmation", "affirmations")}, sur ${aval.strates}
+    ${accorde(aval.strates, "strate", "strates")}${
+      aval.regles ? `, par ${aval.regles} ${accorde(aval.regles, "règle", "règles")}` : ""
+    }.`;
+}
+
+/** Combien de valeurs d'un sujet on nomme dans la bulle avant d'abréger. */
+const VALEURS_DITES = 4;
+
+/**
+ * Les autres valeurs du même sujet.
+ *
+ * C'est là qu'un lecteur se trompe : il retient « la » valeur d'un sujet qui en a
+ * quatre, puis raisonne sur la mauvaise. Les nommer **avec leur portée** est la
+ * seule façon de dire qu'elles ne se contredisent pas — le rez-de-chaussée est un
+ * ERP, les étages du logement, et les deux sont vrais.
+ */
+function renderFamille(noeud) {
+  const soeurs = noeud.famille.valeurs.filter((autre) => autre.id !== noeud.id);
+  if (!soeurs.length) return "";
+
+  const dites = soeurs.slice(0, VALEURS_DITES).map((autre) => {
+    const ou = autre.zones.length ? autre.zones.join(", ") : "partout";
+    return `${escapeHtml(autre.valeur || "—")} <i>(${escapeHtml(ou)})</i>`;
+  });
+  const reste = soeurs.length - dites.length;
+
+  return `
+    <span class="cerveau-bulle__famille">
+      Ce sujet vaut ${noeud.famille.total} choses selon la zone :
+      ${dites.join(" · ")}${reste ? ` · et ${reste} ${accorde(reste, "autre", "autres")}` : ""}
+    </span>
+  `;
 }
 
 /** L'aire d'un contour fermé, par la formule du lacet. Toujours positive. */
@@ -721,6 +862,20 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
           : etat.couleur === "chaleur"
             ? `rgba(${teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax))},.7)`
             : `rgba(${REGLE},.75)`
+      );
+    }
+
+    if (!fonction) {
+      // Les valeurs du même sujet, en orbite. Elles suivent la couleur du nœud :
+      // elles sont **à lui**, ce ne sont pas une décoration posée par-dessus.
+      dessinerLesElectrons(
+        ctx, noeud, x, y, rayon, temps,
+        signal
+          ? ROUGE
+          : etat.couleur === "chaleur"
+            ? teinteDeLaChaleur(chaleurDuNoeud(noeud, etat.poidsMax))
+            : TEINTES[noeud.nature] ?? "139,148,158",
+        etat.respire
       );
     }
 
@@ -1088,8 +1243,6 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     domaines: domainesDuCerveau(cerveau),
     poidsMax: cerveau.compte.poidsMax,
     rangsDeFonctions: cerveau.rangsDeFonctions,
-    /** Valeur ou règle, pour chaque nœud du cerveau — masqué ou non. */
-    genreDe: new Map(cerveau.noeuds.map((noeud) => [noeud.id, noeud.genre])),
     places: [], parId: new Map(), points: new Map(),
     liens: cerveau.liens,
     profondeur: cerveau.profondeur,
@@ -1125,7 +1278,6 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     isoles = noeudsIsoles(cerveau);
     etat.poidsMax = cerveau.compte.poidsMax;
     etat.rangsDeFonctions = cerveau.rangsDeFonctions;
-    etat.genreDe = new Map(cerveau.noeuds.map((noeud) => [noeud.id, noeud.genre]));
     etat.profondeur = cerveau.profondeur;
     etat.impulsions = [];
     if (resume) resume.innerHTML = renderResume(cerveau);
@@ -1199,14 +1351,10 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     const opaques = onde.strates.flat()
       .filter((id) => etat.parId.get(id)?.nature === NOEUD.OPAQUE).length;
 
-    // Une règle traversée n'est pas une affirmation qui découle : c'est le
-    // chemin. La compter dedans gonflerait le chiffre d'un facteur deux dès
-    // qu'on affiche les règles, et le même clic dirait deux choses.
-    const atteints = onde.strates.map((strate) => [...strate]
-      .filter((id) => etat.genreDe.get(id) !== GENRE.FONCTION));
-    const valeurs = atteints.reduce((total, strate) => total + strate.length, 0);
-    const regles = onde.total - valeurs;
-    const pas = atteints.filter((strate) => strate.length).length;
+    // Les règles traversées se comptent à part, et par la même fonction que la
+    // bulle d'une règle : deux comptages de la même chose finiraient par ne plus
+    // dire la même chose.
+    const { valeurs, regles, strates: pas } = valeursDeLOnde(onde, cerveau);
 
     dit.innerHTML = onde.total
       ? `<b>${escapeHtml(noeud?.sujet ?? "")}</b> — ${valeurs}
@@ -1465,7 +1613,8 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
         fonction
           ? `<span class="cerveau-bulle__nature" style="--trait:#a371f7">Règle appliquée —
               le mécanisme, pas la valeur</span>
-             <span class="cerveau-bulle__compte">${phraseDeLaComplexite(noeud.complexite)}</span>`
+             <span class="cerveau-bulle__compte">${phraseDeLaComplexite(noeud.complexite)}</span>
+             <span class="cerveau-bulle__aval">${phraseDeLAval(avalDeLaRegle(noeud.id, cerveau))}</span>`
           : `<span class="cerveau-bulle__nature" style="--trait:${nature?.trait ?? "#8b949e"}">
               ${escapeHtml(nature?.nom ?? "")}${noeud.rejouable ? " · recalculable au serveur" : ""}
              </span>`
@@ -1480,6 +1629,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
                 ${accorde(noeud.lectures, "emploi", "emplois")} · strate ${noeud.strate}</span>`
             : `<span class="cerveau-bulle__compte">aucun emploi connu · strate ${noeud.strate}</span>`
       }
+      ${!fonction && noeud.famille ? renderFamille(noeud) : ""}
       ${signal ? `<span class="cerveau-bulle__signal">${escapeHtml(phraseDuSignal(signal))}</span>` : ""}
       ${noeud.enRond ? `<span class="cerveau-bulle__cycle">se lit en rond</span>` : ""}
     `;

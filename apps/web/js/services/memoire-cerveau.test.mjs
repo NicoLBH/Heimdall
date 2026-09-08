@@ -2,10 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  GENRE, SIGNAL, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, complexiteDeLaRegle,
+  GENRE, SIGNAL, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, complexiteDeLaRegle,
   dispositionDuCerveau, dispositionEnVolume, dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau,
-  enveloppeConvexe, graineDe, lecturesAvecLesFonctions, liensDuRaisonnement, noeudsIsoles, ondeDepuis,
-  pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, stratesDuGraphe
+  enveloppeConvexe, famillesParSujet, graineDe, lecturesAvecLesFonctions, liensDuRaisonnement,
+  noeudsIsoles, ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, stratesDuGraphe,
+  valeursDeLOnde
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -128,7 +129,8 @@ test("chaque nœud porte sa nature, et le compte les sépare", () => {
   );
   assert.equal(cerveau.profondeur, 2);
   assert.deepEqual(cerveau.compte, {
-    socle: 2, rejouables: 2, opaques: 1, fonctions: 0, auServeur: 1, liens: 3, poidsMax: 3
+    socle: 2, rejouables: 2, opaques: 1, fonctions: 0, auServeur: 1, familles: 0,
+    liens: 3, poidsMax: 3
   });
 });
 
@@ -690,4 +692,108 @@ test("le poids d'une règle reste son emploi, jamais sa complexité", () => {
   assert.equal(fonction.entrant, 1);
   assert.equal(fonction.sortant, 1);
   assert.ok(fonction.complexite.total > 0);
+});
+
+/* ── Ce qui dépend d'une règle ───────────────────────────────────────────── */
+
+test("l'aval d'une règle compte sa conclusion et ce qui en découle", () => {
+  // La seconde mesure d'une règle : ce que la corriger remuerait. Elle ne se
+  // confond pas avec la complexité, qui dit ce qu'il faut tenir en tête.
+  const cerveau = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+
+  // « Degré CF » conclut `cf`, et rien ne repose sur `cf`.
+  assert.deepEqual(avalDeLaRegle("r-Degré CF", cerveau), { valeurs: 1, regles: 0, strates: 1 });
+});
+
+test("l'aval ne compte pas les règles traversées comme des affirmations", () => {
+  // gel → r-Fondations → fond, puis une seconde règle au-dessus de fond.
+  const enchainee = [
+    ...memoire(),
+    regle("Étude géotechnique", "exigée", [["Fondations profondes", "non exigées"]]),
+    dit("geo", "Étude géotechnique", "exigée", "constat")
+  ];
+  const cerveau = cerveauDuProjet(
+    enchainee,
+    [...lectures(), lecture("fond", "geo", "r-Étude géotechnique")],
+    { avecLesFonctions: true }
+  );
+
+  // Deux affirmations en aval — `fond` et `geo` — et une règle sur le chemin.
+  assert.deepEqual(avalDeLaRegle("r-Fondations profondes", cerveau), {
+    valeurs: 2, regles: 1, strates: 2
+  });
+});
+
+test("une règle dont rien ne découle le dit, sans inventer", () => {
+  assert.deepEqual(avalDeLaRegle("r-inconnue", { lectures: [], noeuds: [] }),
+    { valeurs: 0, regles: 0, strates: 0 });
+  assert.deepEqual(avalDeLaRegle("", {}), { valeurs: 0, regles: 0, strates: 0 });
+});
+
+test("une onde et une bulle comptent la même chose de la même façon", () => {
+  // La bulle d'une règle **est** l'onde partie de cette règle : la même fonction,
+  // pas un second comptage qui finirait par ne plus dire la même chose.
+  const cerveau = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+
+  assert.deepEqual(
+    valeursDeLOnde(ondeDepuis("r-Fondations profondes", cerveau.lectures), cerveau),
+    avalDeLaRegle("r-Fondations profondes", cerveau)
+  );
+
+  // Partie de l'entrée, l'onde traverse la règle en plus : une valeur, une règle.
+  assert.deepEqual(valeursDeLOnde(ondeDepuis("gel", cerveau.lectures), cerveau), {
+    valeurs: 1, regles: 1, strates: 1
+  });
+});
+
+/* ── Les valeurs d'un même sujet ─────────────────────────────────────────── */
+
+/** Une donnée de base portée par une zone : le même sujet, une autre partie. */
+const parZone = (id, sujet, valeur, zone) => ({
+  ...dit(id, sujet, valeur), subject_key: `${id}@${zone}`, zones: [zone],
+  payload: { subject: sujet, value: valeur, zones: [zone] }
+});
+
+test("un sujet qui vaut plusieurs choses fait une famille, une seule valeur n'en fait pas", () => {
+  // Le rez-de-chaussée est un ERP, les étages du logement : les deux sont vrais
+  // en même temps, et ce n'est pas une contradiction.
+  const familles = famillesParSujet([
+    parZone("u1", "Usage", "ERP", "Rez-de-chaussée"),
+    parZone("u2", "Usage", "Habitation", "Étages"),
+    dit("seul", "Commune", "—")
+  ]);
+
+  assert.deepEqual([...familles.keys()], ["usage"]);
+  assert.equal(familles.get("usage").total, 2);
+  assert.deepEqual(familles.get("usage").valeurs.map((v) => [v.valeur, v.zones]), [
+    ["ERP", ["Rez-de-chaussée"]],
+    ["Habitation", ["Étages"]]
+  ]);
+});
+
+test("chaque nœud de la famille sait qu'il est l'un de plusieurs, sans cesser d'être lui-même", () => {
+  // On ne les fond pas en un seul nœud : deux valeurs d'un même sujet font
+  // conclure deux choses, et les réunir ferait converger vers un point des liens
+  // qui n'existent pas.
+  const cerveau = cerveauDuProjet([
+    parZone("u1", "Usage", "ERP", "Rez-de-chaussée"),
+    parZone("u2", "Usage", "Habitation", "Étages"),
+    dit("cls", "Classement", "3e famille B")
+  ], []);
+
+  const usages = cerveau.noeuds.filter((noeud) => noeud.sujet === "Usage");
+  assert.equal(usages.length, 2);
+  for (const noeud of usages) assert.equal(noeud.famille.total, 2);
+
+  // Une valeur seule n'a pas de famille : un électron solitaire autour de chaque
+  // nœud du projet ne dirait rien.
+  assert.equal(cerveau.noeuds.find((noeud) => noeud.id === "cls").famille, null);
+  assert.equal(cerveau.compte.familles, 1);
+});
+
+test("une règle ne porte jamais de famille : ce n'est pas une valeur", () => {
+  const cerveau = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+  for (const noeud of cerveau.noeuds.filter((n) => n.genre === GENRE.FONCTION)) {
+    assert.equal(noeud.famille, null);
+  }
 });

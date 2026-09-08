@@ -350,10 +350,23 @@ la moitié manquante de la métaphore.
 > (`pasDeRaisonnement`), jamais celle du dessin : le même projet ne change pas de
 > profondeur selon un bouton d'affichage.
 >
-> **Ce qui reste.** La seconde mesure — *ce qui dépend d'elle*, `impactDe` sur sa
-> sortie — n'est pas encore montrée dans la bulle d'une règle. Le nœud porte déjà
-> son poids et sa complexité séparément ; l'aval se lit pour l'instant en
-> cliquant, par l'onde.
+> **La seconde mesure est là aussi.** `avalDeLaRegle` fait partir l'onde de la
+> règle elle-même et compte ce qu'elle atteint : « Ce qui en dépend : 4
+> affirmations, sur 2 strates, par 1 règle. » C'est la **même fonction** que la
+> phrase de l'onde au clic — `valeursDeLOnde` —, et non un second comptage qui
+> finirait par ne plus dire la même chose. Elle se calcule au survol : la faire
+> pour chaque règle à l'ouverture paierait un parcours qu'on ne regardera pas.
+>
+> **Les électrons, par-dessus.** Un sujet peut valoir plusieurs choses *à la
+> fois* : le rez-de-chaussée est un ERP, les étages du logement, et la clé d'une
+> donnée de base porte le sujet **et** ses portées pour que l'une ne périme pas
+> l'autre. Ces valeurs restent **plusieurs nœuds** — les fondre ferait converger
+> vers un point des liens qui n'existent pas, et l'onde propagerait la valeur
+> d'une zone dans le raisonnement d'une autre. Chaque nœud sait seulement qu'il
+> est l'un de plusieurs, et fait graviter un électron par valeur, le sien le plus
+> vif. Ce n'est pas un effet : c'est exactement là qu'un lecteur se trompe, en
+> retenant « la » valeur d'un sujet qui en a quatre. La bulle les nomme avec leur
+> portée ; la légende compte les sujets concernés, pas les nœuds.
 
 ### Ce que le cerveau montre aujourd'hui, exactement
 
