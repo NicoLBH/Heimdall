@@ -65,7 +65,8 @@ import {
   describeAssertionFacts,
   kindLabel,
   searchAssertions,
-  summarizeMemory
+  summarizeMemory,
+  titreDeLAffirmation
 } from "../services/project-memory.js";
 import { normalizePaginationState, paginateItems, renderPaginationControls } from "./ui/pagination.js";
 import {
@@ -107,6 +108,8 @@ import {
 } from "../services/hypothesis-acts.js";
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
 import { renderLightTabs, bindLightTabs } from "./ui/light-tabs.js";
+import { renderSharedDetailsTitleWrap } from "./ui/detail-header.js";
+import { renderOverlayChromeHead, bindOverlayChromeCompact } from "./ui/overlay-chrome.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
 import { fichiersDeLaMemoire, zonesLisibles } from "../services/memoire-blame.js";
@@ -288,6 +291,7 @@ export function __setMemoryStateForPreview({
   acts = null,
   declaring = false,
   onglet = "",
+  copilote = false,
   reader = READER.ALL
 } = {}) {
   view.assertions = assertions;
@@ -297,7 +301,9 @@ export function __setMemoryStateForPreview({
   // L'onglet ouvert du détail : sans lui, une page d'essai ne pourrait montrer
   // que la première des trois lectures.
   if (onglet) view.detailOnglet = onglet;
-  view.raisonnement = espaceParDefaut();
+  // La colonne de discussion : une page d'essai doit pouvoir la montrer, sinon
+  // seule la moitié de l'écran se vérifie.
+  view.raisonnement = { ...espaceParDefaut(), copiloteOuvert: copilote === true };
   view.query = onlyFilters(view.query, MEMORY_FIELDS, READER_FILTERS[reader] ?? {});
 }
 
@@ -488,7 +494,7 @@ function renderAssertion(assertion) {
             class="memory-row__statement"
             data-memory-kind="${escapeHtml(assertion.kind ?? "")}"
             data-memory-open="${escapeHtml(assertion.subject_key ?? "")}"
-          >${escapeHtml(assertion.statement)}</button>
+          >${escapeHtml(titreDeLAffirmation(assertion))}</button>
           <span class="memory-pill memory-pill--${ecartee ? "rejected" : "assumed"}">
             ${svgIcon(ecartee ? "x-circle-fill" : "check-circle-fill", { className: "octicon" })}
             ${escapeHtml(ecartee ? "Écartée" : "Assumée")}
@@ -706,34 +712,51 @@ function renderList(lignes, page = 1) {
  * aller combler. C'est la même forme que dans le tableau : on retrouve d'un
  * écran à l'autre les mêmes pastilles, aux mêmes couleurs.
  */
-function renderDetailTags(assertion, ecartee) {
+function pastillesDuDetail(assertion, ecartee) {
   const { nature, domain } = classifyAssertion(assertion);
   const portees = zonesOf(assertion);
 
   const pastille = (valeur, vide) =>
     `<span class="memory-tag${vide ? " memory-tag--unknown" : " memory-tag--nature"}">${escapeHtml(valeur)}</span>`;
 
+  return [
+    { label: "Provenance", html: pastille(kindLabel(assertion.kind) || "Inconnue", !assertion.kind) },
+    { label: "Nature", html: pastille(nature ? natureLabel(nature) : UNCLASSIFIED_LABEL, !nature) },
+    { label: "Domaine", html: pastille(domain ? domainLabel(domain) : "Sans domaine", !domain) },
+    { label: "État", html: pastille(ecartee ? "Écartée" : "Assumée", false) },
+    {
+      label: "Zones",
+      html: portees.length === 0
+        // Discontinu comme dans le tableau : « Ensemble — toutes zones » est la
+        // valeur par défaut, et une valeur par défaut se signale partout de la
+        // même façon — sinon on croit que l'un des deux écrans en sait plus.
+        ? pastille(ZONE_TOUT_LOUVRAGE_LABEL, true)
+        : portees.map((cle) => pastille(zoneLabel(cle, view.assertions ?? []), false)).join("")
+    }
+  ];
+}
+
+function renderDetailTags(assertion, ecartee) {
   return `
     <div class="memory-detail__tags">
-      <span class="memory-detail__tags-label">Provenance</span>
-      ${pastille(kindLabel(assertion.kind) || "Inconnue", !assertion.kind)}
-      <span class="memory-detail__tags-label">Nature</span>
-      ${pastille(nature ? natureLabel(nature) : UNCLASSIFIED_LABEL, !nature)}
-      <span class="memory-detail__tags-label">Domaine</span>
-      ${pastille(domain ? domainLabel(domain) : "Sans domaine", !domain)}
-      <span class="memory-detail__tags-label">État</span>
-      ${pastille(ecartee ? "Écartée" : "Assumée", false)}
-      <span class="memory-detail__tags-label">Zones</span>
-      ${
-        portees.length === 0
-          ? // Discontinu comme dans le tableau : « Ensemble — toutes zones » est la
-            // valeur par défaut, et une valeur par défaut se signale partout de la
-            // même façon — sinon on croit que l'un des deux écrans en sait plus.
-            pastille(ZONE_TOUT_LOUVRAGE_LABEL, true)
-          : portees.map((cle) => pastille(zoneLabel(cle, view.assertions ?? []), false)).join("")
-      }
+      ${pastillesDuDetail(assertion, ecartee)
+        .map(({ label, html }) => `<span class="memory-detail__tags-label">${escapeHtml(label)}</span>${html}`)
+        .join("")}
     </div>
   `;
+}
+
+/**
+ * Les mêmes caractéristiques, **sans leurs intitulés**.
+ *
+ * Dans la barre compactée il n'y a de la place que pour une ligne, et les
+ * intitulés y prennent la moitié pour ne rien apprendre : « Contrainte » se lit
+ * comme une nature sans qu'on écrive « Nature » devant. Ce sont les valeurs
+ * qu'on cherche du regard en faisant défiler.
+ */
+function renderDetailTagsCompacts(assertion, ecartee) {
+  return `<span class="memory-detail__tags memory-detail__tags--compacts">${
+    pastillesDuDetail(assertion, ecartee).map(({ html }) => html).join("")}</span>`;
 }
 
 /**
@@ -770,6 +793,7 @@ export function renderMemoryDetail(assertions, cible = {}) {
   const courante = suite.find((entry) => !entry.superseded_by) ?? suite[suite.length - 1];
   const ecartee = courante.status === MEMORY.REJECTED;
   const faits = describeAssertionFacts(courante);
+  const titre = titreDeLAffirmation(courante);
 
   // Trois lectures d'une même affirmation, et elles n'ont pas la même largeur.
   // Ce qui l'établit et son histoire se lisent comme un texte — une colonne
@@ -791,7 +815,7 @@ export function renderMemoryDetail(assertions, cible = {}) {
           { className: "octicon" }
         )}</span>
         <div class="memory-step__body">
-          <b>${escapeHtml(assertion.statement)}</b>
+          <b>${escapeHtml(titreDeLAffirmation(assertion))}</b>
           <span class="memory-step__meta">
             ${escapeHtml(assertion.status === MEMORY.REJECTED ? "écartée" : "assumée")}
             le ${escapeHtml(formatDate(assertion.decided_at))} par ${escapeHtml(nameOf(assertion.decided_by))}
@@ -813,33 +837,54 @@ export function renderMemoryDetail(assertions, cible = {}) {
     `;
   };
 
+  // L'en-tête est celui d'un sujet et d'une proposition, du DOM aux bascules :
+  // `renderSharedDetailsTitleWrap` rend les deux titres — l'étendu et le
+  // compact —, et le CSS partagé échange l'un pour l'autre au défilement. Une
+  // troisième barre de titre écrite ici aurait fini par ne plus leur ressembler.
+  const titreEtendu = renderSharedDetailsTitleWrap(courante, {
+    emptyText: "Aucune affirmation",
+    buildTitleTextHtml: () => `<span class="details-title-text">${escapeHtml(titre)}</span>`,
+    buildIdHtml: () => escapeHtml(courante.subject_key ?? ""),
+    buildExpandedBottomHtml: () => `<span class="details-title-meta">${escapeHtml(
+      `${suite.length > 1 ? `${suite.length} états successifs` : "un seul état"} · ${
+        ecartee ? "écartée aujourd'hui" : "assumée aujourd'hui"}`)}</span>`,
+    buildCompactConfig: (_, { titleTextHtml }) => ({
+      variant: "grid",
+      wrapClass: "details-title--compact-grid",
+      leftHtml: `<span class="memory-pill memory-pill--${ecartee ? "rejected" : "assumed"}">
+        ${svgIcon(ecartee ? "x-circle-fill" : "check-circle-fill", { className: "octicon" })}
+        ${escapeHtml(ecartee ? "Écartée" : "Assumée")}</span>`,
+      topHtml: titleTextHtml,
+      // Les valeurs seules : dans une ligne, les intitulés prennent la moitié
+      // de la place pour ne rien apprendre.
+      bottomHtml: renderDetailTagsCompacts(courante, ecartee)
+    })
+  });
+
   return `
     <section class="memory-detail">
-      <header class="memory-detail__head">
-        <span class="memory-detail__mark">${svgIcon(kindIcon(courante.kind), { className: "octicon" })}</span>
-        <div>
-          <h2 class="memory-detail__title">${escapeHtml(courante.statement)}</h2>
-          <p class="memory-detail__lead">
-            ${escapeHtml(kindLabel(courante.kind))} ${escapeHtml(courante.subject_key)} ·
-            ${escapeHtml(suite.length > 1 ? `${suite.length} états successifs` : "un seul état")} ·
-            ${escapeHtml(ecartee ? "écartée aujourd'hui" : "assumée aujourd'hui")}
-          </p>
-        </div>
-        <span class="memory-pill memory-pill--${ecartee ? "rejected" : "assumed"}">
-          ${svgIcon(ecartee ? "x-circle-fill" : "check-circle-fill", { className: "octicon" })}
-          ${escapeHtml(ecartee ? "Écartée" : "Assumée")}
-        </span>
-      </header>
-
-      ${renderDetailTags(courante, ecartee)}
-
-      ${renderLightTabs({
-        tabs: ONGLETS_DU_DETAIL,
-        activeTabId: onglet,
-        className: "memory-detail__tabs",
-        ariaLabel: "Sections de cette affirmation",
-        rowClassName: pleine ? "light-tabs-row--pleine" : ""
+      ${renderOverlayChromeHead({
+        headId: "memoryDetailsTitle",
+        titleHtml: titreEtendu,
+        // Comme les Changements d'une proposition : sur l'onglet du
+        // raisonnement, la barre prend l'écran. Un titre resté dans une colonne
+        // de lecture au-dessus d'un poste de travail pleine largeur se lit
+        // comme le titre d'autre chose.
+        headClassName: `memory-detail__head${pleine ? " memory-detail__head--pleine" : ""}`
       })}
+
+      <div class="memory-detail__tagsrow${pleine ? " memory-detail__tagsrow--pleine" : ""}">
+        ${renderDetailTags(courante, ecartee)}
+      </div>
+
+      <div class="memory-detail__tagsrow${pleine ? " memory-detail__tagsrow--pleine" : ""}">
+        ${renderLightTabs({
+          tabs: ONGLETS_DU_DETAIL,
+          activeTabId: onglet,
+          className: "memory-detail__tabs",
+          ariaLabel: "Sections de cette affirmation"
+        })}
+      </div>
 
       <div class="memory-detail__panneau${pleine ? " memory-detail__panneau--pleine" : ""}">
         ${
@@ -1643,10 +1688,15 @@ function renderContent(root) {
   }
 
   if (view.open) {
+    // La coque d'un détail, celle des sujets et des propositions : c'est elle
+    // que `bindOverlayChromeCompact` marque au défilement, et c'est sa classe
+    // qui fait basculer le titre étendu vers le titre compact, en CSS.
     root.innerHTML = `
       <section class="project-simple-page project-simple-page--memory"
       style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
-        <div class="propositions-shell">${renderMemoryDetail(view.assertions, view.open)}</div>
+        <div class="propositions-shell overlay-chrome overlay-chrome--proposition" data-memory-chrome>
+          ${renderMemoryDetail(view.assertions, view.open)}
+        </div>
       </section>
     `;
     bind(root);
@@ -1875,9 +1925,9 @@ function brancherLesPoignees(root, espace) {
 
   const poignees = [
     { nom: "schema", champ: "hauteurSchema", axe: "y", sens: 1 },
-    // La gouttière des numéros : on la tire **vers la gauche** pour élargir les
-    // valeurs, qui sont collées au bord droit.
-    { nom: "etat", champ: "largeurEtat", axe: "x", sens: -1 },
+    // La gouttière des numéros : on la tire **vers la droite** pour élargir les
+    // valeurs, qui sont collées au bord gauche.
+    { nom: "etat", champ: "largeurEtat", axe: "x", sens: 1 },
     // La discussion est collée au bord droit : on tire sa poignée vers la
     // gauche pour l'agrandir.
     { nom: "copilote", champ: "largeurCopilote", axe: "x", sens: -1 }
@@ -1929,13 +1979,56 @@ function monterLeCopilote(espace) {
     });
 }
 
-/** La page derrière ne défile pas pendant le plein écran. */
+/**
+ * La page derrière ne défile pas pendant le plein écran — et ne paraît plus.
+ *
+ * Calé sous l'en-tête global, l'espace laissait voir le nom du projet et sa
+ * barre d'onglets : ce n'était pas le plein écran, c'était un grand panneau.
+ * L'en-tête s'efface donc, comme il s'efface déjà sous une barre de titre
+ * compactée — `#app` est un contexte d'empilement, et aucun `z-index` posé à
+ * l'intérieur ne peut monter au-dessus de lui.
+ */
 function figerLaPage(fige) {
   if (typeof document === "undefined") return;
   // Sur les deux : selon la page, c'est `html` ou `body` qui porte le
   // défilement, et n'en figer qu'un laissait la seconde barre.
   document.body.classList.toggle("est-fige-par-le-graphe", fige === true);
   document.documentElement.classList.toggle("est-fige-par-le-graphe", fige === true);
+  document.body.classList.toggle("memoire-raisonnement-plein-ecran", fige === true);
+}
+
+/**
+ * Le titre d'une affirmation se compacte au défilement.
+ *
+ * Le même mécanisme que pour un sujet et pour une proposition, et le même
+ * composant : la page défile, la coque prend `overlay-chrome--compact`,
+ * l'en-tête prend `details-head--compact`, et le CSS partagé échange les deux
+ * titres. Un troisième mécanisme écrit ici aurait fini par se comporter
+ * autrement que les deux autres — et c'est le genre de différence qu'on ne
+ * remarque qu'après l'avoir subie.
+ */
+function brancherLeCompactage(root) {
+  // Hors du détail, la marque tombe : laissée en place, elle effacerait
+  // l'en-tête global au-dessus du tableau, sans rien pour le remplacer.
+  if (!root.querySelector("[data-memory-chrome]")) {
+    document.body.classList.remove("project-memory-details-top-compact");
+    return;
+  }
+
+  bindOverlayChromeCompact(
+    document.documentElement,
+    root.querySelector("[data-memory-chrome]"),
+    "memoire",
+    {
+      alsoCompactWhen: () => document.body.classList.contains("project-shell-compact"),
+      // La barre compacte prend la place de l'en-tête global — elle ne passe
+      // pas devant. `#app` est un contexte d'empilement : un `z-index` posé à
+      // l'intérieur ne peut pas monter au-dessus d'un élément extérieur.
+      onCompactChange: (colle) => {
+        document.body.classList.toggle("project-memory-details-top-compact", colle === true);
+      }
+    }
+  );
 }
 
 /** Les propositions, retrouvables par leur identifiant — pour les intitulés. */
@@ -1994,6 +2087,7 @@ function bindListDelegation(root) {
 function bind(root) {
   bindListDelegation(root);
   bindExportButton(root);
+  brancherLeCompactage(root);
   brancherLEspace(root);
 
   // Les trois lectures d'une affirmation. Changer d'onglet ne touche à rien

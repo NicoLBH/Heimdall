@@ -90,7 +90,38 @@ function statementOf(item = {}) {
     return `Rattachement au projet : ${texte(payload.label) || texte(item.itemKey)}`;
   }
 
+  // Une **affirmation** dit ce qu'elle affirme : « Accès des véhicules lourds :
+  // interdit au-delà de 3,5 t ». Elle tombait dans le repli des documents et se
+  // relisait « Document au corpus : acces-des-vehicules-lourds@batiment-a » —
+  // ce qui nomme un fichier qui n'existe pas, avec une clé que personne n'écrit.
+  const sujet = texte(payload.subject);
+  if (sujet) {
+    const valeur = texte(payload.value);
+    return valeur ? `${sujet} : ${valeur}` : sujet;
+  }
+
   return `Document au corpus : ${texte(payload.name) || texte(item.itemKey)}`;
+}
+
+/**
+ * Ce qu'une affirmation dit, telle qu'on l'affiche aujourd'hui.
+ *
+ * La phrase versée est conservée telle quelle — la recalculer réécrirait ce que
+ * quelqu'un a signé. Mais celles qui sont déjà en mémoire ont été écrites par un
+ * repli qui prenait toute affirmation pour un document : le projet porte des
+ * lignes qui se lisent « Document au corpus : acces-des-vehicules-lourds@… ».
+ *
+ * On ne les réécrit pas ; on lit le `payload`, qui, lui, dit le sujet et la
+ * valeur. Ce n'est pas une seconde vérité : c'est **la** vérité, et la phrase
+ * n'en était qu'une mise en forme.
+ */
+export function titreDeLAffirmation(assertion = {}) {
+  const payload = assertion?.payload ?? {};
+  const sujet = texte(payload.subject);
+  if (!sujet) return texte(assertion?.statement);
+
+  const valeur = texte(payload.value);
+  return valeur ? `${sujet} : ${valeur}` : sujet;
 }
 
 function lisible(value) {
