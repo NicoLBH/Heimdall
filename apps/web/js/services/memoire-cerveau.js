@@ -51,6 +51,7 @@ import { currentAssertions, titreDeLAffirmation } from "./project-memory.js";
 import { emploisParAffirmation, impactDe } from "./memoire-applications.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
 import { utilitaireByReference } from "../utilitaires/catalogue.js";
+import { VERDICT, auditerLaMemoire } from "./memoire-audit.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -306,4 +307,183 @@ export function dispositionDuCerveau(cerveau = {}) {
       phase: graineDe(noeud.id, 13) * Math.PI * 2
     };
   });
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Ce qu'aucun lien ne touche
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Les nœuds qu'aucun lien ne touche, ni en amont ni en aval.
+ *
+ * Sur un vrai projet, ils sont la majorité : trois cent onze affirmations pour
+ * quatre-vingt-quatorze liens. Les dessiner tous fait un mur dans lequel on ne
+ * distingue plus les soixante qui forment le raisonnement.
+ *
+ * **Ils ne disparaissent pas pour autant.** L'écran les compte et propose de les
+ * remettre, parce que leur absence de lien a deux causes qui ne se confondent
+ * pas : ou bien rien ne repose sur elles — et c'est une information —, ou bien
+ * leurs lectures n'ont pas été enregistrées, et c'est une lacune de l'outil. On
+ * ne sait pas laquelle, et on ne le fait pas croire.
+ */
+export function noeudsIsoles(cerveau = {}) {
+  const touches = new Set();
+  for (const lien of Array.isArray(cerveau?.liens) ? cerveau.liens : []) {
+    touches.add(lien.de);
+    touches.add(lien.vers);
+  }
+  return new Set(
+    (Array.isArray(cerveau?.noeuds) ? cerveau.noeuds : [])
+      .map((noeud) => texte(noeud.id))
+      .filter((id) => id && !touches.has(id))
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Ce que l'audit signale
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Pourquoi un nœud bat en rouge. Les trois défauts que l'audit sait nommer. */
+export const SIGNAL = {
+  /** La règle conclut autre chose que ce que le projet affirme. */
+  DERIVE: "derive",
+  /** La règle ne s'applique plus, et n'a rien à dire à la place. */
+  SANS_OBJET: "sans-objet",
+  /** Un utilitaire l'a calculée sur une entrée que le projet a changée depuis. */
+  PERIMEE: "perimee"
+};
+
+const PHRASES_DU_SIGNAL = {
+  [SIGNAL.DERIVE]: "sa règle conclut autre chose que ce que le projet affirme",
+  [SIGNAL.SANS_OBJET]: "la règle qui la concluait ne s'applique plus",
+  [SIGNAL.PERIMEE]: "calculée sur une entrée que le projet a changée depuis"
+};
+
+/** Le motif d'un signal, en français. Un point rouge sans motif est une angoisse. */
+export function phraseDuSignal(motif) {
+  return PHRASES_DU_SIGNAL[texte(motif)] ?? "";
+}
+
+/**
+ * Ce que l'audit signale, par affirmation.
+ *
+ * **C'est `auditerLaMemoire`, sans une ligne de plus** — pour la même raison que
+ * l'onde est `impactDe` : deux écrans qui jugeraient chacun de leur côté
+ * finiraient par ne pas signaler les mêmes choses, et l'on ne saurait plus lequel
+ * croire. Ici, le dessin ne juge rien : il colorie ce que l'audit a jugé.
+ *
+ * @returns {Map<string, string>} affirmation → motif
+ */
+export function signauxDeLAudit(assertions = []) {
+  const audit = auditerLaMemoire(Array.isArray(assertions) ? assertions : []);
+  const signales = new Map();
+
+  for (const ligne of audit.verdicts ?? []) {
+    const id = texte(ligne?.sortie?.id);
+    if (!id) continue;
+    if (ligne.verdict === VERDICT.DIFFERENTE) signales.set(id, SIGNAL.DERIVE);
+    else if (ligne.verdict === VERDICT.SANS_OBJET && !signales.has(id)) signales.set(id, SIGNAL.SANS_OBJET);
+  }
+
+  for (const ligne of audit.perimees ?? []) {
+    const id = texte(ligne?.assertion?.id);
+    // Une dérive de règle prime : elle dit que la valeur affichée est fausse,
+    // là où une entrée périmée dit seulement qu'elle ne vaut plus.
+    if (id && !signales.has(id)) signales.set(id, SIGNAL.PERIMEE);
+  }
+
+  return signales;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * La disposition en volume
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** L'angle d'or : c'est lui qui répartit des points sur une sphère sans les tasser. */
+const ANGLE_DOR = Math.PI * (3 - Math.sqrt(5));
+
+/**
+ * Le rayon d'une coquille. Le socle au centre, l'aval de plus en plus loin.
+ *
+ * Non linéaire : les premières strates s'écartent vite, les suivantes se
+ * resserrent. C'est là que se trouve la densité — la première strate porte le
+ * gros du raisonnement — et lui donner de la place vaut mieux que d'étaler
+ * régulièrement une profondeur qui, en pratique, dépasse rarement quatre.
+ */
+function rayonDeLaCoquille(strate, profondeur) {
+  if (strate === 0) return 0.24;
+  return 0.42 + 0.58 * Math.sqrt(strate / Math.max(1, profondeur));
+}
+
+/**
+ * Les nœuds répartis dans un volume : des coquilles concentriques autour du socle.
+ *
+ * ## Pourquoi le socle est au centre
+ *
+ * Parce que c'est de lui que tout part. Le projet **pose** des valeurs, et son
+ * raisonnement pousse à partir d'elles : les mettre au centre et faire s'éloigner
+ * chaque strate donne à voir cette croissance, là où des colonnes donnent à lire
+ * un ordre.
+ *
+ * Le nœud le plus employé du socle est placé exactement au centre. C'est le
+ * **centre névralgique** : la valeur dont le plus de choses dépendent, et l'on
+ * doit pouvoir la montrer du doigt.
+ *
+ * ## Pourquoi la spirale d'or
+ *
+ * Répartir n points sur une sphère « au hasard » les tasse en paquets et laisse
+ * des trous ; la spirale d'or les espace régulièrement, sans direction
+ * privilégiée. On voit alors la **densité** d'une strate — ce qu'aucune colonne
+ * ne montrait : une strate chargée fait une coquille dense, une strate maigre un
+ * semis clairsemé.
+ *
+ * Les coordonnées vont de −1 à 1. L'écran les met à son échelle.
+ */
+export function dispositionEnVolume(cerveau = {}) {
+  const noeuds = Array.isArray(cerveau?.noeuds) ? cerveau.noeuds : [];
+  if (!noeuds.length) return [];
+
+  const profondeur = Math.max(1, Number(cerveau?.profondeur) || 1);
+  const coquilles = new Map();
+  for (const noeud of noeuds) {
+    if (!coquilles.has(noeud.strate)) coquilles.set(noeud.strate, []);
+    coquilles.get(noeud.strate).push(noeud);
+  }
+
+  const places = new Map();
+
+  for (const [strate, coquille] of coquilles) {
+    // Le plus employé d'abord : au centre pour le socle, au pôle ailleurs. Un
+    // ordre stable, et qui veut dire quelque chose.
+    const ordonnee = [...coquille].sort((g, d) => d.lectures - g.lectures || g.id.localeCompare(d.id));
+    const rayon = rayonDeLaCoquille(strate, profondeur);
+    const centre = strate === 0 && ordonnee.length > 1;
+    const surLaCoquille = centre ? ordonnee.slice(1) : ordonnee;
+
+    if (centre) places.set(ordonnee[0].id, { x: 0, y: 0, z: 0 });
+
+    surLaCoquille.forEach((noeud, index) => {
+      const total = Math.max(1, surLaCoquille.length);
+      // Décalé d'un demi-pas : sans cela, le premier et le dernier nœud tombent
+      // **exactement sur les pôles**, où ils s'alignent avec le centre et se
+      // superposent dès qu'on regarde par le dessus. Une coquille de deux nœuds
+      // devenait alors un seul point.
+      const hauteur = 1 - ((index * 2 + 1) / total);
+      const anneau = Math.sqrt(Math.max(0, 1 - hauteur * hauteur));
+      const angle = ANGLE_DOR * index + graineDe(noeud.id, 3) * 0.4;
+
+      places.set(noeud.id, {
+        x: Math.cos(angle) * anneau * rayon,
+        y: hauteur * rayon,
+        z: Math.sin(angle) * anneau * rayon
+      });
+    });
+  }
+
+  return noeuds.map((noeud) => ({
+    ...noeud,
+    ...(places.get(noeud.id) ?? { x: 0, y: 0, z: 0 }),
+    /** Le déphasage de sa respiration, comme en strates. */
+    phase: graineDe(noeud.id, 13) * Math.PI * 2
+  }));
 }

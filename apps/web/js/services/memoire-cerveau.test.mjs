@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  cerveauDuProjet, dispositionDuCerveau, graineDe, liensDuRaisonnement, ondeDepuis, stratesDuGraphe
+  SIGNAL, cerveauDuProjet, dispositionDuCerveau, dispositionEnVolume, graineDe, liensDuRaisonnement,
+  noeudsIsoles, ondeDepuis, phraseDuSignal, signauxDeLAudit, stratesDuGraphe
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -23,13 +24,22 @@ const deduite = (id, sujet, valeur, utilitaire) => ({
   payload: { subject: sujet, value: valeur, derived: true, utilitaire }
 });
 
-/** Une règle appliquée : elle produit une valeur, elle n'en est pas une. */
+/**
+ * Une règle appliquée : elle produit une valeur, elle n'en est pas une.
+ *
+ * Ses conditions sont écrites pour **tenir** sur la mémoire d'essai. Une condition
+ * posée au hasard fait déclarer la règle sans objet par l'audit, et l'on se
+ * retrouve à tester une mémoire en dérive en croyant tester une mémoire saine.
+ */
 const regle = (sujet, valeur, lit = []) => ({
   id: `r-${sujet}`, subject_key: `regle:${sujet}`,
   status: "assumed", superseded_by: null, decided_at: at, statement: `${sujet} : ${valeur}`,
   payload: {
     subject: sujet, value: valeur, referentiel: true,
-    regle: { conditions: lit.map((nom) => ({ sujet: nom, operateur: "=", valeur: "x" })), sinon: "", sauf: [] }
+    regle: {
+      conditions: lit.map(([nom, attendue]) => ({ sujet: nom, operateur: "=", valeur: attendue })),
+      sinon: "", sauf: []
+    }
   }
 });
 
@@ -40,9 +50,9 @@ const memoire = () => [
   dit("alt", "Altitude du site", "13 m"),
   dit("cls", "Classement", "3e famille B"),
   deduite("gel", "Profondeur hors gel", "0.71 m", "deduction_profondeur_hors_gel_altitude_V1"),
-  regle("Fondations profondes", "non exigées", ["Profondeur hors gel"]),
+  regle("Fondations profondes", "non exigées", [["Profondeur hors gel", "0.71 m"]]),
   dit("fond", "Fondations profondes", "non exigées", "constat"),
-  regle("Degré CF", "CF 1 h", ["Classement"]),
+  regle("Degré CF", "CF 1 h", [["Classement", "3e famille B"]]),
   dit("cf", "Degré CF", "CF 1 h", "constat")
 ];
 
@@ -226,4 +236,128 @@ test("une graine est stable, et deux sels ne donnent pas la même", () => {
   assert.equal(graineDe("abc", 7), graineDe("abc", 7));
   assert.notEqual(graineDe("abc", 7), graineDe("abc", 13));
   assert.ok(graineDe("abc") >= 0 && graineDe("abc") < 1);
+});
+
+/* ── Ce qu'aucun lien ne touche ──────────────────────────────────────────── */
+
+test("un nœud qu'aucun lien ne touche est repéré, pas supprimé", () => {
+  // Sur un vrai projet ils sont la majorité — trois cent onze affirmations pour
+  // quatre-vingt-quatorze liens — et les dessiner tous fait un mur.
+  const isole = dit("seul", "Donnée sans emploi", "42");
+  const cerveau = cerveauDuProjet([...memoire(), isole], lectures());
+
+  assert.deepEqual([...noeudsIsoles(cerveau)], ["seul"]);
+  // Repéré, mais toujours là : c'est à l'écran de proposer de le remettre.
+  assert.equal(cerveau.noeuds.some((n) => n.id === "seul"), true);
+});
+
+test("un nœud dont rien ne dépend mais qui dépend de quelque chose n'est pas isolé", () => {
+  // « Isolé » veut dire qu'aucun lien ne le touche, dans aucun sens. Une
+  // conclusion terminale est bien reliée au raisonnement.
+  const cerveau = cerveauDuProjet(memoire(), lectures());
+  assert.equal(noeudsIsoles(cerveau).has("fond"), false);
+});
+
+/* ── Ce que l'audit signale ──────────────────────────────────────────────── */
+
+test("un signal est ce que l'audit a jugé, jamais un jugement de l'écran", () => {
+  // La règle conclut « CF 1 h 1/2 » sur une 4e famille ; le projet affirme
+  // « CF 1 h ». C'est une dérive, et c'est l'audit qui le dit.
+  const derive = [
+    dit("cls", "Classement", "4e famille"),
+    {
+      id: "r-cf", subject_key: "regle:Degré CF", status: "assumed", superseded_by: null, decided_at: at,
+      statement: "x",
+      payload: {
+        subject: "Degré CF", value: "CF 1 h", referentiel: true,
+        regle: { conditions: [{ sujet: "Classement", operateur: "=", valeur: "3e famille B" }], sinon: "CF 1 h 1/2", sauf: [] }
+      }
+    },
+    dit("cf", "Degré CF", "CF 1 h", "constat")
+  ];
+
+  const signaux = signauxDeLAudit(derive);
+  assert.equal(signaux.get("cf"), SIGNAL.DERIVE);
+  assert.match(phraseDuSignal(SIGNAL.DERIVE), /conclut autre chose/);
+});
+
+test("un calcul fait sur une entrée qui a changé est signalé, mais moins fort", () => {
+  // Une dérive de règle prime : elle dit que la valeur affichée est fausse, là où
+  // une entrée périmée dit seulement qu'elle ne vaut plus.
+  const perimee = {
+    ...deduite("gel", "Profondeur hors gel", "0.71 m", "deduction_profondeur_hors_gel_altitude_V1"),
+    payload: {
+      subject: "Profondeur hors gel", value: "0.71 m", derived: true,
+      utilitaire: "deduction_profondeur_hors_gel_altitude_V1",
+      lectures: [{ sujet: "Altitude du site", valeur: "13" }]
+    }
+  };
+
+  const signaux = signauxDeLAudit([dit("alt", "Altitude du site", "890 m"), perimee]);
+  assert.equal(signaux.get("gel"), SIGNAL.PERIMEE);
+});
+
+test("une mémoire qui tient ne signale rien", () => {
+  assert.equal(signauxDeLAudit(memoire()).size, 0);
+});
+
+/* ── La disposition en volume ────────────────────────────────────────────── */
+
+test("le socle est au centre, et les strates s'en éloignent", () => {
+  const volume = dispositionEnVolume(cerveauDuProjet(memoire(), lectures()));
+  const loin = (id) => {
+    const n = volume.find((x) => x.id === id);
+    return Math.hypot(n.x, n.y, n.z);
+  };
+
+  // Chaque strate est plus loin que la précédente : c'est ce que la vue montre.
+  assert.ok(loin("alt") < loin("gel"), "le socle doit être plus près que la strate 1");
+  assert.ok(loin("gel") < loin("fond"), "la strate 1 doit être plus près que la strate 2");
+});
+
+test("le nœud le plus employé du socle est le centre névralgique", () => {
+  // La valeur dont le plus de choses dépendent, exactement au centre : on doit
+  // pouvoir la montrer du doigt.
+  const apps = [...lectures(), lecture("cls", "fond")];
+  const volume = dispositionEnVolume(cerveauDuProjet(memoire(), apps));
+  const centre = volume.find((n) => Math.hypot(n.x, n.y, n.z) === 0);
+
+  assert.equal(centre.id, "cls");
+});
+
+test("aucun nœud ne tombe sur un pôle, où il se superposerait au centre", () => {
+  // Le premier et le dernier point d'une spirale d'or tombent exactement sur les
+  // pôles : alignés avec le centre, ils se confondent avec lui dès qu'on regarde
+  // par le dessus, et une coquille de deux nœuds devenait un seul point.
+  const deux = [dit("a", "A", "1"), dit("b", "B", "2"), dit("c", "C", "3")];
+  const volume = dispositionEnVolume(cerveauDuProjet(deux, []));
+  const surLaCoquille = volume.filter((n) => Math.hypot(n.x, n.y, n.z) > 0);
+
+  assert.equal(surLaCoquille.length, 2);
+  for (const noeud of surLaCoquille) {
+    assert.ok(Math.hypot(noeud.x, noeud.z) > 0.01, `${noeud.sujet} est sur un pôle`);
+  }
+});
+
+test("le volume est le même d'une ouverture à l'autre", () => {
+  const premier = dispositionEnVolume(cerveauDuProjet(memoire(), lectures()));
+  const second = dispositionEnVolume(cerveauDuProjet(memoire(), lectures()));
+  assert.deepEqual(
+    premier.map((n) => [n.id, n.x, n.y, n.z]),
+    second.map((n) => [n.id, n.x, n.y, n.z])
+  );
+});
+
+test("tout tient dans la boule de rayon un : c'est ce que l'écran suppose", () => {
+  // La projection recule d'une distance qui dépasse ce rayon. Un nœud au-delà
+  // passerait derrière l'œil et enverrait des coordonnées infinies.
+  const beaucoup = [...Array(40)].map((_, i) => dit(`n${i}`, `Sujet ${i}`, "v"));
+  for (const noeud of dispositionEnVolume(cerveauDuProjet(beaucoup, []))) {
+    assert.ok(Math.hypot(noeud.x, noeud.y, noeud.z) <= 1.0001, noeud.sujet);
+  }
+});
+
+test("une mémoire vide ne remplit aucun volume, et ne casse pas", () => {
+  assert.deepEqual(dispositionEnVolume(cerveauDuProjet([], [])), []);
+  assert.deepEqual(dispositionEnVolume(null), []);
 });
