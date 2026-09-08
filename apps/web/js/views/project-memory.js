@@ -120,7 +120,8 @@ import {
 } from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
-import { ouvrirLaFenetreDeVariante, renderBoutonVariante } from "./ui/fenetre-variante.js";
+import { ouvrirLaFenetreDeVariante } from "./ui/fenetre-variante.js";
+import { renderBoutonTester } from "./ui/bouton-tester.js";
 import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
 import { altitudeDeLaMemoire, laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
 
@@ -1448,11 +1449,18 @@ export function renderMemoryHead(resume, { busy = false } = {}) {
               : `${renderExportButton(resume, busy)}
                  ${renderVerserButton(busy)}
                  ${
-                   // On lit une mémoire, on en essaie une variante, on regarde
-                   // ce que ça change : le geste part d'ici, pas d'un autre
-                   // onglet. Il ne s'offre que s'il y a une altitude à faire
-                   // varier — un bouton qui refuse est un bouton de trop.
-                   altitudeDeLaMemoire(view.assertions ?? []) ? renderBoutonVariante() : ""
+                   // Les trois usages du moteur de rejeu, sous un seul bouton :
+                   // essayer une variante, auditer la mémoire, mesurer un
+                   // impact. Ce sont la même chose vue de trois côtés, et trois
+                   // boutons épars laisseraient croire à trois mécanismes.
+                   //
+                   // Un projet sans altitude n'a rien à faire varier : l'item
+                   // s'éteint, le bouton reste. Une lacune du projet et une
+                   // lacune du moteur ne se disent pas de la même façon.
+                   renderBoutonTester({
+                     indisponibles: altitudeDeLaMemoire(view.assertions ?? []) ? [] : ["tester:variante"],
+                     busy
+                   })
                  }
                  <button type="button" class="gh-btn gh-btn--primary" data-memory-declare ${busy ? "disabled" : ""}>
                    ${svgIcon("plus", { className: "octicon" })} Déclarer une hypothèse
@@ -2526,7 +2534,7 @@ function bind(root) {
   bindExportButton(root);
   brancherLeBandeauVariante(root);
   brancherLeFiltreDeVariante(root);
-  brancherLaFenetreDeVariante(root);
+  brancherLeBoutonTester(root);
   brancherLeCompactage(root);
   brancherLEspace(root);
   brancherLesRecherches(root);
@@ -3047,14 +3055,18 @@ function brancherLeFiltreDeVariante(root) {
   }
 }
 
-function brancherLaFenetreDeVariante(root) {
-  for (const bouton of root.querySelectorAll("[data-variante-ouvrir]")) {
-    bouton.addEventListener("click", () => {
-      // Rien à faire en entrant : on est déjà sur la mémoire, et l'abonnement
-      // au magasin la redessine.
-      void ouvrirLaFenetreDeVariante({ assertions: view.memoire ?? [] });
-    });
-  }
+function brancherLeBoutonTester(root) {
+  const action = root.querySelector('[data-action-id="memoireTester"]');
+  if (!action) return;
+
+  action.addEventListener("ghaction:action", (event) => {
+    const quoi = String(event.detail?.action || "");
+    // Rien à faire en entrant dans une variante : on est déjà sur la mémoire, et
+    // l'abonnement au magasin la redessine.
+    if (quoi === "tester:variante") void ouvrirLaFenetreDeVariante({ assertions: view.memoire ?? [] });
+    // Les deux autres usages ne sont pas encore servis par le moteur : leurs
+    // items sont éteints, et rien n'arrive ici. Voir `bouton-tester.js`.
+  });
 }
 
 /**
