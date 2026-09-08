@@ -80,7 +80,8 @@ test("une version qu'on ne sait pas relire n'est jamais recalculée, et se nomme
   });
   assert.equal(relireLaContrainte(v2, 890), null);
   assert.match(pourquoiPasRelue(v2), /deduction_profondeur_hors_gel_altitude_V2/);
-  // Elle reste **concernée** : la lignée lit l'altitude, la version seule diffère.
+  // Elle reste **concernée** : le calcul a conservé l'altitude sur laquelle il a
+  // été fait, et ne pas savoir la rejouer n'autorise pas à l'oublier.
   assert.equal(litLAltitude(v2), true);
 });
 
@@ -101,13 +102,40 @@ test("une contrainte versée sans ses entrées reste concernée", () => {
   assert.equal(supposee.suppose, true);
 });
 
-test("une contrainte d'une lignée qu'on ne connaît pas n'est pas concernée", () => {
+test("un utilitaire qui ne déclare pas lire l'altitude n'est pas concerné", () => {
   const autre = deduite({
     id: "seismic", sujet: "Zone de sismicité", valeur: "3", alt: undefined,
-    utilitaire: "deduction_zone_sismique_commune_V1"
+    utilitaire: "deduction_zone_sismique_georisques_V1"
   });
   autre.payload.inputs = null;
   assert.equal(litLAltitude(autre), false);
+});
+
+test("c'est la déclaration de l'utilitaire qui dit qu'il lit l'altitude", () => {
+  // Une liste de lignées tenue à la main vivait ici. Elle disait la même chose,
+  // en moins fiable et en un endroit de plus : le catalogue la porte maintenant,
+  // par version, dans le fichier de l'utilitaire.
+  const sansEntrees = deduite({
+    id: "frost", sujet: "Profondeur hors gel", valeur: "0.71 m", alt: undefined,
+    utilitaire: "deduction_profondeur_hors_gel_altitude_V1"
+  });
+  sansEntrees.payload.inputs = null;
+
+  assert.equal(litLAltitude(sansEntrees), true);
+});
+
+test("la déclaration portée par la contrainte prime sur celle du catalogue", () => {
+  const portee = deduite({
+    id: "frost", sujet: "Profondeur hors gel", valeur: "0.71 m", alt: undefined,
+    utilitaire: "outil_disparu_V9"
+  });
+  portee.payload.inputs = null;
+  portee.payload.lectures = [{ sujet: "Altitude du terrain", valeur: "13" }];
+
+  // Le sujet varié est celui que **ce projet** écrit, pas un libellé canonique :
+  // comparer à « Altitude du site » manquerait « Altitude du terrain ».
+  assert.equal(litLAltitude(portee, "Altitude du terrain"), true);
+  assert.equal(litLAltitude(portee, "Altitude du site"), false);
 });
 
 test("les relectures ne se déclenchent que si l'altitude est ce qui varie", () => {

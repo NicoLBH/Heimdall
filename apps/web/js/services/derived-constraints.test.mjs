@@ -239,3 +239,65 @@ test("l'argile entre comme contrainte du sol, lue au point du projet", () => {
   assert.equal(argile.domain, DOMAIN.SOL);
   assert.match(argile.provenance, /Géorisques/);
 });
+
+/* ── Un utilitaire dit ce qu'il a lu du projet ───────────────────────────── */
+
+test("une déduction déclare les sujets qu'elle lit, avec la valeur lue", () => {
+  const [contrainte] = constraintsFromContextFacts([neige()]);
+
+  // Elle lit l'altitude — c'est elle qui décide de la réserve au-delà de 900 m.
+  // Elle ne déclare pas la commune : la mémoire ne la porte pas comme sujet, et
+  // déclarer un sujet que rien ne verse ferait un lien vers rien.
+  assert.deepEqual(contrainte.lectures, [{ sujet: "Altitude du site", valeur: "450" }]);
+});
+
+test("la profondeur hors gel déclare les deux termes de sa formule, dans l'ordre", () => {
+  const gel = fait("frost_depth", {
+    frost_depth_m: 0.83, h0_selected_m: 0.5, altitude: 450, inputs: { altitude: 450 }
+  }, { source_ref: "frost" });
+
+  const [contrainte] = constraintsFromContextFacts([gel]);
+
+  // `H = H0 + (altitude − 150) / 4000` : l'ordre est celui de la formule, et
+  // c'est lui qu'on retrouvera dans le rang des lectures enregistrées.
+  assert.deepEqual(contrainte.lectures, [
+    { sujet: "H0 retenu pour le département", valeur: "0.5" },
+    { sujet: "Altitude du site", valeur: "450" }
+  ]);
+});
+
+test("une lecture sans valeur reste déclarée : c'est le trou du raisonnement", () => {
+  // Le fait n'a pas conservé d'altitude. L'utilitaire a calculé quand même — à
+  // 150 m par défaut —, et taire la lecture ferait passer pour complet un calcul
+  // qui ne l'était pas.
+  const gel = fait("frost_depth", { frost_depth_m: 0.5, h0_selected_m: 0.5, inputs: {} },
+    { source_ref: "frost" });
+
+  const [contrainte] = constraintsFromContextFacts([gel]);
+  assert.deepEqual(contrainte.lectures.map((l) => [l.sujet, l.valeur]), [
+    ["H0 retenu pour le département", "0.5"],
+    ["Altitude du site", ""]
+  ]);
+});
+
+test("la contrainte versée porte ses lectures, valeur comprise", () => {
+  const [ligne] = plannedConstraintRows({
+    projectId: "p1",
+    candidates: constraintsFromContextFacts([neige()]),
+    at: "2026-08-31T00:00:00.000Z"
+  });
+
+  // La valeur reste dans le payload : c'est elle qui permettra de dire, plus
+  // tard, que ce calcul a été fait sur une altitude que le projet a changée.
+  assert.deepEqual(ligne.payload.lectures, [{ sujet: "Altitude du site", valeur: "450" }]);
+});
+
+test("une déduction qui ne lit rien du projet ne déclare rien", () => {
+  // Le zonage sismique se lit sur des coordonnées, que la mémoire ne porte pas
+  // comme sujets. Déclarer « latitude » ferait un lien vers rien.
+  const sismique = fait("seismic_zone", { value: "3", codeInsee: "74010", commune: "—" },
+    { source_ref: "georisques" });
+
+  const [contrainte] = constraintsFromContextFacts([sismique]);
+  assert.deepEqual(contrainte.lectures, []);
+});
