@@ -54,8 +54,9 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { NOEUD } from "../../services/memoire-plan.js";
 import {
-  cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dispositionDuCerveau, dispositionEnVolume,
-  domainesDuCerveau, noeudsIsoles, ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit
+  cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe, dispositionDuCerveau,
+  dispositionEnVolume, domainesDuCerveau, enveloppeConvexe, noeudsIsoles, ondeDepuis,
+  pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit
 } from "../../services/memoire-cerveau.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -83,6 +84,23 @@ const NATURES = {
 
 /** Ce que l'audit signale bat de cette couleur, et d'aucune autre à l'écran. */
 const ROUGE = "248,81,73";
+
+/**
+ * La couleur d'une impulsion, selon ce que l'écran est en train de dire.
+ *
+ * En **nature**, le bleu : c'est la couleur de ce qui se rejoue, et l'onde parle
+ * de rejeu.
+ *
+ * En **chaleur**, surtout pas. Un écran entièrement orange où l'onde passe en
+ * bleu fait deux langages à la fois : on croit que le bleu **veut dire** quelque
+ * chose de plus froid, alors qu'il ne dit que « ceci vient de s'allumer ». La
+ * même idée doit se dire dans la même langue : l'onde y est donc du blanc chaud,
+ * le haut du dégradé poussé jusqu'à l'incandescence.
+ */
+const ECLAT = {
+  nature: { vif: "88,166,255", coeur: "160,205,255" },
+  chaleur: { vif: "255,201,132", coeur: "255,243,214" }
+};
 
 /**
  * Le dégradé de chaleur : du froid au brûlant, puis le rouge à part.
@@ -323,6 +341,15 @@ function renderCadre(cerveau, isoles, signales) {
  * Le dessin
  * ────────────────────────────────────────────────────────────────────────── */
 
+/** L'aire d'un contour fermé, par la formule du lacet. Toujours positive. */
+function aireDuContour(contour = []) {
+  let deux = 0;
+  for (let i = 0, j = contour.length - 1; i < contour.length; j = i, i += 1) {
+    deux += (contour[j].x + contour[i].x) * (contour[j].y - contour[i].y);
+  }
+  return Math.abs(deux / 2);
+}
+
 /** Un sujet trop long coupe le voisin : on le raccourcit plutôt que de l'empiler. */
 function abrege(sujet, max = 26) {
   const brut = texte(sujet);
@@ -428,6 +455,11 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
   if (etat.vue === "strates") dessinerLesColonnes(ctx, etat, largeur, hauteur, points);
   else dessinerLesCoquilles(ctx, etat, largeur, hauteur, points);
 
+  // Le voile en premier, sous les liens et les nœuds : c'est un fond, pas un
+  // cadre. Posé par-dessus, il voilerait ce qu'il est censé situer.
+  if (etat.parDomaine) etat.voiles = dessinerLesVoiles(ctx, etat, points, temps);
+  else etat.voiles = [];
+
   // Les liens. Une courbe, pas une droite : à cette densité, des droites font un
   // treillis dans lequel on ne suit plus rien.
   //
@@ -448,7 +480,10 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
     const malade = signales.has(lien.de) || signales.has(lien.vers);
 
     if (vif > 0) {
-      ctx.strokeStyle = `rgba(88,166,255,${0.4 + 0.5 * vif})`;
+      const eclat = ECLAT[etat.couleur] ?? ECLAT.nature;
+      // Une impulsion brille : elle est plus claire et plus opaque que tout le
+      // reste, pour qu'on la suive à travers un écran déjà coloré.
+      ctx.strokeStyle = `rgba(${vif > 0.6 ? eclat.coeur : eclat.vif},${0.45 + 0.55 * vif})`;
     } else if (proche) {
       ctx.strokeStyle = "rgba(240,246,252,.7)";
     } else if (malade) {
@@ -501,7 +536,14 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
       } else {
-        ctx.fillStyle = `rgba(88,166,255,${0.18 * eclat})`;
+        const teinte = ECLAT[etat.couleur] ?? ECLAT.nature;
+        ctx.fillStyle = `rgba(${teinte.vif},${0.22 * eclat})`;
+        ctx.fill();
+        // Un cœur clair au centre du halo : c'est lui qui fait qu'une impulsion
+        // se voit passer, plutôt que de se deviner.
+        ctx.beginPath();
+        ctx.arc(x, y, rayon + 2 + eclat * 3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${teinte.coeur},${0.3 * eclat})`;
         ctx.fill();
       }
     }
@@ -647,6 +689,90 @@ function dessinerLesCoquilles(ctx, etat, largeur, hauteur, points) {
   }
 }
 
+/** De combien la frontière d'un voile s'écarte des nœuds qu'elle entoure. */
+const MARGE_DU_VOILE = 26;
+
+/**
+ * Le voile d'un domaine : un territoire, pas un cadre.
+ *
+ * ## Pourquoi une enveloppe, et pas une forme régulière
+ *
+ * Elle n'invente aucun point : elle entoure ceux qui existent. Un cercle posé sur
+ * le barycentre envelopperait du vide et ferait croire à une zone là où il n'y a
+ * personne — exactement le genre de dessin qui décide à la place de celui qui
+ * regarde.
+ *
+ * ## Pourquoi la frontière bouge
+ *
+ * Parce qu'elle **n'est pas une frontière**. Les secteurs se chevauchent d'un
+ * tiers, une valeur sert souvent deux disciplines, et un trait net dirait le
+ * contraire : que le raisonnement se range en cases. Une bordure qui respire
+ * dit ce qu'il faut — « c'est par là », pas « ça s'arrête ici ».
+ *
+ * ## Ce que le survol ajoute
+ *
+ * Rien de neuf : le même voile, plus lisible. On désigne un domaine en pointant
+ * **le vide entre ses valeurs**, ce qui est le geste qu'on fait naturellement en
+ * disant « ce paquet, là ».
+ *
+ * @returns {{domaine: string, libelle: string, contour: object[]}[]} de quoi
+ *   savoir, au pointeur, dans quelle zone on se trouve
+ */
+function dessinerLesVoiles(ctx, etat, points, temps) {
+  const voiles = [];
+
+  for (const entree of etat.domaines) {
+    const siens = etat.places
+      .filter((noeud) => texte(noeud.domaine) === entree.domaine)
+      .map((noeud) => points.get(noeud.id))
+      .filter(Boolean);
+    // Sous trois points il n'y a pas de territoire, seulement des points.
+    if (siens.length < 3) continue;
+
+    const brut = dilaterLEnveloppe(enveloppeConvexe(siens), MARGE_DU_VOILE);
+    if (brut.length < 3) continue;
+
+    // La respiration : chaque sommet s'écarte et revient, à son propre rythme.
+    const centre = brut.reduce(
+      (acc, point) => ({ x: acc.x + point.x / brut.length, y: acc.y + point.y / brut.length }),
+      { x: 0, y: 0 }
+    );
+    const contour = brut.map((point, index) => {
+      if (!etat.respire) return point;
+      const dx = point.x - centre.x;
+      const dy = point.y - centre.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const souffle = Math.sin(temps / 1900 + index * 1.7 + entree.rang) * 5;
+      return { x: point.x + (dx / distance) * souffle, y: point.y + (dy / distance) * souffle };
+    });
+
+    voiles.push({ domaine: entree.domaine, libelle: entree.libelle, contour });
+
+    const vif = etat.survoleLeDomaine === entree.domaine;
+    ctx.beginPath();
+    ctx.moveTo((contour.at(-1).x + contour[0].x) / 2, (contour.at(-1).y + contour[0].y) / 2);
+    // Des courbes passant par les milieux : les sommets d'une enveloppe convexe
+    // font des angles, et une zone à angles se lit comme un cadre.
+    for (let i = 0; i < contour.length; i += 1) {
+      const point = contour[i];
+      const suivant = contour[(i + 1) % contour.length];
+      ctx.quadraticCurveTo(point.x, point.y, (point.x + suivant.x) / 2, (point.y + suivant.y) / 2);
+    }
+    ctx.closePath();
+
+    // Au repos, assez pour qu'on **voie qu'il y a des zones** ; au survol, assez
+    // pour qu'on voie laquelle. Un voile invisible au repos ne dirait rien tant
+    // qu'on ne l'a pas trouvé par hasard.
+    ctx.fillStyle = vif ? "rgba(201,209,217,.09)" : "rgba(139,148,158,.055)";
+    ctx.fill();
+    ctx.strokeStyle = vif ? "rgba(201,209,217,.42)" : "rgba(139,148,158,.2)";
+    ctx.lineWidth = vif ? 1.4 : 1;
+    ctx.stroke();
+  }
+
+  return voiles;
+}
+
 /**
  * Le nom de chaque domaine, posé au milieu de sa zone.
  *
@@ -665,9 +791,11 @@ function dessinerLesCoquilles(ctx, etat, largeur, hauteur, points) {
 function dessinerLesDomaines(ctx, etat, points, ou) {
   ctx.textAlign = "center";
   ctx.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  ctx.fillStyle = "rgba(201,209,217,.38)";
 
   for (const entree of etat.domaines) {
+    ctx.fillStyle = etat.survoleLeDomaine === entree.domaine
+      ? "rgba(240,246,252,.92)"
+      : "rgba(201,209,217,.38)";
     const siens = etat.places.filter((noeud) => texte(noeud.domaine) === entree.domaine);
     // Trois points isolés portant une étiquette feraient croire à une zone qui
     // n'existe pas. En dessous, on se tait.
@@ -813,6 +941,9 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     signales,
     impulsions: [],
     survole: "", choisi: "",
+    /** La zone sous le pointeur, quand il ne désigne aucun nœud. */
+    survoleLeDomaine: "",
+    voiles: [],
     respire: !calme,
     /** Au-delà de ce nombre de nœuds **à l'écran**, les étiquettes ne se lisent plus. */
     seuilDesNoms: 45,
@@ -1025,9 +1156,17 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
     const noeud = sousLeCurseur(evenement);
     etat.survole = noeud?.id ?? "";
+    // Un nœud l'emporte sur sa zone : on désigne d'abord ce qu'on montre du
+    // doigt, et la zone n'est là que pour ce qu'on désigne entre les doigts.
+    etat.survoleLeDomaine = noeud ? "" : domaineSousLeCurseur(evenement);
     toile.style.cursor = noeud ? "pointer" : "grab";
     accorderLeBattement();
-    if (!noeud) { bulle.hidden = true; return; }
+
+    if (!noeud) {
+      if (etat.survoleLeDomaine) montrerLaBulleDuDomaine(etat.survoleLeDomaine, evenement);
+      else bulle.hidden = true;
+      return;
+    }
     montrerLaBulle(noeud, evenement);
   };
 
@@ -1067,6 +1206,56 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       if (ecart < rayonDe(noeud) + 8 && ecart < distance) { trouve = noeud; distance = ecart; }
     }
     return trouve;
+  };
+
+  /** La zone sous le pointeur, ou rien. La plus petite gagne : elle est dedans. */
+  const domaineSousLeCurseur = (evenement) => {
+    const cadre = toile.getBoundingClientRect();
+    const point = { x: evenement.clientX - cadre.left, y: evenement.clientY - cadre.top };
+
+    let trouve = "";
+    let aire = Infinity;
+    for (const voile of etat.voiles) {
+      if (!dansLEnveloppe(point, voile.contour)) continue;
+      // Deux voiles se chevauchent : c'est voulu. Le plus petit l'emporte, sans
+      // quoi une grande zone masquerait toujours la petite qu'elle recouvre.
+      const etendue = aireDuContour(voile.contour);
+      if (etendue < aire) { trouve = voile.domaine; aire = etendue; }
+    }
+    return trouve;
+  };
+
+  const montrerLaBulleDuDomaine = (domaine, evenement) => {
+    const entree = etat.domaines.find((autre) => autre.domaine === domaine);
+    if (!entree) { bulle.hidden = true; return; }
+
+    const siens = etat.places.filter((noeud) => texte(noeud.domaine) === domaine);
+    const chauds = [...siens].sort((g, d) => d.poids - g.poids).slice(0, 3);
+    const malades = siens.filter((noeud) => etat.signales.has(noeud.id)).length;
+
+    bulle.hidden = false;
+    bulle.innerHTML = `
+      <b>${escapeHtml(entree.libelle)}</b>
+      <span class="cerveau-bulle__compte">${siens.length}
+        ${accorde(siens.length, "affirmation", "affirmations")} dans cette zone</span>
+      ${
+        chauds.length
+          ? `<span class="cerveau-bulle__nature" style="--trait:#f0883e">Ce qui pèse le plus :
+              ${escapeHtml(chauds.map((noeud) => noeud.sujet).join(", "))}</span>`
+          : ""
+      }
+      ${
+        malades
+          ? `<span class="cerveau-bulle__signal">${malades}
+              ${accorde(malades, "valeur signalée", "valeurs signalées")} par l'audit</span>`
+          : ""
+      }
+    `;
+
+    const cadre = toile.getBoundingClientRect();
+    const gauche = Math.min(cadre.width - 250, Math.max(8, evenement.clientX - cadre.left + 14));
+    const haut = Math.min(cadre.height - 110, evenement.clientY - cadre.top + 14);
+    bulle.style.transform = `translate(${gauche}px, ${haut}px)`;
   };
 
   const montrerLaBulle = (noeud, evenement) => {
@@ -1182,6 +1371,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   toile.addEventListener("pointercancel", () => { glisse = null; });
   toile.addEventListener("pointerleave", () => {
     etat.survole = "";
+    etat.survoleLeDomaine = "";
     bulle.hidden = true;
     accorderLeBattement();
   });

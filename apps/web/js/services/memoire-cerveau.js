@@ -665,3 +665,82 @@ export function chaleurDuLien(lien = {}, parId = new Map(), poidsMax = 0) {
     chaleurDuNoeud(parId.get(lien?.vers), poidsMax)
   );
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Le contour d'un domaine
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * L'enveloppe convexe d'un nuage de points, par la chaîne monotone d'Andrew.
+ *
+ * C'est la façon la plus honnête de dessiner « le territoire » d'un domaine : elle
+ * n'invente aucun point, elle entoure ceux qui existent. Une forme lissée à la
+ * main — un cercle posé sur le barycentre, par exemple — envelopperait du vide et
+ * ferait croire à une zone là où il n'y a personne.
+ *
+ * @param {{x: number, y: number}[]} points
+ * @returns {{x: number, y: number}[]} le contour, dans le sens trigonométrique
+ */
+export function enveloppeConvexe(points = []) {
+  const tries = [...points]
+    .filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
+    .sort((g, d) => g.x - d.x || g.y - d.y);
+  if (tries.length < 3) return tries;
+
+  const croix = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const moitie = (liste) => {
+    const pile = [];
+    for (const point of liste) {
+      while (pile.length >= 2 && croix(pile[pile.length - 2], pile[pile.length - 1], point) <= 0) pile.pop();
+      pile.push(point);
+    }
+    pile.pop();
+    return pile;
+  };
+
+  return [...moitie(tries), ...moitie([...tries].reverse())];
+}
+
+/**
+ * Le même contour, écarté de ses points.
+ *
+ * Sans marge, le voile passerait **par** les nœuds du bord et les couperait en
+ * deux. On l'écarte donc depuis le barycentre — assez pour que les nœuds soient
+ * dedans, pas assez pour que deux domaines voisins se recouvrent.
+ */
+export function dilaterLEnveloppe(contour = [], marge = 0) {
+  if (!Array.isArray(contour) || contour.length < 3) return contour;
+
+  const centre = contour.reduce(
+    (acc, point) => ({ x: acc.x + point.x / contour.length, y: acc.y + point.y / contour.length }),
+    { x: 0, y: 0 }
+  );
+
+  return contour.map((point) => {
+    const dx = point.x - centre.x;
+    const dy = point.y - centre.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    return { x: point.x + (dx / distance) * marge, y: point.y + (dy / distance) * marge };
+  });
+}
+
+/**
+ * Ce point est-il dans ce contour ? Par le lancer de rayon.
+ *
+ * C'est ce qui permet de survoler **une zone** et non un nœud : on désigne un
+ * domaine en pointant le vide entre ses valeurs, ce qui est exactement le geste
+ * qu'on fait quand on dit « ce paquet, là ».
+ */
+export function dansLEnveloppe(point = {}, contour = []) {
+  if (!Array.isArray(contour) || contour.length < 3) return false;
+
+  let dedans = false;
+  for (let i = 0, j = contour.length - 1; i < contour.length; j = i, i += 1) {
+    const a = contour[i];
+    const b = contour[j];
+    const traverse = (a.y > point.y) !== (b.y > point.y)
+      && point.x < ((b.x - a.x) * (point.y - a.y)) / ((b.y - a.y) || 1e-9) + a.x;
+    if (traverse) dedans = !dedans;
+  }
+  return dedans;
+}

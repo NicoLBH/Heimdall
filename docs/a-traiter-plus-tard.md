@@ -302,8 +302,110 @@ dit qu'ils sont déduits d'une ressemblance de noms. **Les étiquettes ne s'écr
 que tant qu'elles se lisent**, et le seuil compte les nœuds visibles à l'écran —
 c'est ce qui fait que zoomer en fait réapparaître.
 
+### Le voile des domaines
+
+Chaque zone porte un **voile** : l'enveloppe convexe de ses nœuds, écartée d'une
+marge, dont la frontière respire. L'enveloppe n'invente aucun point — elle entoure
+ceux qui existent ; un cercle posé sur le barycentre envelopperait du vide et
+ferait croire à une zone là où il n'y a personne.
+
+La frontière bouge parce qu'elle **n'en est pas une** : les secteurs se
+chevauchent d'un tiers, une valeur sert souvent deux disciplines, et un trait net
+dirait le contraire — que le raisonnement se range en cases. Une bordure qui
+respire dit ce qu'il faut : « c'est par là », pas « ça s'arrête ici ».
+
+Au survol d'une zone — en pointant **le vide entre ses valeurs**, le geste qu'on
+fait en disant « ce paquet, là » —, le voile s'éclaire, son nom aussi, et une
+bulle dit ce qu'elle contient : combien d'affirmations, ce qui y pèse le plus, ce
+que l'audit y signale.
+
 ### Ce qui reste
 
-Rien de nommé, et c'est volontaire. L'écran a maintenant assez de réglages pour
-qu'on s'en serve un moment avant de savoir ce qui lui manque vraiment. La
-prochaine chose à faire viendra de l'usage, pas d'une liste.
+Rien de nommé pour cet écran-ci. La suite est ailleurs, au § 6 : les fonctions
+n'y sont pas encore des objets.
+
+---
+
+## 6. Les fonctions n'existent pas dans le cerveau
+
+**État :** ouvert · **Nature :** un modèle avant d'être un écran. **Débloque :**
+la moitié manquante de la métaphore.
+
+### Ce que le cerveau montre aujourd'hui, exactement
+
+**Un nœud est une affirmation** : une valeur que le projet tient pour vraie —
+« Altitude du site : 13 m », « Degré coupe-feu : CF 1 h ». Rien d'autre.
+
+**Un lien est une lecture** : « pour conclure ceci, on a lu cela ». Une ligne par
+lecture enregistrée, d'où son épaisseur.
+
+**Et les fonctions ?** Elles sont **les liens**, pas des nœuds. Une règle `.ref`
+n'apparaît nulle part : elle a été dissoute dans les flèches qu'elle produit. Le
+choix était délibéré — les dessiner ferait un nœud de plus par sujet — mais il a
+un coût, et il faut le dire : **on ne peut ni voir une fonction, ni la peser, ni
+savoir laquelle est compliquée.**
+
+Le cerveau montre donc aujourd'hui la **mémoire et ses dépendances**. Pas les
+raisonnements comme objets. C'est une moitié de la métaphore.
+
+### Ce qui est déjà là, et qu'il suffit de nommer
+
+La structure d'un cerveau — mémoire au centre, réflexes autour, sens au bord —
+est **déjà dessinée**. Elle n'est simplement pas dite avec ces mots-là.
+
+**La mémoire, c'est le socle.** La strate 0, au centre du volume : ce que le
+projet pose, suppose ou constate. Plus un projet porte de données, plus son noyau
+est peuplé et chaud. Le secteur mémoire existe donc — c'est le cœur, et il n'y a
+rien à construire pour cela.
+
+**Les capteurs, ce sont les utilitaires.** Les nœuds opaques lisent le monde
+extérieur : une table climatique départementale, Géorisques, un PDF extrait. C'est
+exactement un organe sensoriel — il rapporte une mesure dont on ne peut pas
+refaire le chemin de l'intérieur. La correspondance est juste, et déjà à l'écran :
+creux, gris, halo ambre quand l'onde les traverse.
+
+**Le réflexe, c'est la première strate.** Les règles qui ne lisent que le socle ne
+dépendent d'aucun autre raisonnement : donnée → conclusion, sans intermédiaire.
+C'est bien un « reptilien », et c'est la coquille la plus proche du centre.
+
+### Ce qui manque vraiment
+
+Que les fonctions soient des **objets** : visibles, situables, pesables. Un nœud
+d'une autre forme — un losange, disons — placé entre ses entrées et sa sortie,
+au lieu d'une flèche qui les court-circuite.
+
+Attention à un piège : on aurait alors **deux systèmes de secteurs** qui se
+battraient — les domaines métier (incendie, structure) et les natures de fonction
+(réflexe, capteur). Il faut les mettre sur des axes différents, et l'écran le fait
+déjà : **les domaines sur l'axe angulaire, la nature du raisonnement sur l'axe
+radial**. Il n'y a rien à réinventer, seulement à nommer les coquilles avec ces
+mots-là plutôt qu'avec « 1 pas, 2 pas ».
+
+### Le poids d'une fonction : deux mesures, jamais un score
+
+**La complexité seule serait un mauvais poids**, parce qu'elle mesure l'effort
+d'écriture, pas l'importance. Il en faut deux, et elles ne se mélangent pas :
+
+**Ce qu'elle demande pour être comprise.** Le nombre de conditions, le nombre de
+sujets distincts lus, les exceptions (`sauf`), la présence d'un `sinon`, le nombre
+de zones où elle s'applique. Tout est dans `payload.regle` : mesurable exactement,
+sans rien inventer.
+
+**Ce qui dépend d'elle.** Combien d'affirmations en aval de sa conclusion, sur
+combien de strates — c'est `impactDe` sur sa sortie, la fonction que l'écran
+emploie déjà.
+
+Une fonction compliquée dont rien ne dépend est un **coût** : elle se relit mal
+pour rien. Une fonction simple dont tout dépend est un **risque** : la corriger
+remue le projet entier. Ce sont deux problèmes différents, on n'y répond pas de la
+même façon, et un score unique les confondrait — ce qui est précisément ce que ce
+projet refuse ailleurs, en séparant la chaleur (ce qui passe par là) du rouge (ce
+qui ne tient plus).
+
+### Ce qui se passe si on le laisse
+
+Le cerveau reste juste, et incomplet : il dit tout de ce que le projet **sait** et
+rien de ce qu'il **fait**. Sur un projet dont le raisonnement est riche, on voit
+un nuage de valeurs reliées sans voir les mécanismes qui les relient — et l'on ne
+peut pas répondre à « quelle règle est trop compliquée ? », qui est une vraie
+question de relecture.

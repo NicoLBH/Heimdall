@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   SIGNAL, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dispositionDuCerveau, dispositionEnVolume,
-  domainesDuCerveau, graineDe, liensDuRaisonnement, noeudsIsoles, ondeDepuis, pencherVersLesDomaines,
-  phraseDuSignal, signauxDeLAudit, stratesDuGraphe
+  dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau, enveloppeConvexe, graineDe, liensDuRaisonnement,
+  noeudsIsoles, ondeDepuis, pencherVersLesDomaines, phraseDuSignal, signauxDeLAudit, stratesDuGraphe
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -488,4 +488,48 @@ test("le regroupement laisse la strate tranquille : elle porte le raisonnement",
     const avant = brutes.find((b) => b.id === place.id);
     assert.equal(place.x, avant.x, `${place.sujet} a changé de strate`);
   }
+});
+
+/* ── Le contour d'un domaine ─────────────────────────────────────────────── */
+
+test("une enveloppe entoure les points qui existent, sans en inventer", () => {
+  // Un cercle posé sur le barycentre envelopperait du vide et ferait croire à
+  // une zone là où il n'y a personne.
+  const carre = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 5, y: 5 }];
+  const contour = enveloppeConvexe(carre);
+
+  assert.equal(contour.length, 4);
+  // Le point intérieur n'est pas un sommet : il est dedans, pas au bord.
+  assert.equal(contour.some((point) => point.x === 5 && point.y === 5), false);
+});
+
+test("sous trois points il n'y a pas de territoire, seulement des points", () => {
+  assert.equal(enveloppeConvexe([{ x: 0, y: 0 }, { x: 1, y: 1 }]).length, 2);
+  assert.deepEqual(enveloppeConvexe([]), []);
+  // Ce qui n'est pas un nombre ne fait pas de sommet.
+  assert.deepEqual(enveloppeConvexe([{ x: NaN, y: 0 }, null]), []);
+});
+
+test("la marge écarte le contour de ses nœuds, sans le déformer", () => {
+  // Sans marge, le voile passerait par les nœuds du bord et les couperait en deux.
+  const contour = enveloppeConvexe([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]);
+  const dilate = dilaterLEnveloppe(contour, 2);
+
+  for (const point of contour) {
+    assert.ok(dansLEnveloppe(point, dilate), `(${point.x},${point.y}) doit rester dedans`);
+  }
+  // Le centre ne bouge pas : on écarte, on ne déplace pas.
+  const centre = (liste) => liste.reduce((acc, p) => acc + p.x, 0) / liste.length;
+  assert.ok(Math.abs(centre(contour) - centre(dilate)) < 1e-9);
+});
+
+test("on désigne une zone en pointant le vide entre ses valeurs", () => {
+  // C'est le geste qu'on fait naturellement en disant « ce paquet, là ».
+  const contour = enveloppeConvexe([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]);
+
+  assert.equal(dansLEnveloppe({ x: 5, y: 5 }, contour), true);
+  assert.equal(dansLEnveloppe({ x: 20, y: 5 }, contour), false);
+  assert.equal(dansLEnveloppe({ x: 5, y: -1 }, contour), false);
+  // Un contour dégénéré n'attrape rien : deux points ne font pas une zone.
+  assert.equal(dansLEnveloppe({ x: 5, y: 5 }, [{ x: 0, y: 0 }, { x: 10, y: 10 }]), false);
 });
