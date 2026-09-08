@@ -51,6 +51,7 @@ import { currentAssertions, titreDeLAffirmation } from "./project-memory.js";
 import { emploisParAffirmation, impactDe } from "./memoire-applications.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
 import { utilitaireByReference } from "../utilitaires/catalogue.js";
+import { DOMAINS, domainLabel } from "./assertion-taxonomy.js";
 import { VERDICT, auditerLaMemoire } from "./memoire-audit.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -194,10 +195,18 @@ export function cerveauDuProjet(assertions = [], applications = null) {
   const emplois = emploisParAffirmation(Array.isArray(applications) ? applications : []);
   const dedans = new Set(ids);
 
+  // Le degré de chaque nœud : combien de liens le touchent, et dans quel sens.
+  const degres = new Map(ids.map((id) => [id, { entrant: 0, sortant: 0 }]));
+  for (const lien of liens) {
+    if (degres.has(lien.de)) degres.get(lien.de).sortant += lien.poids;
+    if (degres.has(lien.vers)) degres.get(lien.vers).entrant += lien.poids;
+  }
+
   const noeuds = valeurs.map((assertion) => {
     const id = texte(assertion.id);
     const nature = natureDuNoeud(assertion, { produites });
     const utilitaire = texte(assertion?.payload?.utilitaire);
+    const degre = degres.get(id) ?? { entrant: 0, sortant: 0 };
 
     return {
       id,
@@ -212,6 +221,26 @@ export function cerveauDuProjet(assertions = [], applications = null) {
       // qui décide de sa taille : une donnée lue quarante fois n'est pas un point
       // comme les autres.
       lectures: emplois.get(id)?.lectures ?? 0,
+      /**
+       * Ce qui touche ce nœud, et dans quel sens.
+       *
+       * `sortant` est sa **dispersion** : combien de choses partent de lui. C'est
+       * ce qui fait qu'une valeur est chaude — pas le fait d'exister, mais le
+       * nombre de raisonnements qui la traversent.
+       */
+      entrant: degre.entrant,
+      sortant: degre.sortant,
+      /**
+       * Le poids : ce que ce nœud pèse dans le raisonnement.
+       *
+       * Deux termes qui ne disent pas la même chose, et il faut les deux. Les
+       * **emplois** disent combien de fois une valeur est lue ; le **degré** dit
+       * à combien de choses différentes elle touche. Une donnée lue dix fois par
+       * une seule règle et une donnée lue une fois par dix règles ne pèsent pas
+       * pareil, et ne compter que l'un des deux les confondrait.
+       */
+      poids: (emplois.get(id)?.lectures ?? 0) + degre.entrant + degre.sortant,
+      domaine: texte(assertion?.domain) || texte(assertion?.payload?.domain),
       utilitaire,
       /**
        * Un nœud opaque qui **sait se rejouer** au serveur.
@@ -231,7 +260,9 @@ export function cerveauDuProjet(assertions = [], applications = null) {
     // Ceux des opaques que le serveur sait refaire : le compte honnête de ce
     // qu'une variante rendra vraiment.
     auServeur: noeuds.filter((n) => n.rejouable).length,
-    liens: liens.length
+    liens: liens.length,
+    /** Le poids le plus lourd : c'est l'échelle à laquelle les autres se lisent. */
+    poidsMax: noeuds.reduce((max, noeud) => Math.max(max, noeud.poids), 0)
   };
 
   return {
@@ -486,4 +517,151 @@ export function dispositionEnVolume(cerveau = {}) {
     /** Le déphasage de sa respiration, comme en strates. */
     phase: graineDe(noeud.id, 13) * Math.PI * 2
   }));
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Le regroupement par domaine
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Les domaines présents, dans l'ordre du vocabulaire, plus « sans domaine ».
+ *
+ * L'ordre vient de `DOMAINS` et non de ce que le projet contient : deux projets
+ * doivent placer l'incendie au même endroit, sans quoi on ne peut pas dire « la
+ * zone dense, en haut à droite, c'est l'incendie » d'un projet à l'autre.
+ */
+export function domainesDuCerveau(cerveau = {}) {
+  const noeuds = Array.isArray(cerveau?.noeuds) ? cerveau.noeuds : [];
+  const presents = new Set(noeuds.map((noeud) => texte(noeud.domaine)));
+
+  const ordonnes = DOMAINS.filter((domaine) => presents.has(domaine));
+  if (presents.has("")) ordonnes.push("");
+
+  return ordonnes.map((domaine, index) => ({
+    domaine,
+    libelle: domaine ? domainLabel(domaine) : "Sans domaine",
+    /** Sa direction, en radians. Fixe pour un domaine donné, quel que soit le projet. */
+    cap: (DOMAINS.indexOf(domaine) >= 0 ? DOMAINS.indexOf(domaine) : DOMAINS.length)
+      / (DOMAINS.length + 1) * Math.PI * 2,
+    rang: index,
+    combien: noeuds.filter((noeud) => texte(noeud.domaine) === domaine).length
+  }));
+}
+
+/**
+ * Combien la disposition penche vers les domaines. Zéro : pas du tout.
+ *
+ * **Un penchant, pas une partition.** Regrouper franchement donnerait huit
+ * paquets séparés — et l'on perdrait ce qu'on est venu voir : les chaînes qui
+ * traversent les domaines, une altitude du site qui nourrit une cote de fondation
+ * qui commande un ferraillage. Le raisonnement d'un projet ne respecte pas les
+ * disciplines, et un dessin qui le rangerait par discipline le ferait mentir.
+ */
+export const PENCHANT = 0.7;
+
+/**
+ * De combien les secteurs voisins se chevauchent.
+ *
+ * C'est ce qui empêche le dessin de devenir un camembert. Un tiers de
+ * chevauchement suffit à ce que les bords se mêlent : on reconnaît une zone sans
+ * pouvoir tracer la frontière, ce qui est exactement l'état de la réalité — une
+ * hauteur de plancher sert l'incendie **et** l'accessibilité.
+ */
+const CHEVAUCHEMENT = 0.35;
+
+/** L'écart le plus court entre deux angles, en tenant compte du tour complet. */
+const ecartAngulaire = (de, vers) => Math.atan2(Math.sin(vers - de), Math.cos(vers - de));
+
+/**
+ * La même disposition, penchée vers les domaines.
+ *
+ * Elle s'applique **après** la disposition, pas à sa place : les strates et les
+ * coquilles restent ce qu'elles sont — ce sont elles qui portent le raisonnement
+ * —, et le domaine ne fait que décider où l'on se pose **dans** sa strate.
+ * L'inverse — grouper d'abord, stratifier ensuite — casserait la lecture des
+ * chaînes, qui est la raison d'être de l'écran.
+ *
+ * Chaque domaine reçoit un secteur ; à l'intérieur, chaque nœud garde son écart
+ * propre, si bien qu'une zone est dense sans être un bloc. Puis on **mélange**
+ * avec la position d'origine : à `PENCHANT`, la zone se reconnaît et les liens
+ * qui la traversent restent lisibles.
+ */
+export function pencherVersLesDomaines(places = [], cerveau = {}, force = PENCHANT) {
+  if (!force || !Array.isArray(places) || !places.length) return places;
+
+  const domaines = domainesDuCerveau(cerveau);
+  if (domaines.length < 2) return places;
+
+  const rangs = new Map(domaines.map((entree, index) => [entree.domaine, index]));
+  const secteur = (Math.PI * 2 / domaines.length) * (1 + CHEVAUCHEMENT);
+  const enVolume = places.some((place) => typeof place.z === "number");
+
+  return places.map((place) => {
+    const rang = rangs.get(texte(place.domaine));
+    if (rang === undefined) return place;
+
+    // Sa place **à lui** dans son secteur, tirée de son identifiant : stable, et
+    // assez dispersée pour que le secteur ne devienne pas un trait.
+    const dedans = graineDe(place.id, 23) - 0.5;
+
+    if (!enVolume) {
+      // En strates, seule la hauteur est libre : la colonne dit la strate et ne
+      // se négocie pas. Chaque domaine reçoit donc une bande horizontale.
+      const bande = (rang + 0.5) / domaines.length + dedans * (1 / domaines.length) * (1 + CHEVAUCHEMENT);
+      return { ...place, y: Math.min(0.96, Math.max(0.04, place.y * (1 - force) + bande * force)) };
+    }
+
+    // En volume, on tourne vers le cap du domaine sans toucher à la hauteur : une
+    // coquille reste une coquille, et donc une strate reste une strate.
+    const rayon = Math.hypot(place.x, place.z);
+    if (rayon < 1e-6) return place;
+
+    const angle = Math.atan2(place.z, place.x);
+    const vise = (rang / domaines.length) * Math.PI * 2 + dedans * secteur;
+    const tourne = angle + ecartAngulaire(angle, vise) * force;
+
+    return { ...place, x: Math.cos(tourne) * rayon, z: Math.sin(tourne) * rayon };
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * La chaleur
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * La chaleur d'un nœud : 0 pour ce qui ne sert à rien, 1 pour le plus chargé.
+ *
+ * ## Pourquoi une racine, et pas une règle de trois
+ *
+ * Les poids d'un projet ne se répartissent pas également : trois nœuds pèsent
+ * quarante, deux cents en pèsent un ou deux. Une échelle linéaire écraserait donc
+ * tout le milieu contre le froid, et l'on ne verrait que les trois extrêmes — ce
+ * qu'on savait déjà. La racine étale le bas de l'échelle, là où se trouve la
+ * matière qu'on cherche à distinguer.
+ *
+ * ## Ce que la chaleur n'est pas
+ *
+ * Ce n'est **pas** un jugement. Un nœud froid n'est pas suspect, un nœud chaud
+ * n'est pas juste : la chaleur dit seulement combien de raisonnement passe par
+ * là. Ce qui va mal est dit ailleurs — par l'audit —, et c'est pour cela que le
+ * rouge lui est réservé et n'apparaît jamais au bout d'un dégradé d'orange.
+ */
+export function chaleurDuNoeud(noeud = {}, poidsMax = 0) {
+  const max = Math.max(1, Number(poidsMax) || 0);
+  return Math.min(1, Math.sqrt(Math.max(0, Number(noeud?.poids) || 0) / max));
+}
+
+/**
+ * La chaleur d'un lien : celle de la plus chaude de ses deux extrémités.
+ *
+ * Pas la moyenne. Un lien qui part d'une donnée employée quarante fois **est** un
+ * lien important, même s'il aboutit à une conclusion terminale dont rien ne
+ * dépend ; en faire la moyenne le refroidirait de moitié et effacerait du dessin
+ * les branches maîtresses.
+ */
+export function chaleurDuLien(lien = {}, parId = new Map(), poidsMax = 0) {
+  return Math.max(
+    chaleurDuNoeud(parId.get(lien?.de), poidsMax),
+    chaleurDuNoeud(parId.get(lien?.vers), poidsMax)
+  );
 }
