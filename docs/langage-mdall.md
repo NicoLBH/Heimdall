@@ -767,3 +767,5 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/memoire-rejeu.js` | rejoue toutes les règles, zone par zone, dans l'ordre du plan |
 | `apps/web/js/services/memoire-plan.js` | le plan de recalcul : strates, profondeur, couverture, cycles |
 | `apps/web/js/views/ui/fenetre-plan.js` | montre le plan — la forme du raisonnement, et sa frontière |
+| `apps/web/js/services/memoire-audit.js` | le rejeu à blanc : chaque règle contre ce que le projet affirme |
+| `apps/web/js/views/ui/fenetre-audit.js` | le verdict d'ensemble, et les quatre issues |

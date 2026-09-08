@@ -336,6 +336,10 @@ let ouverte = null;
  *   dans la variante — c'est à l'appelant d'emmener l'utilisateur à la mémoire
  */
 export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = null, quandOnLit = null } = {}) {
+  // Une fenêtre dont l'hôte a quitté le document est fermée, quoi qu'en dise le
+  // verrou : sans cette ligne, un rendu qui balaie la page laisse le verrou posé
+  // et l'écran ne se rouvre plus jamais.
+  if (ouverte && !ouverte.isConnected) ouverte = null;
   if (ouverte) return;
 
   // Une liste vide n'est pas une mémoire : c'est « je n'ai rien sous la main ».

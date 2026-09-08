@@ -45,12 +45,11 @@ import { renderGhActionButton } from "./gh-split-button.js";
  * 5. le rejeu à blanc
  * 6. la variante, alors triviale
  *
- * `4` : le plan de recalcul est dérivé — les strates, la profondeur, et le
- * compte de ce qui se rejoue face à ce qui reste opaque. Le rejeu suit cet
- * ordre, et un seul tour suffit. L'audit attend encore le rejeu à blanc, qui
- * est l'étape 5.
+ * `5` : le rejeu à blanc existe. Les trois usages sont servis, et le moteur
+ * répond à la question pour laquelle le produit existe — ce que le projet
+ * affirme est-il encore ce que ses règles concluent ?
  */
-export const ETAPE_ATTEINTE = 4;
+export const ETAPE_ATTEINTE = 5;
 
 /**
  * Les trois usages, dans l'ordre où on les lit.
@@ -70,7 +69,7 @@ export const USAGES = [
     action: "tester:audit",
     nom: "Auditer la mémoire",
     depuisLEtape: 5,
-    quoi: "Rejouer le raisonnement sur les valeurs d'aujourd'hui, et dire ce qui a dérivé."
+    quoi: "Rejouer le raisonnement sur les valeurs d'aujourd'hui, et dire ce qui a dérivé. Rien n'est écrit."
   },
   {
     action: "tester:impact",

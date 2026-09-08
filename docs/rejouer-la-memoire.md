@@ -269,11 +269,60 @@ ordre tenu à la main divergerait dès la règle suivante. Pour la même raison,
 de septième extension : les fichiers sont ce que les gens écrivent et lisent ;
 ceci est une vue.
 
-### 5. Le rejeu à blanc
+### 5. Le rejeu à blanc — *fait*
 
-Rejouer tout le calque dérivé depuis le socle **actuel**, sans rien écrire, et
-comparer chaque sortie à ce que la mémoire tient. Trois issues par nœud :
-**identique** · **différent** · **non rejouable**.
+Rejouer chaque règle sur ce que la mémoire dit **aujourd'hui**, sans rien écrire,
+et comparer sa conclusion à ce que le projet affirme.
+
+#### Une correction : l'audit est **local**, pas en cascade
+
+Ce document disait « rejouer tout le calque dérivé **depuis le socle** ». En
+l'écrivant, ce choix s'est révélé mauvais, et voici pourquoi.
+
+La hauteur a été corrigée à 31 m ; le classement dit encore « 3ᵉ famille B » ;
+le degré coupe-feu dit « CF 1 h » — ce qui est juste **pour une 3ᵉ famille B**.
+
+- **En cascade** : deux signalements. Le classement, puis le degré. Le second
+  n'est pas un défaut, c'est une **conséquence** du premier.
+- **Localement** : un seul, exactement là où il est. Et ce qui en découlerait se
+  lit dans l'étude d'impact, qui est faite pour ça.
+
+Un audit qui multiplie les signalements s'apprend à être ignoré. Chaque règle est
+donc évaluée contre les valeurs **stockées** de ses entrées, et sa conclusion
+comparée à la valeur **affirmée** par le projet — pas à ce que la règle avait
+elle-même conclu : une valeur retouchée à la main sur la ligne, sans que la règle
+bouge, est exactement le défaut qu'on cherche, et comparer la règle à elle-même
+le manquerait.
+
+#### Quatre issues, qui n'appellent pas le même geste
+
+| issue | ce que ça dit | ce que ça vaut |
+| --- | --- | --- |
+| **identique** | la règle rend ce que le projet affirme | comptée, pas listée — quatre-vingts lignes identiques noieraient les trois qui comptent |
+| **a dérivé** | ce que le projet affirme n'est plus ce que sa règle conclut | le défaut |
+| **a perdu son objet** | la règle ne s'applique plus, et n'a rien à dire à la place | la valeur reste écrite, son fondement a disparu |
+| **n'a pas pu être vérifié** | une entrée manque, une unité ne se compare pas | une **lacune**, pas une contradiction |
+
+L'indécidable ne compte pas comme une dérive. Les confondre ferait crier au
+défaut sur un projet simplement incomplet.
+
+#### « La mémoire tient » se dit aussi fort que l'inverse
+
+Un audit qui ne parlerait que lorsqu'il trouve quelque chose s'apprend à être
+craint, et l'on cesse de le lancer. Savoir qu'on a regardé est une information —
+c'est même la plus fréquente, et la plus rassurante.
+
+#### Ce qu'il n'a pas regardé se dit
+
+Les déductions d'un utilitaire ne se rejouent pas ici, et les composantes qui se
+lisent en rond non plus. Un bloc **hors de portée** les compte et les nomme :
+les taire ferait passer « rien à signaler » pour « tout a été vérifié », ce qui
+est le mensonge que tout ce chantier existe pour éviter.
+
+#### Il ne corrige rien
+
+Rien n'est écrit. L'écran constate ; corriger est une **décision**, et elle passe
+par une proposition — `docs/fondamentaux.md`, règle 1.
 
 C'est le cœur du chantier, et il vaut par lui-même :
 
@@ -338,7 +387,7 @@ Ils s'allument à mesure que le plan avance.
 | usage | s'allume à | ce qu'il fera |
 | --- | --- | --- |
 | **Tester une variante** | déjà là, honnête depuis l'étape 3 | changer une valeur du socle, rejouer les règles, ne rien écrire |
-| **Auditer la mémoire** | étape 5 | rejouer à blanc, et dire ce qui a dérivé |
+| **Auditer la mémoire** | étape 5 — *allumé* | rejouer à blanc, et dire ce qui a dérivé. Rien n'est écrit |
 | **Étude d'impact** | étape 2 — *allumé* | « qu'est-ce qui repose sur cette valeur ? », par strates, avec le compte exact |
 
 Un item qui n'est pas encore servi par le moteur est **désactivé et dit son

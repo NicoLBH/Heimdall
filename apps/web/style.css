@@ -21652,3 +21652,71 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   padding:3px 8px; border-radius:var(--radius);
   background:var(--panel2); color:var(--text); font-size:12.5px;
 }
+
+/* ── L'audit : ce que le projet affirme est-il ce que ses règles concluent ──
+   Le verdict d'ensemble d'abord : « la mémoire tient » se dit aussi fort que
+   l'inverse. Un audit qui ne parlerait que pour signaler s'apprend à être
+   craint, et l'on cesse de le lancer. */
+.audit-boite{ width:min(760px, 100%); gap:12px; }
+
+.audit-verdict{
+  display:flex; flex-direction:column; gap:6px;
+  padding:14px 16px; border:1px solid var(--border); border-left-width:3px;
+  border-radius:var(--radius); background:var(--bg);
+}
+.audit-verdict b{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:"IBM Plex Sans Condensed", inherit; font-size:17px;
+}
+.audit-verdict p{ margin:0; font-size:13px; line-height:1.55; color:var(--muted); }
+.audit-verdict--tient{ border-left-color:var(--success); }
+.audit-verdict--tient b{ color:var(--success); }
+.audit-verdict--derive{ border-left-color:var(--danger); }
+.audit-verdict--derive b{ color:var(--danger); }
+.audit-verdict--vide{ border-left-color:var(--border); }
+.audit-verdict--vide b{ color:var(--muted); }
+
+.audit-rangs{ display:flex; flex-direction:column; gap:12px; max-height:52vh; overflow:auto; }
+.audit-rang{
+  padding:12px; border:1px solid var(--border); border-left-width:3px;
+  border-radius:var(--radius); background:var(--bg);
+}
+.audit-rang h5{
+  display:flex; align-items:center; gap:8px;
+  margin:0 0 6px; font-size:13px; font-weight:600;
+}
+.audit-rang p{ margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
+.audit-rang__compte{
+  margin-left:auto; color:var(--muted);
+  font:500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.audit-rang__vide{ font-style:italic; }
+.audit-rang__quoi{ margin-top:6px !important; }
+.audit-rang__quoi b{ color:var(--text); }
+
+.audit-rang--derive{ border-left-color:var(--danger); }
+.audit-rang--derive h5{ color:var(--danger); }
+.audit-rang--sans-objet{ border-left-color:#d29922; }
+.audit-rang--sans-objet h5{ color:#d29922; }
+.audit-rang--lacune{ border-left-color:var(--accent); }
+.audit-rang--lacune h5{ color:var(--accent); }
+.audit-rang--opaque{ border-left-color:var(--border); }
+.audit-rang--opaque h5{ color:var(--muted); }
+
+.audit-lignes{ list-style:none; display:flex; flex-direction:column; gap:4px; margin:8px 0 0; padding:0; }
+.audit-ligne{
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 16px;
+  padding:6px 8px; border-radius:var(--radius); background:var(--panel2);
+  font-size:13px;
+}
+.audit-ligne__sujet{ display:inline-flex; align-items:baseline; gap:8px; min-width:0; color:var(--text); }
+.audit-ligne__zone{
+  color:var(--muted);
+  font:500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.audit-ligne__valeurs{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.audit-ligne__affirmee{ color:var(--muted); font-weight:500; }
+.audit-ligne--differente .audit-ligne__affirmee{ text-decoration:line-through; }
+.audit-ligne__conclue{ color:var(--danger); font-weight:600; }
+.audit-ligne__muet{ color:var(--muted); font-size:12px; font-style:italic; }
+.audit-ligne__motif{ grid-column:1 / -1; color:var(--muted); font-size:12px; line-height:1.5; }
