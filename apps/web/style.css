@@ -21845,6 +21845,12 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .cerveau-legende__item--rejouable i{ background:rgba(88,166,255,.18); }
 .cerveau-legende__item--opaque i{ background:transparent; }
 .cerveau-legende__item--serveur i{ background:transparent; border-color:#a371f7; }
+/* Une règle n'est pas une nature de valeur : le losange le dit sans une ligne de
+   texte de plus, et c'est la forme qu'elle a dans le dessin. */
+.cerveau-legende__item--regle i{
+  border-radius:2px; transform:rotate(45deg);
+  background:rgba(163,113,247,.20); border-color:#a371f7;
+}
 .cerveau-legende__item b{ color:var(--text); }
 .cerveau-legende__item small{ color:var(--muted); }
 

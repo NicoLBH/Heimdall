@@ -326,10 +326,34 @@ n'y sont pas encore des objets.
 
 ---
 
-## 6. Les fonctions n'existent pas dans le cerveau
+## 6. Les fonctions deviennent des nœuds — *fait*
 
-**État :** ouvert · **Nature :** un modèle avant d'être un écran. **Débloque :**
+**État :** fait · **Nature :** un modèle avant d'être un écran. **Débloque :**
 la moitié manquante de la métaphore.
+
+> **Ce qui a été livré.** Une règle appliquée est un **nœud**, dessiné en losange
+> violet entre ses entrées et sa sortie, sous la case « Montrer les règles ».
+> `lecturesAvecLesFonctions` déplie chaque lecture enregistrée en deux —
+> `entrée → règle` puis `règle → sortie` — et le dessin **comme l'onde** lisent
+> ces mêmes lectures dépliées : sans cela l'onde sauterait par-dessus les nœuds
+> qu'on vient de dessiner. `complexiteDeLaRegle` compte ce qu'il faut tenir en
+> tête pour la relire (conditions, sujets lus, exceptions comptées double, deux
+> issues, zones) et l'écran la rend en **crans autour du losange**, jamais en
+> taille : la taille reste le poids, comme pour tout le monde.
+>
+> **Ce qui n'a pas été fait, et pourquoi.** Les coquilles ne s'appellent pas
+> « réflexe » et « capteur ». Un rang ne porte presque jamais *que* des règles —
+> deux chaînes de longueurs différentes y mettent couramment une valeur à côté
+> d'un mécanisme — et le nommer ainsi nierait ce qui s'y trouve. Un rang qui ne
+> porte que des règles s'appelle « règles » ; les autres gardent leur compte de
+> pas. La profondeur annoncée en tête reste celle du **raisonnement**
+> (`pasDeRaisonnement`), jamais celle du dessin : le même projet ne change pas de
+> profondeur selon un bouton d'affichage.
+>
+> **Ce qui reste.** La seconde mesure — *ce qui dépend d'elle*, `impactDe` sur sa
+> sortie — n'est pas encore montrée dans la bulle d'une règle. Le nœud porte déjà
+> son poids et sa complexité séparément ; l'aval se lit pour l'instant en
+> cliquant, par l'onde.
 
 ### Ce que le cerveau montre aujourd'hui, exactement
 
@@ -402,10 +426,10 @@ même façon, et un score unique les confondrait — ce qui est précisément ce
 projet refuse ailleurs, en séparant la chaleur (ce qui passe par là) du rouge (ce
 qui ne tient plus).
 
-### Ce qui se passe si on le laisse
+### Ce qui se passait si on le laissait
 
-Le cerveau reste juste, et incomplet : il dit tout de ce que le projet **sait** et
-rien de ce qu'il **fait**. Sur un projet dont le raisonnement est riche, on voit
+Le cerveau restait juste, et incomplet : il disait tout de ce que le projet
+**sait** et rien de ce qu'il **fait**. Sur un projet dont le raisonnement est riche, on voit
 un nuage de valeurs reliées sans voir les mécanismes qui les relient — et l'on ne
 peut pas répondre à « quelle règle est trop compliquée ? », qui est une vraie
 question de relecture.
