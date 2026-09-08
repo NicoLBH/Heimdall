@@ -58,24 +58,26 @@ en plus ce qu'elle voulait dire.
 
 ```
 fichier: memoire/incendie.ctr             le chemin du fichier
-note: écriture Mdall v4.3                 une note, jamais interprétée
+note: écriture Mdall v4.4                 une note, jamais interprétée
 
-zone: Bâtiment A {                        une section de portée
-
-   Sujet = valeur {                       une affirmation
-      le: 12 mars 2026                    quand — pour un constat
-      texte: arrêté …, article 3, 3°)     d'où cela vient, typé par le mot-clé
-      décision humaine assumée (…)       ou : quelqu'un a tranché, et il signe
-         parce que: "citation exacte"     la preuve, sous sa provenance
-      statut: retenu                      l'état du raisonnement ici
-   }
-
+Sujet = valeur {                          une affirmation qui vaut partout
+   le: 12 mars 2026                       quand — pour un constat
+   texte: arrêté …, article 3, 3°)        d'où cela vient, typé par le mot-clé
+   décision humaine assumée (…)           ou : quelqu'un a tranché, et il signe
+      parce que: "citation exacte"        la preuve, sous sa provenance
+   statut: retenu                         l'état du raisonnement ici
 }
 
-// à quoi la fonction sert                un commentaire, jamais interprété
+Sujet = [                                 la même, valeur par valeur
+   Bâtiment A: "CF 1 h" { … },            une entrée par partie d'ouvrage
+   Bâtiment B: "CF 1/2 h" { … }
+];
+
 fonction Sujet(zones, entrée) {           la tête d'une règle, portée d'abord
-   importe (variable: entrée,             d'où vient chaque entrée
-            depuis: donnees-de-base.ddb);
+   // à quoi elle sert                    dedans, pour qu'elle se copie entière
+   importe (variable: entrée,             d'où vient chaque entrée, et pour
+            depuis: donnees-de-base.ddb,  quelle zone
+            zones: zones);
    soit texte = "…";                      d'où elle sort, déclaré en tête
    soit parce que = "…";                  la citation qui la fonde
    si (Sujet <= 28 m)                     une condition
@@ -173,10 +175,11 @@ les autres fichiers pour reconstituer la chaîne — et c'est précisément ce q
 mémoire existe pour éviter.
 
 ```
-// Définit si un parc de stationnement d'habitation, non soumis aux règles
-// ERP PS, peut accueillir des véhicules de plus de 3,5 t.
 fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {
-   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);
+   // Définit si un parc de stationnement d'habitation, non soumis aux règles
+   // ERP PS, peut accueillir des véhicules de plus de 3,5 t.
+
+   importe (variable: Champ d'application du titre VI, depuis: memoire/donnees-de-base.ddb, zones: zones);
 
    soit texte = "arrêté du 31 janvier 1986 modifié, article 79";
    soit parce que = "L'accès des parcs est interdit aux véhicules de plus de 3,5 t de poids total en charge.";
@@ -195,13 +198,21 @@ fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {
 Six obligations, et une seule raison derrière chacune : **qu'on n'ait pas à
 chercher ailleurs**.
 
-### 1. Un commentaire dit à quoi elle sert
+### 1. Un commentaire dit à quoi elle sert — **dans** la fonction
 
-Au-dessus de la fonction, toujours. Sans lui, il faut lire les conditions pour
-deviner l'objet — et sur douze mille fonctions, personne ne le fera. Une
-fonction sans commentaire porte donc, à sa place, une ligne qui **appelle** :
-`// À DÉCRIRE — à quoi sert « … » ?`. Une absence qui se voit vaut mieux qu'une
-absence silencieuse.
+Première ligne du corps, jamais au-dessus de la tête. Au-dessus, il appartient
+au fichier : copier la fonction pour la porter dans un autre projet — ce qu'on
+fait, et ce qu'on fera de plus en plus — laisserait l'explication derrière.
+
+C'est la règle générale, dont tout ce qui suit découle : **une fonction ne
+dépend pas de son contexte.** On la cherche, on la lit, on la copie, on
+reconstruit le raisonnement qui a mené à un résultat — et à chacun de ces
+gestes, elle doit se suffire.
+
+Sans commentaire, il faut lire les conditions pour deviner l'objet — et sur
+douze mille fonctions, personne ne le fera. Une fonction qui n'en a pas porte
+donc, à sa place, une ligne qui **appelle** : `// À DÉCRIRE — à quoi sert
+« … » ?`. Une absence qui se voit vaut mieux qu'une absence silencieuse.
 
 ### 2. La portée est un paramètre, jamais un rangement
 
@@ -213,12 +224,16 @@ en arrière.
 Un fichier `.ref` ne se découpe donc pas par zone, et n'y répète pas une
 fonction. Ce sont les **valeurs** qui portent une zone, pas les raisonnements.
 
-### 3. `importe` dit d'où vient chaque entrée
+### 3. `importe` dit d'où vient chaque entrée, et pour quelle zone
 
 Un import par ligne : ajouter une entrée ajoute exactement une ligne, et le diff
 dit « une entrée de plus » plutôt que de redessiner un bloc. Le fichier nommé
 est celui qui **déclare** la variable ; à défaut, `variables-du-projet.ref`, qui
 les liste toutes — et c'est là qu'on verra qu'elle manque.
+
+`zones:` en fait partie. Une variable n'a pas *une* valeur, elle en a une par
+partie d'ouvrage : emprunter sans dire laquelle reviendrait à en prendre une au
+hasard.
 
 ### 4. `soit` déclare ce qui la fonde
 
@@ -273,6 +288,51 @@ fil de l'eau ne se relirait nulle part. Ceux que le besoin nommera ensuite :
   deux phrases différentes ;
 - `à vérifier (question, pour: qui)` — la machine s'arrête et appelle quelqu'un,
   plutôt que de conclure à sa place.
+
+---
+
+## Une variable, un bloc, ses valeurs par zone
+
+Les fichiers de valeurs — `.ctr`, `.ddb`, `.hyp`, `.cst` — se découpaient par
+zone, et le nom d'une variable se répétait dans chacune. Trois fois le même nom
+à trois endroits différents, pour une seule chose. Chercher « degré coupe-feu
+des planchers » donnait trois réponses sans dire qu'il s'agissait de la même
+variable.
+
+```
+Degré coupe-feu des planchers = [
+   Toutes zones: "CF 1 h" {
+      règle: arrêté du 31 janvier 1986, article 6
+      statut: retenu
+   },
+   Bâtiment A: "CF 1/2 h" {
+      règle: arrêté du 31 janvier 1986, article 7
+      statut: supposé
+   }
+];
+```
+
+**Une variable du projet, qui prend une valeur par partie d'ouvrage.** Et de ce
+fait, la question devient impossible à éviter : *dans quelle zone ?* C'est
+pourquoi `importe` porte lui aussi une portée.
+
+Chaque entrée garde sa provenance et son statut : ce sont deux décisions
+différentes, prises peut-être par deux personnes, à deux dates. Les mettre en
+commun effacerait ce que la mémoire existe pour tenir.
+
+Une valeur unique qui vaut partout n'ouvre pas de tableau — une paire de
+crochets autour d'une seule entrée serait du bruit :
+
+```
+Colonne sèche = "exigée" {
+   règle: Colonne sèche — arrêté du 31 janvier 1986, article 98
+   statut: retenu
+}
+```
+
+**Un `.ref` ne se groupe pas ainsi** : une fonction n'a pas de valeur par zone,
+la portée est son paramètre. Elle n'y figure qu'une fois, quel que soit le
+nombre de zones où elle a été appliquée.
 
 ---
 
@@ -356,37 +416,36 @@ Pas de répertoire par domaine : trois fichiers ne méritent pas un dossier, et
 `incendie.ref` à côté de `incendie.ctr` se lit comme `app.js` à côté de
 `app.css`. Une quinzaine d'entrées pour un vrai projet.
 
-## La zone est une section, pas un répertoire
+## La zone est une facette, pas un répertoire
 
 L'unité de production est le **domaine** : une étude incendie touche plusieurs
 zones d'un coup. Avec la zone en répertoire, une seule étude se dispersait en
 autant de fichiers, donc autant de groupes dans le diff, pour un seul acte.
 
-La zone est une **facette**, pas un lieu. Elle ouvre une section dans les
-fichiers de **valeurs**, et « Toutes zones » vient toujours en premier : ce qui
-vaut partout se lit avant ce qui ne vaut qu'ici.
+La zone est une **facette**, pas un lieu. Dans les fichiers de **valeurs**, elle
+ouvre une entrée du tableau d'une variable — voir « Une variable, un bloc, ses
+valeurs par zone » —, et « Toutes zones » vient toujours en premier : ce qui vaut
+partout se lit avant ce qui ne vaut qu'ici.
 
 **Un `.ref` fait exception** : il ne se découpe pas par zone. Un raisonnement ne
 s'applique pas « dans le bâtiment A », il s'applique — et la partie d'ouvrage
 est un paramètre de la fonction. Voir « Une fonction est auto-portée ».
 
 ```
-zone: Toutes zones {
-   Champ d'application de l'arrêté = "dans le champ" { … }
-}
-
-zone: Bâtiment A {
-   Classement du bâtiment = "3e famille B" { … }
-}
+Classement du bâtiment = [
+   Bâtiment A: "3e famille B" { … },
+   Bâtiment B: "2e famille" { … }
+];
 ```
 
-Comparer le bâtiment A et le bâtiment B se fait donc dans un seul fichier. Une
-affirmation qui vaut pour deux zones ouvre les deux sections : c'est la même,
-vue de deux endroits, avec le même identifiant.
+Comparer le bâtiment A et le bâtiment B se fait donc **sur une seule ligne**, et
+non en sautant d'une section à l'autre. Une affirmation qui vaut pour deux zones
+ouvre les deux entrées : c'est la même, vue de deux endroits, avec le même
+identifiant.
 
-Le risque, qu'il faut connaître : `zone:` est un séparateur **à état**, donc un
-bloc copié hors de son contexte perd sa zone. C'est acceptable parce que le diff
-transporte la zone dans le repère, jamais dans le texte seul.
+Une entrée copiée hors de son bloc perd son nom de variable — c'est le prix du
+groupement, et il est acceptable : le diff transporte la zone dans le repère,
+jamais dans le texte seul.
 
 ---
 

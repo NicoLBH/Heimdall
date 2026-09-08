@@ -37,6 +37,7 @@ import { renderIncendieHabitation } from "./studio/incendie/incendie-habitation.
 import { renderSolidityArkolia } from "./studio/socotec/socotec-enr-pv-hangard-neuf.js";
 import { renderSeismicGeneral } from "./studio/seismic/seismic-general.js";
 import { renderCtContinuityLab } from "./studio/dev/ct-continuity-lab.js";
+import { copierDansLePressePapiers } from "./ui/bouton-copier.js";
 import { renderVariablesMutualisees } from "./studio/dev/variables-mutualisees.js";
 import { renderResolutionConflits } from "./studio/conflits/resolution-conflits.js";
 
@@ -603,13 +604,7 @@ function brancherCopilote(root, copiloteRoot, getScrollSource) {
       window.alert("Cette discussion n'a rien à copier.");
       return;
     }
-    try {
-      await navigator.clipboard.writeText(texte);
-    } catch {
-      // Un presse-papiers refusé n'est pas une raison de perdre le texte :
-      // on l'affiche, il reste sélectionnable.
-      window.prompt("Le presse-papiers a été refusé — copiez le texte ci-dessous.", texte);
-    }
+    await copierDansLePressePapiers(texte);
   }
 
   /**

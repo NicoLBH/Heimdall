@@ -40,6 +40,7 @@
 import { store } from "../../../store.js";
 import { messageQuiADemande } from "./fil.js";
 import { escapeHtml } from "../../../utils/escape-html.js";
+import { copierDansLePressePapiers, marquerCopie, ICONES } from "../../ui/bouton-copier.js";
 import { svgIcon } from "../../../ui/icons.js";
 import { sendAssistMessage } from "../../../services/copilote-service.js";
 import { brancherLaZoneDeDepot, trierLesFichiers } from "../../ui/zone-de-depot.js";
@@ -500,8 +501,9 @@ function renderMessage(msg, index, etat = null) {
           seDeroule || enAttente ? "" : `
         <div class="copilote-msg__footer">
           <div class="copilote-msg__actions">
-            <button type="button" class="copilote-msg__action" data-copy-message="${index}"
-              aria-label="Copier la réponse" title="Copier">${svgIcon("copy")}</button>
+            <button type="button" class="bouton-copier copilote-msg__action" data-copy-message="${index}"
+              data-copier-titre="Copier" data-copier-titre-copie="Copié"
+              aria-label="Copier la réponse" title="Copier">${ICONES.copier}</button>
             <button type="button" class="copilote-msg__action" data-tokens-message="${index}"
               aria-haspopup="dialog" aria-expanded="${msg.tokensOpen ? "true" : "false"}"
               aria-label="Jetons consommés" title="Jetons consommés">${svgIcon("meter")}</button>
@@ -1799,16 +1801,10 @@ async function copier(root, index) {
 
   const bouton = root.querySelector(`[data-copy-message="${index}"]`);
 
-  try {
-    await navigator.clipboard.writeText(contenu);
-    bouton?.classList.add("is-done");
-    window.setTimeout(() => bouton?.classList.remove("is-done"), 1200);
-  } catch {
-    // Un presse-papiers refusé (page non sécurisée, permission) ne casse rien :
-    // le texte reste sélectionnable à la main.
-    bouton?.classList.add("is-failed");
-    window.setTimeout(() => bouton?.classList.remove("is-failed"), 1200);
-  }
+  // Le même retour que partout ailleurs : une coche verte, deux secondes. Ce
+  // bouton avait le sien — une classe `is-done` — et il ne ressemblait donc à
+  // aucun autre bouton de copie de l'application.
+  if (await copierDansLePressePapiers(contenu)) marquerCopie(bouton, { titre: "Copier ce message" });
 }
 
 /**

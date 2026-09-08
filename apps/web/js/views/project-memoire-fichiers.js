@@ -26,17 +26,19 @@
 import { escapeHtml } from "../utils/escape-html.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
+import { renderBoutonCopier } from "./ui/bouton-copier.js";
 import {
   blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
-  ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire, PROVENANCE, STATUT
+  ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire,
+  JETON, OPERATEUR, TOUTES_ZONES, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
   phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE,
-  MEMOIRE, EXTENSION_REGLE, LANGAGES
+  MEMOIRE, EXTENSION_REGLE, LANGAGES, zonesDeRangement, rangDeLaZone
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
-  dernierVersementDe, contributeursDuFichier, PARTS_DANCIENNETE
+  dernierVersementDe, contributeursDuFichier, zonesLisibles, PARTS_DANCIENNETE
 } from "../services/memoire-blame.js";
 import {
   resolutionDuSujet, renvoisSansDeclaration, variablesDeLaMemoire, definitionsDesVariables,
@@ -44,6 +46,9 @@ import {
 } from "../services/memoire-identifiants.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
+
+/** Un jeton, comme l'écriture en fabrique. Voir `memoire-en-texte.js`. */
+const jeton = (type, contenu) => ({ type, texte: contenu });
 
 /** Les deux lectures d'un fichier. */
 export const LECTURE = { CODE: "code", BLAME: "blame" };
@@ -472,11 +477,12 @@ export function renderFilDAriane({ chemin = [] } = {}) {
   return `
     <nav class="documents-breadcrumb" aria-label="Chemin">
       ${miettes}
-      <button type="button" class="documents-breadcrumb__copier"
-        data-fil-copier="${escapeHtml(aCopier)}"
-        title="Copier le chemin dans le presse-papiers" aria-label="Copier le chemin dans le presse-papiers">
-        ${svgIcon("copy", { className: "octicon" })}
-      </button>
+      ${renderBoutonCopier({
+        texte: aCopier,
+        className: "documents-breadcrumb__copier",
+        titre: "Copier le chemin dans le presse-papiers",
+        titreCopie: "Chemin copié"
+      })}
     </nav>
   `;
 }
@@ -813,46 +819,51 @@ export function lignesAffichables(fichier, { ouEcrit = null, auteurs = null } = 
   let rang = 0;
   let numeroDeBloc = 0;
 
-  // Un fichier de règles ne se découpe pas par zone, et ne répète pas une
-  // fonction. Une règle est le **capital de raisonnement** du projet : la même
-  // recopiée dans trois zones ferait trois versions à corriger le jour où
-  // l'arrêté bouge, et deux d'entre elles resteraient en arrière. La portée est
-  // un paramètre de la fonction, pas un rangement.
-  const sections = langageDeLExtension(fichier.extension) === LANGAGES.REGLE
-    ? [{ zone: "", lignes: fonctionsSansDoublon(fichier.lignes ?? []) }]
-    : (fichier.sections ?? [{ zone: "", lignes: fichier.lignes ?? [] }]);
+  const groupes = groupesDuFichier(fichier);
 
-  for (const section of sections) {
-    const zone = texte(section.zone);
-    const dedans = zone ? 1 : 0;
-    numeroDeBloc += 1;
-    const blocDeZone = `z${numeroDeBloc}`;
-    // Une zone est une balise : tout ce qu'elle contient a un ancêtre de plus,
-    // et se décale d'un rang vers la droite.
-    const dansLaZone = zone ? [blocDeZone] : [];
-
-    if (zone) {
+  groupes.forEach((groupe, place) => {
+    // Un blanc entre deux groupes : sans lui, la fermeture de l'un et la tête
+    // du suivant se collent, et l'œil ne voit plus où l'un finit.
+    if (place > 0) {
       rang += 1;
       sorties.push({
-        rang, jetons: ligneDeZone(zone), nature: "zone", profondeur: 0,
-        ancetres: [], ouvre: blocDeZone, ferme: null, assertion: null, position: 0
+        rang, jetons: [], nature: "vide", profondeur: 0,
+        ancetres: [], ouvre: null, ferme: null, assertion: null, position: 0
       });
     }
 
-    section.lignes.forEach((assertion, place) => {
-      // Un blanc entre deux blocs : sans lui, l'accolade fermante de l'un et la
-      // tête du suivant se collent, et l'œil ne voit plus où l'un finit.
-      if (place > 0) {
+    numeroDeBloc += 1;
+    const blocDuGroupe = `g${numeroDeBloc}`;
+    // Un tableau de valeurs décale ses entrées d'un cran, et les prend pour
+    // enfants : replier la variable replie toutes ses zones.
+    const dedans = groupe.tableau ? 1 : 0;
+    const dansLeGroupe = groupe.tableau ? [blocDuGroupe] : [];
+
+    if (groupe.tableau) {
+      rang += 1;
+      sorties.push({
+        rang, jetons: teteDuTableau(groupe.sujet), nature: "affirmation", profondeur: 0,
+        ancetres: [], ouvre: blocDuGroupe, ferme: null, assertion: groupe.entrees[0]?.assertion ?? null, position: 0
+      });
+    }
+
+    groupe.entrees.forEach((entree, place2) => {
+      if (place2 > 0 && !groupe.tableau) {
         rang += 1;
         sorties.push({
           rang, jetons: [], nature: "vide", profondeur: dedans,
-          ancetres: dansLaZone, ouvre: null, ferme: null, assertion: null, position: 0
+          ancetres: dansLeGroupe, ouvre: null, ferme: null, assertion: null, position: 0
         });
       }
 
       numeroDeBloc += 1;
       const cle = `b${numeroDeBloc}`;
-      const lignes = lignesDeLAssertion(assertion, dedans, { ouEcrit, auteurs });
+      const { assertion } = entree;
+      const lignes = lignesDeLAssertion(assertion, dedans, {
+        ouEcrit, auteurs,
+        zone: groupe.tableau ? entree.zone : "",
+        virgule: groupe.tableau && place2 < groupe.entrees.length - 1
+      });
       const aUnCorps = lignes.length > 1;
 
       lignes.forEach((ligne, position) => {
@@ -865,9 +876,9 @@ export function lignesAffichables(fichier, { ouEcrit = null, auteurs = null } = 
           profondeur: dedans,
           // Les ancêtres, du plus large au plus proche. Replier l'un d'eux
           // cache la ligne : c'est ce qui rend le pliage **récursif**. Sans
-          // cela, replier une zone ne cachait que les têtes de ses blocs et
+          // cela, replier une variable ne cachait que les têtes de ses zones et
           // laissait leurs détails orphelins à l'écran.
-          ancetres: tete ? dansLaZone : [...dansLaZone, cle],
+          ancetres: tete ? dansLeGroupe : [...dansLeGroupe, cle],
           // Seule la tête porte le caret, et seulement si le bloc a un corps.
           ouvre: tete && aUnCorps ? cle : null,
           // L'accolade fermante reste visible quand le bloc est replié : deux
@@ -879,16 +890,91 @@ export function lignesAffichables(fichier, { ouEcrit = null, auteurs = null } = 
       });
     });
 
-    if (zone) {
+    if (groupe.tableau) {
       rang += 1;
       sorties.push({
-        rang, jetons: ligneFermante(0), nature: "accolade", profondeur: 0,
-        ancetres: dansLaZone, ouvre: null, ferme: blocDeZone, assertion: null, position: 1
+        rang, jetons: piedDuTableau(), nature: "accolade", profondeur: 0,
+        ancetres: dansLeGroupe, ouvre: null, ferme: blocDuGroupe, assertion: null, position: 1
       });
+    }
+  });
+
+  return sorties;
+}
+
+/** `Sujet = [` — la tête d'un tableau de valeurs par zone. */
+function teteDuTableau(sujet) {
+  return [
+    jeton(JETON.SUJET, texte(sujet)),
+    jeton(JETON.NEUTRE, " "),
+    jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
+    jeton(JETON.NEUTRE, " "),
+    jeton(JETON.PONCTUATION, "[")
+  ];
+}
+
+/** `];` — sa fermeture. */
+function piedDuTableau() {
+  return [jeton(JETON.PONCTUATION, "]"), jeton(JETON.PONCTUATION, ";")];
+}
+
+/**
+ * Les groupes d'un fichier : une entrée par **variable**, et ses valeurs.
+ *
+ * ## Ce qui a changé, et pourquoi
+ *
+ * Le fichier se découpait par zone, et le nom d'une variable se répétait dans
+ * chacune. Trois fois le même nom à trois endroits différents, pour une seule
+ * chose : une variable du projet, qui prend une valeur par partie d'ouvrage.
+ * Chercher « degré coupe-feu des planchers » donnait trois réponses sans dire
+ * qu'il s'agissait de la même.
+ *
+ * Une variable, un bloc, ses valeurs par zone. Et de ce fait, la question
+ * devient impossible à éviter : **dans quelle zone ?**
+ *
+ * Un fichier de **règles** ne se groupe pas ainsi : une fonction n'a pas de
+ * valeur par zone — la portée est son paramètre. Elle n'y figure donc qu'une
+ * fois, quel que soit le nombre de zones où elle a été appliquée.
+ */
+export function groupesDuFichier(fichier) {
+  if (langageDeLExtension(fichier?.extension) === LANGAGES.REGLE) {
+    return fonctionsSansDoublon(fichier?.lignes ?? [])
+      .map((assertion) => ({ tableau: false, sujet: sujetDeLAssertion(assertion), entrees: [{ assertion, zone: "" }] }));
+  }
+
+  const parSujet = new Map();
+
+  for (const assertion of fichier?.lignes ?? []) {
+    const sujet = sujetDeLAssertion(assertion);
+    const cle = cleDuSujet(sujet);
+    if (!cle) continue;
+
+    if (!parSujet.has(cle)) parSujet.set(cle, { tableau: false, sujet, entrees: [] });
+    const groupe = parSujet.get(cle);
+
+    // Une affirmation qui vaut pour deux zones ouvre deux entrées : c'est la
+    // même, vue de deux endroits, et l'effacer de l'une la cacherait à qui lit
+    // cette zone-là.
+    for (const zone of zonesDeRangement({ zones: zonesLisibles(assertion) })) {
+      groupe.entrees.push({ assertion, zone });
     }
   }
 
-  return sorties;
+  return [...parSujet.values()].map((groupe) => ({
+    ...groupe,
+    // « Toutes zones » d'abord : ce qui vaut partout se lit avant ce qui ne
+    // vaut qu'ici.
+    entrees: groupe.entrees.slice().sort((gauche, droite) =>
+      rangDeLaZone(gauche.zone) - rangDeLaZone(droite.zone) || gauche.zone.localeCompare(droite.zone, "fr")),
+    // Une valeur unique qui vaut partout n'ouvre pas de tableau : une paire de
+    // crochets autour d'une seule entrée serait du bruit.
+    tableau: !(groupe.entrees.length === 1 && groupe.entrees[0].zone === TOUTES_ZONES)
+  }));
+}
+
+/** Le sujet d'une affirmation, en clair. */
+function sujetDeLAssertion(assertion) {
+  return texte(assertion?.payload?.subject) || texte(assertion?.subject_key);
 }
 
 /**
@@ -1054,10 +1140,12 @@ export function renderFichier(fichier, {
         </span>
         <span class="memoire-fichier__mesure">${lignes.length} ligne${lignes.length > 1 ? "s" : ""} · ${octets(clair)}</span>
         <span class="memoire-fichier__espace"></span>
-        <button type="button" class="memoire-fichier__copier" data-memoire-copier
-          title="Copier le fichier dans le presse-papiers" aria-label="Copier le fichier dans le presse-papiers">
-          ${svgIcon("copy", { className: "octicon" })}
-        </button>
+        ${renderBoutonCopier({
+          cible: `fichier:${adresseDuFichier(fichier)}`,
+          className: "memoire-fichier__copier",
+          titre: "Copier le fichier dans le presse-papiers",
+          titreCopie: "Fichier copié"
+        })}
       </header>
       ${lecture === LECTURE.BLAME ? renderEchelleDAnciennete(fichier.lignes, { auteurs, avatars }) : ""}
       ${
@@ -1360,7 +1448,9 @@ export function quoiParDefaut(sujet) {
  *
  * @returns {{jetons: object[], nature: string}[]}
  */
-export function lignesDeLAssertion(assertion = {}, profondeur = 0, { ouEcrit = null, auteurs = null } = {}) {
+export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
+  ouEcrit = null, auteurs = null, zone = "", virgule = false
+} = {}) {
   const payload = assertion.payload ?? {};
   const brute = texte(payload.value) || texte(assertion.statement);
   const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
@@ -1410,7 +1500,11 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, { ouEcrit = n
     le: texte(payload.le) || (texte(assertion.nature) === "constat" ? dateLisible(assertion.decided_at) : ""),
     provenance: provenanceDeLAssertion(assertion, { auteurs }),
     preuve: texte(payload.citation),
-    statut: statutDeLAssertion(assertion)
+    statut: statutDeLAssertion(assertion),
+    // Dans un tableau de valeurs, la tête porte la zone : le sujet est écrit
+    // une fois, au-dessus.
+    zone,
+    virgule
   }, profondeur);
 
   return lignes.map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));

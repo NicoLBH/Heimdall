@@ -401,9 +401,10 @@ test("une fonction auto-portée se relit sans perdre son raisonnement", () => {
   // ils rendent la fonction lisible seule, et ne se conservent pas. Ce qui se
   // conserve est la règle — ses conditions, ce qu'elle pose, ce qui la fonde.
   const lu = lireUnFichier([
-    "// Définit si un parc peut accueillir des véhicules lourds.",
     "fonction Accès des véhicules lourds(zones, Champ d'application du titre VI) {",
-    "   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);",
+    "   // Définit si un parc peut accueillir des véhicules lourds.",
+    "",
+    "   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb, zones: zones);",
     "",
     '   soit texte = "arrêté du 31 janvier 1986 modifié, article 79";',
     "",
@@ -429,7 +430,7 @@ test("une fonction auto-portée se relit sans perdre son raisonnement", () => {
 test("chaque ligne d'une fonction auto-portée se recolore telle quelle", () => {
   const rendre = (ligne) => jetonsDeLaLigne(ligne).map((j) => j.texte).join("");
   for (const ligne of [
-    "   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb);",
+    "   importe (variable: Champ d'application du titre VI, depuis: donnees-de-base.ddb, zones: zones);",
     "   alors (",
     "      enregistre (",
     '         Accès des véhicules lourds: "interdit au-delà de 3,5 t",',
@@ -445,7 +446,7 @@ test("chaque ligne d'une fonction auto-portée se recolore telle quelle", () => 
 
 test("un import se lit, une décision aussi", () => {
   assert.deepEqual(
-    lireUnImport("importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb);"),
+    lireUnImport("importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb, zones: zones);"),
     { variable: "Hauteur du plancher bas", depuis: "donnees-de-base.ddb" }
   );
   assert.equal(lireUnImport("importe ();"), null);

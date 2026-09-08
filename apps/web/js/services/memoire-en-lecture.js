@@ -139,6 +139,10 @@ const IMPORT_LIGNE = /^importe\s*\((.*)\)\s*;?$/i;
 const DECISION_LIGNE = /^décision humaine assumée\s*\((.*)\)\s*;?$/i;
 const FERMETURE = /^\)+\s*;?$/;
 const CHAMP_DENREGISTREMENT = /^([^:]+)\s*:\s*(.*?),?$/;
+/** `Sujet = [` — une variable qui ouvre ses valeurs, une par zone. */
+const TABLEAU_OUVRANT = /^(.*?)\s*=\s*\[$/;
+/** `]` ou `];` — la fin du tableau. */
+const TABLEAU_FERMANT = /^\]\s*;?$/;
 
 /**
  * Un `importe (variable: X, depuis: fichier);`
@@ -214,8 +218,11 @@ export function sansBornes(reste = "") {
 /** Ce qu'une ligne ouvre ou ferme. L'accolade borne, elle ne dit rien d'autre. */
 function bornesDe(ligne) {
   const nu = texte(ligne);
+  // `},` ferme aussi : dans un tableau de valeurs par zone, une entrée qui n'est
+  // pas la dernière porte sa virgule. Sans cela, la lecture avalait l'entrée
+  // suivante.
   return {
-    ferme: nu === "}",
+    ferme: nu === "}" || nu === "},",
     ouvre: nu.endsWith("{"),
     // Le contenu, une fois l'accolade retirée.
     corps: nu.endsWith("{") ? texte(nu.slice(0, -1)) : nu
@@ -359,6 +366,9 @@ export function lireUnFichier(contenu = "") {
   // C'est le seul état que la lecture porte au-delà d'une ligne, et il tient en
   // un mot : « alors » ou « sinon ».
   let conclusion = "";
+  // Le sujet d'un tableau de valeurs par zone, tant qu'il est ouvert. Les
+  // entrées qui suivent portent une zone, et empruntent ce nom-là.
+  let tableau = "";
 
   const fermer = () => {
     if (courant) {
@@ -424,6 +434,12 @@ export function lireUnFichier(contenu = "") {
 
     if (mot === "zone:") { fermer(); zone = reste; return; }
 
+    // `Sujet = [` ouvre les valeurs d'une variable, une par zone. Le nom est
+    // écrit une fois ; chaque entrée dit seulement où elle vaut.
+    const ouvreUnTableau = corps.match(TABLEAU_OUVRANT);
+    if (ouvreUnTableau && !courant) { tableau = texte(ouvreUnTableau[1]); return; }
+    if (TABLEAU_FERMANT.test(corps)) { fermer(); tableau = ""; return; }
+
     // Une ligne qui **ouvre** ferme celle qui l'était : deux blocs ne
     // s'emboîtent pas. Sans cette règle, un bloc dont l'accolade fermante
     // manque avalait le suivant, puis l'accolade de la zone fermait ce bloc-là
@@ -436,13 +452,20 @@ export function lireUnFichier(contenu = "") {
     if (courant && !courant.accolade && retraitDe(brute) === 0) fermer();
 
     if (!courant) {
-      const tete = lireUneTete(corps);
+      // Dans un tableau, la tête porte la zone et non le sujet : `Bâtiment A:
+      // "CF 1/2 h"`. Le nom vient du tableau, écrit une fois au-dessus.
+      const dansLeTableau = tableau ? corps.match(CHAMP_DENREGISTREMENT) : null;
+      const tete = dansLeTableau
+        ? { sujet: tableau, ...lireUneValeur(texte(dansLeTableau[2])), entrees: [] }
+        : lireUneTete(corps);
+
       if (!tete?.sujet) {
         refus.push({ ligne: numero, texte: corps, raison: "cette ligne n'ouvre aucune donnée." });
         return;
       }
       courant = {
-        sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite, zone,
+        sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite,
+        zone: dansLeTableau ? texte(dansLeTableau[1]) : zone,
         accolade: ouvre,
         conditions: [], alors: "", sinon: "", sauf: [],
         provenance: null, preuve: "", statut: "", le: ""
@@ -675,7 +698,7 @@ export function jetonsDeLaLigne(ligne = "") {
         { type: JETON.LOCALE, texte: cle },
         { type: JETON.PONCTUATION, texte: ":" },
         { type: JETON.NEUTRE, texte: " " },
-        { type: nomEnCle === "dans" ? JETON.FICHIER : JETON.PORTEE, texte: suite.replace(/,$/, "") },
+        { type: nomEnCle === "dans" ? JETON.CHEMIN : JETON.PORTEE, texte: suite.replace(/,$/, "") },
         ...virgule];
     }
 
