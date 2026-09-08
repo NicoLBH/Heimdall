@@ -20372,6 +20372,10 @@ body.proposition-merge-open{ overflow:hidden; }
    l'est pas. La couleur suit — ce qui est ouvert se voit d'un coup d'œil. */
 .raison-espace__outil.est-actif{ color:var(--graphe-contraste); }
 .raison-espace__separateur{ width:1px; height:18px; margin:0 4px; background:var(--border); }
+/* En plein écran, la barre de titre du constat n'est plus là : ses
+   caractéristiques viennent ici, dans la même ligne. */
+.raison-espace__pastilles{ display:flex; align-items:center; gap:6px; flex:0 1 auto; min-width:0; overflow:hidden; }
+.raison-espace__pastilles .memory-tag{ flex:0 0 auto; }
 
 /* Le schéma : sa hauteur se tire, elle ne se subit pas. Un raisonnement de
    trois étapes n'a pas besoin de la même place qu'un de quinze. */
@@ -20512,7 +20516,7 @@ body.memoire-raisonnement-plein-ecran .project-tabs{
   padding:0 8px;
   border-left:1px solid var(--border);
   border-right:1px solid var(--border);
-  background:rgb(13,17,23);
+  background-color:rgb(13,17,23);
   color:var(--muted);
   font-size:11px;
   text-align:right;
@@ -20521,7 +20525,7 @@ body.memoire-raisonnement-plein-ecran .project-tabs{
 .raison-ligne__etat{
   position:sticky; left:0; z-index:1;
   padding:0 12px;
-  background:rgb(13,17,23);
+  background-color:rgb(13,17,23);
   white-space:normal;
 }
 .raison-ligne__etat b{ color:rgb(165,214,255); font-weight:600; }
@@ -20530,7 +20534,7 @@ body.memoire-raisonnement-plein-ecran .project-tabs{
    plus laquelle des deux colonnes on lit. */
 .raison-ligne--tete > *{
   position:sticky; top:0; z-index:2;
-  background:var(--panel2);
+  background-color:var(--panel2);
   border-bottom:1px solid var(--border);
   color:var(--muted);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
@@ -20559,31 +20563,27 @@ body.memoire-raisonnement-plein-ecran .project-tabs{
 .raison-paire--1{ color:#da70d6; }
 .raison-paire--2{ color:#179fff; }
 
-/* La rangée survolée s'éclaire d'un rien — assez pour suivre du regard d'une
-   colonne à l'autre sans compter les lignes, pas assez pour concurrencer ce que
-   la rangée dit. */
-.raison-ligne:hover > *{ background-image:linear-gradient(rgba(110,118,129,.09), rgba(110,118,129,.09)); }
-.raison-ligne--tete:hover > *{ background-image:none; }
+/* ── Les teintes d'une rangée ───────────────────────────────────────────────
+   Elles se posent en **couleur de fond**, jamais en image : la cellule de code
+   porte déjà une image — ses filets de retrait —, et une seconde la
+   remplaçait. Pire, elle en héritait la taille, calée sur le retrait de la
+   ligne : le surlignage s'arrêtait donc au premier mot du code.
+
+   La couleur passe sous l'image. Les filets restent visibles, et la teinte va
+   d'un bord à l'autre. */
+.raison-ligne:not(.raison-ligne--manquante):hover > *{ background-color:rgba(110,118,129,.09); }
+.raison-ligne--manquante:hover > *{ background-color:rgba(248,81,73,.14); }
+.raison-ligne--tete:hover > *{ background-color:transparent; }
 
 /* Ce que personne n'a versé se voit sur toute la rangée : c'est le trou du
    raisonnement, et il ne se cherche pas. */
-.raison-ligne--manquante .raison-ligne__code{ background:rgba(248,81,73,.08); }
-.raison-ligne--manquante .raison-ligne__num,
-.raison-ligne--manquante .raison-ligne__etat{
-  /* Les cellules collées sont opaques : la teinte se pose **par-dessus** leur
-     fond, sinon la rangée changerait de couleur au défilement. */
-  background-image:linear-gradient(rgba(248,81,73,.08), rgba(248,81,73,.08));
-}
+.raison-ligne--manquante > *{ background-color:rgba(248,81,73,.08); }
 .raison-grille__trou{ color:rgb(255,123,114); }
 .raison-grille__note{ margin-left:8px; color:var(--muted); font-size:11px; }
 
 /* Où le schéma vient de nous emmener. La marque s'efface au rendu suivant :
    c'est un repère du geste, pas un état. */
-.raison-ligne--visee .raison-ligne__code{ background:var(--graphe-contraste-fond); }
-.raison-ligne--visee .raison-ligne__num,
-.raison-ligne--visee .raison-ligne__etat{
-  background-image:linear-gradient(var(--graphe-contraste-fond), var(--graphe-contraste-fond));
-}
+.raison-ligne--visee > *{ background-color:var(--graphe-contraste-fond); }
 
 /* Sous 900 pixels, la discussion passe son tour : à côté du code, il ne
    resterait pour l'un ni pour l'autre de quoi lire une ligne. */
