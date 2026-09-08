@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  chaineDuRaisonnement, valeurDuSujet, reglesQuiProduisent, traceDesLignes
+  chaineDuRaisonnement, valeurDuSujet, reglesQuiProduisent, traceDesLignes,
+  grapheDuRaisonnement
 } from "./memoire-raisonnement.js";
 import { blocDeRegle, OPERATEUR } from "./memoire-en-texte.js";
 
@@ -91,4 +92,95 @@ test("chaque ligne de code dit ce que son nom vaut aujourd'hui", () => {
   // …et ce que personne n'a versé se dit manquant plutôt que vide.
   const tete = trace.find((entree) => entree.sujet === "Colonne sèche");
   assert.equal(tete.manquant, true);
+});
+
+test("la zone se compare sur la clé, et le libellé d'origine se garde", () => {
+  // La colonne de la base range « batiment-a », le `payload` garde « Bâtiment A ».
+  // Comparer l'une à l'autre ne trouvait jamais rien : chaque valeur retombait
+  // sur ce qui vaut partout, et l'écran disait « personne ne l'a versée » d'une
+  // valeur que le projet portait.
+  const memoire = [valeur("Degré coupe-feu", "CF 1/2 h", "Bâtiment A")];
+  const dite = valeurDuSujet("Degré coupe-feu", memoire, "batiment-a");
+
+  assert.equal(dite.valeur, "CF 1/2 h");
+  assert.equal(dite.zone, "Bâtiment A");
+});
+
+test("une règle d'une autre zone n'explique pas celle qu'on lit", () => {
+  // L'escalier A classé en 3ᵉ famille B et l'escalier B classé en 2ᵉ ne suivent
+  // pas les mêmes articles : emprunter la règle du voisin se lirait comme la
+  // sienne.
+  const ailleurs = { ...regle("Colonne sèche", "exigée"), payload: {
+    ...regle("Colonne sèche", "exigée").payload, zones: ["Bâtiment B"]
+  } };
+
+  assert.equal(reglesQuiProduisent([ailleurs], "batiment-a").size, 0);
+  assert.equal(reglesQuiProduisent([ailleurs], "batiment-b").size, 1);
+});
+
+test("le schéma remonte jusqu'aux données de base, et chaque carte porte ses entrées", () => {
+  const memoire = [
+    regle("Colonne sèche", "exigée", ["Classement du bâtiment"]),
+    regle("Classement du bâtiment", "3e famille B", ["Hauteur du plancher bas"]),
+    valeur("Hauteur du plancher bas", "26 m"),
+    valeur("Classement du bâtiment", "3e famille B"),
+    valeur("Colonne sèche", "exigée")
+  ];
+
+  const { noeuds, liens } = grapheDuRaisonnement("Colonne sèche", memoire);
+
+  // La première carte est ce qu'aucune règle ne produit : la donnée de base.
+  assert.equal(noeuds[0].id, "donnee:hauteur du plancher bas");
+  assert.equal(noeuds[0].valeur, "26 m");
+  assert.deepEqual(noeuds[0].demande, []);
+
+  // Et chaque étape porte ce qu'elle a lu, avec la valeur du jour.
+  const classement = noeuds.find((noeud) => noeud.id === "regle:classement du batiment");
+  assert.deepEqual(classement.entrees, [
+    { nom: "Hauteur du plancher bas", valeur: "26 m", zone: "Toutes zones", manquant: false, deduite: false }
+  ]);
+
+  // Les liens vont de ce qui décide vers ce qui en découle.
+  assert.deepEqual(liens.map((lien) => `${lien.de} → ${lien.vers}`), [
+    "donnee:hauteur du plancher bas → regle:classement du batiment",
+    "regle:classement du batiment → regle:colonne seche"
+  ]);
+});
+
+test("une entrée que personne n'a versée se voit sur la carte", () => {
+  // C'est le trou du raisonnement : le montrer vide se lirait comme une valeur
+  // à zéro, et l'on chercherait l'erreur ailleurs.
+  const { noeuds } = grapheDuRaisonnement("Colonne sèche", [
+    regle("Colonne sèche", "exigée", ["Classement du bâtiment"])
+  ]);
+
+  const donnee = noeuds.find((noeud) => noeud.id === "donnee:classement du batiment");
+  assert.equal(donnee.etat, "attente");
+  assert.equal(donnee.valeur, "personne ne l'a versée");
+
+  const seche = noeuds.find((noeud) => noeud.id === "regle:colonne seche");
+  assert.equal(seche.entrees[0].manquant, true);
+});
+
+test("un maillon intermédiaire montre ce que sa règle a conclu", () => {
+  // « Habitation individuelle ou collective » ne s'impose à personne : elle
+  // n'entre ni dans les contraintes ni dans les données de base, et rien ne la
+  // portait comme valeur. L'étape s'affichait sans résultat, et l'écran disait
+  // « personne ne l'a versée » d'une valeur que le projet avait conclue.
+  const memoire = [
+    regle("Colonne sèche", "exigée", ["Classement du bâtiment"]),
+    regle("Classement du bâtiment", "3e famille B", ["Hauteur du plancher bas"]),
+    valeur("Hauteur du plancher bas", "26 m")
+  ];
+
+  const dite = valeurDuSujet("Classement du bâtiment", memoire);
+  assert.equal(dite.valeur, "3e famille B");
+  // Déduite, et non relevée : les confondre ferait prendre une conclusion pour
+  // un constat de terrain.
+  assert.equal(dite.deduite, true);
+
+  const { noeuds } = grapheDuRaisonnement("Colonne sèche", memoire);
+  const seche = noeuds.find((noeud) => noeud.id === "regle:colonne seche");
+  assert.equal(seche.entrees[0].manquant, false);
+  assert.equal(seche.entrees[0].valeur, "3e famille B");
 });

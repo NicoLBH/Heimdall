@@ -49,7 +49,7 @@ export function renderProjectRail({ id = "projectRail", navHtml = "", collapsed 
     <nav class="project-rail${collapsed ? " is-collapsed" : ""}" aria-label="${label}" data-project-rail="${id}">
       <div class="project-rail__scroll">${navHtml}</div>
       ${collapsed ? "" : renderSideResizer({ id: `${id}Resizer` })}
-      <button type="button" class="project-rail__collapse" data-project-rail-collapse
+      <button type="button" class="bouton-discret project-rail__collapse" data-project-rail-collapse
         aria-expanded="${collapsed ? "false" : "true"}"
         title="${collapsed ? "Déplier le panneau" : "Replier le panneau"}">
         ${svgIcon(collapsed ? "sidebar-expand" : "sidebar-collapse", { className: "octicon" })}

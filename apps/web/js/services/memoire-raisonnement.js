@@ -38,6 +38,7 @@
 import { cleDuSujet } from "./memoire-identifiants.js";
 import { TOUTES_ZONES } from "./memoire-en-texte.js";
 import { zonesLisibles } from "./memoire-blame.js";
+import { normalizeZoneKey } from "./project-zones.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -59,13 +60,29 @@ const enVigueur = (assertion) => !texte(assertion?.superseded_by);
  * contradiction, pas une alternative — et c'est l'arbitrage d'une proposition
  * qui doit la trancher, pas cette lecture.
  */
-export function reglesQuiProduisent(assertions = []) {
+export function reglesQuiProduisent(assertions = [], zone = "") {
   const regles = new Map();
+  const voulue = normalizeZoneKey(zone);
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
     if (!estUneRegle(assertion) || !enVigueur(assertion)) continue;
     const cle = cleDuSujet(sujetDe(assertion));
-    if (cle && !regles.has(cle)) regles.set(cle, assertion);
+    if (!cle) continue;
+
+    // Une règle **appliquée** dépend de la zone : l'escalier A classé en 3ᵉ
+    // famille B et l'escalier B classé en 2ᵉ ne suivent pas les mêmes articles.
+    // Celle de la zone qu'on lit l'emporte donc sur celle qui vaut partout, et
+    // celle d'une autre zone n'entre pas — elle expliquerait le voisin.
+    const portees = zonesLisibles(assertion).map(normalizeZoneKey).filter(Boolean);
+    const ici = voulue ? portees.includes(voulue) : false;
+    if (portees.length && !ici) continue;
+
+    const deja = regles.get(cle);
+    if (!deja) { regles.set(cle, assertion); continue; }
+    // À égalité, la première versée reste : deux règles de même portée
+    // produisant le même nom sont une contradiction, et c'est l'arbitrage d'une
+    // proposition qui doit la trancher, pas cette lecture.
+    if (ici && !zonesLisibles(deja).length) regles.set(cle, assertion);
   }
 
   return regles;
@@ -87,18 +104,67 @@ export function valeurDuSujet(sujet, assertions = [], zone = "") {
     .filter((assertion) => enVigueur(assertion) && !estUneRegle(assertion))
     .filter((assertion) => cleDuSujet(sujetDe(assertion)) === cherche);
 
-  const dansLaZone = texte(zone)
-    ? dites.find((assertion) => zonesLisibles(assertion).some((portee) => texte(portee) === texte(zone)))
+  // À défaut, ce que la **règle appliquée** a conclu.
+  //
+  // Un maillon intermédiaire — « Habitation individuelle ou collective » — ne
+  // s'impose à personne : il n'entre donc ni dans les contraintes, ni dans les
+  // données de base, et rien ne le portait comme valeur. La chaîne montrait
+  // alors une étape sans résultat, et « personne ne l'a versée » d'une valeur
+  // que le projet avait bel et bien conclue.
+  //
+  // L'instantané de la règle porte sa conclusion **pour ce projet-ci** : c'est
+  // une valeur du projet, écrite sur la ligne de la règle plutôt que sur la
+  // sienne. On la lit, et on dit qu'elle est déduite — pour ne pas la
+  // confondre avec un relevé.
+  if (!dites.length) return valeurConclue(cherche, assertions, zone);
+
+  // La comparaison se fait sur la **clé**, des deux côtés.
+  //
+  // La base range « batiment-a », le `payload` garde « Bâtiment A », et les
+  // deux désignent la même partie de l'ouvrage. Comparer la clé au libellé ne
+  // trouvait jamais rien : chaque valeur retombait sur « Toutes zones », ou sur
+  // rien du tout, et l'écran disait « personne ne l'a versée » d'une valeur que
+  // le projet portait.
+  //
+  // Le libellé d'origine, lui, se garde : c'est celui qu'on affiche.
+  const voulue = normalizeZoneKey(zone);
+  const dansLaZone = voulue
+    ? dites.find((assertion) => zonesLisibles(assertion).some((portee) => normalizeZoneKey(portee) === voulue))
     : null;
 
   const partout = dites.find((assertion) => zonesLisibles(assertion).length === 0);
   const retenue = dansLaZone ?? partout ?? null;
   if (!retenue) return null;
 
+  // Le libellé tel qu'il a été écrit, pas la clé : « Bâtiment A » se lit, pas
+  // « batiment-a ». À défaut de libellé connu, la clé demandée fait l'affaire —
+  // mieux vaut une clé qu'un vide.
+  const portee = dansLaZone
+    ? (zonesLisibles(dansLaZone).find((nom) => normalizeZoneKey(nom) === voulue) ?? texte(zone))
+    : TOUTES_ZONES;
+
   return {
     valeur: texte(retenue?.payload?.value) || texte(retenue?.statement),
-    zone: dansLaZone ? texte(zone) : TOUTES_ZONES,
+    zone: portee,
+    cleDeZone: dansLaZone ? voulue : "",
+    deduite: false,
     assertion: retenue
+  };
+}
+
+/** Ce qu'une règle appliquée a conclu, quand rien d'autre ne porte la valeur. */
+function valeurConclue(cle, assertions, zone) {
+  const regle = reglesQuiProduisent(assertions, zone).get(cle);
+  const valeur = texte(regle?.payload?.value);
+  if (!valeur) return null;
+
+  const portees = zonesLisibles(regle);
+  return {
+    valeur,
+    zone: portees.length ? portees.join(", ") : TOUTES_ZONES,
+    cleDeZone: normalizeZoneKey(portees[0] ?? ""),
+    deduite: true,
+    assertion: regle
   };
 }
 
@@ -117,7 +183,7 @@ export function valeurDuSujet(sujet, assertions = [], zone = "") {
  *   produise — les données de base. `manquants` : ceux que personne n'a versés.
  */
 export function chaineDuRaisonnement(sujet, assertions = [], { zone = "" } = {}) {
-  const regles = reglesQuiProduisent(assertions);
+  const regles = reglesQuiProduisent(assertions, zone);
   const fonctions = [];
   const vues = new Set();
   const entrees = new Set();
@@ -172,11 +238,140 @@ export function traceDesLignes(lignes = [], { assertions = [], zone = "" } = {})
   return (Array.isArray(lignes) ? lignes : []).map((ligne) => {
     const jetons = ligne?.jetons ?? ligne ?? [];
     const nom = texte((jetons.find((jeton) => jeton?.type === "sujet") ?? {}).texte);
-    if (!nom) return { sujet: "", valeur: "", zone: "", manquant: false };
+    if (!nom) return { sujet: "", valeur: "", zone: "", manquant: false, deduite: false };
 
     const dite = valeurDuSujet(nom, assertions, zone);
     return dite
-      ? { sujet: nom, valeur: dite.valeur, zone: dite.zone, manquant: false }
-      : { sujet: nom, valeur: "", zone: "", manquant: true };
+      ? { sujet: nom, valeur: dite.valeur, zone: dite.zone, manquant: false, deduite: dite.deduite === true }
+      : { sujet: nom, valeur: "", zone: "", manquant: true, deduite: false };
   });
+}
+
+/**
+ * Le schéma des dépendances : une carte par étape, un trait par lien.
+ *
+ * ## Ce que la liste de code ne montre pas
+ *
+ * Les deux fenêtres — le code à gauche, les valeurs à droite — se lisent ligne
+ * à ligne, et c'est ce qu'il faut pour vérifier une condition. Mais elles
+ * n'exhibent pas la **forme** du raisonnement : combien d'étapes, laquelle
+ * s'appuie sur laquelle, et où l'on est parti de rien. Sur douze fonctions,
+ * reconstituer cette forme à la lecture demande une feuille de papier.
+ *
+ * Le schéma la donne d'un coup d'œil, et il se lit de gauche à droite : ce qui
+ * est à gauche décide de ce qui est à droite. La colonne de gauche est donc,
+ * nécessairement, les **données de base** — ce qu'aucune règle ne produit.
+ * C'est aussi la condition d'arrêt de la chaîne : si l'on n'y arrive pas, c'est
+ * qu'il manque quelque chose, et cela se voit.
+ *
+ * ## Chaque carte porte ses entrées
+ *
+ * Une carte qui ne dirait que son nom et sa valeur obligerait à suivre les
+ * traits un par un pour savoir ce qu'elle a lu. Elle porte donc ses entrées
+ * **avec leurs valeurs du jour** : c'est là qu'on voit qu'une valeur juste
+ * repose sur une entrée fausse.
+ *
+ * @param {string} sujet ce qu'on cherche à expliquer
+ * @param {object[]} assertions la mémoire du projet
+ * @param {object} options
+ * @param {string} [options.zone] la portée de la contrainte qu'on regarde
+ * @param {Map<string,string>} [options.ouEcrit] sujet → fichier qui porte sa valeur
+ * @param {Map<string,string>} [options.ouVivent] identifiant d'une règle → son fichier
+ * @returns {{noeuds: object[], liens: object[]}} au format de `graphe-liaisons`
+ */
+export function grapheDuRaisonnement(sujet, assertions = [], { zone = "", ouEcrit = null, ouVivent = null } = {}) {
+  const { fonctions } = chaineDuRaisonnement(sujet, assertions, { zone });
+  if (!fonctions.length) return { noeuds: [], liens: [] };
+
+  const regles = reglesQuiProduisent(assertions, zone);
+  const produites = new Set(fonctions.map((regle) => cleDuSujet(sujetDe(regle))));
+  const noeuds = [];
+  const liens = [];
+  const poses = new Set();
+
+  /** Le fichier où un nom est écrit, dit court : `donnees-de-base.ddb`. */
+  const court = (chemin) => (texte(chemin) ? texte(chemin).split("/").pop() : "");
+  const fichierDe = (nom) => court(ouEcrit?.get?.(cleDuSujet(nom)) ?? "");
+
+  /** Ce qu'un nom vaut aujourd'hui, dit comme la carte l'affiche. */
+  const etatDe = (nom) => {
+    const dite = valeurDuSujet(nom, assertions, zone);
+    return dite
+      ? { nom: texte(nom), valeur: dite.valeur, zone: dite.zone, manquant: false, deduite: dite.deduite === true }
+      : { nom: texte(nom), valeur: "", zone: "", manquant: true, deduite: false };
+  };
+
+  // Les données de base d'abord : une carte par nom qu'aucune règle ne produit.
+  //
+  // Une carte par **fichier** aurait mieux dit d'où elles viennent, mais un
+  // trait part d'une carte et arrive à une autre : deux entrées d'un même
+  // fichier ne se distingueraient plus, et l'on ne saurait plus laquelle décide
+  // de quoi. Le fichier reste en tête de carte — c'est là qu'on va les relire.
+  const donnee = (nom) => {
+    const cle = cleDuSujet(nom);
+    if (!cle || poses.has(`donnee:${cle}`)) return `donnee:${cle}`;
+    poses.add(`donnee:${cle}`);
+
+    const etat = etatDe(nom);
+    noeuds.push({
+      id: `donnee:${cle}`,
+      produit: cle,
+      demande: [],
+      entete: fichierDe(nom) || "donnée de base",
+      titre: etat.nom,
+      valeur: etat.manquant ? "personne ne l'a versée" : etat.valeur,
+      etat: etat.manquant ? "attente" : "conclu"
+    });
+    return `donnee:${cle}`;
+  };
+
+  for (const regle of fonctions) {
+    const cle = cleDuSujet(sujetDe(regle));
+    if (!cle || poses.has(`regle:${cle}`)) continue;
+    poses.add(`regle:${cle}`);
+
+    const conditions = [
+      ...(regle.payload?.regle?.conditions ?? []),
+      ...(regle.payload?.regle?.sauf ?? [])
+    ];
+
+    const entrees = [];
+    const demande = [];
+    for (const condition of conditions) {
+      const nom = texte(condition?.sujet);
+      const cleEntree = cleDuSujet(nom);
+      if (!cleEntree) continue;
+      if (!produites.has(cleEntree)) donnee(nom);
+      if (!demande.includes(cleEntree)) demande.push(cleEntree);
+      entrees.push(etatDe(nom));
+      liens.push({
+        de: produites.has(cleEntree) ? `regle:${cleEntree}` : `donnee:${cleEntree}`,
+        vers: `regle:${cle}`,
+        fait: nom
+      });
+    }
+
+    const dite = valeurDuSujet(sujetDe(regle), assertions, zone);
+    noeuds.push({
+      id: `regle:${cle}`,
+      produit: cle,
+      demande,
+      // Le fichier de la **règle**, pas celui de sa conclusion : une carte
+      // d'étape se relit dans le `.ref` qui la porte, et c'est là qu'on va
+      // corriger. Le fichier où la valeur s'écrit se lit sur la carte suivante.
+      entete: court(ouVivent?.get?.(texte(regle?.id)) ?? "") || fichierDe(sujetDe(regle)) || "règle",
+      titre: sujetDe(regle),
+      // Ce que le projet en dit aujourd'hui d'abord : c'est la valeur qui
+      // s'applique. À défaut, ce que la règle conclut — une règle versée dont
+      // la conclusion n'a pas été retenue reste lisible.
+      valeur: dite?.valeur || texte(regle?.payload?.value),
+      etat: dite ? "conclu" : "attente",
+      entrees
+    });
+  }
+
+  // Un lien dont une extrémité n'existe pas partirait du vide : le dessin
+  // montrerait une liaison vers rien, ce qui se lit comme une erreur.
+  const connus = new Set(noeuds.map((noeud) => noeud.id));
+  return { noeuds, liens: liens.filter((lien) => connus.has(lien.de) && connus.has(lien.vers)) };
 }

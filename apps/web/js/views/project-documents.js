@@ -5,6 +5,7 @@ import { brancherLaZoneDeDepot } from "./ui/zone-de-depot.js";
 import { setProjectViewHeader, clearProjectActiveScrollSource, debugProjectScrollPolicy, resetProjectShellCompactState, bindProjectDocumentChromeCompact } from "./project-shell-chrome.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { brancherLesBoutonsCopier, copierDansLePressePapiers } from "./ui/bouton-copier.js";
+import { brancherLeBoutonHaut } from "./ui/bouton-haut.js";
 import {
   bindGhActionButtons,
   initGhActionButton,
@@ -2280,6 +2281,10 @@ function bindLaMemoire(root) {
   // Un seul composant pour tous les boutons de copie de l'onglet : le chemin du
   // fil d'Ariane, et le fichier de mémoire entier. Le texte du second ne voyage
   // pas dans un attribut — trois cents lignes n'ont rien à faire dans du HTML.
+  // Le retour en haut, par délégation : la barre se redessine à chaque
+  // navigation, et un écouteur posé sur le bouton partirait avec lui.
+  brancherLeBoutonHaut(root);
+
   brancherLesBoutonsCopier(root, {
     texteDe: (cible) => {
       if (!cible.startsWith("fichier:")) return "";
@@ -2690,7 +2695,12 @@ function renderBrancheMemoire() {
     ouEcrit: memoire.ouEcrit ?? null
   };
 
-  const fichier = chemin.length >= 2 ? fichierDuChemin(memoire, chemin) : null;
+  // Un fichier se cherche **avant** de conclure qu'on est dans un dossier : la
+  // racine de la Mémoire en porte un, `variables-du-projet.ref`, dont l'adresse
+  // tient en un seul morceau. Exiger deux morceaux pour reconnaître un fichier
+  // faisait lire son nom comme celui d'un dossier — on entrait dedans et l'on
+  // tombait sur la liste des fichiers d'un dossier qui n'existe pas.
+  const fichier = fichierDuChemin(memoire, chemin);
 
   // La recherche traverse les dossiers : c'est le geste qu'on fait quand on ne
   // sait pas où c'est rangé, et un navigateur qui refuserait de chercher
@@ -2701,14 +2711,14 @@ function renderBrancheMemoire() {
     ? renderRecherche(memoire, query, { pieces: getProjectDocuments() })
     : racine
     ? renderDossiers(memoire, contexte)
-    : chemin.length === 1
-      ? renderFichiers(memoire, chemin[0], contexte)
-      : fichier
-        ? renderFichier(fichier, {
-            lecture: docsViewState.memoireLecture === LECTURE.BLAME ? LECTURE.BLAME : LECTURE.CODE,
-            plies: docsViewState.memoirePlies ?? new Set(),
-            ...contexte
-          })
+    : fichier
+      ? renderFichier(fichier, {
+          lecture: docsViewState.memoireLecture === LECTURE.BLAME ? LECTURE.BLAME : LECTURE.CODE,
+          plies: docsViewState.memoirePlies ?? new Set(),
+          ...contexte
+        })
+      : chemin.length === 1
+        ? renderFichiers(memoire, chemin[0], contexte)
         : `<div class="propositions-empty"><b>Ce fichier n'existe plus</b>
              <p>Rien ne s'y range aujourd'hui. Il réapparaîtra dès qu'une proposition y versera une ligne.</p></div>`;
 

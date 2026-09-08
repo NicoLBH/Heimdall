@@ -5,7 +5,8 @@ import {
   lignesDeLAssertion, provenanceDeLAssertion, statutDeLAssertion,
   jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee, grouperParVersement,
   preparerLaMemoire, fichierDesVariables, adresseDuFichier, nomDuFichier, contexteDuSujet,
-  fonctionsSansDoublon, ouChaqueValeurEstEcrite, FICHIER_DES_VARIABLES
+  fonctionsSansDoublon, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite,
+  fichierDuChemin, FICHIER_DES_VARIABLES
 } from "./project-memoire-fichiers.js";
 import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
 import { lireUnFichier } from "../services/memoire-en-lecture.js";
@@ -431,4 +432,43 @@ test("un doublon de fonction garde la première", () => {
   ]);
 
   assert.deepEqual(gardees.map((a) => a.payload.subject), ["Colonne sèche", "Classement du bâtiment"]);
+});
+
+test("un fichier de la racine se retrouve par son seul nom", () => {
+  // Son adresse tient en un morceau. Exiger deux morceaux pour reconnaître un
+  // fichier faisait lire `variables-du-projet.ref` comme un **dossier** : on
+  // entrait dedans, et l'écran montrait la liste des fichiers d'un dossier qui
+  // n'existe pas. Le fichier le plus important du projet ne s'affichait pas.
+  const memoire = preparerLaMemoire([
+    ligneDeMemoire("Hauteur du plancher bas", "26 m")
+  ]);
+
+  const trouve = fichierDuChemin(memoire, [FICHIER_DES_VARIABLES]);
+  assert.equal(nomDuFichier(trouve), FICHIER_DES_VARIABLES);
+
+  // Et un dossier ne se confond pas avec lui : il n'a pas d'extension, donc
+  // aucune adresse de fichier ne lui répond.
+  assert.equal(fichierDuChemin(memoire, ["Données de base"]), null);
+});
+
+test("où vit une ligne n'est pas où va sa valeur", () => {
+  // Le classement se conclut dans `incendie.ref` et s'écrit dans
+  // `donnees-de-base.ddb`. Confondre les deux envoie relire une règle dans un
+  // fichier qui ne la porte pas.
+  const regle = ligneDeMemoire("Classement du bâtiment", "3e famille B", {
+    id: "a-regle-classement", nature: null, domain: "incendie",
+    payload: {
+      subject: "Classement du bâtiment", value: "3e famille B", referentiel: true,
+      regle: { conditions: [{ sujet: "Hauteur du plancher bas", operateur: "<=", valeur: ["28"], unite: "m" }], sauf: [] }
+    }
+  });
+  const valeur = ligneDeMemoire("Classement du bâtiment", "3e famille B", {
+    id: "a-valeur-classement", nature: "donnee-de-base", domain: "incendie"
+  });
+
+  const memoire = preparerLaMemoire([regle, valeur]);
+  const fichiers = (memoire.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
+
+  assert.match(ouChaqueLigneEstEcrite(fichiers).get(regle.id), /incendie\.ref$/);
+  assert.match(ouChaqueValeurEstEcrite(fichiers).get("classement du batiment"), /\.ddb$/);
 });

@@ -29,7 +29,8 @@
  *
  * ```
  * graphe = {
- *   noeuds: [{ id, produit, demande: [clé], entete, titre, valeur, etat }],
+ *   noeuds: [{ id, produit, demande: [clé], entete, titre, valeur, etat,
+ *              entrees?: [{ nom, valeur, manquant }] }],
  *   liens:  [{ de, vers, fait }]
  * }
  * ```
@@ -37,6 +38,12 @@
  * `produit` est ce que le nœud établit, `demande` ce dont il a besoin : c'est
  * de là que se déduisent les colonnes. `etat` vaut « conclu », « sansObjet » ou
  * « attente », et ne sert qu'à la couleur.
+ *
+ * `entrees` est facultatif, et c'est ce qu'il faut quand les cartes sont des
+ * étapes de raisonnement : ce que l'étape a lu, avec la valeur du jour. Sans
+ * elles, il faut suivre les traits un par un pour savoir sur quoi une carte
+ * s'appuie — et l'on ne voit pas qu'une valeur juste repose sur une entrée
+ * fausse.
  */
 
 import { escapeHtml } from "../../utils/escape-html.js";
@@ -225,6 +232,16 @@ export function dessinerGrapheLiaisons({
                     ${noeud.entete ? `<span class="graphe-noeud__entete">${escapeHtml(noeud.entete)}</span>` : ""}
                     <span class="graphe-noeud__titre">${escapeHtml(noeud.titre ?? noeud.id)}</span>
                     ${noeud.valeur ? `<span class="graphe-noeud__valeur">${escapeHtml(noeud.valeur)}</span>` : ""}
+                    ${(noeud.entrees ?? []).length ? `
+                      <span class="graphe-noeud__entrees">
+                        ${noeud.entrees.map((entree) => `
+                          <span class="graphe-noeud__entree${entree.manquant ? " est-manquante" : ""}">
+                            <span class="graphe-noeud__entree-nom">${escapeHtml(entree.nom)}</span>
+                            <span class="graphe-noeud__entree-valeur">${
+                              escapeHtml(entree.manquant ? "non versée" : entree.valeur)}</span>
+                          </span>
+                        `).join("")}
+                      </span>` : ""}
                   </button>
                 `;
               }).join("")}

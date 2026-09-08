@@ -27,6 +27,7 @@ import { escapeHtml } from "../utils/escape-html.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
+import { renderBoutonHaut } from "./ui/bouton-haut.js";
 import {
   blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
   ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire,
@@ -97,6 +98,27 @@ export function ouChaqueValeurEstEcrite(fichiers = []) {
       if (assertion?.payload?.referentiel === true) continue;
       const cle = cleDuSujet(texte(assertion?.payload?.subject) || texte(assertion?.subject_key));
       if (cle && !ou.has(cle)) ou.set(cle, fichier.fichier);
+    }
+  }
+
+  return ou;
+}
+
+/**
+ * Où chaque **ligne** est écrite, par son identifiant.
+ *
+ * `ouChaqueValeurEstEcrite` répond « où va cette valeur ». Ce n'est pas la même
+ * question que « d'où vient cette règle » : le classement se conclut dans
+ * `incendie.ref` et s'écrit dans `donnees-de-base.ddb`, et confondre les deux
+ * envoie relire une règle dans un fichier qui ne la porte pas.
+ */
+export function ouChaqueLigneEstEcrite(fichiers = []) {
+  const ou = new Map();
+
+  for (const fichier of Array.isArray(fichiers) ? fichiers : []) {
+    for (const assertion of fichier.lignes ?? []) {
+      const id = texte(assertion?.id);
+      if (id && !ou.has(id)) ou.set(id, fichier.fichier);
     }
   }
 
@@ -510,6 +532,7 @@ export function renderTeteDuContenu({ fil = "", droite = "", replie = false } = 
       ${fil}
       <span class="memoire-corps__espace"></span>
       ${droite}
+      ${renderBoutonHaut()}
     </div>
   `;
 }
@@ -536,7 +559,7 @@ export function renderRechercheDuProjet(query = "") {
 export function renderReplieDuRail(ouverte) {
   const dit = ouverte ? "Replier la barre latérale" : "Étendre la barre latérale";
   return `
-    <button type="button" class="documents-tree__toggle" data-memoire-replier
+    <button type="button" class="bouton-discret documents-tree__toggle" data-memoire-replier
       aria-label="${escapeHtml(dit)}" title="${escapeHtml(dit)}">
       ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
     </button>

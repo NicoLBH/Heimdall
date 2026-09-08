@@ -168,7 +168,25 @@ export function itemsDeProposition(affirmations = []) {
   return sansDoublonDItems((Array.isArray(affirmations) ? affirmations : [])
     .filter((affirmation) => texte(affirmation?.sujet) && texte(affirmation?.valeur))
     .map((affirmation) => {
-      const portees = [...new Set((affirmation.zones ?? []).map(normalizeZoneKey).filter(Boolean))].sort();
+      // Deux formes de la même portée, et il faut les deux.
+      //
+      // La **clé** range et compare : « batiment-a » et « Bâtiment A » désignent
+      // la même partie de l'ouvrage, et deux clés pour une zone donneraient deux
+      // corpus là où il n'y en a qu'un. Le **libellé** se lit : un fichier de
+      // mémoire qui affiche « batiment-a » se lit moins bien qu'« Bâtiment A »,
+      // et c'est ce que la ligne montre.
+      //
+      // La clé va dans la colonne `zones`, le libellé dans le payload. Écrire la
+      // clé des deux côtés perdait le libellé pour toujours : rien d'autre ne le
+      // porte, et on ne le reconstruit pas — « batiment-a » ne dit pas si
+      // l'auteur avait écrit « Bâtiment A » ou « bâtiment A ».
+      const libelles = new Map();
+      for (const zone of affirmation.zones ?? []) {
+        const cle = normalizeZoneKey(zone);
+        if (cle && !libelles.has(cle)) libelles.set(cle, texte(zone));
+      }
+      const portees = [...libelles.keys()].sort();
+      const dits = portees.map((cle) => libelles.get(cle));
 
       return {
         itemType: BASE_DATUM_KIND,
@@ -186,7 +204,7 @@ export function itemsDeProposition(affirmations = []) {
           // celui qui existe. Voir `docs/langage-mdall.md`.
           quoi: texte(affirmation.quoi) || null,
           utilisation: texte(affirmation.utilisation) || null,
-          zones: portees.length ? portees : null,
+          zones: dits.length ? dits : null,
           // De quoi rouvrir le texte à la bonne ligne devant qui conteste.
           source: texte(affirmation.source) || null,
           article: texte(affirmation.article) || null,

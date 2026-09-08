@@ -134,3 +134,21 @@ test("des items déjà construits se dédoublonnent aussi", () => {
   assert.equal(items.length, 2);
   assert.equal(items[0].payload.value, "1");
 });
+
+test("la clé range, le libellé se lit — et l'item porte les deux", () => {
+  // « batiment-a » et « Bâtiment A » désignent la même partie de l'ouvrage : la
+  // clé compare, le libellé s'affiche. Écrire la clé des deux côtés perdait le
+  // libellé pour toujours — rien d'autre ne le porte, et on ne le reconstruit
+  // pas : « batiment-a » ne dit pas si l'auteur avait écrit « Bâtiment A ».
+  const [item] = itemsDeProposition([{ ...DEGRE, zones: ["Bâtiment A"] }]);
+
+  assert.equal(item.itemKey, "degre-coupe-feu-des-planchers@batiment-a");
+  assert.deepEqual(item.payload.zones, ["Bâtiment A"]);
+});
+
+test("deux écritures d'une même zone n'en font qu'une", () => {
+  // Deux libellés pour une clé donneraient deux portées là où il n'y en a
+  // qu'une, et la seconde périmerait la première.
+  const [item] = itemsDeProposition([{ ...DEGRE, zones: ["Bâtiment A", "bâtiment a"] }]);
+  assert.deepEqual(item.payload.zones, ["Bâtiment A"]);
+});

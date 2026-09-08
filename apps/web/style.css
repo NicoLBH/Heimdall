@@ -6517,7 +6517,32 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
    `.memoire-corps__tete`. Ses règles ne visaient plus rien. */
 .documents-tree{position:relative;width:var(--documents-tree-width);z-index:1;}
 .documents-tree.is-collapsed .documents-tree__panel,.documents-tree.is-collapsed .documents-tree__resize-handle,.documents-tree.is-collapsed .documents-tree__resize-guide{display:none;}
-.documents-tree__toggle{width:32px;height:32px;border:solid 1px transparent;background:var(--bgElev);color:var(--muted);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;}
+.documents-tree__toggle{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;}
+/* ── Les boutons discrets ──────────────────────────────────────────────────
+   Replier la barre latérale, revenir en haut : des gestes de service, pas des
+   actions du projet. Ils vivaient chacun avec son habillage — un fond gris
+   permanent dans les Fichiers, une bordure dans une proposition, rien dans le
+   rail —, et trois habillages pour un même geste finissent par se lire comme
+   trois choses différentes.
+
+   Rien au repos : la barre porte déjà un chemin, une recherche et parfois des
+   gestes ; un cadre de plus la ferait lire comme une barre d'outils. Au survol
+   seulement, un fond arrondi dit que c'est cliquable. */
+.bouton-discret{
+  border:0; background:transparent; color:var(--muted);
+  border-radius:6px; cursor:pointer; font:inherit;
+  display:inline-flex; align-items:center; gap:6px;
+  transition:background .12s ease, color .12s ease;
+}
+.bouton-discret:hover{ background:rgba(101, 108, 118, 0.2); color:var(--text); }
+.bouton-discret:focus-visible{ outline:2px solid var(--accent, #2f81f7); outline-offset:2px; }
+
+/* Le retour en haut ne paraît que **collé** : déroulé, le haut est déjà là, et
+   un bouton qui ne mène nulle part est du bruit. */
+.bouton-haut{ display:none; flex:0 0 auto; padding:4px 8px; font-size:12px; }
+.bouton-haut .octicon{ flex:0 0 16px; }
+body.documents-local-chrome-compact .bouton-haut{ display:inline-flex; }
+
 .documents-tree__panel{width:100%;min-height:240px;max-height:var(--documents-content-height, calc(100vh - 180px));overflow:auto;border-right:1px solid var(--border);border-top:0;border-left:0;border-bottom:0;border-radius:0;background:var(--bgElev);padding:8px;padding-top:16px;display:flex;flex-direction:column;gap:2px;height:var(--documents-content-height, calc(100vh - 180px));}
 .documents-tree__row{display:flex;align-items:center;gap:4px;width:100%;position:relative;border-radius:6px;height:34px;}
 .documents-tree__row.is-active{background:rgba(110, 118, 129, .14);}
@@ -17224,14 +17249,15 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 
 /* Pas de filet au-dessus : le bouton est déjà en bas, et un trait de plus dans
    un rail qui en porte déjà un ne sépare rien. */
+/* Le fond au survol et l'absence de cadre au repos viennent de
+   `.bouton-discret` : c'est le même geste que dans les Fichiers. Ne restent
+   ici que la place qu'il prend dans le rail. */
 .project-rail__collapse{
-  display:flex; align-items:center; gap:8px; min-height:32px;
+  display:flex; min-height:32px; gap:8px;
   width:calc(100% - var(--nav-list-gutter, 10px));
   margin:8px 0 0 var(--nav-list-gutter, 10px); padding:6px 12px; flex:0 0 auto;
-  border:0; border-radius:6px; background:transparent; color:var(--muted);
-  font:inherit; font-size:13px; cursor:pointer;
+  font-size:13px;
 }
-.project-rail__collapse:hover{ background:var(--panel2); color:var(--text); }
 .project-rail__collapse .octicon{ flex:0 0 16px; }
 
 /* Replié : **seul le texte disparaît**. La gouttière, le trait bleu et la place
@@ -18631,6 +18657,27 @@ strong.est-verifie{ color:#3fb950; }
 
 /* Le schéma décisionnel : des colonnes de gauche à droite, ce qui décide avant
    ce qui est décidé. Il défile dans son cadre, jamais la page. */
+/* La couleur de contraste du schéma est une **variable**, pas une constante.
+   L'orange est celui de l'écran Incendie, où le schéma est né. Ailleurs il
+   entre en concurrence avec ce que l'écran dit déjà — dans la Mémoire, l'orange
+   est la couleur d'un chemin de fichier, et deux sens pour une couleur se
+   lisent comme une erreur. Chaque écran pose donc la sienne. */
+.graphe-bloc{ --graphe-contraste:#f0883e; --graphe-contraste-fond:rgba(240,136,62,.12); }
+
+/* Les entrées d'une carte : ce que l'étape a lu, avec la valeur du jour. */
+.graphe-noeud__entrees{ display:grid; gap:2px; margin-top:4px; padding-top:4px; border-top:1px solid var(--border); }
+/* Deux colonnes, et le nom prend ce qui reste. Sur une seule ligne, un nom de
+   variable un peu long débordait de la carte : on tronquait le nom — c'est-à-dire
+   précisément ce qu'on vient chercher — ou l'on élargissait la carte, et les
+   colonnes ne s'alignaient plus. Il passe donc à la ligne. */
+.graphe-noeud__entree{
+  display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:8px;
+  align-items:baseline; font-size:11px; text-align:left;
+}
+.graphe-noeud__entree-nom{ color:var(--muted); min-width:0; overflow-wrap:anywhere; }
+.graphe-noeud__entree-valeur{ color:var(--text); font-variant-numeric:tabular-nums; text-align:right; }
+.graphe-noeud__entree.est-manquante .graphe-noeud__entree-valeur{ color:var(--fgColor-danger, #f85149); }
+
 .graphe__legende{ margin:0 0 12px; font-size:12px; color:var(--muted); line-height:1.55; }
 .graphe{
   display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; align-items:flex-start;
@@ -18648,17 +18695,17 @@ strong.est-verifie{ color:#3fb950; }
 .graphe-noeud.est-conclu{ border-left-color:#3fb950; }
 .graphe-noeud.est-sansObjet{ border-left-color:var(--muted); opacity:.7; }
 .graphe-noeud.est-attente{ border-left-color:var(--attention, #d29922); }
-.graphe-noeud.est-designe, .graphe-noeud:hover{ background:rgba(240,136,62,.12); border-color:#f0883e; }
+.graphe-noeud.est-designe, .graphe-noeud:hover{ background:var(--graphe-contraste-fond); border-color:var(--graphe-contraste); }
 /* Un trait qui mène à une boîte éteinte se suit mal : les boîtes du chemin
    s'allument aussi, à la même intensité que le trait qui y mène. */
 .graphe-noeud.est-en-amont{
   border-color:color-mix(in srgb, #f0883e calc(var(--graphe-amont, .5) * 100%), var(--border, #30363d));
   background:rgba(240,136,62,calc(var(--graphe-amont, .5) * .1));
 }
-.graphe-noeud:focus-visible{ outline:2px solid #f0883e; outline-offset:-2px; }
+.graphe-noeud:focus-visible{ outline:2px solid var(--graphe-contraste); outline-offset:-2px; }
 .graphe-noeud__entete{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
 .graphe-noeud__titre{ font-size:12px; font-weight:600; }
-.graphe-noeud__valeur{ font-size:12px; color:#f0883e; }
+.graphe-noeud__valeur{ font-size:12px; color:var(--graphe-contraste); }
 .graphe-noeud.est-sansObjet .graphe-noeud__valeur,
 .graphe-noeud.est-attente .graphe-noeud__valeur{ color:var(--muted); }
 .graphe-noeud__amont{ font-size:10px; color:var(--muted); line-height:1.4; }
@@ -18686,7 +18733,7 @@ strong.est-verifie{ color:#3fb950; }
 .graphe-detail__fermer{
   background:none; border:none; color:var(--muted); cursor:pointer; padding:2px; flex:none; line-height:0;
 }
-.graphe-detail__fermer:hover{ color:#f0883e; }
+.graphe-detail__fermer:hover{ color:var(--graphe-contraste); }
 @media (max-width: 900px){
   .graphe__scene{ flex-direction:column; }
   .graphe-detail.est-ouvert{ flex:none; width:auto; max-height:none; margin:0 0 12px; padding:0 0 12px;
@@ -18709,7 +18756,7 @@ strong.est-verifie{ color:#3fb950; }
 }
 
 .graphe__caches{ display:block; margin-top:4px; color:var(--muted); font-style:italic; }
-.graphe__outil.est-actif{ color:#f0883e; border-color:#f0883e; }
+.graphe__outil.est-actif{ color:var(--graphe-contraste); border-color:var(--graphe-contraste); }
 
 .incendie-portee{ display:grid; gap:20px; }
 .incendie-portee h5{ margin:0 0 8px; font-size:13px; display:flex; gap:6px; align-items:center; }
@@ -18783,7 +18830,7 @@ strong.est-verifie{ color:#3fb950; }
   border:1px solid var(--border, #30363d); background:none; color:var(--muted);
   display:inline-flex; align-items:center; justify-content:center;
 }
-.graphe__outil:hover{ color:#f0883e; border-color:#f0883e; }
+.graphe__outil:hover{ color:var(--graphe-contraste); border-color:var(--graphe-contraste); }
 .graphe__zoom{ font-size:11px; color:var(--muted); min-width:42px; text-align:center; }
 
 .graphe{ overflow:auto; padding-bottom:10px; }
@@ -18798,10 +18845,10 @@ strong.est-verifie{ color:#3fb950; }
 .graphe-lien{ fill:none; stroke:var(--border2, #30363d); stroke-width:1.2; }
 /* Le chemin amont en entier, l'intensité décroissant avec l'éloignement :
    l'opacité et l'épaisseur sont posées au tracé, module par module. */
-.graphe-lien.est-marque{ stroke:#f0883e; }
+.graphe-lien.est-marque{ stroke:var(--graphe-contraste); }
 /* Ce que le module désigné alimente reste visible, mais en retrait : on regarde
    d'où vient une conclusion plus souvent que ce qu'elle nourrit. */
-.graphe-lien.est-aval{ stroke:#f0883e; opacity:.35; stroke-width:1.4; stroke-dasharray:4 3; }
+.graphe-lien.est-aval{ stroke:var(--graphe-contraste); opacity:.35; stroke-width:1.4; stroke-dasharray:4 3; }
 .graphe__colonne{ position:relative; z-index:1; }
 .graphe-noeud{ width:210px; }
 
@@ -20158,6 +20205,44 @@ body.proposition-merge-open{ overflow:hidden; }
 .memory-raisonnement__lead{ margin:0 0 10px; color:var(--muted); font-size:12px; }
 .memory-raisonnement__trou{ color:rgb(255,123,114); }
 .memory-raisonnement--vide p{ margin:0; color:var(--muted); font-size:13px; max-width:70ch; }
+
+/* ── Le schéma des dépendances ─────────────────────────────────────────────
+   Toute largeur, au-dessus des deux fenêtres : c'est la **forme** du
+   raisonnement, et une forme ne se lit pas dans une colonne. Les deux fenêtres
+   viennent après, pour vérifier ligne à ligne.
+
+   Le contraste passe au bleu. L'orange est celui de l'écran Incendie, où ce
+   schéma est né ; ici il est déjà pris — c'est la couleur d'un chemin de
+   fichier dans le code Mdall —, et deux sens pour une même couleur se lisent
+   comme une erreur. */
+.memory-raisonnement__schema{ margin:0 0 16px; }
+.memory-raisonnement__schema .graphe-bloc{
+  --graphe-contraste:#58a6ff;
+  --graphe-contraste-fond:rgba(56,139,253,.15);
+  /* Encadré comme les deux fenêtres qui le suivent, et comme « le chemin de
+     cette exécution » dans les Actions : trois panneaux d'un même écran qui ne
+     partageraient pas leur cadre se lisent comme trois pièces rapportées. */
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:rgb(13,17,23);
+  overflow:hidden;
+}
+.memory-raisonnement__schema .graphe__tete{
+  margin:0;
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel2);
+}
+.memory-raisonnement__schema .graphe__legende{ margin:0; }
+.memory-raisonnement__schema .graphe__legende b{ color:var(--text); }
+.memory-raisonnement__schema .graphe{ background:var(--bgAssistPanel); padding:16px 12px 20px; }
+/* Le trait des liaisons est celui du chemin d'exécution : c'est le même dessin,
+   et deux gris voisins mais différents se lisent comme un défaut d'alignement. */
+.memory-raisonnement__schema .graphe-lien{ stroke:rgb(61,68,77); }
+/* La carte tient plus de texte qu'un module d'arrêté : un nom de variable, sa
+   valeur, et ce qu'elle a lu. Elle s'élargit d'autant. */
+.memory-raisonnement__schema .graphe-noeud{ width:240px; }
+.memory-raisonnement__schema .graphe__colonne{ min-width:240px; }
 
 .memory-raisonnement__deux{
   display:grid;
