@@ -466,3 +466,77 @@ Le cerveau restait juste, et incomplet : il disait tout de ce que le projet
 un nuage de valeurs reliées sans voir les mécanismes qui les relient — et l'on ne
 peut pas répondre à « quelle règle est trop compliquée ? », qui est une vraie
 question de relecture.
+
+---
+
+## 7. Les chaînes coupées : un index qui perdait le milieu — *fait*
+
+**État :** fait · **Nature :** un défaut d'index, découvert par un chiffre qui ne
+collait pas. **Débloque :** tout ce qui remonte une chaîne.
+
+### Le symptôme
+
+Un projet dont une contrainte s'établit en **six étapes** — données de base,
+« Habitation individuelle ou collective », « Nombre d'étages retenu », « Classement
+du bâtiment », « Famille », « Degré coupe-feu des planchers » — s'annonçait dans le
+cerveau à **deux pas**. L'écran « Comment on en est arrivé là » montrait bien les
+six ; le cerveau en voyait deux. Deux écrans du même projet, deux réponses.
+
+Reconstruire les liens du raisonnement n'y changeait rien, ce qui était le bon
+indice : ce n'était pas un index en retard, c'était un index qui reconstruisait
+la même chose fausse.
+
+### La cause, et elle était double
+
+**Un.** `applicationsDeLaMemoire` résolvait le sujet d'une règle — son entrée
+comme sa sortie — **uniquement parmi les valeurs**. Or un projet ne verse pas
+toujours une valeur pour chaque conclusion : « Famille : 2 » peut n'exister que
+dans la règle qui l'établit, sa valeur portée dans son propre bloc. Le sujet est
+pourtant déclaré, et `sujetsDeclares` le compte depuis toujours.
+
+Conséquence, deux fois : la règle qui conclut « Famille » n'avait **pas de sortie**
+et *aucune* de ses lectures n'était enregistrée ; et chacune des soixante-huit
+règles qui lisent « Famille » perdait son entrée. Sur la mémoire d'essai : 13
+sujets dans ce cas, 45 liens perdus sur 114.
+
+**Deux.** « La plus longue chaîne » se mesurait en **sauts d'une valeur à
+l'autre**, ce qui suppose qu'entre deux règles il y ait toujours une valeur
+versée. Toute chaîne traversant une conclusion sans valeur était coupée là.
+
+Les deux fautes se renforçaient : la première creusait le trou, la seconde le
+comptait comme une fin de chaîne.
+
+### Ce qui a été fait
+
+`resoudre` remonte à la **règle** qui conclut un sujet quand aucune valeur ne le
+porte — en dernier recours seulement, une valeur versée étant plus proche de ce
+que le projet affirme aujourd'hui que le bloc qui l'a produite. Une règle devient
+alors sa propre sortie, ce qu'elle est déjà en fait.
+
+Et le compte change d'unité : **un pas est une règle appliquée**, pas un saut de
+valeur en valeur. Il se mesure sur le graphe déplié, avec ou sans les règles à
+l'écran — le chiffre ne dépend plus d'un bouton d'affichage. Sur la mémoire
+d'essai, il passe de 2 à 5, ce que l'écran des étapes annonçait depuis le début.
+
+**Il faut relancer « Verser › Reconstruire les liens du raisonnement » une fois** :
+les lignes déjà écrites restent valides, il en manquait.
+
+### La leçon, qui vaut au-delà de ce cas
+
+**Un index à moitié rempli est plus dangereux qu'un index vide.** Vide, on s'en
+méfie ; à moitié plein, on lit ses chiffres comme s'ils décrivaient le projet.
+L'écran ne se taisait que dans un cas — zéro lecture dans tout le projet — et
+affichait sans réserve dès qu'il en existait une seule.
+
+Deux lacunes se comptent donc et se disent, en haut de l'écran : les règles dont
+**aucune entrée** n'est enregistrée, et les conclusions qu'**aucune valeur** ne
+porte. La seconde n'est pas une faute — la valeur est là, dans le bloc —, mais
+elle n'est ni auditable, ni rattachable à un document, ni comparable d'une version
+à l'autre. C'est un choix de modèle, et il doit se voir.
+
+### Ce qui reste ouvert
+
+**Faut-il verser une valeur pour chaque conclusion de règle ?** Aujourd'hui c'est
+au cas par cas, sans que rien ne le décide : « Classement du bâtiment » en a une,
+« Famille » non. Les deux fonctionnent, mais seule la première s'audite. La
+question est de produit, pas de code, et elle attend une décision.

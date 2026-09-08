@@ -1635,17 +1635,28 @@ function bindExportButton(root) {
       return;
     }
 
-    const [{ buildMemoryExport, memoryExportCsv, memoryExportFilename }, telechargement] = await Promise.all([
+    const [
+      { buildMemoryExport, memoryExportCsv, memoryExportFilename },
+      { listerLesApplications },
+      telechargement
+    ] = await Promise.all([
       import("../services/project-memory-export.js"),
+      import("../services/memoire-applications-supabase.js"),
       import("../utils/download-file.js")
     ]);
 
     // Tout est exporté, pas seulement la page affichée ni le filtre en cours :
     // un export partiel se comparerait mal, et rien à l'écran ne dirait qu'il
     // l'était.
+    //
+    // Les lectures avec : sans elles, le fichier dit ce que le projet affirme et
+    // jamais comment il y est arrivé — et c'est précisément là que vivent les
+    // défauts qu'on cherche quand on exporte pour comprendre. `null` si l'index
+    // n'a pas pu être lu, ce qui n'est pas la même chose qu'un index vide.
     const exporte = buildMemoryExport({
       project: { id: view.projectId, ...(store.projectForm ?? {}) },
       assertions: view.assertions,
+      applications: await listerLesApplications(view.projectId),
       generatedAt: new Date().toISOString()
     });
 

@@ -5,8 +5,8 @@ import {
   GENRE, SIGNAL, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, complexiteDeLaRegle,
   dispositionDuCerveau, dispositionEnVolume, dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau,
   enveloppeConvexe, famillesParSujet, graineDe, lecturesAvecLesFonctions, liensDuRaisonnement,
-  noeudsIsoles, ondeDepuis, partDeLaMemoire, pencherVersLesDomaines, phraseDuSignal, separerLesGenres,
-  signauxDeLAudit, stratesDuGraphe, valeursDeLOnde
+  noeudsIsoles, ondeDepuis, partDeLaMemoire, pasDuRaisonnement, pencherVersLesDomaines, phraseDuSignal,
+  separerLesGenres, signauxDeLAudit, stratesDuGraphe, valeursDeLOnde
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -130,7 +130,7 @@ test("chaque nœud porte sa nature, et le compte les sépare", () => {
   assert.equal(cerveau.profondeur, 2);
   assert.deepEqual(cerveau.compte, {
     socle: 2, rejouables: 2, opaques: 1, fonctions: 0, auServeur: 1, familles: 0,
-    liens: 3, poidsMax: 3
+    reglesSansEntree: 0, conclusionsSansValeur: 0, liens: 3, poidsMax: 3
   });
 });
 
@@ -872,4 +872,63 @@ test("le cap d'un nœud ne bouge pas : un domaine reste un méridien", () => {
   const [apres] = separerLesGenres([avant, enVolume("r", GENRE.FONCTION, -0.5)]);
 
   assert.ok(Math.abs(Math.atan2(apres.z, apres.x) - Math.atan2(avant.z, avant.x)) < 1e-9);
+});
+
+/* ── Compter les pas d'un raisonnement ───────────────────────────────────── */
+
+test("un pas est une règle appliquée, pas un saut d'une valeur à l'autre", () => {
+  // C'est la faute que ce compte répare, et elle mentait de beaucoup : sur un
+  // projet réel, une chaîne de cinq règles s'annonçait à deux pas.
+  const chaine = [
+    dit("d0", "Logements superposés", "oui"),
+    regle("Habitation", "collective", [["Logements superposés", "oui"]]),
+    dit("v1", "Habitation", "collective", "constat"),
+    regle("Classement", "2e famille", [["Habitation", "collective"]]),
+    dit("v2", "Classement", "2e famille", "constat"),
+    regle("Degré CF", "CF 1/2 h", [["Classement", "2e famille"]]),
+    dit("v3", "Degré CF", "CF 1/2 h", "constat")
+  ];
+  const lues = [
+    lecture("d0", "v1", "r-Habitation"),
+    lecture("v1", "v2", "r-Classement"),
+    lecture("v2", "v3", "r-Degré CF")
+  ];
+
+  assert.equal(pasDuRaisonnement(chaine, lues), 3);
+  assert.equal(cerveauDuProjet(chaine, lues).pasDeRaisonnement, 3);
+});
+
+test("une conclusion qu'aucune valeur ne porte ne coupe plus la chaîne", () => {
+  // « Famille : 2 » peut n'exister que dans la règle qui l'établit. Compter les
+  // sauts de valeur en valeur coupait la chaîne à cet endroit précis, et le
+  // chiffre affiché n'avait plus aucun rapport avec le raisonnement.
+  const chaine = [
+    dit("d0", "Logements superposés", "oui"),
+    regle("Famille", "2", [["Logements superposés", "oui"]]),
+    regle("Degré CF", "CF 1/2 h", [["Famille", "2"]]),
+    dit("v2", "Degré CF", "CF 1/2 h", "constat")
+  ];
+  // La règle « Famille » est sa propre sortie : c'est là qu'habite sa valeur.
+  const lues = [
+    lecture("d0", "r-Famille", "r-Famille"),
+    lecture("r-Famille", "v2", "r-Degré CF")
+  ];
+
+  assert.equal(pasDuRaisonnement(chaine, lues), 2);
+});
+
+test("le compte des pas ne dépend pas de ce que l'écran montre", () => {
+  const sans = cerveauDuProjet(memoire(), lectures());
+  const avec = cerveauDuProjet(memoire(), lectures(), { avecLesFonctions: true });
+
+  assert.equal(avec.pasDeRaisonnement, sans.pasDeRaisonnement);
+  // Le dessin, lui, s'allonge d'un rang par règle : c'est une autre grandeur.
+  assert.ok(avec.profondeur > avec.pasDeRaisonnement);
+});
+
+test("sans lecture enregistrée, on ne compte aucun pas plutôt qu'un pas faux", () => {
+  // À défaut de lectures, les liens se déduisent des noms et ne nomment aucune
+  // règle : rien ne permet de dire combien de règles une chaîne traverse.
+  assert.equal(pasDuRaisonnement(memoire(), null), 0);
+  assert.equal(pasDuRaisonnement([], []), 0);
 });

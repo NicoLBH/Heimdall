@@ -159,14 +159,39 @@ export function lecturesDeLUtilitaire(assertion = {}) {
  * On ne remonte jamais à une autre zone : emprunter la valeur du bâtiment voisin
  * serait le pire des mensonges — elle se lirait comme la valeur d'ici.
  */
-function resoudre(nom, { parSujet, zone, propositionId }) {
-  const candidates = (parSujet.get(cleDuSujet(nom)) ?? []).filter((assertion) => vautDans(assertion, zone));
-  if (!candidates.length) return null;
+function resoudre(nom, { parSujet, parRegle = null, zone, propositionId }) {
+  const cle = cleDuSujet(nom);
+  return choisir(parSujet.get(cle), { zone, propositionId })
+    // À défaut, la **règle** qui conclut ce sujet.
+    //
+    // C'est le trou qui coupait les chaînes en deux. Un projet ne verse pas
+    // toujours une valeur pour chaque conclusion : « Famille : 2 » peut n'exister
+    // que dans la règle qui l'établit, sa valeur portée dans son propre bloc. Le
+    // sujet est pourtant **déclaré** — `sujetsDeclares` le compte depuis
+    // toujours —, et les soixante-huit règles qui le lisent le trouvent à
+    // l'écran.
+    //
+    // Ne chercher que parmi les valeurs faisait donc deux dégâts à la fois : la
+    // règle qui conclut ce sujet n'avait pas de sortie et **aucune** de ses
+    // lectures n'était enregistrée ; et chaque règle qui le lisait perdait son
+    // entrée. Une chaîne de six pas se retrouvait en morceaux de deux, sans que
+    // rien ne le dise.
+    //
+    // On ne remonte à la règle qu'en dernier : une valeur versée est plus proche
+    // de ce que le projet affirme aujourd'hui que le bloc qui l'a produite.
+    ?? choisir(parRegle?.get(cle), { zone, propositionId });
+}
+
+/** Parmi des candidates du même sujet : le même versement d'abord, la zone ensuite. */
+function choisir(candidates, { zone, propositionId }) {
+  const dansLaZone = (Array.isArray(candidates) ? candidates : [])
+    .filter((assertion) => vautDans(assertion, zone));
+  if (!dansLaZone.length) return null;
 
   const memeVersement = propositionId
-    ? candidates.filter((assertion) => texte(assertion.proposition_id) === texte(propositionId))
+    ? dansLaZone.filter((assertion) => texte(assertion.proposition_id) === texte(propositionId))
     : [];
-  const pool = memeVersement.length ? memeVersement : candidates;
+  const pool = memeVersement.length ? memeVersement : dansLaZone;
 
   const portees = pool.filter((assertion) => porteesDe(assertion).length);
   return (portees.length ? portees : pool)[0] ?? null;
@@ -199,11 +224,18 @@ export function applicationsDeLaMemoire(assertions = [], {
   const parSujet = new Map();
   const regles = [];
   const deduites = [];
+  /** Les règles par sujet conclu : le recours quand aucune valeur ne le porte. */
+  const parRegle = new Map();
 
   for (const assertion of toutes) {
     const cle = cleDuSujet(sujetDe(assertion));
     if (!cle) continue;
-    if (estUneRegle(assertion)) { regles.push(assertion); continue; }
+    if (estUneRegle(assertion)) {
+      regles.push(assertion);
+      if (!parRegle.has(cle)) parRegle.set(cle, []);
+      parRegle.get(cle).push(assertion);
+      continue;
+    }
     if (!parSujet.has(cle)) parSujet.set(cle, []);
     parSujet.get(cle).push(assertion);
     // Une contrainte qui déclare ce qu'elle a lu est une valeur **et** un
@@ -236,7 +268,7 @@ export function applicationsDeLaMemoire(assertions = [], {
 
     for (const zone of appels) {
       const sortie = resoudre(sujetDe(regle), {
-        parSujet, zone, propositionId: texte(regle.proposition_id)
+        parSujet, parRegle, zone, propositionId: texte(regle.proposition_id)
       });
       // Une règle qui n'a rien produit dans cette zone n'y a pas servi. On ne
       // rattache pas ses lectures à la valeur d'une autre zone.
@@ -245,7 +277,9 @@ export function applicationsDeLaMemoire(assertions = [], {
       if (retenues && !retenues.has(texte(sortie.id))) continue;
 
       noms.forEach((nom, index) => {
-        const entree = resoudre(nom, { parSujet, zone, propositionId: texte(regle.proposition_id) });
+        const entree = resoudre(nom, {
+          parSujet, parRegle, zone, propositionId: texte(regle.proposition_id)
+        });
 
         lignes.push({
           project_id: projet || texte(sortie.project_id),
@@ -253,7 +287,13 @@ export function applicationsDeLaMemoire(assertions = [], {
           output_assertion_id: texte(sortie.id),
           // `null` n'est pas un oubli : le nom ne désignait rien que le projet
           // ait versé. C'est le trou du raisonnement, et il se compte.
-          input_assertion_id: texte(entree?.id) || null,
+          //
+          // Une règle qui **est** sa propre conclusion ne se lit pas elle-même :
+          // le lien tournerait en rond et l'onde y ferait un cycle qui n'existe
+          // pas dans le raisonnement.
+          input_assertion_id: texte(entree?.id) === texte(sortie.id)
+            ? null
+            : texte(entree?.id) || null,
           input_subject: nom,
           input_rank: index + 1,
           zone,
@@ -279,7 +319,7 @@ export function applicationsDeLaMemoire(assertions = [], {
     for (const zone of zones.length ? zones : [""]) {
       noms.forEach((nom, index) => {
         const entree = resoudre(nom, {
-          parSujet, zone, propositionId: texte(contrainte.proposition_id)
+          parSujet, parRegle, zone, propositionId: texte(contrainte.proposition_id)
         });
 
         lignes.push({

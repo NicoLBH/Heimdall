@@ -141,12 +141,73 @@ test("un nom que personne n'a versé fait une lecture orpheline, jamais une abse
   assert.deepEqual(dependancesDesApplications(lignes).map((l) => l.depends_on_assertion_id), ["a-Classement"]);
 });
 
-test("une règle qui n'a rien produit dans cette zone n'y a pas servi", () => {
+test("une règle n'emprunte jamais la valeur d'une autre zone", () => {
+  // Rattacher la sortie du bâtiment B à la règle du bâtiment A serait le pire
+  // des mensonges : elle se lirait comme la valeur d'ici.
   const memoire = [
     regle("Degré CF", "CF 1 h", ["Classement"], { zones: ["batiment-a"] }),
+    dit("Degré CF", "CF 1/2 h", { zones: ["batiment-b"] }),
     dit("Classement", "3e famille B", { zones: ["batiment-a"] })
   ];
-  assert.deepEqual(applicationsDeLaMemoire(memoire), []);
+
+  const lignes = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  assert.deepEqual(lignes.map((l) => l.output_assertion_id), ["r-Degré CF@batiment-a"]);
+});
+
+test("une règle dont aucune valeur ne porte la conclusion est sa propre sortie", () => {
+  // C'est le trou qui coupait les chaînes en deux. « Famille : 2 » peut n'exister
+  // que dans la règle qui l'établit ; ne chercher que parmi les valeurs faisait
+  // disparaître la règle **et** toutes ses lectures de l'index.
+  const memoire = [
+    regle("Famille", "2", ["Nombre d'étages"]),
+    dit("Nombre d'étages", "2")
+  ];
+
+  const [ligne] = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  assert.equal(ligne.output_assertion_id, "r-Famille");
+  assert.equal(ligne.input_assertion_id, "a-Nombre d'étages");
+});
+
+test("une règle qui lit un sujet conclu par une autre règle la trouve", () => {
+  // Sans ce recours, les soixante-huit règles qui lisent « Famille » perdaient
+  // leur entrée, et une chaîne de six pas s'annonçait à deux.
+  const memoire = [
+    regle("Famille", "2", ["Nombre d'étages"]),
+    dit("Nombre d'étages", "2"),
+    regle("Degré CF", "CF 1 h", ["Famille"]),
+    dit("Degré CF", "CF 1 h")
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  const cf = lignes.find((l) => l.rule_assertion_id === "r-Degré CF");
+  assert.equal(cf.input_assertion_id, "r-Famille");
+  assert.equal(cf.output_assertion_id, "a-Degré CF");
+});
+
+test("une valeur versée l'emporte sur la règle qui la conclut", () => {
+  // La valeur est plus proche de ce que le projet affirme aujourd'hui que le
+  // bloc qui l'a produite : on ne remonte à la règle qu'à défaut.
+  const memoire = [
+    regle("Famille", "2", ["Nombre d'étages"]),
+    dit("Famille", "2"),
+    dit("Nombre d'étages", "2"),
+    regle("Degré CF", "CF 1 h", ["Famille"]),
+    dit("Degré CF", "CF 1 h")
+  ];
+
+  const cf = applicationsDeLaMemoire(memoire, { projectId: "p1" })
+    .find((l) => l.rule_assertion_id === "r-Degré CF");
+  assert.equal(cf.input_assertion_id, "a-Famille");
+});
+
+test("une règle qui est sa propre sortie ne se lit pas elle-même", () => {
+  // Le lien tournerait en rond, et l'onde ferait un cycle qui n'existe pas dans
+  // le raisonnement.
+  const memoire = [regle("Famille", "2", ["Famille"])];
+
+  const [ligne] = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  assert.equal(ligne.output_assertion_id, "r-Famille");
+  assert.equal(ligne.input_assertion_id, null);
 });
 
 test("ce qui a été remplacé ne fait plus d'appel", () => {
@@ -155,8 +216,20 @@ test("ce qui a été remplacé ne fait plus d'appel", () => {
     dit("Colonne sèche", "exigée", { id: "a-vieille", remplacee: "a-neuve" }),
     dit("Classement", "3e famille B")
   ];
-  // La ligne remplacée ne décrit plus l'état : son appel non plus.
-  assert.deepEqual(applicationsDeLaMemoire(memoire), []);
+  // La ligne remplacée ne décrit plus l'état : son appel non plus. La règle
+  // encore en vigueur, elle, reste sa propre sortie — c'est ce qu'elle est.
+  assert.deepEqual(
+    applicationsDeLaMemoire(memoire).map((l) => l.output_assertion_id),
+    ["r-vieille"]
+  );
+
+  // Une règle remplacée, elle, ne dit plus rien.
+  assert.deepEqual(
+    applicationsDeLaMemoire(memoire.map((a) => (
+      a.id === "r-vieille" ? { ...a, superseded_by: "r-neuve" } : a
+    ))),
+    []
+  );
 });
 
 test("un versement n'écrit que les appels de ce qu'il vient d'écrire", () => {

@@ -154,3 +154,49 @@ test("le CSV écrit « non classé » plutôt qu'une cellule vide", () => {
   assert.ok(rows.every((row) => row.domaine === "non classé"));
   assert.deepEqual([...new Set(rows.map((row) => row.vocabulaire))].sort(), ["Constat", "Intendance"]);
 });
+
+/* ── Les lectures enregistrées ───────────────────────────────────────────── */
+
+const lecture = (quoi = {}) => ({
+  rule_assertion_id: "r-1", output_assertion_id: "a-1", input_assertion_id: "a-0",
+  input_subject: "Classement", input_rank: 1, zone: "batiment-a",
+  utility: null, proposition_id: "P7", resolution: "enregistre", ...quoi
+});
+
+test("l'export emporte les lectures, avec ce qui manque dedans", () => {
+  // Sans elles, le fichier dit ce que le projet affirme et jamais comment il y
+  // est arrivé — et c'est là que vivent les défauts qu'on cherche.
+  const exporte = buildMemoryExport({
+    project: { id: "p1" },
+    assertions: [],
+    applications: [
+      lecture(),
+      lecture({ input_assertion_id: null, input_subject: "Famille" }),
+      lecture({ rule_assertion_id: null, utility: "deduction_zone_neige_commune_V1" })
+    ],
+    generatedAt: "2026-01-10T09:00:00Z"
+  });
+
+  assert.equal(exporte.raisonnement.lu, true);
+  assert.equal(exporte.raisonnement.total, 3);
+  assert.equal(exporte.raisonnement.sansEntree, 1);
+  assert.equal(exporte.raisonnement.parUtilitaire, 1);
+  assert.deepEqual(exporte.raisonnement.lectures[1], {
+    regle: "r-1", sortie: "a-1", entree: null, sujetLu: "Famille", rang: 1,
+    zone: "batiment-a", utilitaire: null, proposition: "P7", resolution: "enregistre"
+  });
+});
+
+test("un index illisible ne se confond pas avec un index vide", () => {
+  // « Aucune lecture » et « je n'ai pas pu lire l'index » sont deux phrases
+  // différentes, et les confondre a déjà coûté une soirée.
+  const illisible = buildMemoryExport({ project: { id: "p1" }, assertions: [], applications: null });
+  assert.equal(illisible.raisonnement.lu, false);
+  assert.equal(illisible.raisonnement.lectures, null);
+  assert.match(illisible.raisonnement.message, /n'a pas pu être lu/);
+
+  const vide = buildMemoryExport({ project: { id: "p1" }, assertions: [], applications: [] });
+  assert.equal(vide.raisonnement.lu, true);
+  assert.equal(vide.raisonnement.total, 0);
+  assert.equal(vide.raisonnement.message, null);
+});

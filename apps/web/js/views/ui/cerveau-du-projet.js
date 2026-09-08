@@ -259,6 +259,11 @@ function renderEchelleDeChaleur(cerveau, signales) {
               <span class="cerveau-echelle">${bande(CHALEUR_REGLE)}</span>
               <b>Ce qui passe par une règle</b>
               <small>même échelle, en bleu — losange à plat, cube en volume</small>
+            </span>
+            <span class="cerveau-legende__item">
+              <b>Un lien resté orange</b>
+              <small>ne passe par aucune règle du projet : un utilitaire l'a déduit,
+                ou le lien vient d'un rapprochement de noms</small>
             </span>`
           : ""
       }
@@ -420,7 +425,57 @@ function renderResume(cerveau) {
     ${valeurs} ${accorde(valeurs, "affirmation", "affirmations")}
     ${cerveau.compte.fonctions ? `· ${cerveau.compte.fonctions} ${accorde(cerveau.compte.fonctions, "règle", "règles")}` : ""}
     · ${cerveau.compte.liens} ${accorde(cerveau.compte.liens, "lien", "liens")}
-    · la plus longue chaîne fait <b>${pas}</b> ${accorde(pas, "pas", "pas")}
+    ${
+      // Un chiffre qu'on ne peut pas établir ne s'affiche pas à zéro : « la plus
+      // longue chaîne fait 0 pas » se lit comme un projet sans raisonnement,
+      // alors que c'est l'index qui manque.
+      cerveau.enregistres
+        ? `· la plus longue chaîne traverse <b>${pas}</b> ${accorde(pas, "règle", "règles")}`
+        : "· la longueur des chaînes n'est pas mesurable ici"
+    }
+  `;
+}
+
+/**
+ * Ce que l'écran ne sait pas, dit avant qu'on le croie.
+ *
+ * Un index à moitié rempli est plus dangereux qu'un index vide : vide, on s'en
+ * méfie ; à moitié plein, on lit ses chiffres comme s'ils décrivaient le projet.
+ * Deux lacunes se comptent, et aucune ne se déduit du dessin :
+ *
+ * **Une règle sans entrée enregistrée** pend : on voit ce qu'elle conclut, jamais
+ * ce qu'elle a lu. Toute chaîne qui devait passer par elle est coupée, et la
+ * longueur annoncée est plus courte que la réalité.
+ *
+ * **Une conclusion qu'aucune valeur ne porte** vit dans le bloc de sa règle. Elle
+ * est vraie, elle est lisible — mais elle n'est ni auditable, ni rattachable à un
+ * document, ni comparable d'une version à l'autre.
+ */
+function renderLacunes(cerveau) {
+  const { reglesSansEntree, conclusionsSansValeur, fonctions } = cerveau.compte;
+  if (!reglesSansEntree && !conclusionsSansValeur) return "";
+
+  const dits = [];
+  if (reglesSansEntree) {
+    dits.push(`<b>${reglesSansEntree} ${accorde(reglesSansEntree, "règle", "règles")}</b>
+      sur ${fonctions} ${accorde(reglesSansEntree, "n'a", "n'ont")} aucune lecture enregistrée :
+      ${accorde(reglesSansEntree, "elle est coupée", "elles sont coupées")} de ce
+      ${accorde(reglesSansEntree, "qu'elle lit", "qu'elles lisent")}, et les chaînes qui
+      ${accorde(reglesSansEntree, "la", "les")} traversent s'annoncent plus courtes qu'elles ne sont`);
+  }
+  if (conclusionsSansValeur) {
+    dits.push(`<b>${conclusionsSansValeur} ${accorde(conclusionsSansValeur, "conclusion", "conclusions")}</b>
+      ${accorde(conclusionsSansValeur, "n'existe", "n'existent")} que dans la règle qui
+      ${accorde(conclusionsSansValeur, "l'établit", "les établit")} : aucune valeur du projet ne
+      ${accorde(conclusionsSansValeur, "la", "les")} porte, donc l'audit ne
+      ${accorde(conclusionsSansValeur, "la", "les")} vérifie pas`);
+  }
+
+  return `
+    <p class="cerveau__provenance cerveau__provenance--lacune">
+      ${svgIcon("alert", { className: "octicon" })}
+      ${dits.join(" · ")}.
+    </p>
   `;
 }
 
@@ -450,6 +505,8 @@ function renderCadre(cerveau, isoles, signales) {
               Lancez « Verser › Reconstruire les liens du raisonnement » pour les établir.
             </p>`
       }
+
+      <div data-cerveau-lacunes>${cerveau.enregistres ? renderLacunes(cerveau) : ""}</div>
 
       <div class="cerveau__scene">
         <canvas data-cerveau-toile></canvas>
@@ -712,6 +769,22 @@ function aireDuContour(contour = []) {
     deux += (contour[j].x + contour[i].x) * (contour[j].y - contour[i].y);
   }
   return Math.abs(deux / 2);
+}
+
+/**
+ * Le nom d'un nœud, tel qu'on l'écrit.
+ *
+ * Une règle porte comme sujet **ce qu'elle conclut** : « Degré coupe-feu des
+ * planchers » nomme donc à la fois la valeur et le mécanisme qui la produit. Les
+ * deux dessinés, on lit deux nœuds du même nom de part et d'autre de l'équateur
+ * et l'on croit à un doublon — alors que ce sont deux choses différentes, et que
+ * c'est précisément ce que l'écran est venu montrer.
+ *
+ * La flèche le dit sans une ligne de plus : ce nœud **mène à** ce sujet, il ne
+ * l'est pas.
+ */
+function nomDuNoeud(noeud) {
+  return noeud?.genre === GENRE.FONCTION ? `→ ${noeud.sujet}` : noeud?.sujet ?? "";
 }
 
 /** Un sujet trop long coupe le voisin : on le raccourcit plutôt que de l'empiler. */
@@ -1472,7 +1545,7 @@ function dessinerLesNoms(ctx, etat, largeur, points, eclats) {
 
     const { x, y, p } = points.get(noeud.id);
     const rayon = rayonDe(noeud);
-    const nom = abrege(noeud.sujet);
+    const nom = abrege(nomDuNoeud(noeud));
 
     // Près du bord droit, l'étiquette passe à gauche du nœud. Sinon la dernière
     // strate — celle qui porte les conclusions, celle qu'on vient lire — serait
@@ -1537,6 +1610,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   const toile = hote.querySelector("[data-cerveau-toile]");
   const resume = hote.querySelector("[data-cerveau-resume]");
   const legendes = hote.querySelector("[data-cerveau-legendes]");
+  const lacunes = hote.querySelector("[data-cerveau-lacunes]");
   const bulle = hote.querySelector("[data-cerveau-bulle]");
   const dit = hote.querySelector("[data-cerveau-onde]");
   const ctx = toile.getContext("2d");
@@ -1609,6 +1683,9 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       legendes.innerHTML = renderLegende(cerveau, [...signales.keys()].length);
       accorderLesLegendes();
     }
+    // Les lacunes se comptent sur ce qui est dessiné : cacher les règles cache
+    // aussi celles qui pendent, et l'avertissement doit suivre.
+    if (lacunes) lacunes.innerHTML = cerveau.enregistres ? renderLacunes(cerveau) : "";
   };
 
   const recomposer = () => {
@@ -1685,7 +1762,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     const { valeurs, regles, strates: pas } = valeursDeLOnde(onde, cerveau);
 
     dit.innerHTML = onde.total
-      ? `<b>${escapeHtml(noeud?.sujet ?? "")}</b> — ${valeurs}
+      ? `<b>${escapeHtml(nomDuNoeud(noeud))}</b> — ${valeurs}
          ${accorde(valeurs, "affirmation en découle", "affirmations en découlent")}${
            regles ? `, par ${regles} ${accorde(regles, "règle", "règles")}` : ""
          },
@@ -1697,7 +1774,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
                 ${accorde(opaques, "la", "les")} recalculer ici.`
              : "Toutes se rejouent."
          }`
-      : `<b>${escapeHtml(noeud?.sujet ?? "")}</b> — rien ne repose sur cette valeur.
+      : `<b>${escapeHtml(nomDuNoeud(noeud))}</b> — rien ne repose sur cette valeur.
          ${
            cerveau.enregistres
              ? "C'est une information : la changer n'entraîne rien."
@@ -1977,7 +2054,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       ${
         chauds.length
           ? `<span class="cerveau-bulle__nature" style="--trait:#f0883e">Ce qui pèse le plus :
-              ${escapeHtml(chauds.map((noeud) => noeud.sujet).join(", "))}</span>`
+              ${escapeHtml(chauds.map(nomDuNoeud).join(", "))}</span>`
           : ""
       }
       ${
@@ -2001,7 +2078,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
     bulle.hidden = false;
     bulle.innerHTML = `
-      <b>${escapeHtml(noeud.sujet)}</b>
+      <b>${escapeHtml(nomDuNoeud(noeud))}</b>
       <span class="cerveau-bulle__valeur">${escapeHtml(noeud.valeur || "—")}</span>
       ${
         fonction
