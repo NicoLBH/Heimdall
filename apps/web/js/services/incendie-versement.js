@@ -193,6 +193,147 @@ export function donneesDeBaseVersables(vue, zone = "") {
   }];
 }
 
+/**
+ * Les **déductions** du référentiel, versées comme des règles à part entière.
+ *
+ * ## Ce qui manquait
+ *
+ * « Blocs-portes des celliers = CF 1/2 h » dit d'où elle sort : de la règle du
+ * même nom, qui commence par `importe (variable: Famille)`. Et là, le fil
+ * s'arrêtait. **Comment la famille a-t-elle été calculée ?** Le projet ne le
+ * disait nulle part : seules les règles qui posent une *exigence* partaient, et
+ * le classement, la nature de l'habitation, le nombre d'étages retenu — tout
+ * ce qui les produit — restait au serveur.
+ *
+ * On voyait donc la dernière fonction, jamais la chaîne. Or c'est la chaîne qui
+ * sert : quand une valeur est fausse, ce qu'on cherche n'est pas *laquelle*,
+ * c'est **à quelle étape** elle l'est devenue.
+ *
+ * ## Pourquoi ce ne sont pas des contraintes
+ *
+ * Une déduction n'exige rien de personne. « Le bâtiment est une habitation
+ * collective » ne s'impose pas au projet : elle le décrit, et elle sert à
+ * décider. Elle part donc dans le **référentiel**, avec les autres règles
+ * appliquées, et non dans les contraintes — c'est exactement la distinction que
+ * `EXIGENCES` porte, et elle ne bouge pas.
+ *
+ * Ce qui change est qu'on la **garde** au lieu de la jeter : sans elle, le
+ * raisonnement s'arrête à sa première importation.
+ *
+ * @param {object} vue ce que le référentiel a conclu
+ * @param {string} zone la portée retenue, vide pour l'ensemble
+ */
+export function deductionsVersables(vue, zone = "") {
+  const modules = Array.isArray(vue?.modules) ? vue.modules : [];
+  const source = texte(vue?.texteDeReference?.source) || "arrêté du 31 janvier 1986 modifié";
+  const portee = texte(zone) ? [texte(zone)] : [];
+
+  return modules
+    // Les exigences partent déjà par `reglesVersables`, avec la valeur qu'elles
+    // imposent. Les reprendre ici les verserait deux fois, et la base refuse
+    // l'envoi entier sur un doublon de clé.
+    .filter((module) => module?.exigence !== true)
+    .filter((module) => texte(module?.statut) === "conclu" && !texte(module?.sansObjet))
+    .filter((module) => texte(module?.valeur))
+    // Sans condition, il n'y a pas de raisonnement à montrer : la valeur est
+    // une lecture directe de la réponse, et la réponse part de son côté comme
+    // donnée de base. Une carte « si rien alors x » n'apprendrait rien.
+    .filter((module) => (module?.conditions ?? []).length > 0)
+    .map((module) => ({
+      sujet: texte(module.titre),
+      valeur: texte(module.valeur),
+      referentiel: true,
+      regle: { conditions: module.conditions, sinon: "", sauf: [] },
+      nature: null,
+      domaine: DOMAIN.INCENDIE,
+      provenance: { type: PROVENANCE.TEXTE, quoi: sourceDuModule(module, source) || source },
+      citation: texte(module.pourquoi?.citation),
+      reference: `regle:${texte(module.id)}`,
+      zones: portee,
+      atelier: "Incendie — Habitation"
+    }))
+    .filter((regle) => regle.sujet && regle.valeur);
+}
+
+/**
+ * Les réponses de l'étude, versées comme les données de base qu'elles sont.
+ *
+ * ## Là où la chaîne doit s'arrêter
+ *
+ * Une chaîne de raisonnement se remonte jusqu'à ce qu'il ne reste que des
+ * données de base — c'est sa condition d'arrêt, et c'est ce qui la rend
+ * vérifiable : au bout, on doit tomber sur des faits relevés, pas sur un trou.
+ *
+ * Les questions source sont exactement cela : ce qu'aucun module ne sait
+ * déduire, ce que quelqu'un a constaté sur le terrain ou lu sur un plan. « Le
+ * bâtiment comporte des logements superposés », « quatre étages sur
+ * rez-de-chaussée ». Sans elles en mémoire, chaque chaîne finissait sur
+ * « personne ne l'a versée » — ce qui est vrai, et c'est un défaut, pas une
+ * fatalité.
+ *
+ * ## Le nom court, pas la question
+ *
+ * `sujet` quand la question en déclare un, `libelle` sinon : « Logements
+ * superposés », et non « Le bâtiment comporte-t-il des logements superposés ? ».
+ * C'est le nom que les règles citent — il doit se lire pareil des deux côtés,
+ * sinon rien ne se raccorde.
+ *
+ * @param {object} vue ce que le référentiel a conclu
+ * @param {string} zone la portée retenue, vide pour l'ensemble
+ */
+export function reponsesVersables(vue, zone = "") {
+  const questions = Array.isArray(vue?.questionsRepondues) ? vue.questionsRepondues : [];
+  const faits = vue?.faits ?? {};
+  const portee = texte(zone) ? [texte(zone)] : [];
+
+  return questions
+    .map((question) => {
+      const cle = texte(question?.cle);
+      const sujet = texte(question?.sujet) || texte(question?.libelle);
+      const valeur = valeurLisible(faits?.[cle], texte(question?.unite));
+      if (!cle || !sujet || !valeur) return null;
+
+      return {
+        sujet,
+        valeur,
+        nature: NATURE.DONNEE_BASE,
+        domaine: DOMAIN.INCENDIE,
+        // Ce que le nom désigne : la question elle-même le dit mieux que nous.
+        quoi: texte(question?.libelle) || sujet,
+        utilisation: "Réponse d'étude : ce qu'aucune règle ne sait déduire, et sur quoi "
+          + "le classement et les exigences de l'arrêté s'appuient.",
+        // Quelqu'un a répondu : ce n'est ni un texte, ni un calcul, c'est un
+        // constat assumé par celui qui a rempli l'étude. Le dire autrement
+        // laisserait croire que l'arrêté en décide.
+        provenance: { type: PROVENANCE.DECISION, quoi: "Étude incendie — habitation, réponse d'étude" },
+        statut: STATUT.RETENU,
+        reference: `reponse:${cle}`,
+        zones: portee,
+        atelier: "Incendie — Habitation"
+      };
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Une réponse, telle qu'elle se relit.
+ *
+ * Oui / non plutôt que `true` / `false` — ce langage s'adresse à des
+ * architectes, et c'est déjà la convention des conditions (`conditions.js`).
+ * L'unité colle au nombre : « 4 » et « 4 m » ne se relisent pas pareil, et une
+ * mesure sans unité oblige à rouvrir l'arrêté.
+ */
+function valeurLisible(brute, unite = "") {
+  if (brute === true) return "oui";
+  if (brute === false) return "non";
+  if (brute === null || brute === undefined) return "";
+  if (typeof brute === "number") return unite ? `${brute} ${unite}` : String(brute);
+
+  const dit = texte(brute);
+  if (!dit) return "";
+  return unite && /^-?[0-9]+(?:[.,][0-9]+)?$/.test(dit) ? `${dit} ${unite}` : dit;
+}
+
 /** La clé sous laquelle une conclusion se range, portée comprise. */
 export function cleDuVersement(conclusion, zone = "") {
   const base = normalizeSubjectKey(conclusion?.sujet ?? "");

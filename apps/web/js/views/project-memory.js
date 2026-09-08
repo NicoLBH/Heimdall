@@ -108,9 +108,10 @@ import {
 } from "../services/hypothesis-acts.js";
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
 import { enClair } from "../services/memoire-en-texte.js";
-import { lignesDeLAssertion, ouChaqueValeurEstEcrite } from "./project-memoire-fichiers.js";
+import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
 import { fichiersDeLaMemoire } from "../services/memoire-blame.js";
-import { chaineDuRaisonnement, traceDesLignes } from "../services/memoire-raisonnement.js";
+import { chaineDuRaisonnement, traceDesLignes, grapheDuRaisonnement } from "../services/memoire-raisonnement.js";
+import { dessinerGrapheLiaisons, tracerLesLiens } from "./ui/graphe-liaisons.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 
 /**
@@ -257,6 +258,12 @@ const view = {
   /** Les propositions du projet, pour repérer celles qui n'ont rien versé. */
   propositions: [],
   draft: { subject: "", value: "", domain: "", zones: [] },
+  /** La carte désignée dans le schéma du raisonnement, et le grossissement. */
+  raisonnementCarte: null,
+  raisonnementZoom: 1,
+  raisonnementPleinEcran: false,
+  /** Le schéma dessiné au dernier rendu : les traits s'y reposent. */
+  raisonnementGraphe: null,
   notice: "",
   busy: false,
   /** L'affirmation dont on lit l'histoire : `{kind, subjectKey}` ou `null`. */
@@ -1428,6 +1435,10 @@ function renderActsPanel(courante) {
  * conclut — il a la ligne sous les yeux.
  */
 function renderRaisonnement(courante) {
+  // Le schéma du rendu précédent ne vaut plus : le garder ferait reposer des
+  // traits entre des cartes qui ne sont plus à l'écran.
+  view.raisonnementGraphe = null;
+
   const assertions = view.assertions ?? [];
   const zone = (zonesOf(courante) ?? [])[0] ?? "";
   const sujet = String(courante?.payload?.subject ?? courante?.subject_key ?? "").trim();
@@ -1446,7 +1457,9 @@ function renderRaisonnement(courante) {
   // Le code, dans l'ordre de lecture : ce dont une règle a besoin avant elle.
   // Avec le même contexte que les fichiers — d'où viennent les entrées, où va
   // le résultat —, sinon on lirait ici un code qui n'est pas celui du dépôt.
-  const ouEcrit = ouChaqueValeurEstEcrite(fichiersDeLaMemoire(assertions));
+  const fichiers = fichiersDeLaMemoire(assertions);
+  const ouEcrit = ouChaqueValeurEstEcrite(fichiers);
+  const ouVivent = ouChaqueLigneEstEcrite(fichiers);
   const lignes = fonctions.flatMap((regle, rang) => [
     ...(rang > 0 ? [{ jetons: [], nature: "vide" }] : []),
     ...lignesDeLAssertion(regle, 0, { ouEcrit })
@@ -1469,10 +1482,19 @@ function renderRaisonnement(courante) {
           : entree.manquant
             ? `<span class="memory-raisonnement__trou">personne ne l'a versée</span>`
             : `<b>${escapeHtml(entree.valeur)}</b>${
-                entree.zone ? `<span class="memory-raisonnement__zone">${escapeHtml(entree.zone)}</span>` : ""}`
+                entree.zone ? `<span class="memory-raisonnement__zone">${escapeHtml(entree.zone)}</span>` : ""}${
+                // Déduite, et non relevée : les confondre ferait prendre une
+                // conclusion de règle pour un constat de terrain.
+                entree.deduite ? `<span class="memory-raisonnement__zone">déduit</span>` : ""}`
       }</span>
     </div>
   `).join("");
+
+  // Le schéma se garde : les traits se posent après la mise en page, et les
+  // reposer demande de savoir quels nœuds relier. Le recalculer à chaque trait
+  // parcourrait la mémoire entière pour un dessin qui n'a pas bougé.
+  const graphe = grapheDuRaisonnement(sujet, assertions, { zone, ouEcrit, ouVivent });
+  view.raisonnementGraphe = graphe;
 
   return `
     <div class="memory-raisonnement">
@@ -1484,6 +1506,21 @@ function renderRaisonnement(courante) {
             ? ` — <b class="memory-raisonnement__trou">${escapeHtml(`${manquants.length} que personne n'a versée${manquants.length > 1 ? "s" : ""}`)}</b>`
             : ""}${zone ? ` · lu pour ${escapeHtml(zone)}` : ""}
       </p>
+      ${graphe.noeuds.length ? `
+        <section class="memory-raisonnement__schema">
+          ${dessinerGrapheLiaisons({
+            graphe,
+            selection: view.raisonnementCarte,
+            zoom: view.raisonnementZoom,
+            pleinEcran: view.raisonnementPleinEcran,
+            chemin: view.raisonnementCarte,
+            legende: "<b>Le schéma des dépendances</b> — de gauche à droite : ce qui décide, "
+              + "puis ce qui en découle. La colonne de gauche est ce qu'aucune règle ne produit : "
+              + "les données de base. Chaque carte porte ce qu'elle a lu, avec la valeur du jour. "
+              + "Cliquez une carte pour ne suivre que sa chaîne.",
+            rangNomme: "Étape"
+          })}
+        </section>` : ""}
       <div class="memory-raisonnement__deux">
         <section class="memory-raisonnement__volet">
           <header class="memory-raisonnement__tete">Le raisonnement</header>
@@ -1817,6 +1854,71 @@ function renderContent(root) {
   bind(root);
 }
 
+/**
+ * Les gestes du schéma des dépendances.
+ *
+ * ## Les traits se posent après coup
+ *
+ * Leur départ et leur arrivée dépendent de la hauteur réelle de chaque carte,
+ * donc du texte qu'elle porte, donc du navigateur. On ne peut pas les écrire
+ * dans le HTML ; on les pose une fois la mise en page connue, et on les repose
+ * à chaque grossissement et à chaque redimensionnement.
+ *
+ * ## Désigner une carte resserre la chaîne
+ *
+ * Sur douze étapes, l'intérêt n'est pas de tout voir : c'est de suivre **une**
+ * valeur. Cliquer une carte ne montre plus que son chemin — ce qui la décide et
+ * ce qu'elle entraîne —, et recliquer la même le rouvre en entier.
+ */
+function brancherLeSchema(root) {
+  const bloc = root?.querySelector(".memory-raisonnement__schema [data-graphe-bloc]");
+  if (!bloc) return;
+
+  const graphe = view.raisonnementGraphe;
+  const reposer = () => tracerLesLiens(bloc, {
+    graphe, selection: view.raisonnementCarte, zoom: view.raisonnementZoom
+  });
+  reposer();
+
+  // Un redimensionnement change la largeur des colonnes : des traits laissés en
+  // place partiraient à côté des cartes, ce qui se lit comme un dessin faux.
+  if (typeof ResizeObserver === "function") {
+    const oeil = new ResizeObserver(() => reposer());
+    oeil.observe(bloc);
+  }
+
+  bloc.addEventListener("click", (evenement) => {
+    const carte = evenement.target?.closest?.("[data-graphe-noeud]");
+    if (carte) {
+      const id = carte.dataset.grapheNoeud;
+      view.raisonnementCarte = view.raisonnementCarte === id ? null : id;
+      renderContent(root);
+      return;
+    }
+
+    if (evenement.target?.closest?.("[data-graphe-chemin]")) {
+      view.raisonnementCarte = null;
+      renderContent(root);
+      return;
+    }
+
+    const zoom = evenement.target?.closest?.("[data-graphe-zoom]");
+    if (zoom) {
+      const pas = zoom.dataset.grapheZoom === "in" ? 0.1 : -0.1;
+      // Bornes : en deçà de 50 % les intitulés ne se lisent plus, au-delà de
+      // 200 % une carte occupe l'écran et le schéma ne montre plus de forme.
+      view.raisonnementZoom = Math.min(2, Math.max(0.5, Math.round((view.raisonnementZoom + pas) * 10) / 10));
+      renderContent(root);
+      return;
+    }
+
+    if (evenement.target?.closest?.("[data-graphe-plein-ecran]")) {
+      view.raisonnementPleinEcran = !view.raisonnementPleinEcran;
+      renderContent(root);
+    }
+  });
+}
+
 /** Les propositions, retrouvables par leur identifiant — pour les intitulés. */
 function propositionsParId() {
   return new Map((view.propositions ?? []).map((proposition) => [String(proposition.id), proposition]));
@@ -1851,6 +1953,10 @@ function bindListDelegation(root) {
       const subjectKey = titre.getAttribute("data-memory-open") || "";
       if (!kind || !subjectKey) return;
       view.open = { kind, subjectKey };
+      // Un autre constat, un autre raisonnement : garder la carte désignée du
+      // précédent resserrerait le schéma sur un chemin qui n'existe plus.
+      view.raisonnementCarte = null;
+      view.raisonnementPleinEcran = false;
       renderContent(root);
       return;
     }
@@ -1868,6 +1974,7 @@ function bindListDelegation(root) {
 function bind(root) {
   bindListDelegation(root);
   bindExportButton(root);
+  brancherLeSchema(root);
 
   const recherche = root.querySelector("[data-memory-search]");
   if (recherche) {

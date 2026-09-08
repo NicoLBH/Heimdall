@@ -2695,7 +2695,7 @@ function renderDiffReplieBouton() {
   const ouverte = view.diffTreeOpen !== false;
   const dit = ouverte ? "Replier la barre latérale" : "Étendre la barre latérale";
   return `
-    <button type="button" class="documents-tree__toggle" data-diff-tree-toggle
+    <button type="button" class="bouton-discret documents-tree__toggle" data-diff-tree-toggle
       aria-label="${escapeHtml(dit)}" title="${escapeHtml(dit)}">
       ${svgIcon(ouverte ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" })}
     </button>

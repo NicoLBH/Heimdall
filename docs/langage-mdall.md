@@ -527,6 +527,47 @@ la question qui fait tout l'intérêt d'une mémoire de projet :
 
 ---
 
+## Remonter la chaîne jusqu'aux données de base
+
+Un constat dit d'où il sort : « ← règle Blocs-portes des celliers ». Cela ne
+suffit pas. La question qu'on se pose devant une valeur suspecte n'est pas
+« quelle règle l'a produite », c'est **à quelle étape elle est devenue fausse**.
+
+La chaîne se reconstruit donc de proche en proche : une règle produit un sujet,
+ses conditions en citent d'autres, chacun de ceux-là est produit par une autre
+règle — ou par rien, et c'est alors une **donnée de base**. On s'arrête là, et
+cet arrêt est la garantie : si l'on n'y arrive pas, c'est qu'il manque quelque
+chose, et cela se voit.
+
+Rien n'est stocké. Le stocker en ferait une seconde vérité, qui divergerait au
+premier versement (`docs/fondamentaux.md`, règle 4).
+
+### Ce qu'un utilitaire doit verser pour que la chaîne tienne
+
+Trois choses, et il en manquait deux :
+
+1. **Les règles qui posent une exigence** — elles partaient déjà.
+2. **Les déductions** — « Habitation individuelle ou collective », « Classement
+   du bâtiment ». Elles n'exigent rien de personne, et c'est pour cela qu'on les
+   jetait ; mais tout le reste s'appuie dessus, et sans elles la chaîne s'arrête
+   à sa première importation.
+3. **Les réponses de l'étude** — ce qu'aucune règle ne sait déduire. Elles se
+   versent en `.ddb` : c'est là que la chaîne doit s'arrêter, et sans elles
+   chaque remontée finissait sur « personne ne l'a versée ».
+
+Un maillon intermédiaire ne s'impose à personne : il n'entre ni dans les
+contraintes, ni dans les données de base. Sa valeur se lit alors sur
+l'instantané de la règle qui l'a conclue — et l'écran dit **déduit**, pour ne
+pas la confondre avec un relevé.
+
+### La zone se compare sur la clé, et s'affiche en clair
+
+La colonne `zones` de la base range des clés — `batiment-a` ; le `payload` garde
+le libellé — « Bâtiment A ». Les deux sont nécessaires : la clé compare et
+range, le libellé se lit. Comparer l'une à l'autre ne trouve jamais rien, et
+n'écrire que la clé perd le libellé pour toujours — rien d'autre ne le porte, et
+`batiment-a` ne dit pas si l'auteur avait écrit « Bâtiment A » ou « bâtiment A ».
+
 ## Où cela vit dans le code
 
 | fichier | ce qu'il fait |
@@ -536,3 +577,5 @@ la question qui fait tout l'intérêt d'une mémoire de projet :
 | `apps/web/js/services/memoire-rangement.js` | où un fichier vit, et sous quelle extension |
 | `apps/web/js/services/incendie-en-texte.js` | branche l'utilitaire incendie sur le tout |
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
+| `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
+| `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |

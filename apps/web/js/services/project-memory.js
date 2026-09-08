@@ -166,8 +166,12 @@ export function assertionsFromProposition({ proposition = {}, items = [], decide
         // La portée voyage dans le payload de l'item : une proposition venue de
         // l'Atelier peut ne valoir que pour un bâtiment, et la perdre à la
         // fusion ferait périmer le degré du bâtiment A par celui du bâtiment B.
-        zones: Array.isArray(item.payload?.zones) && item.payload.zones.length
-          ? item.payload.zones : null,
+        // La colonne porte les **clés**, le payload garde les libellés. C'est
+        // sur la clé qu'on filtre et qu'on compare — « batiment-a » et
+        // « Bâtiment A » sont la même zone —, et c'est le libellé qu'on lit.
+        // Recopier le payload tel quel mettait des libellés dans une colonne
+        // que tout le reste lit comme des clés.
+        zones: porteesDe(item.payload?.zones),
         payload: item.payload ?? null,
         proposition_id: proposition.id,
         proposition_number: Number(proposition.number) || null,

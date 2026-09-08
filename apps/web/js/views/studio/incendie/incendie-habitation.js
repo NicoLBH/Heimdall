@@ -57,7 +57,7 @@ import {
 } from "../../../services/incendie-remise.js";
 import {
   conclusionsVersables, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables,
-  donneesDeBaseVersables
+  donneesDeBaseVersables, deductionsVersables, reponsesVersables
 } from "../../../services/incendie-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
@@ -809,7 +809,14 @@ function affirmationsRetenues() {
   // sans que rien ne le signale. Le classement part **avec** elles pour la même
   // raison, prise à l'envers : une règle qui dit « si le classement est 3e
   // famille B » ne vaut que si le projet dit quelque part quel est le sien.
-  const donnees = donneesDeBaseVersables(etat.vue, etat.zoneDuVersement);
+  // Les réponses de l'étude partent avec : c'est là que la chaîne du
+  // raisonnement doit s'arrêter. Sans elles, remonter « Blocs-portes des
+  // celliers » finissait sur « Famille — personne ne l'a versée », et l'on ne
+  // pouvait pas voir à quelle étape une valeur devient fausse.
+  const donnees = [
+    ...donneesDeBaseVersables(etat.vue, etat.zoneDuVersement),
+    ...reponsesVersables(etat.vue, etat.zoneDuVersement)
+  ];
 
   // Un sujet ne se verse qu'une fois. Le classement figure dans les exigences
   // du référentiel — il conclut comme les autres —, mais ce n'est pas une
@@ -818,8 +825,18 @@ function affirmationsRetenues() {
   // plutôt que d'écrire un doublon : la proposition s'ouvrait vide.
   const declares = new Set(donnees.map((donnee) => normalizeSubjectKey(donnee.sujet)));
 
+  // Et les déductions du référentiel — le classement, la nature de
+  // l'habitation, tout ce dont les exigences dépendent —, sans lesquelles le
+  // raisonnement n'a qu'un maillon. Elles ne se versent pas deux fois : une
+  // règle déjà partie avec son exigence porterait la même clé, et la base
+  // refuse l'envoi entier plutôt que d'écrire un doublon.
+  const regles = reglesVersables(prises, etat.zoneDuVersement);
+  const nommees = new Set(regles.map((regle) => normalizeSubjectKey(regle.sujet)));
+
   return [
-    ...reglesVersables(prises, etat.zoneDuVersement),
+    ...regles,
+    ...deductionsVersables(etat.vue, etat.zoneDuVersement)
+      .filter((regle) => !nommees.has(normalizeSubjectKey(regle.sujet))),
     ...donnees,
     ...contraintes.filter((contrainte) => !declares.has(normalizeSubjectKey(contrainte.sujet)))
   ];

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   conclusionsVersables, cleDuVersement, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables,
-  donneesDeBaseVersables } from "./incendie-versement.js";
+  donneesDeBaseVersables, deductionsVersables, reponsesVersables } from "./incendie-versement.js";
 
 const VUE = {
   modules: [
@@ -192,4 +192,72 @@ test("hors champ n'est pas une famille, et n'entre donc pas en mémoire", () => 
   // une valeur, il se lirait comme un classement décidé.
   assert.deepEqual(donneesDeBaseVersables({ faits: { classement: "hors champ — IGH" } }, ""), []);
   assert.deepEqual(donneesDeBaseVersables({ faits: {} }, ""), []);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Ce qui permet de remonter la chaîne
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const VUE_DEDUITE = {
+  texteDeReference: { source: "arrêté du 31 janvier 1986 modifié" },
+  faits: { logementsSuperposes: true, etagesSurRdc: 4, hauteurPlancherBas: 24.5, natureHabitation: "collective" },
+  questionsRepondues: [
+    { cle: "logementsSuperposes", sujet: "Logements superposés",
+      libelle: "Le bâtiment comporte-t-il des logements superposés ?" },
+    { cle: "etagesSurRdc", libelle: "Nombre d'étages sur rez-de-chaussée" },
+    { cle: "hauteurPlancherBas", libelle: "Hauteur du plancher bas du dernier niveau", unite: "m" },
+    // Un fait produit par un module n'est pas une question : rien ne le porte ici.
+    { cle: "inconnue", libelle: "Sans réponse" }
+  ],
+  modules: [
+    {
+      id: "nature-habitation", titre: "Habitation individuelle ou collective", statut: "conclu",
+      exigence: false, valeur: "collective",
+      conditions: [{ fait: "logementsSuperposes", sujet: "Logements superposés", operateur: "=", valeur: "oui", logique: true }],
+      pourquoi: { article: "3", citation: "…logements superposés…" }
+    },
+    // Sans condition : la valeur est une lecture directe de la réponse, et la
+    // réponse part de son côté. Une carte « si rien alors x » n'apprendrait rien.
+    { id: "sous-sol", titre: "Sous-sol du bâtiment", statut: "conclu", exigence: false, valeur: "avec sous-sol", conditions: [] },
+    // Un « sans objet » n'affirme rien : il n'a pas d'étape à montrer.
+    { id: "duplex", titre: "Duplex au dernier étage", statut: "conclu", exigence: false, valeur: "non",
+      sansObjet: "aucun duplex", conditions: [{ fait: "x", sujet: "X", operateur: "=", valeur: "oui" }] },
+    // Une exigence part par `reglesVersables`, avec sa valeur : la reprendre ici
+    // la verserait deux fois.
+    { id: "classement", titre: "Classement du bâtiment", statut: "conclu", exigence: true, valeur: "3e famille B",
+      conditions: [{ fait: "natureHabitation", sujet: "Habitation individuelle ou collective", operateur: "=", valeur: "collective" }] }
+  ]
+};
+
+test("les déductions du référentiel partent comme des règles, pour que la chaîne se remonte", () => {
+  const regles = deductionsVersables(VUE_DEDUITE, "Bâtiment A");
+
+  // Seule la déduction qui raisonne : ni le « sans objet », ni celle qui n'a
+  // aucune condition, ni l'exigence qui part déjà ailleurs.
+  assert.deepEqual(regles.map((r) => r.sujet), ["Habitation individuelle ou collective"]);
+
+  const [nature] = regles;
+  assert.equal(nature.referentiel, true);
+  assert.equal(nature.valeur, "collective");
+  assert.deepEqual(nature.regle.conditions.map((c) => c.sujet), ["Logements superposés"]);
+  // Une règle appliquée dépend de la zone : sans portée, celle du bâtiment B
+  // périmerait celle du bâtiment A.
+  assert.deepEqual(nature.zones, ["Bâtiment A"]);
+});
+
+test("les réponses de l'étude partent en données de base : c'est là que la chaîne s'arrête", () => {
+  const donnees = reponsesVersables(VUE_DEDUITE, "Bâtiment A");
+
+  // Le nom court quand la question en déclare un — « si Le bâtiment
+  // comporte-t-il des logements superposés ? = oui » ne se lit pas.
+  assert.deepEqual(donnees.map((d) => d.sujet), [
+    "Logements superposés", "Nombre d'étages sur rez-de-chaussée", "Hauteur du plancher bas du dernier niveau"
+  ]);
+
+  // Oui / non plutôt que true / false : ce langage s'adresse à des architectes.
+  assert.equal(donnees[0].valeur, "oui");
+  // Et l'unité colle au nombre : « 24,5 » et « 24,5 m » ne se relisent pas pareil.
+  assert.equal(donnees[1].valeur, "4");
+  assert.equal(donnees[2].valeur, "24.5 m");
+  assert.equal(donnees[0].nature, "donnee-de-base");
 });
