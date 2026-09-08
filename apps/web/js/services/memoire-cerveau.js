@@ -54,6 +54,7 @@ import { utilitaireByReference } from "../utilitaires/catalogue.js";
 import { DOMAINS, domainLabel } from "./assertion-taxonomy.js";
 import { VERDICT, auditerLaMemoire } from "./memoire-audit.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
+import { zonesLisibles } from "./memoire-blame.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -188,6 +189,58 @@ export function stratesDuGraphe(ids = [], liens = []) {
 }
 
 /**
+ * Les valeurs qu'un même sujet prend, regroupées par sujet.
+ *
+ * ## Pourquoi ce n'est pas une anomalie
+ *
+ * Un sujet qui vaut plusieurs choses **à la fois** est normal, et la mémoire est
+ * faite pour ça : le rez-de-chaussée est un ERP, les étages du logement, et les
+ * deux sont vrais en même temps. La clé d'une donnée de base porte donc le sujet
+ * **et** ses portées — sans quoi l'une périmerait l'autre.
+ *
+ * ## Pourquoi on ne les fond pas en un seul nœud
+ *
+ * Parce qu'elles n'ont pas les mêmes dépendants. Deux valeurs d'un même sujet
+ * font conclure deux choses différentes ; les réunir en un point ferait converger
+ * vers lui des liens qui n'existent pas, et l'onde propagerait la valeur d'une
+ * zone dans le raisonnement d'une autre. Chacune reste un nœud ; elle sait
+ * seulement qu'elle a des sœurs.
+ *
+ * ## Ce que ça permet de voir
+ *
+ * Qu'un chiffre lu à l'écran n'est **pas le seul** pour ce sujet. C'est
+ * précisément là qu'un lecteur se trompe : il retient « la » valeur d'un sujet
+ * qui en a quatre, et raisonne ensuite sur la mauvaise.
+ *
+ * @returns {Map<string, {total: number, valeurs: object[]}>} par clé de sujet,
+ *   et seulement pour les sujets qui en portent plus d'une
+ */
+export function famillesParSujet(assertions = []) {
+  const parSujet = new Map();
+
+  for (const assertion of Array.isArray(assertions) ? assertions : []) {
+    const cle = cleDuSujet(texte(assertion?.payload?.subject));
+    if (!cle) continue;
+    if (!parSujet.has(cle)) parSujet.set(cle, []);
+    parSujet.get(cle).push({
+      id: texte(assertion?.id),
+      valeur: texte(assertion?.payload?.value),
+      zones: zonesLisibles(assertion)
+    });
+  }
+
+  const familles = new Map();
+  for (const [cle, membres] of parSujet) {
+    // Une valeur seule n'a pas de famille : le dire ferait graviter un électron
+    // solitaire autour de chaque nœud du projet, et l'écran ne dirait plus rien.
+    if (membres.length < 2) continue;
+    familles.set(cle, { total: membres.length, valeurs: membres });
+  }
+
+  return familles;
+}
+
+/**
  * Le cerveau du projet, prêt à dessiner.
  *
  * @param {object[]} assertions la mémoire du projet
@@ -238,6 +291,7 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
 
   const emplois = emploisParAffirmation(Array.isArray(lues) ? lues : []);
   const dedans = new Set(ids);
+  const familles = famillesParSujet(valeurs);
 
   /** La sortie d'une règle, pour lui prêter un domaine quand elle n'en a pas. */
   const sortieDe = new Map(
@@ -275,6 +329,18 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
        * confondrait.
        */
       complexite: fonction ? complexiteDeLaRegle(assertion) : null,
+      /**
+       * Les valeurs que ce sujet prend, celle-ci comprise.
+       *
+       * Un sujet peut valoir plusieurs choses à la fois sans se contredire : le
+       * rez-de-chaussée est un ERP, les étages du logement. La mémoire en garde
+       * une affirmation par portée, chacune avec sa clé — ce sont bien plusieurs
+       * nœuds, et les fondre en un seul ferait perdre à chacun ses dépendants.
+       *
+       * Le nœud sait donc qu'il est **l'une de plusieurs**, sans cesser d'être
+       * lui-même. C'est ce que l'écran fait graviter autour de lui.
+       */
+      famille: fonction ? null : (familles.get(cleDuSujet(texte(assertion?.payload?.subject))) ?? null),
       titre: titreDeLAffirmation(assertion),
       sujet: texte(assertion?.payload?.subject) || titreDeLAffirmation(assertion),
       valeur: texte(assertion?.payload?.value),
@@ -331,6 +397,14 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
     // Ceux des opaques que le serveur sait refaire : le compte honnête de ce
     // qu'une variante rendra vraiment.
     auServeur: noeuds.filter((n) => n.rejouable).length,
+    /**
+     * Les sujets qui valent plusieurs choses à la fois, selon la zone.
+     *
+     * Compté en **sujets**, pas en nœuds : quatre valeurs d'un même sujet font
+     * une famille, pas quatre. C'est le nombre d'endroits où un lecteur pressé
+     * peut retenir la mauvaise valeur.
+     */
+    familles: new Set(valeursDessinees.filter((n) => n.famille).map((n) => cleDuSujet(n.sujet))).size,
     liens: liens.length,
     /** Le poids le plus lourd : c'est l'échelle à laquelle les autres se lisent. */
     poidsMax: noeuds.reduce((max, noeud) => Math.max(max, noeud.poids), 0)
@@ -388,6 +462,49 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
  */
 export function ondeDepuis(depart, applications = []) {
   return impactDe(depart, applications);
+}
+
+/**
+ * Ce qu'une onde atteint **en affirmations**, les règles mises à part.
+ *
+ * Une règle traversée n'est pas une affirmation qui découle : c'est le chemin.
+ * La compter dedans doublerait le chiffre dès qu'on affiche les règles, et le
+ * même clic dirait deux choses selon un bouton d'affichage.
+ *
+ * Les strates se comptent de la même façon : on ne garde que celles qui portent
+ * au moins une valeur, de sorte qu'« en trois pas » veuille dire trois pas de
+ * raisonnement, avec ou sans les mécanismes dessinés entre eux.
+ *
+ * @param {{strates: string[][], total: number}} onde ce que `ondeDepuis` a rendu
+ * @param {{noeuds: object[]}} cerveau pour savoir qui est une règle
+ */
+export function valeursDeLOnde(onde = {}, cerveau = {}) {
+  const genres = new Map(
+    (Array.isArray(cerveau?.noeuds) ? cerveau.noeuds : []).map((noeud) => [noeud.id, noeud.genre])
+  );
+  const strates = (Array.isArray(onde?.strates) ? onde.strates : [])
+    .map((strate) => [...strate].filter((id) => genres.get(id) !== GENRE.FONCTION))
+    .filter((strate) => strate.length);
+
+  const valeurs = strates.reduce((total, strate) => total + strate.length, 0);
+  return { valeurs, regles: Math.max(0, (Number(onde?.total) || 0) - valeurs), strates: strates.length };
+}
+
+/**
+ * Ce qui dépend d'une règle : sa conclusion, et tout ce qui en découle.
+ *
+ * C'est la **seconde mesure** d'une règle, et elle ne se confond pas avec la
+ * première. La complexité dit ce qu'il faut tenir en tête pour la relire ; l'aval
+ * dit ce que la corriger remuerait. Une règle compliquée dont rien ne dépend est
+ * un coût ; une règle simple dont tout dépend est un risque.
+ *
+ * Elle se calcule à la demande, au survol : la faire pour chaque règle à
+ * l'ouverture paierait, sur chaque projet, un parcours qu'on ne regardera pas.
+ */
+export function avalDeLaRegle(regleId, cerveau = {}) {
+  const id = texte(regleId);
+  if (!id) return { valeurs: 0, regles: 0, strates: 0 };
+  return valeursDeLOnde(impactDe(id, cerveau?.lectures ?? []), cerveau);
 }
 
 /**

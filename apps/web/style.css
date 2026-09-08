@@ -21847,6 +21847,14 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .cerveau-legende__item--serveur i{ background:transparent; border-color:#a371f7; }
 /* Une règle n'est pas une nature de valeur : le losange le dit sans une ligne de
    texte de plus, et c'est la forme qu'elle a dans le dessin. */
+/* Une bille claire cerclée : l'électron, tel qu'il tourne autour d'un nœud. */
+.cerveau-legende__item--famille i{
+  width:7px; height:7px; background:var(--text);
+  border:none; box-shadow:0 0 0 3px rgba(139,148,158,.28);
+}
+.cerveau-bulle__famille{ color:var(--muted); font-size:12px; line-height:1.5; }
+.cerveau-bulle__famille i{ opacity:.72; }
+.cerveau-bulle__aval{ color:var(--muted); font-size:12px; }
 .cerveau-legende__item--regle i{
   border-radius:2px; transform:rotate(45deg);
   background:rgba(163,113,247,.20); border-color:#a371f7;
