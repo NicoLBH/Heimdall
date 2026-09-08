@@ -6,7 +6,7 @@ import {
   jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee, grouperParVersement,
   preparerLaMemoire, fichierDesVariables, adresseDuFichier, nomDuFichier, contexteDuSujet,
   fonctionsSansDoublon, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite,
-  fichierDuChemin, FICHIER_DES_VARIABLES
+  fichierDuChemin, FICHIER_DES_VARIABLES, renderFichier, LECTURE
 } from "./project-memoire-fichiers.js";
 import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
 import { lireUnFichier } from "../services/memoire-en-lecture.js";
@@ -471,4 +471,57 @@ test("où vit une ligne n'est pas où va sa valeur", () => {
 
   assert.match(ouChaqueLigneEstEcrite(fichiers).get(regle.id), /incendie\.ref$/);
   assert.match(ouChaqueValeurEstEcrite(fichiers).get("classement du batiment"), /\.ddb$/);
+});
+
+
+/** Une donnée de base du projet, telle qu'un versement l'écrit. */
+const donnee = (id, sujet, valeur) => ({
+  id, project_id: "p1", kind: "base-datum", subject_key: id, nature: "donnee-de-base", domain: "sol",
+  status: "assumed", superseded_by: null, decided_at: "2026-01-10T09:00:00Z",
+  statement: `${sujet} : ${valeur}`,
+  payload: { subject: sujet, value: valeur, declared: true }
+});
+
+/** Le fichier des données de base de cette mémoire. */
+const premierFichier = (assertions) => {
+  const memoire = preparerLaMemoire(assertions);
+  return (memoire.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? [])[0];
+};
+
+test("la lecture « Emplois » dit qui se sert de chaque valeur, et qui ne s'en sert pas", () => {
+  // La lacune que cette lecture comble : on savait ce que le projet pose, jamais
+  // qui s'en sert. Une donnée qu'on croit inutile est une donnée qu'on change
+  // sans regarder.
+  const assertions = [donnee("altitude", "Altitude du site", "13 m"), donnee("parcelle", "Parcelle", "AB 214")];
+
+  const html = renderFichier(premierFichier(assertions), {
+    lecture: LECTURE.EMPLOIS,
+    emplois: new Map([["altitude", { lectures: 3, sorties: new Map([["horsgel", 1], ["neige", 2]]), zones: new Set([""]) }]]),
+    sujets: new Map([["horsgel", "Profondeur hors gel"], ["neige", "Zone de neige"]])
+  });
+
+  assert.match(html, /<b>3<\/b> emplois/);
+  assert.match(html, /2 fonctions/);
+  // « Personne ne s'en sert » est une information, pas un vide.
+  assert.match(html, /aucun emploi/);
+  // Et le compte ne se répète pas sur les lignes du bloc : trois « 3 emplois »
+  // feraient croire à neuf.
+  assert.equal((html.match(/<b>3<\/b> emplois/g) ?? []).length, 1);
+});
+
+test("sans lectures lisibles, la gouttière se tait plutôt que de dire « aucun emploi »", () => {
+  // Ne pas savoir qui s'en sert et savoir que personne ne s'en sert sont deux
+  // phrases différentes.
+  const html = renderFichier(premierFichier([donnee("altitude", "Altitude du site", "13 m")]), {
+    lecture: LECTURE.EMPLOIS,
+    emplois: null
+  });
+
+  assert.doesNotMatch(html, /aucun emploi/);
+  assert.match(html, /memoire-emploi--suite/);
+});
+
+test("les trois lectures d'un fichier sont offertes", () => {
+  const html = renderFichier(premierFichier([donnee("altitude", "Altitude du site", "13 m")]), {});
+  for (const libelle of ["Code", "Origine", "Emplois"]) assert.match(html, new RegExp(`>${libelle}<`));
 });

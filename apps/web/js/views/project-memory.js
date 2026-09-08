@@ -121,6 +121,7 @@ import {
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
 import { ouvrirLaFenetreDeVariante } from "./ui/fenetre-variante.js";
+import { ouvrirLEtudeDImpact } from "./ui/fenetre-impact.js";
 import { renderBoutonTester } from "./ui/bouton-tester.js";
 import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
 import { altitudeDeLaMemoire, laMemoireABouge, memoireAvecLaVariante } from "../services/variante-altitude.js";
@@ -253,6 +254,14 @@ const view = {
   /** La nature et le domaine voulus. `"none"` demande ce qui n'est pas classé. */
   /** `null` : le graphe des dépendances n'a pas pu être lu. `[]` : il est vide. */
   dependencies: null,
+  /**
+   * Ce que chaque règle a lu — `assertion_applications`.
+   *
+   * `null` quand la lecture a échoué : « personne ne s'en sert » et « je ne sais
+   * pas qui s'en sert » sont deux phrases différentes, et l'étude d'impact les
+   * distingue.
+   */
+  applications: null,
   /** Les actes portés sur les hypothèses. `null` : lecture impossible. */
   acts: null,
   /** Le formulaire de contestation ouvert, s'il y en a un. */
@@ -2884,6 +2893,11 @@ async function reconstruireLesLectures(root) {
         `${rendu.lues} lecture(s) relue(s) : ${rendu.ecrites} enregistrée(s) après coup`
         + `${rendu.deja ? `, ${rendu.deja} laissée(s) telle(s) quelle(s) — déjà enregistrée(s) au versement` : ""}. `
         + "Un lien résolu après coup l'est contre la mémoire d'aujourd'hui, pas contre celle que la règle a vue.";
+
+      // L'index à l'écran suit : rouvrir l'étude d'impact sur l'ancien graphe
+      // montrerait un compte que la relecture vient de démentir.
+      const { listerLesApplications } = await import("../services/memoire-applications-supabase.js");
+      view.applications = await listerLesApplications(view.projectId);
     }
   } catch {
     view.notice = "Les liens n'ont pas pu être relus. La mémoire reste ce qu'elle était.";
@@ -3118,8 +3132,11 @@ function brancherLeBoutonTester(root) {
     // Rien à faire en entrant dans une variante : on est déjà sur la mémoire, et
     // l'abonnement au magasin la redessine.
     if (quoi === "tester:variante") void ouvrirLaFenetreDeVariante({ assertions: view.memoire ?? [] });
-    // Les deux autres usages ne sont pas encore servis par le moteur : leurs
-    // items sont éteints, et rien n'arrive ici. Voir `bouton-tester.js`.
+    if (quoi === "tester:impact") {
+      ouvrirLEtudeDImpact({ assertions: view.memoire ?? [], applications: view.applications });
+    }
+    // L'audit n'est pas encore servi par le moteur : son item est éteint, et
+    // rien n'arrive ici. Voir `bouton-tester.js`.
   });
 }
 
@@ -3191,6 +3208,12 @@ export function renderProjectMemory(root) {
       const { listAssertionDependencies } = await import("../services/assertion-dependencies-supabase.js");
       view.dependencies = view.projectId ? await listAssertionDependencies(view.projectId) : null;
 
+      // Ce que chaque règle a lu, avec son rang et sa zone : c'est de là que
+      // l'étude d'impact tire « employée n fois », et le graphe des dépendances
+      // les liens qu'il ne déduit plus par nom.
+      const { listerLesApplications } = await import("../services/memoire-applications-supabase.js");
+      view.applications = view.projectId ? await listerLesApplications(view.projectId) : null;
+
       // Les actes disent l'état d'une hypothèse : sans eux, toutes paraîtraient
       // candidates, y compris celles que le bureau de contrôle a validées.
       const { listHypothesisActs } = await import("../services/hypothesis-acts-supabase.js");
@@ -3214,6 +3237,7 @@ export function renderProjectMemory(root) {
     } catch {
       view.assertions = null;
       view.dependencies = null;
+      view.applications = null;
       view.acts = null;
     }
 

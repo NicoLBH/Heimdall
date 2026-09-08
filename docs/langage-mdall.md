@@ -762,3 +762,4 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/views/ui/bouton-tester.js` | les trois usages du moteur de rejeu, et l'étape où chacun s'allume |
 | `apps/web/js/services/memoire-applications.js` | ce qu'une règle a lu, avec son rang et sa zone — une ligne par lecture |
 | `apps/web/js/services/memoire-applications-supabase.js` | enregistre les lectures au versement, et reconstruit celles d'avant |
+| `apps/web/js/views/ui/fenetre-impact.js` | ce qui repose sur une valeur, rangé par distance |

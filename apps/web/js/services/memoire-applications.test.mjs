@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  RESOLUTION, applicationsDeLaMemoire, applicationsDuVersement,
-  dependancesDesApplications, emploisParSujet, lecturesDeLaRegle
+  RESOLUTION, applicationsDeLaMemoire, applicationsDuVersement, couvertureDesApplications,
+  dependancesDesApplications, emploisParAffirmation, emploisParSujet, impactDe, lecturesDeLaRegle
 } from "./memoire-applications.js";
 
 /** Une règle appliquée, telle que la mémoire garde son instantané. */
@@ -223,4 +223,93 @@ test("les emplois se comptent par nom, avec leurs zones et leurs sorties", () =>
   assert.equal(emploi.sorties.size, 2);
   assert.deepEqual([...emploi.zones], ["batiment-a"]);
   assert.equal(emploi.orphelines, 0);
+});
+
+/** Une lecture, telle que la table la porte. */
+const lecture = (sortie, entree, { rang = 1, zone = "", sujet = "x", resolution = "enregistre" } = {}) => ({
+  output_assertion_id: sortie, input_assertion_id: entree, input_subject: sujet,
+  input_rank: rang, zone, resolution
+});
+
+test("les emplois se comptent par affirmation, pas seulement par nom", () => {
+  // Deux valeurs successives d'un même sujet ne servent pas les mêmes fonctions :
+  // c'est la ligne qu'on regarde qui a un identifiant, pas le libellé.
+  const lignes = [
+    lecture("degre", "classement-v1"),
+    lecture("colonne", "classement-v1"),
+    lecture("desenfumage", "classement-v2")
+  ];
+
+  const emplois = emploisParAffirmation(lignes);
+  assert.equal(emplois.get("classement-v1").lectures, 2);
+  assert.equal(emplois.get("classement-v1").sorties.size, 2);
+  assert.equal(emplois.get("classement-v2").lectures, 1);
+});
+
+test("une même sortie lue deux fois compte deux lectures pour une sortie", () => {
+  const emplois = emploisParAffirmation([
+    lecture("section", "hauteur", { rang: 1 }),
+    lecture("section", "hauteur", { rang: 2 })
+  ]);
+  assert.equal(emplois.get("hauteur").lectures, 2);
+  assert.equal(emplois.get("hauteur").sorties.get("section"), 2);
+});
+
+test("l'impact se range par distance, parce qu'une liste de 47 ne se lit pas", () => {
+  const lignes = [
+    lecture("horsgel", "altitude"),
+    lecture("neige", "altitude"),
+    lecture("ancrage", "horsgel"),
+    lecture("charge", "neige"),
+    lecture("section", "ancrage"),
+    lecture("section", "charge"),
+    lecture("ferraillage", "section")
+  ];
+
+  const rendu = impactDe("altitude", lignes);
+
+  assert.deepEqual(rendu.strates, [["horsgel", "neige"], ["ancrage", "charge"], ["section"], ["ferraillage"]]);
+  assert.equal(rendu.total, 6);
+  // « Employée deux fois » n'est pas « six affirmations touchées ».
+  assert.equal(rendu.lectures, 2);
+  assert.deepEqual(rendu.cycles, []);
+});
+
+test("une affirmation atteinte par deux chemins se lit au plus court", () => {
+  const lignes = [
+    lecture("b", "a"),
+    lecture("c", "a"),
+    lecture("d", "b"),
+    lecture("d", "c")
+  ];
+  const rendu = impactDe("a", lignes);
+  assert.deepEqual(rendu.strates, [["b", "c"], ["d"]]);
+  assert.equal(rendu.total, 3);
+});
+
+test("un cycle se nomme, il ne boucle pas", () => {
+  const lignes = [lecture("b", "a"), lecture("c", "b"), lecture("a", "c")];
+  const rendu = impactDe("a", lignes);
+
+  assert.deepEqual(rendu.strates, [["b"], ["c"]]);
+  assert.deepEqual(rendu.cycles, [{ de: "c", vers: "a" }]);
+});
+
+test("une valeur sur laquelle rien ne repose le dit sans détour", () => {
+  const rendu = impactDe("commune", [lecture("degre", "classement")]);
+  assert.deepEqual(rendu.strates, []);
+  assert.equal(rendu.total, 0);
+  assert.equal(rendu.lectures, 0);
+});
+
+test("la couverture distingue ce qui a été figé de ce qui a été rapproché", () => {
+  // Un graphe où l'on ne fait pas la différence se lit comme s'il était tout
+  // entier sûr.
+  const rendu = couvertureDesApplications([
+    lecture("degre", "classement", { resolution: RESOLUTION.ENREGISTRE }),
+    lecture("colonne", "classement", { resolution: RESOLUTION.RECONSTRUIT }),
+    lecture("colonne", null, { rang: 2, resolution: RESOLUTION.RECONSTRUIT, sujet: "Portance" })
+  ]);
+
+  assert.deepEqual(rendu, { lectures: 3, enregistrees: 1, reconstruites: 2, orphelines: 1 });
 });

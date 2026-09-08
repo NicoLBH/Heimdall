@@ -262,9 +262,9 @@ Ils s'allument à mesure que le plan avance.
 
 | usage | s'allume à | ce qu'il fera |
 | --- | --- | --- |
-| **Tester une variante** | déjà là, honnête à l'étape 2 | changer une valeur du socle, voir les conséquences, ne rien écrire |
+| **Tester une variante** | déjà là, honnête à l'étape 3 | changer une valeur du socle, voir les conséquences, ne rien écrire |
 | **Auditer la mémoire** | étape 5 | rejouer à blanc, et dire ce qui a dérivé |
-| **Étude d'impact** | étape 2 | « qu'est-ce qui repose sur cette valeur ? », avec le compte exact |
+| **Étude d'impact** | étape 2 — *allumé* | « qu'est-ce qui repose sur cette valeur ? », par strates, avec le compte exact |
 
 Un item qui n'est pas encore servi par le moteur est **désactivé et dit son
 étape**. Un bouton qui prétend faire ce qu'il ne fait pas coûte plus cher que
