@@ -53,7 +53,12 @@ import { renderGhActionButton } from "./gh-split-button.js";
 export const ETAPE_ATTEINTE = 6;
 
 /**
- * Les trois usages, dans l'ordre où on les lit.
+ * Les usages du moteur, dans l'ordre où on les lit.
+ *
+ * Les trois premiers **posent une question** — et si ? ça tient encore ? qu'est-ce
+ * qui repose là-dessus ? Le quatrième n'en pose aucune : il montre la forme du
+ * raisonnement, et c'est de là qu'on voit quelle question vaut la peine d'être
+ * posée. Il vient donc en dernier, après elles.
  *
  * `depuisLEtape` dit à partir de quelle étape du plan le moteur sert cet usage.
  * Un usage servi avant que le moteur existe — la variante — le dit dans sa
@@ -77,6 +82,12 @@ export const USAGES = [
     nom: "Étude d'impact",
     depuisLEtape: 2,
     quoi: "Dire ce qui repose sur une valeur, avec le compte exact et les zones."
+  },
+  {
+    action: "tester:cerveau",
+    nom: "Le cerveau du projet",
+    depuisLEtape: 6,
+    quoi: "Voir le raisonnement en entier, en strates, et faire courir une onde depuis une valeur."
   }
 ];
 

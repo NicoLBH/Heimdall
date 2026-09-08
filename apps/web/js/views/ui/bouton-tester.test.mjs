@@ -3,8 +3,13 @@ import assert from "node:assert/strict";
 
 import { ETAPE_ATTEINTE, USAGES, estServi, libelleDeLUsage } from "./bouton-tester.js";
 
-test("les trois usages du moteur sont nommés, et dans l'ordre où on les lit", () => {
-  assert.deepEqual(USAGES.map((usage) => usage.action), ["tester:variante", "tester:audit", "tester:impact"]);
+test("les usages du moteur sont nommés, et dans l'ordre où on les lit", () => {
+  // Les trois premiers posent une question ; le quatrième montre la forme du
+  // raisonnement, et c'est de là qu'on voit quelle question vaut la peine d'être
+  // posée. Il vient donc après elles.
+  assert.deepEqual(USAGES.map((usage) => usage.action), [
+    "tester:variante", "tester:audit", "tester:impact", "tester:cerveau"
+  ]);
   // Chacun dit ce qu'il fait : un item de menu sans phrase se lit comme un mot.
   for (const usage of USAGES) assert.ok(usage.quoi.length > 20, usage.action);
 });
@@ -29,5 +34,7 @@ test("avancer le plan allume les usages, sans toucher au menu", () => {
   assert.deepEqual(servisA(0), ["tester:variante"]);
   assert.deepEqual(servisA(2), ["tester:variante", "tester:impact"]);
   assert.deepEqual(servisA(5), ["tester:variante", "tester:audit", "tester:impact"]);
-  assert.deepEqual(servisA(6), ["tester:variante", "tester:audit", "tester:impact"]);
+  assert.deepEqual(servisA(6), [
+    "tester:variante", "tester:audit", "tester:impact", "tester:cerveau"
+  ]);
 });

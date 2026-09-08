@@ -210,74 +210,71 @@ quelqu'un, un jour, recopiera de travers.
 
 ---
 
-## 5. Le cerveau du projet : voir le raisonnement en strates
+## 5. Le cerveau du projet — *l'onde au clic est faite*
 
-**État :** proposé, à arbitrer · **Nature :** un écran. **Débloque :** rien de
-mécanique — tout est déjà calculé. Il rend **visible** ce qu'on ne peut
-aujourd'hui que lire ligne à ligne.
+**État :** premier mode fait · **Reste :** le battement permanent, puis le cumul
+des deux.
 
-### Ce qui manque
+### Ce qui manquait
 
-On ne voit toujours pas l'ensemble du raisonnement d'un projet. On le lit — un
-tableau, une étude d'impact, un audit — et chacun de ces écrans répond à une
-question précise. Aucun ne montre la **forme** : combien de strates, où est le
-socle, où sont les nœuds opaques, et jusqu'où une valeur se propage.
+On ne voyait pas l'ensemble du raisonnement. On le **lisait** — un tableau, une
+étude d'impact, un audit — et chacun de ces écrans répond à une question, posée
+une à une. Aucun ne montrait la forme : combien de strates, où est le socle, où
+sont les nœuds qu'on ne sait pas refaire, et jusqu'où une valeur se propage.
 
-### Ce qu'il n'y a pas à construire
+Un projet de quatre cents affirmations se lisait par le trou d'une serrure.
 
-Tout. `planDeRecalcul` rend les strates et les cycles, `dependancesDesApplications`
-les arêtes avec leur compte exact et leur zone, `natureDuNoeud` les trois natures.
-Cet écran ne calcule rien : il dessine ce qui existe.
+### Ce qui est fait : le mode A, l'onde au clic
 
-### La proposition
+Un plein écran depuis le menu **Tester**. Les nœuds rangés en colonnes — une
+colonne par strate, nommée : *socle*, *1 pas*, *2 pas*… —, disposés de façon
+organique à l'intérieur, avec une respiration lente. Le plus employé d'une
+colonne est au centre : c'est là que l'œil va, et c'est là que se trouve ce dont
+tout dépend.
 
-Un plein écran depuis le menu **Tester**. Fond sombre, un canvas.
+Trois natures, trois formes, et ce sont celles de la mémoire : **socle** plein,
+**rejouable** cerclé, **opaque** creux. Les arêtes en courbe, épaisses du nombre
+de lectures.
 
-Les nœuds rangés en **colonnes = strates** : le socle à gauche, puis ce qui n'en
-dépend que d'un pas, et ainsi de suite. Dedans, une disposition organique — pas une
-grille — avec une respiration continue et lente, de sorte que ça vive sans jamais
-partir.
+On clique une valeur : une **onde** part d'elle et remonte les liens strate par
+strate. « La plus longue chaîne fait huit pas » cesse d'être un chiffre et devient
+huit pulsations qu'on regarde passer.
 
-Trois natures, trois traitements, et ce sont ceux de la sidebar :
+### Les trois garde-fous, tenus
 
-- **socle** — points pleins et lumineux : ce sont les sources ;
-- **rejouable** — points cerclés : on sait les refaire ;
-- **opaque** — points creux, éteints : on sait qu'ils dépendent, pas les refaire.
+**L'onde est la fonction de l'étude d'impact**, sans une ligne de plus : `ondeDepuis`
+appelle `impactDe`. Si le dessin ment, l'étude d'impact ment aussi, et les deux se
+corrigent ensemble. Un écran avec sa propre vérité finirait par montrer autre chose
+que ce que l'outil décide.
 
-Les arêtes en dégradé de l'amont vers l'aval, l'épaisseur au nombre de lectures.
+**Un nœud opaque ne s'allume pas comme les autres** : halo creux, et la phrase du
+bas le compte à part — « 1 vient d'un utilitaire : on sait qu'elle dépend, l'onde
+ne prétend pas la recalculer ici ». La frontière de ce que Mdall sait rejouer est
+une forme, pas une note de bas de page.
 
-**Ce qui fait l'effet, et qui n'est pas décoratif :** on clique un nœud du socle,
-une **onde** part de lui, remonte les arêtes strate par strate, et illumine au
-passage tout ce qui en découle — au rythme du plan, une strate par temps. On *voit*
-la profondeur du raisonnement : « la plus longue chaîne fait huit pas » devient huit
-pulsations. Un cycle se lit tout de suite — l'onde y tourne au lieu d'en sortir — et
-on l'arrête en le nommant.
+**Les liens disent d'où ils viennent.** Sans lectures enregistrées, un bandeau dit
+qu'ils sont déduits d'une ressemblance de noms. Une belle image tirée
+d'à-peu-près serait le pire de ce qu'on puisse produire.
 
-### Les deux choses qui la sauvent d'être une jolie image inutile
+Deux choix de dessin méritent d'être notés : les **étiquettes** ne s'écrivent que
+tant qu'elles se lisent — au-delà de 45 nœuds, seuls le socle, ce qui est survolé
+et ce que l'onde touche portent leur nom, parce qu'une bouillie grise donne
+l'impression d'avoir été lue ; et la **disposition est stable** d'une ouverture à
+l'autre, tirée des identifiants, sans quoi « le gros paquet en haut à droite » ne
+voudrait pas dire la même chose demain.
 
-**L'onde suit la même fonction que l'étude d'impact.** Même graphe, même compte. Si
-cet écran ment, l'étude d'impact ment aussi, et les deux se corrigent ensemble. Un
-dessin qui aurait sa propre source de vérité finirait par montrer autre chose que ce
-que l'outil décide.
+### Ce qui reste : le mode B, puis leur cumul
 
-**Ce qui est opaque ne s'allume pas.** L'onde s'arrête net devant, et c'est visible :
-la frontière de ce qu'on sait rejouer devient une forme, pas un chiffre. C'est
-probablement le seul écran de l'application où l'on comprend d'un coup d'œil ce que
-Mdall sait et ce qu'il ne sait pas.
+**Le battement permanent.** Les impulsions partent du socle en boucle, et les nœuds
+que l'audit signale — dérive, entrée périmée — pulsent en rouge. Le projet
+« pense » tout seul, et ce qui ne va pas se voit sans qu'on ait rien demandé.
 
-### Ce qui reste à arbitrer
+**Le cumul des deux**, à décider : le battement au repos, l'arrêt au survol, l'onde
+au clic. C'est probablement le bon enchaînement, mais il se juge sur pièce — il
+faut d'abord voir le battement tourner pour savoir s'il aide ou s'il fatigue.
 
-**(a) L'onde au clic** — on choisit une valeur, on regarde ce qui s'allume. C'est
-l'étude d'impact rendue physique, et c'est directement interrogeable.
+### Ce qui se passe si on laisse le reste
 
-**(b) Le battement permanent** — les impulsions partent du socle en boucle, et les
-nœuds que l'audit signale pulsent en rouge. Plus spectaculaire, moins interrogeable.
-
-Recommandation : **(a) d'abord**, avec le battement de fond en sourdine, et (b) en
-mode plein écran.
-
-### Ce qui se passe si on le laisse
-
-Rien ne casse, et il manque quelque chose qui ne se répare pas ailleurs : la
-**compréhension d'ensemble**. Un projet de quatre cents affirmations se lit
-aujourd'hui par le trou d'une serrure, une question à la fois.
+Rien. Le mode A répond déjà à la question « qu'est-ce qui repose là-dessus ? » de
+façon qu'on la comprenne d'un coup d'œil. Le mode B répond à une autre — « où ça
+ne va pas ? » — que l'audit traite déjà en mots.

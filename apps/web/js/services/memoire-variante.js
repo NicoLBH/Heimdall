@@ -58,15 +58,13 @@ import { describeProvenance, utilitaireByReference } from "../utilitaires/catalo
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
 import { dependancesDesApplications } from "./memoire-applications.js";
 import { rejouerLesRegles } from "./memoire-rejeu.js";
-import { natureDuNoeud, NOEUD } from "./memoire-plan.js";
-import { cleDuSujet } from "./memoire-identifiants.js";
+import { natureDuNoeud, sortiesDesRegles, NOEUD } from "./memoire-plan.js";
 import { phraseDuRefus } from "./utilitaires-rejeu.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 const idDe = (assertion) => texte(assertion?.id);
 
 const estUneRegle = (assertion) => assertion?.payload?.referentiel === true;
-const cleDeSujet = (assertion) => cleDuSujet(assertion?.payload?.subject);
 
 /**
  * Les valeurs qu'on peut faire varier : le **socle**, et lui seul.
@@ -97,18 +95,6 @@ export function valeursSubstituables(assertions = []) {
       valeur: texte(assertion.payload.value),
       nature: classifyAssertion(assertion).nature
     }));
-}
-
-/** Les affirmations qu'une règle du projet produit, toutes zones confondues. */
-function sortiesDesRegles(assertions) {
-  const cles = new Set(
-    assertions.filter(estUneRegle).map(cleDeSujet).filter(Boolean)
-  );
-  return new Set(
-    assertions
-      .filter((assertion) => !estUneRegle(assertion) && cles.has(cleDeSujet(assertion)))
-      .map(idDe)
-  );
 }
 
 /**
