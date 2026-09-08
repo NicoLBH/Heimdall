@@ -1,0 +1,373 @@
+/**
+ * Essayer une altitude, et lire ce que le projet en dirait.
+ *
+ * ## Ce que cette fenêtre doit prouver
+ *
+ * Qu'on peut **se promener dans une mémoire qui n'existe pas, sans jamais croire
+ * qu'elle existe**. Tout le reste — plusieurs substitutions, la comparaison de
+ * deux variantes, l'adoption en hypothèse — n'est que du volume par-dessus.
+ *
+ * ## Pourquoi une fenêtre et pas un écran
+ *
+ * Un écran appelle des champs, les champs appellent des champs, et l'on obtient
+ * un formulaire que personne ne remplit. La question tient en une ligne : *cette
+ * valeur passe de ceci à cela*. Le départ est déjà rempli — il se lit dans la
+ * mémoire —, il ne reste qu'une case.
+ *
+ * ## Les trois rangs, et pourquoi ils ne se ressemblent pas
+ *
+ * **Recalculé** rend une vraie valeur, avec son écart. **À revérifier** nomme ce
+ * qui devient suspect sans en deviner la valeur — le référentiel est au serveur
+ * et prend le questionnaire entier, pas un champ. **Inchangé** se compte, parce
+ * que « rien n'a bougé là » est une information : sans elle, on ne sait pas si
+ * l'outil a regardé.
+ *
+ * Les trois blocs ne partagent ni couleur, ni vocabulaire, ni forme. Un chiffre
+ * qui aurait l'air recalculé alors qu'il n'était que propagé suffirait, une
+ * seule fois, à ce que plus personne ne fasse confiance à l'écran.
+ */
+
+import { escapeHtml } from "../../utils/escape-html.js";
+import { svgIcon } from "../../ui/icons.js";
+import {
+  altitudeDeLaMemoire, altitudeEnTexte, consequencesDeLaVariante, lireUnNombre, variantePourLEcran
+} from "../../services/variante-altitude.js";
+import { essayerLaVariante } from "../../services/variante-en-cours.js";
+import { phraseDeReserve } from "../../utilitaires/reserves.js";
+
+const texte = (valeur) => String(valeur ?? "").trim();
+
+/** L'accord d'un mot avec son nombre. Pas de « 1 recalculées » à l'écran. */
+const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulier);
+
+/**
+ * Le bouton qui ouvre la fenêtre.
+ *
+ * Il est au-dessus du tableau des propositions parce que c'est là qu'on range
+ * ce qui n'est pas encore vrai. Il est vert parce qu'il n'écrit rien : il ouvre
+ * une lecture, et une lecture ne se craint pas.
+ */
+export function renderBoutonVariante() {
+  return `
+    <button type="button" class="gh-btn gh-btn--primary variante-ouvrir" data-variante-ouvrir>
+      ${svgIcon("beaker", { className: "octicon" })} Tester une variante
+    </button>
+  `;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * La saisie
+ * ────────────────────────────────────────────────────────────────────────── */
+
+function renderSaisie(depart, echec = "") {
+  return `
+    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Tester une variante">
+      <div class="fichiers-saisie__boite variante-boite">
+        <header class="fichiers-saisie__tete">
+          <b>${svgIcon("beaker", { className: "octicon" })} Tester une variante</b>
+          <button type="button" class="fichiers-saisie__fermer" data-variante-fermer
+            aria-label="Renoncer">${svgIcon("x", { className: "octicon" })}</button>
+        </header>
+
+        <p class="variante-lead">
+          Rien ne sera écrit. On substitue une valeur, on relit la mémoire, on regarde,
+          et on ressort — la mémoire du projet ne bouge pas d'un octet.
+        </p>
+
+        <div class="variante-saisie">
+          <label class="fichiers-saisie__champ variante-saisie__champ">
+            <span>${escapeHtml(depart.sujet)}, aujourd'hui</span>
+            <input type="text" class="gh-input" value="${escapeHtml(depart.valeur)}" readonly disabled>
+          </label>
+          <span class="variante-saisie__fleche">${svgIcon("arrow-right", { className: "octicon" })}</span>
+          <label class="fichiers-saisie__champ variante-saisie__champ">
+            <span>dans la variante</span>
+            <input type="text" class="gh-input" data-variante-valeur placeholder="890"
+              inputmode="decimal" autocomplete="off">
+            <small>En mètres. La virgule et le point se lisent tous les deux.</small>
+          </label>
+        </div>
+
+        ${echec ? `<p class="fichiers-saisie__echec">${escapeHtml(echec)}</p>` : ""}
+
+        <footer class="fichiers-saisie__pied">
+          <button type="button" class="gh-btn" data-variante-fermer>Annuler</button>
+          <button type="button" class="gh-btn gh-btn--primary" data-variante-calculer>Calculer</button>
+        </footer>
+      </div>
+    </div>
+  `;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Les conséquences
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Les réserves d'une contrainte, dites en français, ou rien. */
+function renderReserves(codes = []) {
+  const phrases = codes.map(phraseDeReserve).filter(Boolean);
+  if (!phrases.length) return "";
+  return `<span class="variante-ligne__reserve">${escapeHtml(phrases.join(" · "))}</span>`;
+}
+
+/**
+ * Une valeur recalculée : ce qu'elle disait, ce qu'elle dirait.
+ *
+ * Une valeur identique dont la réserve apparaît n'est pas une valeur inchangée :
+ * un doute vient de naître, et le taire ferait passer pour acquis ce qui ne
+ * l'est plus.
+ */
+function renderRecalculee(ligne) {
+  const bouge = ligne.valeurABouge;
+  const nees = ligne.reservesApres.filter((code) => !ligne.reservesAvant.includes(code));
+  const levees = ligne.reservesAvant.filter((code) => !ligne.reservesApres.includes(code));
+
+  return `
+    <li class="variante-ligne variante-ligne--${bouge ? "bouge" : "stable"}">
+      <span class="variante-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
+      <span class="variante-ligne__valeurs">
+        <b class="variante-ligne__avant">${escapeHtml(ligne.avant)}</b>
+        ${
+          bouge
+            ? `${svgIcon("arrow-right", { className: "octicon" })}
+               <b class="variante-ligne__apres">${escapeHtml(ligne.apres)}</b>`
+            : `<span class="variante-ligne__egal">inchangée</span>`
+        }
+      </span>
+      ${nees.length ? `<span class="variante-ligne__reserve variante-ligne__reserve--nee">Réserve : ${escapeHtml(nees.map(phraseDeReserve).filter(Boolean).join(" · "))}</span>` : ""}
+      ${levees.length ? `<span class="variante-ligne__reserve variante-ligne__reserve--levee">Réserve levée : ${escapeHtml(levees.map(phraseDeReserve).filter(Boolean).join(" · "))}</span>` : ""}
+      ${!nees.length && !levees.length ? renderReserves(ligne.reservesApres) : ""}
+    </li>
+  `;
+}
+
+/** Une ligne devenue suspecte : nommée, jamais devinée. */
+function renderARevoir(ligne) {
+  return `
+    <li class="variante-ligne variante-ligne--suspecte">
+      <span class="variante-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
+      <span class="variante-ligne__valeurs">
+        <b class="variante-ligne__avant">${escapeHtml(ligne.valeur || "—")}</b>
+        <span class="variante-ligne__egal">à revérifier</span>
+      </span>
+      <span class="variante-ligne__pourquoi">${
+        ligne.motif === "lit-altitude"
+          ? "lit l'altitude, et nous ne savons pas rejouer son calcul ici"
+          : "repose sur une valeur qui vient de bouger"
+      }${ligne.provenance ? ` — ${escapeHtml(ligne.provenance)}` : ""}</span>
+    </li>
+  `;
+}
+
+function renderConsequences(depart, altitude, rendu) {
+  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge).length;
+
+  return `
+    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Conséquences de la variante">
+      <div class="fichiers-saisie__boite variante-boite variante-boite--large">
+        <header class="fichiers-saisie__tete">
+          <b>${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(depart.sujet)} :
+            ${escapeHtml(depart.valeur)} → ${escapeHtml(altitudeEnTexte(altitude))}</b>
+          <button type="button" class="fichiers-saisie__fermer" data-variante-fermer
+            aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
+        </header>
+
+        <p class="variante-lead">
+          ${rendu.recalculees.length} ${accorde(rendu.recalculees.length, "valeur relue", "valeurs relues")}
+          · ${rendu.aRevoir.length} ${accorde(rendu.aRevoir.length, "à revérifier", "à revérifier")}
+          · ${rendu.inchangees} ${accorde(rendu.inchangees, "sans rapport", "sans rapport")}.
+          Rien n'a été écrit.
+        </p>
+
+        <div class="variante-rangs">
+          <section class="variante-rang variante-rang--calcule">
+            <h5>${svgIcon("check-circle", { className: "octicon" })} Recalculé</h5>
+            <p>Un utilitaire déterministe a été rejoué avec la nouvelle valeur. Ces chiffres-là sont vrais.</p>
+            ${
+              rendu.recalculees.length
+                ? `<ul class="variante-lignes">${rendu.recalculees.map(renderRecalculee).join("")}</ul>`
+                : `<p class="variante-rang__vide">Aucune déduction du projet ne lit cette donnée d'une façon que nous savons rejouer.</p>`
+            }
+          </section>
+
+          <section class="variante-rang variante-rang--suspect">
+            <h5>${svgIcon("alert", { className: "octicon" })} À revérifier</h5>
+            <p>
+              Ces valeurs reposent sur ce qui vient de bouger, et nous ne savons pas les rejouer ici.
+              Elles sont <b>nommées</b>, jamais devinées : aucun chiffre nouveau n'est affiché à leur place.
+            </p>
+            ${
+              rendu.aRevoir.length
+                ? `<ul class="variante-lignes">${rendu.aRevoir.map(renderARevoir).join("")}</ul>`
+                : `<p class="variante-rang__vide">Rien de ce que le projet tient ne repose sur ce qui vient de bouger.</p>`
+            }
+          </section>
+
+          <section class="variante-rang variante-rang--inchange">
+            <h5>${svgIcon("dot-fill-pending", { className: "octicon" })} Inchangé</h5>
+            <p>
+              ${rendu.inchangees} ${accorde(rendu.inchangees, "affirmation n'a", "affirmations n'ont")}
+              aucun lien avec cette donnée. ${accorde(rendu.inchangees, "Elle reste", "Elles restent")} vraie${rendu.inchangees > 1 ? "s" : ""}.
+            </p>
+          </section>
+        </div>
+
+        <p class="variante-suite">
+          ${
+            bougees
+              ? "Adopter cette variante, ce sera la faire monter d'un barreau : de valeur essayée à hypothèse assumée, par une proposition. Ce barreau-là n'est pas encore posé."
+              : "Aucune valeur ne bouge : il n'y a rien à adopter."
+          }
+        </p>
+
+        <footer class="fichiers-saisie__pied">
+          <button type="button" class="gh-btn" data-variante-fermer>Abandonner</button>
+          <button type="button" class="gh-btn" data-variante-refaire>Changer la valeur</button>
+          <button type="button" class="gh-btn gh-btn--primary" data-variante-lire>
+            ${svgIcon("book", { className: "octicon" })} Lire la mémoire avec cette variante
+          </button>
+        </footer>
+      </div>
+    </div>
+  `;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * L'ouverture
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Une seule fenêtre à la fois.
+ *
+ * Deux fenêtres identiques superposées ne se distinguent pas : on répond à celle
+ * du dessus, elle disparaît, et celle du dessous donne l'impression que le clic
+ * n'a rien fait.
+ */
+let ouverte = null;
+
+/**
+ * Ouvrir la fenêtre, essayer une valeur, et entrer dans la variante si on le veut.
+ *
+ * @param {object} options
+ * @param {string} [options.projectId] de quoi lire la mémoire, à défaut
+ * @param {object[]} [options.assertions] la mémoire, si on l'a déjà sous la main
+ * @param {(variante: object) => void} [options.quandOnLit] appelé quand on entre
+ *   dans la variante — c'est à l'appelant d'emmener l'utilisateur à la mémoire
+ */
+export async function ouvrirLaFenetreDeVariante({ projectId = "", assertions = null, quandOnLit = null } = {}) {
+  if (ouverte) return;
+
+  // Une liste vide n'est pas une mémoire : c'est « je n'ai rien sous la main ».
+  let memoire = Array.isArray(assertions) && assertions.length ? assertions : null;
+
+  if (!memoire) {
+    try {
+      const [{ resolveCurrentBackendProjectId }, { listProjectAssertions }] = await Promise.all([
+        import("../../services/project-supabase-sync.js"),
+        import("../../services/project-memory-supabase.js")
+      ]);
+      // L'identifiant de la route n'est pas celui de la base : l'appelant n'a
+      // pas à le savoir, et le résoudre ici évite qu'un écran passe le mauvais.
+      const cible = texte(projectId) || (await resolveCurrentBackendProjectId().catch(() => ""));
+      memoire = cible ? (await listProjectAssertions(cible)) ?? [] : [];
+    } catch {
+      memoire = [];
+    }
+  }
+
+  const depart = altitudeDeLaMemoire(memoire ?? []);
+
+  if (!depart || depart.metres === null) {
+    // Une fenêtre à un champ mort ne dit rien. On dit pourquoi on ne peut pas.
+    alerter(
+      depart
+        ? `L'altitude en mémoire ne se lit pas comme un nombre : « ${depart.valeur} ».`
+        : "Ce projet n'a pas d'altitude en mémoire : il n'y a rien à faire varier."
+    );
+    return;
+  }
+
+  const hote = document.createElement("div");
+  document.body.appendChild(hote);
+  ouverte = hote;
+
+  const fermer = () => {
+    document.removeEventListener("keydown", auClavier);
+    hote.remove();
+    ouverte = null;
+  };
+
+  // Échap renonce. Une fenêtre modale dont on ne connaît qu'un seul moyen de
+  // sortie se referme mal quand ce moyen défaille.
+  const auClavier = (evenement) => {
+    if (evenement.key === "Escape") fermer();
+  };
+  document.addEventListener("keydown", auClavier);
+
+  const montrerLaSaisie = (echec = "", valeur = "") => {
+    hote.innerHTML = renderSaisie(depart, echec);
+    brancher();
+    const champ = hote.querySelector("[data-variante-valeur]");
+    if (champ) {
+      champ.value = valeur;
+      champ.focus();
+      champ.select();
+    }
+  };
+
+  const calculer = () => {
+    const saisie = hote.querySelector("[data-variante-valeur]")?.value ?? "";
+    const altitude = lireUnNombre(saisie);
+    const rendu = consequencesDeLaVariante({ assertions: memoire ?? [], altitude });
+
+    if (!rendu.ok) {
+      montrerLaSaisie(rendu.raison, texte(saisie));
+      return;
+    }
+
+    hote.innerHTML = renderConsequences(depart, altitude, rendu);
+    brancher(() => {
+      const variante = variantePourLEcran({ altitude, consequences: rendu });
+      essayerLaVariante(variante);
+      fermer();
+      if (typeof quandOnLit === "function") quandOnLit(variante);
+    }, () => montrerLaSaisie("", texte(saisie)));
+  };
+
+  function brancher(lire = null, refaire = null) {
+    for (const bouton of hote.querySelectorAll("[data-variante-fermer]")) {
+      bouton.addEventListener("click", fermer);
+    }
+    for (const bouton of hote.querySelectorAll("[data-variante-calculer]")) {
+      bouton.addEventListener("click", calculer);
+    }
+    // Entrée calcule : on tape un nombre, on veut le résultat, pas un déplacement
+    // au bouton suivant.
+    const champ = hote.querySelector("[data-variante-valeur]");
+    if (champ) {
+      champ.addEventListener("keydown", (evenement) => {
+        if (evenement.key !== "Enter") return;
+        evenement.preventDefault();
+        calculer();
+      });
+    }
+    if (lire) {
+      for (const bouton of hote.querySelectorAll("[data-variante-lire]")) bouton.addEventListener("click", lire);
+    }
+    if (refaire) {
+      for (const bouton of hote.querySelectorAll("[data-variante-refaire]")) bouton.addEventListener("click", refaire);
+    }
+  }
+
+  montrerLaSaisie();
+}
+
+/**
+ * Dire pourquoi on n'ouvre pas, sans fabriquer une fenêtre pour le dire.
+ *
+ * `alert` est laid, mais il est franc et il n'existe qu'un instant. Une fenêtre
+ * dessinée pour un refus serait un écran de plus à entretenir.
+ */
+function alerter(message) {
+  if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(message);
+}

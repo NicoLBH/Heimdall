@@ -18,6 +18,7 @@ import { renderProjectParametres } from "./project-parametres.js";
 import { renderProjectHeader, bindProjectHeaderNavigation } from "./project-header.js";
 import { renderProjectSituationsTopBanner } from "./project-situations-runbar.js";
 import { mountProjectShellChrome, debugProjectScrollPolicy } from "./project-shell-chrome.js";
+import { abandonnerLaVariante } from "../services/variante-en-cours.js";
 
 
 function normalizeProjectTab(tab) {
@@ -51,6 +52,16 @@ function normalizeProjectTab(tab) {
 
 export function renderProjectLayout(root, projectId, tab) {
   const normalizedTab = normalizeProjectTab(tab);
+
+  // Une variante est une **lecture de la mémoire** : elle vit tant qu'on la lit,
+  // et quitter l'onglet y met fin.
+  //
+  // Ce n'est pas une commodité, c'est le garde-fou principal. Le seul vrai
+  // danger d'une variante est d'oublier qu'on y est ; le bandeau ne vit que sur
+  // l'écran de la mémoire, et laisser la variante courir derrière un autre
+  // onglet ferait exactement ce qu'on veut interdire — lire une valeur fausse
+  // sur une page qui n'a pas l'air d'être en variante.
+  if (normalizedTab !== PROJECT_TAB_IDS.MEMOIRE) abandonnerLaVariante();
   const shellBodyClassName = `project-shell__body${normalizedTab === PROJECT_TAB_IDS.SITUATIONS ? " project-shell__body--situations" : ""}`;
 
   bindProjectHeaderNavigation();

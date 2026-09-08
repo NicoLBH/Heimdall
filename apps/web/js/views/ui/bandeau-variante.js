@@ -1,0 +1,78 @@
+/**
+ * Le bandeau qui dit qu'on ne lit pas la mémoire du projet.
+ *
+ * ## Pourquoi il est aussi voyant
+ *
+ * Le seul vrai danger d'une variante est d'oublier qu'on y est. Un badge
+ * discret ne survit pas à un aller-retour à la machine à café : on revient,
+ * on lit une cote de fondation, on la note, et elle est fausse.
+ *
+ * Ce bandeau porte donc une couleur qui ne sert à rien d'autre dans
+ * l'application, il est collé en haut de la zone lue, et la sortie y est
+ * toujours visible. On ne peut pas ne pas le voir.
+ *
+ * ## Ce qu'il dit d'autre
+ *
+ * Qu'il n'y a **rien à écrire ici** : tant qu'une variante est ouverte, les
+ * gestes qui font entrer quelque chose en mémoire sont retirés. Écrire depuis
+ * une lecture fausse est le seul moyen qu'une variante avait de salir la
+ * mémoire, et on le ferme.
+ *
+ * Et que la mémoire a **bougé depuis**, le cas échéant : une variante n'est
+ * vraie que de la mémoire sur laquelle elle a été calculée, et une variante
+ * périmée a exactement le même air qu'une variante fraîche.
+ */
+
+import { escapeHtml } from "../../utils/escape-html.js";
+import { svgIcon } from "../../ui/icons.js";
+import { abandonnerLaVariante } from "../../services/variante-en-cours.js";
+
+const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulier);
+
+/**
+ * Le bandeau, ou rien du tout.
+ *
+ * @param {object|null} variante celle qu'on essaie
+ * @param {object} [options]
+ * @param {boolean} [options.aBouge] la mémoire a changé depuis le calcul
+ */
+export function renderBandeauVariante(variante, { aBouge = false } = {}) {
+  if (!variante) return "";
+
+  return `
+    <div class="variante-bandeau${aBouge ? " variante-bandeau--perimee" : ""}" role="status" data-variante-bandeau>
+      <span class="variante-bandeau__marque">${svgIcon("beaker", { className: "octicon" })} Variante</span>
+      <span class="variante-bandeau__quoi">
+        <b>${escapeHtml(variante.sujet)}</b> lu à <b>${escapeHtml(variante.vers)}</b>
+        au lieu de ${escapeHtml(variante.depuis)}.
+        ${variante.recalculees} ${accorde(variante.recalculees, "valeur relue", "valeurs relues")},
+        ${variante.aRevoir} ${accorde(variante.aRevoir, "à revérifier", "à revérifier")}.
+      </span>
+      ${
+        aBouge
+          ? `<span class="variante-bandeau__perime">
+              ${svgIcon("alert", { className: "octicon" })}
+              La mémoire a bougé depuis ce calcul : ces conséquences ne valent plus.
+            </span>`
+          : ""
+      }
+      <span class="variante-bandeau__rien">Rien ne s'écrit ici.</span>
+      <button type="button" class="gh-btn gh-btn--sm variante-bandeau__sortir" data-variante-sortir>
+        ${svgIcon("x", { className: "octicon" })} Revenir à la mémoire
+      </button>
+    </div>
+  `;
+}
+
+/**
+ * Le bouton de sortie, branché.
+ *
+ * Il ne redessine rien lui-même : l'écran s'est abonné à `quandLaVarianteChange`
+ * et se refait tout seul. Deux chemins de redessin pour un seul geste finiraient
+ * par diverger.
+ */
+export function brancherLeBandeauVariante(root) {
+  for (const bouton of root.querySelectorAll("[data-variante-sortir]")) {
+    bouton.addEventListener("click", () => abandonnerLaVariante());
+  }
+}

@@ -582,6 +582,100 @@ range, le libellé se lit. Comparer l'une à l'autre ne trouve jamais rien, et
 n'écrire que la clé perd le libellé pour toujours — rien d'autre ne le porte, et
 `batiment-a` ne dit pas si l'auteur avait écrit « Bâtiment A » ou « bâtiment A ».
 
+## Les variantes : essayer une valeur, sans jamais l'écrire
+
+### Pourquoi pas des branches
+
+L'instinct, venu du code, est de faire une branche : on y change l'altitude, on
+regarde, et on fusionne si l'on est content. Trois raisons de ne pas le faire.
+
+**Le bâtiment est un.** Deux vérités durables pour un même ouvrage, c'est le
+risque de commander du béton d'après la mauvaise.
+
+**Fusionner des décisions n'a pas d'algorithme.** Un dépôt de code sait
+rapprocher deux textes ; personne ne sait rapprocher deux arbitrages. C'est
+précisément ce qu'une proposition fait déjà, avec quelqu'un qui tranche.
+
+**L'histoire n'est pas un arbre.** La mémoire est un flux où l'on n'efface
+jamais : une affirmation nouvelle **remplace** la précédente, qui garde sa date
+et la date où l'on a cessé d'y croire. Il n'y a pas d'instantané à bifurquer.
+
+Une variante est autre chose : une **lecture**. On substitue une valeur, on
+relit, on regarde, on ressort. Rien n'est écrit, rien ne coexiste.
+
+### L'échelle : variante → hypothèse → donnée de base
+
+Trois barreaux, un seul chemin :
+
+| barreau | ce que c'est | ce que ça engage |
+| --- | --- | --- |
+| **variante** | une valeur qu'on essaie | rien — elle se lit, elle meurt |
+| **hypothèse** | une valeur qu'on assume en attendant mieux | tout ce qui en découle devient suspect quand elle change |
+| **donnée de base** | une valeur qu'on sait | le projet |
+
+Adopter une variante, c'est donc la faire monter d'un barreau : la porter en
+hypothèse **par une proposition**. Jamais directement — rien n'entre en mémoire
+sans passer par la porte. Le barreau du milieu existe déjà : c'est l'étape E, et
+elle prend le relais toute seule le jour où la vraie valeur arrive.
+
+### Un « checkout » gratuit
+
+Tous les écrans de la mémoire — la liste, le détail, les fichiers, la chaîne du
+raisonnement, le schéma des dépendances — sont des **fonctions d'une liste
+d'affirmations**. Leur en donner une autre suffit.
+
+`memoireAvecLaVariante(assertions, variante)` rend cette autre liste : la même,
+dans le même ordre, avec les objets substitués à leur place. Il n'y a pas un
+seul écran à réécrire, et rien à stocker.
+
+### Les trois rangs de conséquence, et la faute à ne pas commettre
+
+Une valeur nouvelle ne produit pas un seul genre de conséquence.
+
+1. **Recalculé** — un utilitaire déterministe a été rejoué avec la nouvelle
+   entrée. On rend une vraie valeur, et son écart.
+2. **À revérifier** — quelque chose en dépend, mais on ne sait pas le rejouer :
+   le référentiel est au serveur et prend le questionnaire entier, pas un champ.
+   On **nomme**, on ne devine pas.
+3. **Inchangé** — compté, et dit. « Rien n'a bougé là » est une information :
+   sans elle, on ne sait pas si l'outil a regardé.
+
+La faute mortelle serait de présenter le deuxième rang comme le premier. Un
+chiffre qui a l'air recalculé et qui n'était que propagé, une seule fois, et
+plus personne ne fait confiance à l'écran. C'est pourquoi une relecture est
+**refusée dès que l'utilitaire cité n'est pas exactement celui dont on connaît
+la loi** : une `V2` fait tomber la contrainte au rang « à revérifier » plutôt
+que de la recalculer selon une règle qui n'est plus la sienne.
+
+### La table départementale ne descend pas au navigateur
+
+La profondeur hors gel vaut `H = H0 + (altitude − 150) / 4000`, et `H0` vient
+d'une table départementale qui vit au serveur. Elle y reste : `H0` étant le même
+pour les deux lectures, il se simplifie, et il ne reste que
+
+    H' = H + (altitude' − altitude) / 4000
+
+La contrainte en mémoire garde l'altitude sur laquelle elle a été calculée
+(`payload.inputs.altitude`), et c'est tout ce qu'il faut.
+
+### Les garde-fous
+
+Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
+
+- Un bandeau cyan — une couleur qui ne sert à rien d'autre dans l'application —
+  collé en haut de la mémoire, avec la sortie toujours visible.
+- **Rien ne s'écrit.** Verser, déclarer et exporter disparaissent tant qu'une
+  variante est ouverte : écrire depuis une lecture fausse était le seul moyen
+  qu'une variante avait de salir le projet.
+- **Elle meurt quand on quitte l'onglet Mémoire.** Le bandeau ne vit que là ;
+  laisser la variante courir derrière un autre onglet ferait exactement ce qu'on
+  veut interdire.
+- **Elle meurt au rechargement.** Elle ne se range ni en base, ni dans le
+  navigateur : sortir par accident est sans conséquence, y rester ne l'est pas.
+- **Elle périme.** Elle porte l'état de la mémoire au moment du calcul, et le
+  bandeau dit « la mémoire a bougé depuis ». Une variante périmée a exactement
+  le même air qu'une variante fraîche.
+
 ## Où cela vit dans le code
 
 | fichier | ce qu'il fait |
@@ -594,3 +688,7 @@ n'écrire que la clé perd le libellé pour toujours — rien d'autre ne le port
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |
 | `apps/web/js/views/project-memoire-raisonnement.js` | l'espace de raisonnement : le schéma, le code et les valeurs en une grille |
+| `apps/web/js/services/variante-altitude.js` | relit la mémoire sous une autre altitude, et range les conséquences en trois rangs |
+| `apps/web/js/services/variante-en-cours.js` | la variante essayée — en portée de module, jamais rangée nulle part |
+| `apps/web/js/views/ui/fenetre-variante.js` | la fenêtre : la question d'une ligne, puis les conséquences |
+| `apps/web/js/views/ui/bandeau-variante.js` | le bandeau qui dit qu'on ne lit pas la mémoire du projet |
