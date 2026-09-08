@@ -1003,6 +1003,88 @@ export function separerLesGenres(places = [], { actif = true } = {}) {
   });
 }
 
+/**
+ * Les strates en **disques empilés** : la vue éclatée.
+ *
+ * ## Le défaut qu'elle répare
+ *
+ * En volume, les strates sont des coquilles concentriques — et une coquille
+ * cache celles qu'elle contient. Sur un projet d'essai, huit strates et trois
+ * cents nœuds : on voyait une boule, et pas une seule strate. Ce n'est pas un
+ * problème d'espacement, et aucun espacement ne le résout : le rayon est
+ * précisément l'axe qu'on ne peut pas voir à travers.
+ *
+ * Il faut donc **sortir la strate du rayon** et la poser sur un axe qu'on voit.
+ * Les disques s'empilent, la caméra les regarde de biais, et l'on compte les
+ * étages du raisonnement comme on compte les étages d'un immeuble.
+ *
+ * ## Pourquoi l'espacement est régulier
+ *
+ * Un pas vaut un pas. Rien ne justifie qu'un raisonnement à la sixième étape
+ * paraisse plus loin de la cinquième que la seconde ne l'est de la première —
+ * et une échelle logarithmique dirait exactement cela. Elle avait un sens sur
+ * les coquilles, où elle tentait de rattraper l'occultation ; sur une pile,
+ * rien ne s'occulte, et il ne reste aucune raison de déformer.
+ *
+ * ## Ce qui reste inchangé
+ *
+ * Le disque est un plan `x`/`z` : `pencherVersLesDomaines` y tourne les nœuds
+ * vers le cap de leur domaine **sans toucher à la hauteur**, exactement comme
+ * en volume. Un domaine reste donc un secteur, une strate reste une strate, et
+ * l'on n'a rien de nouveau à apprendre pour lire cet écran.
+ *
+ * En revanche la hauteur porte la strate : les hémisphères, qui la prenaient
+ * pour séparer mémoire et raisonnement, n'ont plus de place ici — et n'en ont
+ * plus besoin, les règles ayant déjà leurs propres rangs dans la pile.
+ */
+export function dispositionEclatee(cerveau = {}) {
+  const noeuds = Array.isArray(cerveau?.noeuds) ? cerveau.noeuds : [];
+  if (!noeuds.length) return [];
+
+  const rangs = [...new Set(noeuds.map((noeud) => noeud.strate))].sort((g, d) => g - d);
+  const etage = new Map(rangs.map((rang, index) => [rang, index]));
+  const hauteurs = Math.max(1, rangs.length - 1);
+
+  // Le disque rétrécit quand les étages se multiplient. C'est la seule contrainte
+  // géométrique de cette vue : un disque large et des étages serrés se recouvrent
+  // à l'écran, et l'on retrouve la boule qu'on venait de quitter. Borné en bas —
+  // sous ce rayon, un disque devient un point et le domaine n'y tient plus.
+  const rayonDuDisque = Math.min(1, Math.max(0.55, 2 / hauteurs));
+
+  const parEtage = new Map();
+  for (const noeud of noeuds) {
+    const rang = etage.get(noeud.strate);
+    if (!parEtage.has(rang)) parEtage.set(rang, []);
+    parEtage.get(rang).push(noeud);
+  }
+
+  const places = new Map();
+
+  for (const [rang, disque] of parEtage) {
+    // Le plus employé au centre du disque : c'est autour de lui que le reste
+    // tourne, et le poser au bord ferait chercher le cœur d'une strate là où il
+    // n'est pas.
+    const ordonne = [...disque].sort((g, d) => d.lectures - g.lectures || g.id.localeCompare(d.id));
+    const y = rangs.length > 1 ? -1 + (2 * rang) / hauteurs : 0;
+
+    ordonne.forEach((noeud, index) => {
+      // La spirale de l'angle d'or : des points régulièrement écartés sur un
+      // disque, sans anneaux concentriques ni rangées — deux motifs qui se
+      // liraient comme une information qu'ils ne portent pas.
+      const rayon = Math.sqrt((index + 0.5) / ordonne.length) * rayonDuDisque;
+      const angle = ANGLE_DOR * index + graineDe(noeud.id, 3) * 0.4;
+
+      places.set(noeud.id, { x: Math.cos(angle) * rayon, y, z: Math.sin(angle) * rayon });
+    });
+  }
+
+  return noeuds.map((noeud) => ({
+    ...noeud,
+    ...(places.get(noeud.id) ?? { x: 0, y: 0, z: 0 }),
+    phase: graineDe(noeud.id, 13) * Math.PI * 2
+  }));
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * La chaleur
  * ────────────────────────────────────────────────────────────────────────── */

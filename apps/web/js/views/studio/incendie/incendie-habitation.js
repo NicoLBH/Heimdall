@@ -57,7 +57,7 @@ import {
 } from "../../../services/incendie-remise.js";
 import {
   conclusionsVersables, etatDuVersement, retenuesParDefaut, phraseDuVersement, reglesVersables,
-  donneesDeBaseVersables, deductionsVersables, reponsesVersables
+  donneesDeBaseVersables, deductionsVersables, conclusionsDesDeductions, reponsesVersables
 } from "../../../services/incendie-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { preparerUneProposition } from "../../../services/atelier-proposition.js";
@@ -817,6 +817,16 @@ function affirmationsRetenues() {
     ...donneesDeBaseVersables(etat.vue, etat.zoneDuVersement),
     ...reponsesVersables(etat.vue, etat.zoneDuVersement)
   ];
+
+  // Et ce que chaque déduction conclut. Une règle qui garde sa valeur dans son
+  // propre bloc est vraie et illisible : l'audit ne la relit pas, aucun document
+  // ne s'y rattache, et les quarante-neuf règles qui la citent ne trouvent aucune
+  // affirmation de ce nom. Un sujet déjà posé plus haut — le classement — ne se
+  // repose pas : la base refuse l'envoi entier sur un doublon de clé.
+  const posees = new Set(donnees.map((donnee) => normalizeSubjectKey(donnee.sujet)));
+  const conclusions = conclusionsDesDeductions(etat.vue, etat.zoneDuVersement)
+    .filter((valeur) => !posees.has(normalizeSubjectKey(valeur.sujet)));
+  donnees.push(...conclusions);
 
   // Un sujet ne se verse qu'une fois. Le classement figure dans les exigences
   // du référentiel — il conclut comme les autres —, mais ce n'est pas une

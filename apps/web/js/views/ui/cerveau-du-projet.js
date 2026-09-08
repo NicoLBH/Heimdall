@@ -55,7 +55,8 @@ import { svgIcon } from "../../ui/icons.js";
 import { NOEUD } from "../../services/memoire-plan.js";
 import {
   GENRE, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, dansLEnveloppe, dilaterLEnveloppe,
-  dispositionDuCerveau, dispositionEnVolume, domainesDuCerveau, enveloppeConvexe, noeudsIsoles,
+  dispositionDuCerveau, dispositionEclatee, dispositionEnVolume, domainesDuCerveau, enveloppeConvexe,
+  noeudsIsoles,
   ondeDepuis, partDeLaMemoire, pencherVersLesDomaines, phraseDuSignal, separerLesGenres, signauxDeLAudit,
   valeursDeLOnde
 } from "../../services/memoire-cerveau.js";
@@ -216,7 +217,17 @@ function teinteDuNoeud(noeud, poidsMax) {
  * demande davantage — la boule tient dans un cercle, et ses nœuds y sont plus
  * serrés que les colonnes ne le sont dans la largeur de l'écran.
  */
-const APPROCHE = { strates: 2.1, volume: 3 };
+const APPROCHE = { strates: 2.1, volume: 3, eclatee: 2.6 };
+
+/**
+ * Cette vue a-t-elle de la profondeur ?
+ *
+ * Deux vues sur trois en ont, et tout ce qui en dépend — l'ordre de tracé, la
+ * taille qui suit la distance, le glissé qui tourne au lieu de déplacer — doit
+ * poser **cette** question. La poser en nommant « volume » a laissé la vue
+ * éclatée se dessiner à plat le jour où elle est arrivée.
+ */
+const enTroisD = (etat) => etat.vue !== "strates";
 
 /** La part du chemin restant parcourue à chaque image. Sous 0,1, ça traîne. */
 const PAS_DU_VISEUR = 0.13;
@@ -225,7 +236,12 @@ const CADRAGE = {
   strates: { zoom: 1, dx: 0, dy: 0, orbite: 0, elevation: 0 },
   // Reculé depuis que la boule est coupée en deux : les deux calottes s'étirent
   // vers les pôles, et à 1,7 le raisonnement sortait par le bas du cadre.
-  volume: { zoom: 1.45, dx: 0, dy: 0, orbite: 0.6, elevation: 0.42 }
+  volume: { zoom: 1.45, dx: 0, dy: 0, orbite: 0.6, elevation: 0.42 },
+  // La pile se regarde **presque de côté** : plus la caméra monte, plus les
+  // disques se recouvrent à l'écran, et l'on retrouve la boule qu'on venait de
+  // quitter. Une élévation basse les rend fins, et des ellipses fines s'empilent
+  // sans se confondre même quand leurs bords se croisent.
+  eclatee: { zoom: 1.12, dx: 0, dy: 0, orbite: 0.5, elevation: 0.24 }
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -366,7 +382,8 @@ function renderBarre(isoles) {
     <div class="cerveau__barre">
       ${renderChoix("vue", "strates", [
         { cle: "strates", nom: "Strates", icone: "stack", quoi: "Une colonne par pas depuis le socle : dans quel ordre le raisonnement se fait." },
-        { cle: "volume", nom: "Volume", icone: "north-star", quoi: "Le socle au centre, les strates en coquilles : où se trouve la matière." }
+        { cle: "volume", nom: "Volume", icone: "north-star", quoi: "Le socle au centre, les strates en coquilles : où se trouve la matière." },
+        { cle: "eclatee", nom: "Éclatée", icone: "unfold", quoi: "Un disque par pas, empilés : les strates se comptent, et les domaines restent des secteurs." }
       ])}
       ${renderChoix("mode", "vivant", [
         { cle: "vivant", nom: "Vivant", icone: "heimdall", quoi: "Le projet bat tout seul ; il s'arrête quand vous survolez, et repart quand vous partez. Un clic lance l'onde." },
@@ -890,14 +907,20 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
   ctx.clearRect(0, 0, largeur, hauteur);
 
   if (etat.vue === "strates") dessinerLesColonnes(ctx, etat, largeur, hauteur, points);
+  else if (etat.vue === "eclatee") dessinerLesDisques(ctx, etat, largeur, ou);
   else dessinerLesCoquilles(ctx, etat, largeur, hauteur, points);
 
   if (etat.deuxHemispheres) dessinerLEquateur(ctx, etat, largeur, hauteur, ou);
 
   // Le voile en premier, sous les liens et les nœuds : c'est un fond, pas un
   // cadre. Posé par-dessus, il voilerait ce qu'il est censé situer.
-  if (etat.parDomaine) etat.voiles = dessinerLesVoiles(ctx, etat, points, temps);
-  else etat.voiles = [];
+  // Pas de voile sur la pile : un domaine y est un **méridien**, et son
+  // enveloppe traverse tous les étages en une bande verticale qui recouvre le
+  // dessin sans rien situer. Le nom du secteur, posé au cap du domaine, dit la
+  // même chose et ne masque rien.
+  etat.voiles = etat.parDomaine && etat.vue !== "eclatee"
+    ? dessinerLesVoiles(ctx, etat, points, temps)
+    : [];
 
   // Les liens. Une courbe, pas une droite : à cette densité, des droites font un
   // treillis dans lequel on ne suit plus rien.
@@ -953,13 +976,13 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
 
   // Les nœuds, du fond vers le devant : sans ce tri, un nœud lointain se dessine
   // par-dessus un nœud proche et le volume se lit à l'envers.
-  const ordonnes = etat.vue === "volume"
+  const ordonnes = enTroisD(etat)
     ? [...places].sort((g, d) => points.get(g.id).p - points.get(d.id).p)
     : places;
 
   for (const noeud of ordonnes) {
     const { x, y, p, k } = points.get(noeud.id);
-    const rayon = rayonDe(noeud) * (etat.vue === "volume" ? borne(k, 0.45, 1.8) : 1);
+    const rayon = rayonDe(noeud) * (enTroisD(etat) ? borne(k, 0.45, 1.8) : 1);
     const trait = noeud.genre === GENRE.FONCTION
       ? `rgb(${REGLE})`
       : NATURES[noeud.nature]?.trait ?? "#8b949e";
@@ -999,13 +1022,13 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
       }
     }
 
-    ctx.globalAlpha = etat.vue === "volume" ? borne(0.3 + p * 0.7, 0.25, 1) : 1;
+    ctx.globalAlpha = enTroisD(etat) ? borne(0.3 + p * 0.7, 0.25, 1) : 1;
 
     const fonction = noeud.genre === GENRE.FONCTION;
     // Un losange à plat, un cube en volume : la même règle, dans la géométrie de
     // la vue. Un losange au milieu d'un nuage de sphères se lit comme une
     // étiquette collée sur l'image, pas comme un objet qui s'y trouve.
-    const enVolume = etat.vue === "volume";
+    const enVolume = enTroisD(etat);
     // Un multiplicateur, pas un forfait. À `rayon + 2,4`, une règle qui ne pèse
     // presque rien recevait autant de bonus qu'une règle centrale : les petites
     // paraissaient grosses et l'échelle des poids ne se lisait plus. Le facteur
@@ -1295,6 +1318,66 @@ function dessinerLEquateur(ctx, etat, largeur, hauteur, ou) {
   ctx.textAlign = "left";
 }
 
+/**
+ * Les disques de la vue éclatée : un plateau par strate, et son nom dessus.
+ *
+ * Un cercle par étage, tracé dans le plan du disque et projeté comme les nœuds
+ * qui s'y posent. C'est ce qui fait qu'on **compte** les strates au lieu de les
+ * deviner : sans plateau, une pile de nuages reste un nuage.
+ *
+ * Le nom se pose au bord du disque, du côté qui s'éloigne de la caméra — là où
+ * aucun nœud ne le recouvre, la spirale des nœuds partant du centre.
+ */
+function dessinerLesDisques(ctx, etat, largeur, ou) {
+  // Arrondie : la hauteur est posée par la disposition et personne ne la
+  // retouche, mais un disque qui se scinderait en deux pour un flottant près de
+  // l'autre rendrait le compte des étages absurde.
+  const etageDe = (noeud) => Math.round(noeud.y * 1e6) / 1e6;
+  const parRang = new Map();
+  for (const noeud of etat.places) {
+    parRang.set(etageDe(noeud), (parRang.get(etageDe(noeud)) ?? 0) + 1);
+  }
+
+  ctx.font = "500 11px ui-monospace, SFMono-Regular, Menlo, monospace";
+
+  let pas = -1;
+  const rangs = [...parRang.entries()].sort((g, d) => g[0] - d[0]);
+
+  for (const [y, combien] of rangs) {
+    const dessus = etat.places.filter((noeud) => etageDe(noeud) === y);
+    const regles = dessus.length > 0 && dessus.every((noeud) => noeud.genre === GENRE.FONCTION);
+    if (!regles) pas += 1;
+
+    // Le contour se prend sur les nœuds eux-mêmes : la disposition décide du
+    // rayon d'un disque, et un rayon recopié ici finirait par ne plus être le
+    // sien.
+    const rayon = dessus.reduce((max, noeud) => Math.max(max, Math.hypot(noeud.x, noeud.z)), 0) * 1.16
+      || 0.2;
+
+    ctx.strokeStyle = "rgba(139,148,158,.14)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= 72; i += 1) {
+      const angle = (i / 72) * Math.PI * 2;
+      const point = ou({ x: Math.cos(angle) * rayon, y, z: Math.sin(angle) * rayon, phase: 0 });
+      if (i === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+
+    // Au bord, jamais au centre : la spirale des nœuds part du milieu du disque,
+    // et un nom posé là serait recouvert par le nœud le plus employé de la strate.
+    const bord = ou({ x: rayon * 1.06, y, z: 0, phase: 0 });
+    if (bord.x < -80 || bord.x > largeur + 80) continue;
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(139,148,158,.5)";
+    ctx.fillText(
+      `${regles ? "règles" : pas === 0 ? "socle" : `${pas} pas`} · ${combien}`,
+      bord.x + 6, bord.y + 4
+    );
+  }
+}
+
 /** De combien la frontière d'un voile s'écarte des nœuds qu'elle entoure. */
 const MARGE_DU_VOILE = 26;
 
@@ -1431,7 +1514,7 @@ function dessinerLesDomaines(ctx, etat, points, ou, hauteur) {
     secteursDuCerveau(etat)
       .map((secteur) => ({
         ...secteur,
-        ancre: etat.vue === "volume"
+        ancre: enTroisD(etat)
           ? capDuSecteur(secteur.siens, ou)
           : barycentreDuSecteur(secteur.siens, points)
       }))
@@ -1552,7 +1635,7 @@ function dessinerLesNoms(ctx, etat, largeur, points, eclats) {
     // la seule dont on ne lit pas les noms.
     const aGauche = x + rayon + 10 + ctx.measureText(nom).width > largeur - 8;
     ctx.textAlign = aGauche ? "right" : "left";
-    ctx.globalAlpha = etat.vue === "volume" ? borne(p * 1.3, 0.25, 1) : 1;
+    ctx.globalAlpha = enTroisD(etat) ? borne(p * 1.3, 0.25, 1) : 1;
     // Un nom qui s'allume prend la couleur de sa famille, pas du blanc. Le blanc
     // était le seul endroit de l'écran où l'onde effaçait ce qu'elle traverse :
     // au moment où l'on regarde un nœud, il cessait de dire s'il était une
@@ -1693,14 +1776,23 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       ? cerveau
       : { ...cerveau, noeuds: cerveau.noeuds.filter((noeud) => !isoles.has(noeud.id)) };
 
-    const brutes = etat.vue === "volume" ? dispositionEnVolume(retenus) : dispositionDuCerveau(retenus);
+    const brutes = etat.vue === "volume"
+      ? dispositionEnVolume(retenus)
+      : etat.vue === "eclatee"
+        ? dispositionEclatee(retenus)
+        : dispositionDuCerveau(retenus);
     etat.domaines = domainesDuCerveau(retenus);
     // Les domaines d'abord, les hémisphères ensuite : le pliage garde l'ordre des
     // bandes, si bien qu'un domaine se retrouve à la même hauteur relative dans
     // les deux moitiés. L'inverse plierait des bandes qui n'existent pas encore.
     const penchees = etat.parDomaine ? pencherVersLesDomaines(brutes, retenus) : brutes;
-    etat.partDeLaMemoire = etat.parGenre ? partDeLaMemoire(penchees) : 0;
-    etat.places = separerLesGenres(penchees, { actif: etat.parGenre });
+    // Dans la pile, la hauteur porte déjà la strate : plier les genres dessus
+    // écraserait ce que la vue est venue montrer — chaque nœud recevrait sa
+    // propre hauteur et il n'y aurait plus de disque du tout. Les règles y ont de
+    // toute façon leurs propres étages.
+    const parGenre = etat.parGenre && etat.vue !== "eclatee";
+    etat.partDeLaMemoire = parGenre ? partDeLaMemoire(penchees) : 0;
+    etat.places = separerLesGenres(penchees, { actif: parGenre });
     etat.deuxHemispheres = etat.partDeLaMemoire > 0;
     etat.parId = new Map(etat.places.map((noeud) => [noeud.id, noeud]));
     const dedans = new Set(etat.places.map((noeud) => noeud.id));
@@ -1948,7 +2040,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       // Le glissé reprend la main, comme la molette.
       etat.vise = null;
 
-      if (etat.vue === "volume") {
+      if (enTroisD(etat)) {
         // En volume, le glissé fait tourner : c'est le geste qu'on attend d'un
         // objet, et déplacer une sphère centrée n'aurait aucun sens.
         etat.camera.orbite = glisse.orbite + dx * 0.006;
@@ -2139,7 +2231,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
     if (mode === "onde") {
       dit.innerHTML = `Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
-        Molette pour zoomer, glissé pour ${etat.vue === "volume" ? "tourner" : "déplacer"}.`;
+        Molette pour zoomer, glissé pour ${enTroisD(etat) ? "tourner" : "déplacer"}.`;
       return;
     }
 

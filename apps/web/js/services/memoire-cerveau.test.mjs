@@ -5,8 +5,9 @@ import {
   GENRE, SIGNAL, avalDeLaRegle, cerveauDuProjet, chaleurDuLien, chaleurDuNoeud, complexiteDeLaRegle,
   dispositionDuCerveau, dispositionEnVolume, dansLEnveloppe, dilaterLEnveloppe, domainesDuCerveau,
   enveloppeConvexe, famillesParSujet, graineDe, lecturesAvecLesFonctions, liensDuRaisonnement,
-  noeudsIsoles, ondeDepuis, partDeLaMemoire, pasDuRaisonnement, pencherVersLesDomaines, phraseDuSignal,
-  separerLesGenres, signauxDeLAudit, stratesDuGraphe, valeursDeLOnde
+  dispositionEclatee, noeudsIsoles, ondeDepuis, partDeLaMemoire, pasDuRaisonnement,
+  pencherVersLesDomaines, phraseDuSignal, separerLesGenres, signauxDeLAudit, stratesDuGraphe,
+  valeursDeLOnde
 } from "./memoire-cerveau.js";
 import { impactDe } from "./memoire-applications.js";
 
@@ -931,4 +932,83 @@ test("sans lecture enregistrée, on ne compte aucun pas plutôt qu'un pas faux",
   // règle : rien ne permet de dire combien de règles une chaîne traverse.
   assert.equal(pasDuRaisonnement(memoire(), null), 0);
   assert.equal(pasDuRaisonnement([], []), 0);
+});
+
+/* ── La vue éclatée ──────────────────────────────────────────────────────── */
+
+const empilable = () => ({
+  noeuds: [
+    { id: "a", strate: 0, lectures: 3, domaine: "" },
+    { id: "b", strate: 0, lectures: 1, domaine: "" },
+    { id: "r", strate: 1, lectures: 2, domaine: "" },
+    { id: "c", strate: 2, lectures: 0, domaine: "" }
+  ]
+});
+
+test("chaque strate reçoit son étage, et un seul", () => {
+  // C'est tout l'objet de cette vue : sortir la strate du rayon, où elle se
+  // cachait derrière la coquille suivante, et la poser sur un axe qu'on voit.
+  const places = dispositionEclatee(empilable());
+  const y = Object.fromEntries(places.map((p) => [p.id, p.y]));
+
+  assert.equal(y.a, y.b, "deux nœuds d'une même strate sont au même étage");
+  assert.ok(y.a < y.r && y.r < y.c, "les étages montent avec la strate");
+  assert.deepEqual([y.a, y.c], [-1, 1], "la pile remplit toute la hauteur");
+});
+
+test("les nœuds d'un étage tiennent dans son disque, le plus employé au centre", () => {
+  // Poser le cœur d'une strate au bord ferait chercher son centre là où il n'est
+  // pas ; un disque plus large que l'écart entre deux étages les ferait se
+  // recouvrir, et l'on retrouverait la boule qu'on venait de quitter.
+  const places = dispositionEclatee(empilable());
+  const rayon = (id) => {
+    const p = places.find((autre) => autre.id === id);
+    return Math.hypot(p.x, p.z);
+  };
+
+  assert.ok(rayon("a") < rayon("b"), "le plus employé est le plus près du centre");
+  for (const place of places) assert.ok(Math.hypot(place.x, place.z) <= 1);
+});
+
+test("un disque rétrécit quand les étages se multiplient", () => {
+  const profond = { noeuds: Array.from({ length: 24 }, (_, i) => (
+    { id: `n${i}`, strate: i, lectures: 0, domaine: "" }
+  )) };
+  const large = { noeuds: Array.from({ length: 24 }, (_, i) => (
+    { id: `n${i}`, strate: i % 2, lectures: 0, domaine: "" }
+  )) };
+
+  const etendue = (cerveau) => Math.max(
+    ...dispositionEclatee(cerveau).map((p) => Math.hypot(p.x, p.z))
+  );
+  assert.ok(etendue(profond) < etendue(large));
+});
+
+test("une pile d'un seul étage ne monte pas", () => {
+  // Rien à empiler : le disque unique se pose au milieu plutôt qu'au plancher.
+  const [seul] = dispositionEclatee({ noeuds: [{ id: "a", strate: 0, lectures: 0, domaine: "" }] });
+  assert.equal(seul.y, 0);
+  assert.deepEqual(dispositionEclatee({}), []);
+});
+
+test("le domaine tourne dans le disque sans changer d'étage", () => {
+  // La hauteur porte la strate : le penchant vers les domaines doit se contenter
+  // du plan du disque, sinon les deux découpages se battent pour le même axe.
+  const cerveau = {
+    noeuds: [
+      { id: "a", strate: 0, lectures: 0, domaine: "incendie" },
+      { id: "b", strate: 0, lectures: 0, domaine: "structure" },
+      { id: "c", strate: 1, lectures: 0, domaine: "incendie" }
+    ]
+  };
+  const avant = dispositionEclatee(cerveau);
+  const apres = pencherVersLesDomaines(avant, cerveau);
+
+  assert.deepEqual(apres.map((p) => p.y), avant.map((p) => p.y));
+  // Et les deux domaines d'un même étage ne se retrouvent pas au même cap.
+  const cap = (id) => {
+    const p = apres.find((autre) => autre.id === id);
+    return Math.atan2(p.z, p.x);
+  };
+  assert.notEqual(cap("a").toFixed(3), cap("b").toFixed(3));
 });
