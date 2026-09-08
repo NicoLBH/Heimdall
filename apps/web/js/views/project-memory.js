@@ -83,7 +83,6 @@ import {
   NATURES,
   UNCLASSIFIED_LABEL,
   classifyAssertion,
-  isFoundational,
   domainLabel,
   filterByTaxonomy,
   natureLabel,
@@ -107,11 +106,15 @@ import {
   verdictLabel
 } from "../services/hypothesis-acts.js";
 import { bindGhActionButtons, bindGhSelectMenus, renderGhActionButton, renderGhSelectMenu } from "./ui/gh-split-button.js";
+import { renderLightTabs, bindLightTabs } from "./ui/light-tabs.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
-import { fichiersDeLaMemoire } from "../services/memoire-blame.js";
+import { fichiersDeLaMemoire, zonesLisibles } from "../services/memoire-blame.js";
 import { chaineDuRaisonnement, traceDesLignes, grapheDuRaisonnement } from "../services/memoire-raisonnement.js";
-import { dessinerGrapheLiaisons, tracerLesLiens } from "./ui/graphe-liaisons.js";
+import { tracerLesLiens } from "./ui/graphe-liaisons.js";
+import {
+  renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES
+} from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 
 /**
@@ -250,24 +253,24 @@ const view = {
   navCollapsed: repliRetenu(),
   /** La proposition retenue dans la liste de complétion. */
   suggestion: -1,
-  /** Les socles cochés, en attente de déclaration. */
-  dependsDraft: [],
   navWidth: largeurRetenue(),
   /** Les noms des signataires, pour la marge du Blame. */
   auteurs: new Map(),
   /** Les propositions du projet, pour repérer celles qui n'ont rien versé. */
   propositions: [],
   draft: { subject: "", value: "", domain: "", zones: [] },
-  /** La carte désignée dans le schéma du raisonnement, et le grossissement. */
-  raisonnementCarte: null,
-  raisonnementZoom: 1,
-  raisonnementPleinEcran: false,
+  /** L'espace de raisonnement : carte désignée, zoom, plein écran, largeurs. */
+  raisonnement: espaceParDefaut(),
   /** Le schéma dessiné au dernier rendu : les traits s'y reposent. */
   raisonnementGraphe: null,
+  /** Où chaque carte du schéma tombe dans le code : carte → rang de ligne. */
+  raisonnementAncres: new Map(),
   notice: "",
   busy: false,
   /** L'affirmation dont on lit l'histoire : `{kind, subjectKey}` ou `null`. */
   open: null,
+  /** L'onglet ouvert dans son détail. */
+  detailOnglet: "etablit",
   page: 1
 };
 
@@ -284,12 +287,17 @@ export function __setMemoryStateForPreview({
   dependencies = null,
   acts = null,
   declaring = false,
+  onglet = "",
   reader = READER.ALL
 } = {}) {
   view.assertions = assertions;
   view.dependencies = dependencies;
   view.acts = acts;
   view.declaring = declaring;
+  // L'onglet ouvert du détail : sans lui, une page d'essai ne pourrait montrer
+  // que la première des trois lectures.
+  if (onglet) view.detailOnglet = onglet;
+  view.raisonnement = espaceParDefaut();
   view.query = onlyFilters(view.query, MEMORY_FIELDS, READER_FILTERS[reader] ?? {});
 }
 
@@ -728,6 +736,26 @@ function renderDetailTags(assertion, ecartee) {
   `;
 }
 
+/**
+ * Les trois lectures d'une affirmation.
+ *
+ * Dans cet ordre, et il n'est pas indifférent : **ce qui l'établit** est ce
+ * qu'on vient chercher — la source, l'article, la citation ; **son histoire**
+ * dit ce qu'elle a été ; **comment on en est arrivé là** est le poste de
+ * travail, celui qu'on ouvre quand la valeur surprend.
+ *
+ * Elles étaient empilées sur une seule page. À cinq panneaux, on faisait
+ * défiler pour retrouver une citation, et le raisonnement — qui prend l'écran —
+ * poussait l'histoire hors de vue.
+ */
+const DETAIL = { ETABLIT: "etablit", HISTOIRE: "histoire", RAISONNEMENT: "raisonnement" };
+
+const ONGLETS_DU_DETAIL = [
+  { id: DETAIL.ETABLIT, label: "Ce qui l'établit", iconName: "book" },
+  { id: DETAIL.HISTOIRE, label: "Son histoire", iconName: "history" },
+  { id: DETAIL.RAISONNEMENT, label: "Comment on en est arrivé là", iconName: "graph" }
+];
+
 export function renderMemoryDetail(assertions, cible = {}) {
   const suite = assertionHistory(assertions, cible);
   if (suite.length === 0) {
@@ -742,6 +770,15 @@ export function renderMemoryDetail(assertions, cible = {}) {
   const courante = suite.find((entry) => !entry.superseded_by) ?? suite[suite.length - 1];
   const ecartee = courante.status === MEMORY.REJECTED;
   const faits = describeAssertionFacts(courante);
+
+  // Trois lectures d'une même affirmation, et elles n'ont pas la même largeur.
+  // Ce qui l'établit et son histoire se lisent comme un texte — une colonne
+  // étroite, comme le détail d'une proposition. Le raisonnement est un poste de
+  // travail : il prend l'écran, comme les Changements.
+  const onglet = ONGLETS_DU_DETAIL.some((tab) => tab.id === view.detailOnglet)
+    ? view.detailOnglet
+    : DETAIL.ETABLIT;
+  const pleine = onglet === DETAIL.RAISONNEMENT;
 
   const etape = (assertion, rang) => {
     const propres = describeAssertionFacts(assertion);
@@ -796,21 +833,30 @@ export function renderMemoryDetail(assertions, cible = {}) {
 
       ${renderDetailTags(courante, ecartee)}
 
-      ${
-        faits.length > 0
-          ? `<div class="memory-detail__facts"><h3 class="memory-detail__section">Ce qui l'établit</h3>
-              <dl class="memory-facts">${faits
-                .map(([label, valeur]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(valeur)}</dd>`)
-                .join("")}</dl></div>`
-          : ""
-      }
+      ${renderLightTabs({
+        tabs: ONGLETS_DU_DETAIL,
+        activeTabId: onglet,
+        className: "memory-detail__tabs",
+        ariaLabel: "Sections de cette affirmation",
+        rowClassName: pleine ? "light-tabs-row--pleine" : ""
+      })}
 
-      ${renderActsPanel(courante)}
-      ${renderDependencyPanel(courante)}
-      ${renderRaisonnement(courante)}
-
-      <h3 class="memory-detail__section">Son histoire</h3>
-      <ol class="memory-steps">${suite.map(etape).join("")}</ol>
+      <div class="memory-detail__panneau${pleine ? " memory-detail__panneau--pleine" : ""}">
+        ${
+          onglet === DETAIL.HISTOIRE
+            ? `<ol class="memory-steps">${suite.map(etape).join("")}</ol>`
+            : onglet === DETAIL.RAISONNEMENT
+              ? renderRaisonnement(courante)
+              : `${
+                  faits.length > 0
+                    ? `<dl class="memory-facts">${faits
+                        .map(([label, valeur]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(valeur)}</dd>`)
+                        .join("")}</dl>`
+                    : `<p class="memory-detail__vide">Cette affirmation ne porte ni source, ni article, ni
+                       citation. Ce n'est pas qu'elle n'en a pas : personne ne les a écrits.</p>`
+                }${renderActsPanel(courante)}`
+        }
+      </div>
 
       <p class="memory-detail__back">Re-cliquez l'onglet « Mémoire » pour revenir à la liste.</p>
     </section>
@@ -1438,18 +1484,25 @@ function renderRaisonnement(courante) {
   // Le schéma du rendu précédent ne vaut plus : le garder ferait reposer des
   // traits entre des cartes qui ne sont plus à l'écran.
   view.raisonnementGraphe = null;
+  view.raisonnementAncres = new Map();
 
   const assertions = view.assertions ?? [];
+  // La **clé** pour comparer et filtrer, le **libellé** pour l'écrire : « lu
+  // pour batiment-a » se lit moins bien que « lu pour Bâtiment A », et les deux
+  // désignent la même partie de l'ouvrage.
   const zone = (zonesOf(courante) ?? [])[0] ?? "";
+  // Le libellé que la ligne porte d'abord : c'est celui que son auteur a écrit.
+  // La définition de zone ensuite, quand le projet en a une. La clé en dernier
+  // recours — mieux vaut une clé qu'un vide.
+  const zoneEnClair = zone ? (zonesLisibles(courante)[0] || zoneLabel(zone, assertions)) : "";
   const sujet = String(courante?.payload?.subject ?? courante?.subject_key ?? "").trim();
   const { fonctions, entrees, manquants } = chaineDuRaisonnement(sujet, assertions, { zone });
 
   if (!fonctions.length) {
     return `
       <div class="memory-raisonnement memory-raisonnement--vide">
-        <h3 class="memory-detail__section">Comment on en est arrivé là</h3>
         <p>Aucune règle du projet ne produit cette valeur : elle a été relevée ou décidée,
-        pas déduite. Sa provenance, ci-dessus, dit d'où elle vient.</p>
+        pas déduite. Sa provenance, sous « Ce qui l'établit », dit d'où elle vient.</p>
       </div>
     `;
   }
@@ -1466,73 +1519,23 @@ function renderRaisonnement(courante) {
   ]);
   const trace = traceDesLignes(lignes, { assertions, zone });
 
-  const codeHtml = lignes.map((ligne, rang) => `
-    <div class="memory-raisonnement__ligne">
-      <span class="memory-raisonnement__num">${rang + 1}</span>
-      <span class="memory-raisonnement__code">${renderJetonsDuRaisonnement(ligne.jetons)}</span>
-    </div>
-  `).join("");
-
-  const etatHtml = trace.map((entree, rang) => `
-    <div class="memory-raisonnement__ligne${entree.manquant ? " memory-raisonnement__ligne--manquante" : ""}">
-      <span class="memory-raisonnement__num">${rang + 1}</span>
-      <span class="memory-raisonnement__etat">${
-        !entree.sujet
-          ? ""
-          : entree.manquant
-            ? `<span class="memory-raisonnement__trou">personne ne l'a versée</span>`
-            : `<b>${escapeHtml(entree.valeur)}</b>${
-                entree.zone ? `<span class="memory-raisonnement__zone">${escapeHtml(entree.zone)}</span>` : ""}${
-                // Déduite, et non relevée : les confondre ferait prendre une
-                // conclusion de règle pour un constat de terrain.
-                entree.deduite ? `<span class="memory-raisonnement__zone">déduit</span>` : ""}`
-      }</span>
-    </div>
-  `).join("");
-
   // Le schéma se garde : les traits se posent après la mise en page, et les
   // reposer demande de savoir quels nœuds relier. Le recalculer à chaque trait
   // parcourrait la mémoire entière pour un dessin qui n'a pas bougé.
   const graphe = grapheDuRaisonnement(sujet, assertions, { zone, ouEcrit, ouVivent });
+  const ancres = ancresDuCode(lignes, trace, graphe);
   view.raisonnementGraphe = graphe;
+  view.raisonnementAncres = ancres.parCarte;
 
-  return `
-    <div class="memory-raisonnement">
-      <h3 class="memory-detail__section">Comment on en est arrivé là</h3>
-      <p class="memory-raisonnement__lead">
-        ${escapeHtml(`${fonctions.length} fonction${fonctions.length > 1 ? "s" : ""}`)},
-        ${escapeHtml(`${entrees.length} donnée${entrees.length > 1 ? "s" : ""} d'entrée`)}${
-          manquants.length
-            ? ` — <b class="memory-raisonnement__trou">${escapeHtml(`${manquants.length} que personne n'a versée${manquants.length > 1 ? "s" : ""}`)}</b>`
-            : ""}${zone ? ` · lu pour ${escapeHtml(zone)}` : ""}
-      </p>
-      ${graphe.noeuds.length ? `
-        <section class="memory-raisonnement__schema">
-          ${dessinerGrapheLiaisons({
-            graphe,
-            selection: view.raisonnementCarte,
-            zoom: view.raisonnementZoom,
-            pleinEcran: view.raisonnementPleinEcran,
-            chemin: view.raisonnementCarte,
-            legende: "<b>Le schéma des dépendances</b> — de gauche à droite : ce qui décide, "
-              + "puis ce qui en découle. La colonne de gauche est ce qu'aucune règle ne produit : "
-              + "les données de base. Chaque carte porte ce qu'elle a lu, avec la valeur du jour. "
-              + "Cliquez une carte pour ne suivre que sa chaîne.",
-            rangNomme: "Étape"
-          })}
-        </section>` : ""}
-      <div class="memory-raisonnement__deux">
-        <section class="memory-raisonnement__volet">
-          <header class="memory-raisonnement__tete">Le raisonnement</header>
-          <div class="memory-raisonnement__corps">${codeHtml}</div>
-        </section>
-        <section class="memory-raisonnement__volet">
-          <header class="memory-raisonnement__tete">Ce que le projet dit aujourd'hui</header>
-          <div class="memory-raisonnement__corps">${etatHtml}</div>
-        </section>
-      </div>
-    </div>
-  `;
+  const resume = `${escapeHtml(`${fonctions.length} fonction${fonctions.length > 1 ? "s" : ""}`)},
+    ${escapeHtml(`${entrees.length} donnée${entrees.length > 1 ? "s" : ""} d'entrée`)}${
+      manquants.length
+        ? ` — <b class="raison-grille__trou">${escapeHtml(`${manquants.length} que personne n'a versée${manquants.length > 1 ? "s" : ""}`)}</b>`
+        : ""}${zoneEnClair ? ` · lu pour ${escapeHtml(zoneEnClair)}` : ""}`;
+
+  return renderEspaceDuRaisonnement({
+    graphe, lignes, trace, ancres: ancres.parRang, resume, etat: view.raisonnement
+  });
 }
 
 /** Les jetons d'une ligne, colorés comme dans un fichier. */
@@ -1540,92 +1543,6 @@ function renderJetonsDuRaisonnement(jetons = []) {
   return (jetons ?? [])
     .map((jeton) => `<span class="mdall-${escapeHtml(jeton.type)}">${escapeHtml(jeton.texte)}</span>`)
     .join("");
-}
-
-function renderDependencyPanel(courante) {
-  const liens = view.dependencies;
-  if (liens === null) {
-    return `
-      <div class="memory-depends memory-depends--unknown">
-        <p>Les dépendances n'ont pas pu être lues. Ce n'est pas qu'il n'y en a aucune.</p>
-      </div>
-    `;
-  }
-
-  const lignes = currentAssertions(view.assertions ?? []);
-  const nomDe = (id) => lignes.find((entry) => entry.id === id)?.statement ?? "une affirmation retirée";
-
-  const socles = dependenciesOf(courante.id, liens);
-  const dependants = dependentsOf(courante.id, liens);
-
-  // On repose sur ce que le projet a **posé** : une hypothèse, une contrainte,
-  // une donnée de base. Un constat ne se choisit pas comme socle — il rapporte
-  // ce qui a été vu, il ne fonde rien.
-  const candidats = lignes.filter(
-    (entry) => entry.id !== courante.id && isFoundational(classifyAssertion(entry).nature) && !socles.includes(entry.id)
-  );
-
-  const liste = (titre, aide, ids) =>
-    ids.length === 0
-      ? ""
-      : `<div class="memory-depends__block">
-           <h4>${escapeHtml(titre)}</h4>
-           <p class="memory-depends__hint">${escapeHtml(aide)}</p>
-           <ul>${ids.map((id) => `<li>${escapeHtml(nomDe(id))}</li>`).join("")}</ul>
-         </div>`;
-
-  const choisies = new Set(view.dependsDraft ?? []);
-
-  return `
-    <div class="memory-depends">
-      <h3 class="memory-detail__section">Ce dont elle dépend</h3>
-      ${liste(
-        "Elle dépend de",
-        "Si l'une de ces valeurs change, cette affirmation devient à revérifier.",
-        socles
-      )}
-      ${liste(
-        "En dépendent",
-        "Ces affirmations deviendront à revérifier si celle-ci change.",
-        dependants
-      )}
-      ${
-        socles.length === 0 && dependants.length === 0
-          ? `<p class="memory-depends__empty">Aucune dépendance déclarée. Une affirmation sans dépendance ne dit rien de faux — elle n'entraîne simplement rien, et rien ne l'entraîne.</p>`
-          : ""
-      }
-      ${
-        candidats.length === 0
-          ? `<p class="memory-depends__empty">Rien sur quoi reposer : il n'y a dans cette mémoire ni hypothèse, ni contrainte, ni donnée de base qui ne soit déjà déclarée.</p>`
-          : `<div class="memory-depends__form">
-               <p class="memory-depends__label">Déclarer ce dont elle dépend</p>
-               <p class="memory-depends__hint">
-                 Plusieurs à la fois : une note de calcul repose souvent sur une zone climatique
-                 <em>et</em> sur une portance de sol.
-               </p>
-               <div class="memory-depends__choices">
-                 ${candidats
-                   .map(
-                     (entry) => `
-                       <label class="memory-depends__choice${choisies.has(entry.id) ? " is-checked" : ""}">
-                         <input type="checkbox" data-memory-depends-pick="${escapeHtml(entry.id)}"
-                           ${choisies.has(entry.id) ? "checked" : ""}>
-                         <span class="memory-tag memory-tag--nature">${escapeHtml(
-                           natureLabel(classifyAssertion(entry).nature)
-                         )}</span>
-                         <span>${escapeHtml(entry.statement)}</span>
-                       </label>
-                     `
-                   )
-                   .join("")}
-               </div>
-               <button type="button" class="gh-btn" data-memory-depends="${escapeHtml(courante.id ?? "")}" ${
-                 view.busy || choisies.size === 0 ? "disabled" : ""
-               }>Déclarer ${choisies.size > 1 ? `les ${choisies.size} dépendances` : "la dépendance"}</button>
-             </div>`
-      }
-    </div>
-  `;
 }
 
 /**
@@ -1659,79 +1576,6 @@ async function markAsReviewed(root, assertionId) {
   view.assertions = (view.assertions ?? []).map((entry) =>
     entry.id === assertionId ? { ...entry, reviewed_at: quand, reviewed_by: store.user?.id ?? null } : entry
   );
-  renderContent(root);
-}
-
-/**
- * Déclare qu'une affirmation repose sur une hypothèse.
- *
- * C'est le geste manuel, celui qui existe **à défaut** : quand une proposition
- * ne dit pas d'elle-même sur quoi elle s'appuie, quelqu'un qui le sait peut
- * l'écrire. Sans lui, le graphe ne se remplirait que le jour où les documents
- * citeront leurs hypothèses, c'est-à-dire jamais tout à fait.
- */
-async function declareDependsOn(root, bouton) {
-  const cibleId = bouton.getAttribute("data-memory-depends") || "";
-  const choisies = [...new Set(view.dependsDraft ?? [])].filter(Boolean);
-
-  if (!cibleId || choisies.length === 0 || view.busy) return;
-
-  const lignes = view.assertions ?? [];
-  const cible = lignes.find((entry) => entry.id === cibleId) ?? null;
-
-  const { planDependency } = await import("../services/assertion-dependencies.js");
-
-  // On planifie tout avant d'écrire quoi que ce soit : un lot à moitié écrit
-  // laisserait l'écran dire une chose et la base une autre.
-  const plans = [];
-  const existing = [...(view.dependencies ?? [])];
-  for (const socleId of choisies) {
-    const plan = planDependency({
-      assertion: cible,
-      dependsOn: lignes.find((entry) => entry.id === socleId) ?? null,
-      existing,
-      declaredBy: store.user?.id ?? null
-    });
-    if (!plan.ok) {
-      view.notice = plan.reason;
-      renderContent(root);
-      return;
-    }
-    plans.push(plan.link);
-    existing.push(plan.link);
-  }
-
-  view.busy = true;
-  renderContent(root);
-
-  const { declareDependency } = await import("../services/assertion-dependencies-supabase.js");
-  let ecrits = 0;
-  for (const lien of plans) {
-    if (await declareDependency(lien)) ecrits += 1;
-  }
-
-  view.busy = false;
-  view.dependsDraft = [];
-
-  if (ecrits === 0) {
-    view.notice = "Aucun lien n'a pu être enregistré.";
-    renderContent(root);
-    return;
-  }
-
-  view.notice = ecrits < plans.length
-    ? `${ecrits} lien(s) sur ${plans.length} enregistré(s).`
-    : "";
-
-  // On relit les liens plutôt que de les deviner : c'est la base qui dit ce
-  // qu'elle a accepté.
-  try {
-    const { listAssertionDependencies } = await import("../services/assertion-dependencies-supabase.js");
-    view.dependencies = (await listAssertionDependencies(view.projectId)) ?? view.dependencies;
-  } catch {
-    // Le lien est écrit ; ne pas savoir le relire n'annule pas l'écriture.
-  }
-
   renderContent(root);
 }
 
@@ -1870,34 +1714,89 @@ function renderContent(root) {
  * valeur. Cliquer une carte ne montre plus que son chemin — ce qui la décide et
  * ce qu'elle entraîne —, et recliquer la même le rouvre en entier.
  */
-function brancherLeSchema(root) {
-  const bloc = root?.querySelector(".memory-raisonnement__schema [data-graphe-bloc]");
-  if (!bloc) return;
+function brancherLEspace(root) {
+  const espace = root?.querySelector("[data-raison-espace]");
+  if (!espace) return;
 
+  const etat = view.raisonnement;
   const graphe = view.raisonnementGraphe;
-  const reposer = () => tracerLesLiens(bloc, {
-    graphe, selection: view.raisonnementCarte, zoom: view.raisonnementZoom
-  });
+  const bloc = espace.querySelector("[data-graphe-bloc]");
+
+  // Les traits se posent après la mise en page : leur départ et leur arrivée
+  // dépendent de la hauteur réelle de chaque carte, donc du texte qu'elle
+  // porte, donc du navigateur.
+  const reposer = () => {
+    if (!bloc || !graphe) return;
+    tracerLesLiens(bloc, { graphe, selection: etat.carte, survol: etat.survol, zoom: etat.zoom });
+  };
   reposer();
 
-  // Un redimensionnement change la largeur des colonnes : des traits laissés en
-  // place partiraient à côté des cartes, ce qui se lit comme un dessin faux.
-  if (typeof ResizeObserver === "function") {
+  // Redimensionner change la largeur des colonnes : des traits laissés en place
+  // partiraient à côté des cartes, ce qui se lit comme un dessin faux.
+  if (bloc && typeof ResizeObserver === "function") {
     const oeil = new ResizeObserver(() => reposer());
     oeil.observe(bloc);
   }
 
-  bloc.addEventListener("click", (evenement) => {
+  brancherLeSurvolDesCartes(espace, reposer);
+  brancherLesGestesDeLEspace(root, espace);
+  brancherLesPoignees(root, espace);
+  monterLeCopilote(espace);
+
+  // Le plein écran fige la page derrière lui : deux ascenseurs superposés se
+  // disputent la molette, et l'on croit faire glisser le schéma quand c'est la
+  // page qui bouge.
+  figerLaPage(etat.pleinEcran);
+}
+
+/**
+ * Le survol d'une carte allume sa chaîne.
+ *
+ * On regarde une carte du coin de l'œil bien plus souvent qu'on ne la choisit :
+ * demander un clic pour voir ses liens fait cliquer partout, et l'on perd la
+ * sélection qu'on avait. Le survol ne change donc **que** le dessin des traits.
+ */
+function brancherLeSurvolDesCartes(espace, reposer) {
+  const etat = view.raisonnement;
+
+  const designer = (id) => {
+    if (etat.survol === id) return;
+    etat.survol = id;
+    reposer();
+  };
+
+  espace.addEventListener("pointerover", (evenement) => {
+    const carte = evenement.target?.closest?.("[data-graphe-noeud]");
+    if (carte) designer(carte.dataset.grapheNoeud);
+  });
+
+  espace.addEventListener("pointerleave", () => designer(null));
+  espace.querySelector("[data-graphe-vue]")?.addEventListener("pointerleave", () => designer(null));
+}
+
+/**
+ * Ce que l'on peut faire dans l'espace.
+ *
+ * Cliquer une carte **emmène au code** : c'est le geste qu'on fait vingt fois —
+ * « et celle-là, elle a lu quoi ? » — et le faire à la molette sur cent lignes
+ * fait perdre le fil. La carte reste désignée, et le schéma se resserre sur sa
+ * chaîne ; recliquer la même rouvre tout.
+ */
+function brancherLesGestesDeLEspace(root, espace) {
+  const etat = view.raisonnement;
+
+  espace.addEventListener("click", (evenement) => {
     const carte = evenement.target?.closest?.("[data-graphe-noeud]");
     if (carte) {
       const id = carte.dataset.grapheNoeud;
-      view.raisonnementCarte = view.raisonnementCarte === id ? null : id;
+      etat.carte = etat.carte === id ? null : id;
+      allerALaFonction(espace, id);
       renderContent(root);
       return;
     }
 
     if (evenement.target?.closest?.("[data-graphe-chemin]")) {
-      view.raisonnementCarte = null;
+      etat.carte = null;
       renderContent(root);
       return;
     }
@@ -1907,16 +1806,136 @@ function brancherLeSchema(root) {
       const pas = zoom.dataset.grapheZoom === "in" ? 0.1 : -0.1;
       // Bornes : en deçà de 50 % les intitulés ne se lisent plus, au-delà de
       // 200 % une carte occupe l'écran et le schéma ne montre plus de forme.
-      view.raisonnementZoom = Math.min(2, Math.max(0.5, Math.round((view.raisonnementZoom + pas) * 10) / 10));
+      etat.zoom = Math.min(2, Math.max(0.5, Math.round((etat.zoom + pas) * 10) / 10));
       renderContent(root);
       return;
     }
 
-    if (evenement.target?.closest?.("[data-graphe-plein-ecran]")) {
-      view.raisonnementPleinEcran = !view.raisonnementPleinEcran;
+    // Le plein écran du schéma seul n'a plus lieu d'être : c'est l'espace
+    // entier qui s'agrandit, code et discussion compris. Le composant ne le
+    // dessine donc plus ici — voir `peutSAgrandir`.
+    if (evenement.target?.closest?.("[data-raison-plein-ecran]")) {
+      etat.pleinEcran = !etat.pleinEcran;
+      renderContent(root);
+      return;
+    }
+
+    if (evenement.target?.closest?.("[data-raison-copilote]")) {
+      etat.copiloteOuvert = !etat.copiloteOuvert;
       renderContent(root);
     }
   });
+}
+
+/**
+ * Aller à la fonction d'une carte, dans le code.
+ *
+ * Le conteneur a une hauteur fixe — c'est ce qui rend le défilement possible :
+ * un bloc qui s'étire à la hauteur de son contenu n'a rien à faire défiler, et
+ * le geste ne ferait rien.
+ */
+function allerALaFonction(espace, carte) {
+  const rang = view.raisonnementAncres?.get(carte);
+  if (rang === undefined) return;
+
+  const vue = espace.querySelector("[data-raison-code]");
+  const ligne = vue?.querySelector(`[data-raison-rang="${rang}"]`);
+  // La rangée est un `display:contents` : elle n'a pas de boîte, donc pas de
+  // position. C'est sa première cellule qu'on mesure — et par sa position à
+  // l'écran, non par `offsetTop`, qui compterait depuis un ancêtre positionné
+  // dont on ne veut pas dépendre.
+  const cellule = ligne?.firstElementChild;
+  if (!vue || !cellule) return;
+
+  // On vise le haut, sous la ligne de titres qui reste collée : centrer ferait
+  // disparaître la tête de fonction dans le haut de l'écran une fois sur deux.
+  const tete = vue.querySelector(".raison-ligne--tete .raison-ligne__code");
+  const marge = tete ? tete.getBoundingClientRect().height : 0;
+  const ecart = cellule.getBoundingClientRect().top - vue.getBoundingClientRect().top;
+
+  vue.scrollTo({ top: Math.max(0, vue.scrollTop + ecart - marge - 8), behavior: "smooth" });
+
+  for (const autre of vue.querySelectorAll(".raison-ligne--visee")) autre.classList.remove("raison-ligne--visee");
+  ligne.classList.add("raison-ligne--visee");
+}
+
+/**
+ * Les trois poignées.
+ *
+ * La hauteur du schéma, le partage entre le code et les valeurs, la largeur de
+ * la discussion. La largeur s'applique pendant le glissé — redimensionner sans
+ * voir revient à viser en aveugle — et l'état n'est rangé qu'au relâchement.
+ */
+function brancherLesPoignees(root, espace) {
+  const etat = view.raisonnement;
+
+  const poser = (nom, valeur) => {
+    espace.style.setProperty(`--raison-${nom}`, `${Math.round(valeur)}px`);
+  };
+
+  const poignees = [
+    { nom: "schema", champ: "hauteurSchema", axe: "y", sens: 1 },
+    // La gouttière des numéros : on la tire **vers la gauche** pour élargir les
+    // valeurs, qui sont collées au bord droit.
+    { nom: "etat", champ: "largeurEtat", axe: "x", sens: -1 },
+    // La discussion est collée au bord droit : on tire sa poignée vers la
+    // gauche pour l'agrandir.
+    { nom: "copilote", champ: "largeurCopilote", axe: "x", sens: -1 }
+  ];
+
+  for (const poignee of poignees) {
+    const handle = espace.querySelector(`[data-raison-poignee="${poignee.nom}"]`);
+    if (!handle) continue;
+
+    bindSideResizer({
+      handle,
+      axe: poignee.axe,
+      sens: poignee.sens,
+      min: BORNES[poignee.nom].min,
+      max: BORNES[poignee.nom].max,
+      getWidth: () => etat[poignee.champ],
+      onResize: (valeur) => poser(poignee.nom, valeur),
+      onEnd: (valeur) => {
+        etat[poignee.champ] = valeur;
+        // Pas de rendu complet : il perdrait la position de défilement du code
+        // et la discussion en cours. La variable CSS a déjà tout dit.
+        poser(poignee.nom, valeur);
+      }
+    });
+  }
+}
+
+/**
+ * La discussion, montée telle qu'elle vit dans l'Atelier.
+ *
+ * Le même composant, le même fil, les mêmes discussions. Une seconde salle de
+ * discussion aurait deux historiques et deux comportements, et l'on ne saurait
+ * plus où l'on a posé quoi.
+ */
+function monterLeCopilote(espace) {
+  // `data-raison-discussion`, et non `data-raison-copilote` : ce dernier est le
+  // **bouton** qui ouvre la colonne. Le même attribut pour les deux faisait
+  // monter le fil de discussion à l'intérieur du bouton — vingt-huit pixels de
+  // côté, et l'on cherchait la panne dans le composant.
+  const hote = espace.querySelector("[data-raison-discussion]");
+  if (!hote) return;
+
+  void import("./studio/copilote/copilote.js")
+    .then(({ renderCopilote }) => {
+      if (hote.isConnected) renderCopilote(hote, { garderLeDefilement: true });
+    })
+    .catch(() => {
+      hote.innerHTML = `<p class="raison-espace__panne">La discussion n'a pas pu être ouverte.</p>`;
+    });
+}
+
+/** La page derrière ne défile pas pendant le plein écran. */
+function figerLaPage(fige) {
+  if (typeof document === "undefined") return;
+  // Sur les deux : selon la page, c'est `html` ou `body` qui porte le
+  // défilement, et n'en figer qu'un laissait la seconde barre.
+  document.body.classList.toggle("est-fige-par-le-graphe", fige === true);
+  document.documentElement.classList.toggle("est-fige-par-le-graphe", fige === true);
 }
 
 /** Les propositions, retrouvables par leur identifiant — pour les intitulés. */
@@ -1954,9 +1973,10 @@ function bindListDelegation(root) {
       if (!kind || !subjectKey) return;
       view.open = { kind, subjectKey };
       // Un autre constat, un autre raisonnement : garder la carte désignée du
-      // précédent resserrerait le schéma sur un chemin qui n'existe plus.
-      view.raisonnementCarte = null;
-      view.raisonnementPleinEcran = false;
+      // précédent resserrerait le schéma sur un chemin qui n'existe plus. Et
+      // l'on revient à la première lecture — c'est ce qu'on vient chercher.
+      view.raisonnement = espaceParDefaut();
+      view.detailOnglet = DETAIL.ETABLIT;
       renderContent(root);
       return;
     }
@@ -1974,7 +1994,18 @@ function bindListDelegation(root) {
 function bind(root) {
   bindListDelegation(root);
   bindExportButton(root);
-  brancherLeSchema(root);
+  brancherLEspace(root);
+
+  // Les trois lectures d'une affirmation. Changer d'onglet ne touche à rien
+  // d'autre : la recherche, la page et l'affirmation ouverte restent.
+  bindLightTabs(root, {
+    selector: ".memory-detail__tabs [data-light-tab-target]",
+    onChange: (onglet) => {
+      if (view.detailOnglet === onglet) return;
+      view.detailOnglet = onglet;
+      renderContent(root);
+    }
+  });
 
   const recherche = root.querySelector("[data-memory-search]");
   if (recherche) {
@@ -2067,21 +2098,6 @@ function bind(root) {
 
   for (const bouton of root.querySelectorAll("[data-memory-reviewed]")) {
     bouton.addEventListener("click", () => markAsReviewed(root, bouton.getAttribute("data-memory-reviewed")));
-  }
-
-  for (const case_ of root.querySelectorAll("[data-memory-depends-pick]")) {
-    case_.addEventListener("change", () => {
-      const id = case_.getAttribute("data-memory-depends-pick");
-      const choisies = new Set(view.dependsDraft ?? []);
-      if (case_.checked) choisies.add(id);
-      else choisies.delete(id);
-      view.dependsDraft = [...choisies];
-      renderContent(root);
-    });
-  }
-
-  for (const bouton of root.querySelectorAll("[data-memory-depends]")) {
-    bouton.addEventListener("click", () => declareDependsOn(root, bouton));
   }
 
   root.querySelector("[data-memory-validate]")?.addEventListener("click", (event) => {

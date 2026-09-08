@@ -8,7 +8,6 @@ import {
   describeReviewFlag,
   needsReview,
   pendingReviews,
-  planDependency,
   planReviewFlags
 } from "./assertion-dependencies.js";
 
@@ -146,59 +145,6 @@ test("on lit ce qui repose sur une affirmation, et ce sur quoi elle repose", () 
   assert.deepEqual(dependentsOf("h1", liens), ["n1", "n2"]);
   assert.deepEqual(dependenciesOf("n1", liens), ["h1", "h2"]);
   assert.deepEqual(dependentsOf("", liens), []);
-});
-
-/* ── Ce qu'on refuse d'écrire ────────────────────────────────────────────── */
-
-test("une affirmation ne peut pas reposer sur elle-même", () => {
-  const plan = planDependency({ assertion: hypothese("h1"), dependsOn: hypothese("h1") });
-
-  assert.equal(plan.ok, false);
-  assert.match(plan.reason, /elle-même/);
-});
-
-test("on ne repose pas sur un constat", () => {
-  // Dire qu'une note repose sur un avis de chantier serait un abus de langage
-  // qui rendrait le signal illisible le jour où cet avis change.
-  const plan = planDependency({ assertion: constat("n1"), dependsOn: constat("c1") });
-
-  assert.equal(plan.ok, false);
-  assert.match(plan.reason, /hypothèse|contrainte/);
-});
-
-test("on repose sur une contrainte comme sur une hypothèse", () => {
-  // Une note de calcul repose bel et bien sur la zone de neige. C'est même le
-  // cas le plus fréquent — et il était refusé.
-  const plan = planDependency({ assertion: constat("note"), dependsOn: contrainte("c-neige") });
-
-  assert.equal(plan.ok, true);
-  assert.equal(plan.link.depends_on_assertion_id, "c-neige");
-});
-
-test("un lien déjà déclaré ne se redéclare pas", () => {
-  const plan = planDependency({
-    assertion: constat("n1"),
-    dependsOn: hypothese("h1"),
-    existing: [lien("n1", "h1")]
-  });
-
-  assert.equal(plan.ok, false);
-});
-
-test("un lien recevable porte son projet et son auteur", () => {
-  const plan = planDependency({
-    assertion: constat("n1"),
-    dependsOn: hypothese("h1"),
-    declaredBy: "u-1"
-  });
-
-  assert.equal(plan.ok, true);
-  assert.deepEqual(plan.link, {
-    project_id: "projet-1",
-    assertion_id: "n1",
-    depends_on_assertion_id: "h1",
-    declared_by: "u-1"
-  });
 });
 
 /* ── Ce que l'écran dit ──────────────────────────────────────────────────── */

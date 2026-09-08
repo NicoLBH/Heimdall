@@ -2442,7 +2442,19 @@ function caler(root) {
 
 let calage = null;
 
-export function renderCopilote(root, { reload = false } = {}) {
+/**
+ * Le copilote, monté quelque part.
+ *
+ * @param {Element} root où le poser
+ * @param {object} options
+ * @param {boolean} [options.reload] relire les discussions
+ * @param {boolean} [options.garderLeDefilement] vrai quand il est **invité**
+ *   dans un écran qui n'est pas le sien — une colonne de l'espace de
+ *   raisonnement. Il n'est alors pas le seul ascenseur de la page, et lui
+ *   laisser désigner la source de défilement ferait perdre au bandeau du projet
+ *   le mouvement qu'il surveille.
+ */
+export function renderCopilote(root, { reload = false, garderLeDefilement = false } = {}) {
   if (!root) return;
 
   const etat = ensureState();
@@ -2453,10 +2465,10 @@ export function renderCopilote(root, { reload = false } = {}) {
   calage = () => caler(root);
   window.addEventListener("resize", calage);
 
-  // Le fil est le seul ascenseur de l'écran : la coque ne défile plus. Le lui
-  // désigner comme source de défilement ferait chercher au bandeau un
+  // Le fil est le seul ascenseur de **son** écran : la coque ne défile plus. Le
+  // lui désigner comme source de défilement ferait chercher au bandeau un
   // mouvement qui n'a plus lieu.
-  registerProjectPrimaryScrollSource(null);
+  if (!garderLeDefilement) registerProjectPrimaryScrollSource(null);
 
   // Les discussions se relisent à la première venue, et sur demande. Une
   // relecture à chaque rendu ferait clignoter le rail pendant qu'on écrit.

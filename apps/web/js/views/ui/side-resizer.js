@@ -40,6 +40,10 @@ export function renderSideResizer({ id = "", className = "" } = {}) {
  * @param {(largeur: number) => void} options.onResize appelé à chaque mouvement
  * @param {(largeur: number) => void} [options.onEnd] appelé au relâchement
  * @param {number} [options.min] @param {number} [options.max]
+ * @param {"x"|"y"} [options.axe] l'axe du glissé — `y` pour une hauteur
+ * @param {1|-1} [options.sens] `-1` quand tirer **vers la gauche** (ou vers le
+ *   haut) agrandit : c'est le cas d'un panneau collé au bord droit, où l'on
+ *   tire la poignée dans le sens inverse de ce qu'on agrandit
  * @returns {() => void} de quoi débrancher — sans quoi chaque rendu ajouterait
  *   un écouteur de plus, et ils survivraient à l'écran.
  */
@@ -50,21 +54,32 @@ export function bindSideResizer({
   onResize,
   onEnd = null,
   min = 220,
-  max = 520
+  max = 520,
+  axe = "x",
+  sens = 1
 } = {}) {
   if (!handle || typeof getWidth !== "function" || typeof onResize !== "function") return () => {};
 
+  // Un même geste, deux axes. Une seconde poignée écrite pour les hauteurs
+  // aurait sa propre idée des bornes, du guide et du relâchement — et l'une des
+  // deux finirait par ne plus se comporter comme l'autre.
+  const vertical = axe === "y";
+  const positionDe = (evenement) => (vertical ? evenement.clientY : evenement.clientX);
+  const inverse = sens === -1 ? -1 : 1;
+
   const auPointeur = (event) => {
     event.preventDefault();
-    const departX = event.clientX;
+    const depart = positionDe(event);
     const departLargeur = Number(getWidth()) || min;
+    const calculer = (evenement) =>
+      Math.max(min, Math.min(max, departLargeur + inverse * (positionDe(evenement) - depart)));
 
     const enMouvement = (mouvement) => {
-      const suivante = Math.max(min, Math.min(max, departLargeur + (mouvement.clientX - departX)));
+      const suivante = calculer(mouvement);
       onResize(suivante);
       if (guide) {
         guide.style.display = "block";
-        guide.style.left = `${suivante}px`;
+        guide.style[vertical ? "top" : "left"] = `${suivante}px`;
       }
     };
 
@@ -72,8 +87,7 @@ export function bindSideResizer({
       window.removeEventListener("pointermove", enMouvement);
       window.removeEventListener("pointerup", auRelachement);
       if (guide) guide.style.display = "none";
-      const derniere = Math.max(min, Math.min(max, departLargeur + (fin.clientX - departX)));
-      if (typeof onEnd === "function") onEnd(derniere);
+      if (typeof onEnd === "function") onEnd(calculer(fin));
     };
 
     window.addEventListener("pointermove", enMouvement);

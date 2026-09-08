@@ -16563,21 +16563,26 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
    discontinu dit « cette case est vide » — c'est une information, souvent celle
    qu'il faut aller combler. */
 .memory-detail{ padding-bottom:200px; }
+/* Les trois lectures d'une affirmation, et elles n'ont pas la même largeur.
+   « Ce qui l'établit » et « Son histoire » se lisent comme un texte, dans la
+   colonne de lecture. « Comment on en est arrivé là » est un poste de travail :
+   il prend l'écran, exactement comme les Changements d'une proposition —
+   `.review-tabpanel--pleine` fait le même débordement, pour la même raison. */
+.memory-detail__tabs{ margin-top:8px; }
+.memory-detail__panneau{ display:flex; flex-direction:column; gap:12px; padding-top:12px; }
+.memory-detail__panneau--pleine{
+  margin-left:calc(50% - 50vw);
+  margin-right:calc(50% - 50vw);
+  padding-left:24px;
+  padding-right:24px;
+}
+.memory-detail__vide{ margin:0; color:var(--muted); font-size:13px; max-width:70ch; }
+@media (max-width: 900px){
+  .memory-detail__panneau--pleine{ margin-left:0; margin-right:0; padding-left:0; padding-right:0; }
+}
 .memory-detail__tags{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:0 0 4px; }
 .memory-detail__tags-label{ color:var(--muted); font-size:11px; }
 .memory-detail__tags .memory-tag{ margin-right:2px; }
-
-/* Les dépendances : un sens, et plusieurs socles à la fois. */
-.memory-depends__hint{ margin:0 0 6px; color:var(--muted); font-size:12px; max-width:80ch; }
-.memory-depends__label{ margin:0 0 2px; color:var(--text); font-size:13px; font-weight:600; }
-.memory-depends__choices{ display:flex; flex-direction:column; gap:4px; margin:6px 0 10px; max-height:220px; overflow-y:auto; }
-.memory-depends__choice{
-  display:flex; align-items:center; gap:8px; padding:5px 8px;
-  border:1px solid transparent; border-radius:6px;
-  color:var(--muted); font-size:13px; cursor:pointer;
-}
-.memory-depends__choice:hover{ background:var(--panel2); }
-.memory-depends__choice.is-checked{ border-color:var(--borderColor-accent-emphasis); color:var(--text); }
 
 /* Le Copilote du projet.
 
@@ -17447,24 +17452,6 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   text-decoration:underline dotted;
   text-underline-offset:3px;
 }
-
-/* Les deux sens du graphe, dans le détail d'une affirmation. */
-.memory-depends{
-  margin:16px 0 0;
-  padding:12px 14px;
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  background:var(--panel2);
-}
-.memory-depends h4{ margin:0 0 4px; font-size:13px; }
-.memory-depends__block{ margin-bottom:12px; }
-.memory-depends__block ul{ margin:0; padding-left:18px; color:var(--muted); font-size:13px; }
-.memory-depends__empty{ margin:0; color:var(--muted); font-size:13px; }
-.memory-depends__form{ margin-top:12px; }
-.memory-depends__form label{ display:block; margin-bottom:6px; color:var(--muted); font-size:12px; }
-.memory-depends__row{ display:flex; gap:8px; flex-wrap:wrap; }
-.memory-depends__row .gh-input{ flex:1 1 320px; min-width:0; }
-.memory-depends--unknown{ border-style:dashed; }
 
 /* Le compteur des non classés s'ouvre : un nombre qu'on ne peut pas atteindre
    ne fait que culpabiliser. */
@@ -18699,9 +18686,14 @@ strong.est-verifie{ color:#3fb950; }
 /* Un trait qui mène à une boîte éteinte se suit mal : les boîtes du chemin
    s'allument aussi, à la même intensité que le trait qui y mène. */
 .graphe-noeud.est-en-amont{
-  border-color:color-mix(in srgb, #f0883e calc(var(--graphe-amont, .5) * 100%), var(--border, #30363d));
-  background:rgba(240,136,62,calc(var(--graphe-amont, .5) * .1));
+  border-color:color-mix(in srgb, var(--graphe-contraste) calc(var(--graphe-amont, .5) * 100%), var(--border, #30363d));
+  background:color-mix(in srgb, var(--graphe-contraste) calc(var(--graphe-amont, .5) * 10%), transparent);
 }
+/* Ce qui découle de la carte désignée : même couleur, en pointillés. On remonte
+   une chaîne bien plus souvent qu'on ne la descend, et deux traits pleins de
+   part et d'autre ne diraient plus dans quel sens on lit. */
+.graphe-noeud.est-en-aval{ border-style:dashed; border-color:color-mix(in srgb, var(--graphe-contraste) 45%, var(--border, #30363d)); }
+.graphe-noeud.est-survolee{ background:var(--graphe-contraste-fond); border-color:var(--graphe-contraste); border-style:solid; }
 .graphe-noeud:focus-visible{ outline:2px solid var(--graphe-contraste); outline-offset:-2px; }
 .graphe-noeud__entete{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
 .graphe-noeud__titre{ font-size:12px; font-weight:600; }
@@ -20198,101 +20190,204 @@ body.proposition-merge-open{ overflow:hidden; }
 .memoire-variables__barre input{ flex:1 1 auto; max-width:420px; }
 
 /* ── Comment on en est arrivé là ────────────────────────────────────────────
-   Deux fenêtres côte à côte : le raisonnement à gauche, l'état du projet à
-   droite. Mélangées, elles donneraient un code truffé de valeurs — un
-   raisonnement vrai d'un seul bâtiment, ce que le langage refuse d'écrire. */
-.memory-raisonnement{ margin-top:20px; }
-.memory-raisonnement__lead{ margin:0 0 10px; color:var(--muted); font-size:12px; }
-.memory-raisonnement__trou{ color:rgb(255,123,114); }
+   Un poste de travail, pas un panneau : le schéma des dépendances en haut sur
+   toute la largeur, le raisonnement et ce que le projet en dit dessous, et la
+   discussion à droite quand on l'appelle.
+
+   Le code et les valeurs sont **une seule grille**. Deux fenêtres côte à côte,
+   chacune avec son ascenseur, ne garantissaient pas de rester alignées : une
+   ligne qui repliait d'un côté et pas de l'autre décalait tout le reste, et
+   l'on comparait la condition d'une ligne à la valeur d'une autre sans le voir.
+   Le décalage n'est plus improbable, il est impossible — c'est la même rangée. */
 .memory-raisonnement--vide p{ margin:0; color:var(--muted); font-size:13px; max-width:70ch; }
 
-/* ── Le schéma des dépendances ─────────────────────────────────────────────
-   Toute largeur, au-dessus des deux fenêtres : c'est la **forme** du
-   raisonnement, et une forme ne se lit pas dans une colonne. Les deux fenêtres
-   viennent après, pour vérifier ligne à ligne.
-
-   Le contraste passe au bleu. L'orange est celui de l'écran Incendie, où ce
-   schéma est né ; ici il est déjà pris — c'est la couleur d'un chemin de
-   fichier dans le code Mdall —, et deux sens pour une même couleur se lisent
-   comme une erreur. */
-.memory-raisonnement__schema{ margin:0 0 16px; }
-.memory-raisonnement__schema .graphe-bloc{
+.raison-espace{
+  /* Une hauteur d'ensemble tenue, et c'est elle qui rend l'écran utilisable :
+     sans elle le code s'étire à la hauteur de son contenu, plus rien ne défile,
+     et « aller à la fonction » ne fait rien. Les zones se partagent cette
+     hauteur ; les poignées déplacent la frontière, pas le total. */
+  height:var(--raison-hauteur, 720px);
+  --raison-schema:300px;
+  --raison-code:520px;
+  --raison-etat:380px;
+  --raison-copilote:360px;
+  /* Le contraste passe au bleu. L'orange est celui de l'écran Incendie, où ce
+     schéma est né ; ici il désigne déjà un chemin de fichier dans le code
+     Mdall, et deux sens pour une couleur se lisent comme une erreur. */
   --graphe-contraste:#58a6ff;
   --graphe-contraste-fond:rgba(56,139,253,.15);
-  /* Encadré comme les deux fenêtres qui le suivent, et comme « le chemin de
-     cette exécution » dans les Actions : trois panneaux d'un même écran qui ne
-     partageraient pas leur cadre se lisent comme trois pièces rapportées. */
+  display:flex;
+  
+  flex-direction:column;
+  min-height:0;
   border:1px solid var(--border);
   border-radius:var(--radius);
   background:rgb(13,17,23);
   overflow:hidden;
 }
-.memory-raisonnement__schema .graphe__tete{
-  margin:0;
+
+.raison-espace__barre{
+  display:flex; align-items:center; gap:10px;
   padding:8px 12px;
   border-bottom:1px solid var(--border);
   background:var(--panel2);
-}
-.memory-raisonnement__schema .graphe__legende{ margin:0; }
-.memory-raisonnement__schema .graphe__legende b{ color:var(--text); }
-.memory-raisonnement__schema .graphe{ background:var(--bgAssistPanel); padding:16px 12px 20px; }
-/* Le trait des liaisons est celui du chemin d'exécution : c'est le même dessin,
-   et deux gris voisins mais différents se lisent comme un défaut d'alignement. */
-.memory-raisonnement__schema .graphe-lien{ stroke:rgb(61,68,77); }
-/* La carte tient plus de texte qu'un module d'arrêté : un nom de variable, sa
-   valeur, et ce qu'elle a lu. Elle s'élargit d'autant. */
-.memory-raisonnement__schema .graphe-noeud{ width:240px; }
-.memory-raisonnement__schema .graphe__colonne{ min-width:240px; }
-
-.memory-raisonnement__deux{
-  display:grid;
-  grid-template-columns:minmax(0, 1.6fr) minmax(0, 1fr);
-  gap:12px;
-  align-items:start;
-}
-/* Sous 900 pixels, les deux colonnes se suivent : à côté, elles seraient trop
-   étroites pour qu'une ligne de code tienne, et l'on comparerait deux
-   enroulements plutôt que deux lignes. */
-@media (max-width: 900px){
-  .memory-raisonnement__deux{ grid-template-columns:minmax(0, 1fr); }
-}
-
-.memory-raisonnement__volet{
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  background:rgb(13,17,23);
-  overflow:hidden;
-}
-.memory-raisonnement__tete{
-  padding:8px 12px;
-  border-bottom:1px solid var(--border);
-  background:var(--panel2);
-  color:var(--muted);
   font-size:12px;
 }
-.memory-raisonnement__corps{
-  padding:10px 0;
+.raison-espace__titre{ color:var(--text); font-size:13px; flex:0 0 auto; }
+.raison-espace__resume{ color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.raison-espace__outils{ margin-left:auto; display:flex; gap:2px; flex:0 0 auto; }
+.raison-espace__outil{ width:28px; height:28px; justify-content:center; }
+.raison-espace__outil.est-actif{ color:var(--graphe-contraste); }
+
+/* Le schéma : sa hauteur se tire, elle ne se subit pas. Un raisonnement de
+   trois étapes n'a pas besoin de la même place qu'un de quinze. */
+/* Sa hauteur est **tenue**, pas seulement souhaitée : en flex, une hauteur qui
+   n'interdit pas le rétrécissement se fait grignoter par ce qui suit, et le
+   schéma se retrouvait coupé au milieu des cartes. */
+.raison-espace__schema{ flex:0 0 var(--raison-schema); min-height:0; display:flex; }
+.raison-espace__schema .graphe-bloc{
+  /* Le bleu se repose **ici** : `.graphe-bloc` pose l'orange sur lui-même, et
+     une variable posée sur un ancêtre ne l'emporte pas sur celle de l'élément. */
+  --graphe-contraste:#58a6ff;
+  --graphe-contraste-fond:rgba(56,139,253,.15);
+  flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+  border:0; border-radius:0; background:transparent; margin:0;
+}
+.raison-espace__schema .graphe__tete{
+  margin:0; padding:8px 12px; flex:0 0 auto;
+  border-bottom:1px solid var(--border);
+}
+.raison-espace__schema .graphe__legende{ margin:0; }
+.raison-espace__schema .graphe__legende b{ color:var(--text); }
+.raison-espace__schema .graphe__scene{ flex:1 1 auto; min-height:0; }
+.raison-espace__schema .graphe{ background:var(--bgAssistPanel); padding:16px 12px 20px; height:100%; max-height:none; }
+/* La carte tient plus de texte qu'un module d'arrêté : un nom de variable, sa
+   valeur, et ce qu'elle a lu. Elle s'élargit d'autant. */
+.raison-espace__schema .graphe-noeud{ width:240px; }
+.raison-espace__schema .graphe__colonne{ min-width:240px; }
+
+/* Les poignées. Discrètes au repos, elles s'allument sous le pointeur : un
+   trait qui se colore dit qu'on peut le saisir, là où un curseur seul se
+   découvre par accident. */
+.raison-espace__poignee{ flex:0 0 auto; background:var(--border); transition:background .12s ease; }
+.raison-espace__poignee:hover{ background:var(--graphe-contraste); }
+.raison-espace__poignee--horizontale{ height:4px; cursor:row-resize; }
+.raison-espace__poignee--verticale{ width:4px; cursor:col-resize; }
+
+.raison-espace__bas{ display:flex; min-height:0; flex:1 1 auto; }
+.raison-espace__code{
+  flex:1 1 auto; min-width:0; min-height:0;
+  overflow:auto;
+  background:rgb(13,17,23);
+}
+.raison-espace__copilote{
+  flex:0 0 var(--raison-copilote); min-width:0; min-height:0;
+  border-left:1px solid var(--border);
+  background:var(--bg);
+  overflow:hidden;
+}
+.raison-espace__copilote .copilote-section{ height:100%; padding:0; }
+.raison-espace__copilote .copilote-thread__inner{ padding:16px 12px 4px; }
+.raison-espace__panne{ margin:16px 12px; color:var(--muted); font-size:12px; }
+
+/* Plein écran : l'espace prend la page, et rien d'autre ne défile derrière. */
+.raison-espace.est-plein-ecran{
+  position:fixed; inset:var(--app-top, 0) 0 0 0; z-index:calc(var(--z-header, 40) + 2);
+  border-radius:0; border-width:0;
+}
+.raison-espace.est-plein-ecran{ height:auto; }
+
+/* ── Le code et les valeurs, en une grille ──────────────────────────────────
+   Trois colonnes : le raisonnement, son numéro, ce que le projet en dit. Les
+   numéros sont **au milieu** — ils séparent les deux lectures, et ce sont eux
+   qu'on saisit pour changer le partage : la frontière est là où elle se voit.
+
+   Le code peut dépasser la largeur qu'on lui a donnée : `max-content` le laisse
+   pousser plutôt que de déborder sur la colonne voisine, et c'est le conteneur
+   qui défile — une seule fois, pour les trois colonnes à la fois. */
+.raison-grille{
+  display:grid;
+  /* Le code prend au moins la largeur qu'on lui a donnée, et davantage si une
+     ligne l'exige : une citation tronquée ne se relit pas. Le conteneur défile
+     — une fois, pour les trois colonnes à la fois. */
+  grid-template-columns:minmax(var(--raison-code), max-content) 46px var(--raison-etat);
+  width:max-content;
+  min-width:100%;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-size:12px;
   line-height:1.9;
-  overflow-x:auto;
 }
-/* Les deux volets numérotent les mêmes lignes : c'est ce qui permet de suivre
-   du regard d'une colonne à l'autre sans compter. */
-.memory-raisonnement__ligne{ display:flex; align-items:baseline; gap:12px; padding:0 12px; white-space:pre; }
-.memory-raisonnement__num{
-  flex:0 0 auto;
-  min-width:26px;
+.raison-ligne{ display:contents; }
+.raison-ligne__code{ padding:0 12px; white-space:pre; }
+
+/* Les numéros et les valeurs restent collés au bord droit pendant que le code
+   défile sous eux. Une citation d'arrêté fait mille pixels : sans cela, la lire
+   emportait les valeurs hors de l'écran, et l'on se retrouvait devant du code
+   sans savoir ce qu'il vaut. */
+.raison-ligne__num{
+  position:sticky; right:var(--raison-etat); z-index:1;
+  padding:0 8px;
+  border-left:1px solid var(--border);
+  border-right:1px solid var(--border);
+  background:rgb(13,17,23);
   color:var(--muted);
   font-size:11px;
   text-align:right;
   user-select:none;
 }
-.memory-raisonnement__code{ min-width:0; }
-.memory-raisonnement__etat{ min-width:0; white-space:normal; }
-.memory-raisonnement__etat b{ color:rgb(165,214,255); font-weight:600; }
-.memory-raisonnement__zone{ margin-left:8px; color:var(--muted); font-size:11px; }
-.memory-raisonnement__ligne--manquante{ background:rgba(248,81,73,.08); }
+.raison-ligne__etat{
+  position:sticky; right:0; z-index:1;
+  padding:0 12px;
+  background:rgb(13,17,23);
+  white-space:normal;
+}
+.raison-ligne__etat b{ color:rgb(165,214,255); font-weight:600; }
+
+/* La ligne de titres reste sous les yeux : à quatre-vingts lignes, on ne sait
+   plus laquelle des deux colonnes on lit. */
+.raison-ligne--tete > *{
+  position:sticky; top:0; z-index:2;
+  background:var(--panel2);
+  border-bottom:1px solid var(--border);
+  color:var(--muted);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  font-size:11px;
+  line-height:2.4;
+  white-space:nowrap;
+}
+/* Les deux cellules de droite sont collées deux fois — en haut et à droite : le
+   coin doit rester au-dessus du reste, sinon le code lui passe devant. */
+.raison-ligne--tete .raison-ligne__num,
+.raison-ligne--tete .raison-ligne__etat{ z-index:3; }
+.raison-ligne__num--poignee{ cursor:col-resize; text-align:center; }
+.raison-ligne__num--poignee:hover{ background:var(--graphe-contraste-fond); color:var(--text); }
+
+/* Ce que personne n'a versé se voit sur toute la rangée : c'est le trou du
+   raisonnement, et il ne se cherche pas. */
+.raison-ligne--manquante .raison-ligne__code{ background:rgba(248,81,73,.08); }
+.raison-ligne--manquante .raison-ligne__num,
+.raison-ligne--manquante .raison-ligne__etat{
+  /* Les cellules collées sont opaques : la teinte se pose **par-dessus** leur
+     fond, sinon la rangée changerait de couleur au défilement. */
+  background-image:linear-gradient(rgba(248,81,73,.08), rgba(248,81,73,.08));
+}
+.raison-grille__trou{ color:rgb(255,123,114); }
+.raison-grille__note{ margin-left:8px; color:var(--muted); font-size:11px; }
+
+/* Où le schéma vient de nous emmener. La marque s'efface au rendu suivant :
+   c'est un repère du geste, pas un état. */
+.raison-ligne--visee .raison-ligne__code{ background:var(--graphe-contraste-fond); }
+.raison-ligne--visee .raison-ligne__num,
+.raison-ligne--visee .raison-ligne__etat{
+  background-image:linear-gradient(var(--graphe-contraste-fond), var(--graphe-contraste-fond));
+}
+
+/* Sous 900 pixels, la discussion passe son tour : à côté du code, il ne
+   resterait pour l'un ni pour l'autre de quoi lire une ligne. */
+@media (max-width: 900px){
+  .raison-espace__copilote,
+  .raison-espace__poignee--verticale{ display:none; }
+}
 
 /* ── Les variables du projet ────────────────────────────────────────────────
    Ce que le projet partage d'une discipline à l'autre : un nom déclaré quelque
