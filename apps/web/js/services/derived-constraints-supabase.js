@@ -15,6 +15,14 @@
  * **Aucun acte n'est posé.** Une hypothèse versée reçoit son émission ; une
  * contrainte n'en reçoit pas, parce qu'on ne se prononce pas dessus. `planAct`
  * le refuse, et ce fichier n'essaie pas.
+ *
+ * ## Les lectures de l'utilitaire s'enregistrent ici
+ *
+ * Une proposition fusionnée enregistrait ce que ses règles avaient lu ; ce
+ * chemin-ci n'enregistrait rien, faute d'avoir quoi que ce soit à enregistrer —
+ * un utilitaire ne disait pas ce qu'il lisait. Maintenant qu'il le déclare, le
+ * versement le résout comme les autres, et une donnée employée uniquement par un
+ * utilitaire cesse d'être comptée « aucun emploi ».
  */
 
 import { listProjectAssertions, markSuperseded, writeAssertions } from "./project-memory-supabase.js";
@@ -62,6 +70,13 @@ export async function rememberSiteConstraints({ projectId, candidates = [], decl
       .filter((entry) => !entry.superseded_by)
       .map((entry) => [`${entry.kind}|${entry.subject_key}`, entry])
   );
+  //
+  // **Y compris quand la contrainte se met à déclarer ce qu'elle lit.** La
+  // déclaration ne change pas la valeur : reverser pour elle seule périmerait une
+  // ligne juste, réécrirait l'histoire, et marquerait à revérifier ce que rien
+  // n'a touché. Les contraintes déjà en place prennent leurs lectures du
+  // catalogue — voir `lecturesDeLUtilitaire` — et « Reconstruire les liens du
+  // raisonnement » les leur donne sans écrire une affirmation de plus.
   const nouvelles = lignes.filter((ligne) => {
     const ancienne = enVigueur.get(`${ligne.kind}|${ligne.subject_key}`);
     return !ancienne || ancienne.statement !== ligne.statement;
@@ -99,5 +114,22 @@ export async function rememberSiteConstraints({ projectId, candidates = [], decl
     }
   }
 
-  return { written: ecrites.length, superseded: liens.length, flagged };
+  // Ce que les utilitaires ont déclaré lire, résolu maintenant et conservé. À
+  // part du reste et silencieux en cas d'échec : les contraintes sont versées, et
+  // lui manquer son graphe ne doit pas défaire le versement.
+  const lectures = await enregistrerLesLectures({
+    memoire: existantes, ecrites, projectId, propositionId: null
+  });
+
+  return { written: ecrites.length, superseded: liens.length, flagged, lectures };
+}
+
+/** Les lectures d'un versement, sans jamais faire échouer le versement. */
+async function enregistrerLesLectures(quoi) {
+  try {
+    const { enregistrerLeVersement } = await import("./memoire-applications-supabase.js");
+    return await enregistrerLeVersement(quoi);
+  } catch {
+    return 0;
+  }
 }

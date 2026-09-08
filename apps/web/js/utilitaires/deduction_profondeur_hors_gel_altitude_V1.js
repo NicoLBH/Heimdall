@@ -19,7 +19,7 @@
 import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
-import { reservesConservees, entreesDe } from "./lecture-fait.js";
+import { lecturesDeclarees, reservesConservees, entreesDe } from "./lecture-fait.js";
 
 export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   nom: "deduction_profondeur_hors_gel_altitude",
@@ -30,6 +30,22 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   sujet: "Profondeur hors gel",
   domaine: DOMAIN.SOL,
   cleDonnee: "frost_depth",
+
+  /**
+   * Les deux termes de la formule, dans l'ordre où elle les écrit.
+   *
+   * `H = H0 + (altitude − 150) / 4000` : les deux sont des sujets que le projet
+   * verse, et les deux sont donc déclarés. Le département et le canton, non —
+   * ils servent à choisir H0 au serveur, mais la mémoire ne les porte pas, et
+   * déclarer un sujet que rien ne verse ferait un lien vers rien.
+   */
+  lit: [
+    { sujet: "H0 retenu pour le département", lire: (fait) => fait?.fact_value?.h0_selected_m },
+    {
+      sujet: "Altitude du site",
+      lire: (fait) => fait?.fact_value?.inputs?.altitude ?? fait?.fact_value?.altitude
+    }
+  ],
 
   deduire(fait = {}) {
     const brut = fait?.fact_value?.frost_depth_m;
@@ -52,6 +68,7 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
     return {
       valeur: `${metres.toFixed(2)} m`,
       entrees,
+      lectures: lecturesDeclarees(DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1, fait),
       reserves: [...reserves].filter((code) => RESERVES.includes(code)).sort()
     };
   }

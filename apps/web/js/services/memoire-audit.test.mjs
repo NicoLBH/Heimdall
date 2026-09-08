@@ -174,3 +174,78 @@ test("ce qui appelle un geste vient dans l'ordre de la gravité", () => {
     [VERDICT.DIFFERENTE, VERDICT.SANS_OBJET, VERDICT.INDECIDABLE]
   );
 });
+
+/* ── Les entrées périmées : ce que l'audit ne savait pas voir ────────────── */
+
+/** Une contrainte déduite qui déclare sur quelles valeurs elle a été calculée. */
+const calculeeSur = (sujet, valeur, lectures) => ({
+  id: `a-${sujet}`, subject_key: `site:${sujet}`, status: "assumed", superseded_by: null,
+  payload: {
+    subject: sujet, value: valeur, derived: true,
+    utilitaire: "deduction_profondeur_hors_gel_altitude_V1",
+    lectures: lectures.map(([sujetLu, valeurLue]) => ({ sujet: sujetLu, valeur: valeurLue }))
+  }
+});
+
+test("un calcul fait sur une entrée que le projet a changée depuis est signalé", () => {
+  // C'est le défaut qui gangrenait tout : une valeur d'apparence normale, dont
+  // l'entrée a bougé sous elle, et que rien ne signalait. On ne la recalcule pas
+  // — la table est au serveur —, on dit qu'elle ne vaut plus.
+  const memoire = [
+    dit("Altitude du site", "890 m"),
+    calculeeSur("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]])
+  ];
+
+  const audit = auditerLaMemoire(memoire);
+
+  assert.equal(audit.tient, false);
+  assert.equal(audit.compte.perimees, 1);
+  assert.deepEqual(audit.perimees.map((l) => [l.sujet, l.entree, l.calculeeSur, l.aujourdhui]), [
+    ["Profondeur hors gel", "Altitude du site", "13", "890 m"]
+  ]);
+});
+
+test("une unité écrite ne fait pas une dérive", () => {
+  // `13` et « 13 m » sont la même altitude. Signaler ici ferait crier au défaut
+  // sur une mémoire saine, et un audit qui signale tout ne signale plus rien.
+  const memoire = [
+    dit("Altitude du site", "13 m"),
+    calculeeSur("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]])
+  ];
+
+  assert.deepEqual(auditerLaMemoire(memoire).perimees, []);
+  assert.equal(auditerLaMemoire(memoire).tient, true);
+});
+
+test("une contrainte qui ne dit pas sur quoi elle a été calculée reste opaque", () => {
+  // Ne pas savoir n'autorise pas à prétendre qu'il y a un défaut, pas plus qu'à
+  // prétendre qu'il n'y en a pas. Elle se compte dans les opaques, comme avant.
+  const memoire = [
+    dit("Altitude du site", "890 m"),
+    deduite("Profondeur hors gel", "0.71 m", "deduction_profondeur_hors_gel_altitude_V1")
+  ];
+
+  const audit = auditerLaMemoire(memoire);
+  assert.deepEqual(audit.perimees, []);
+  assert.equal(audit.compte.opaques, 1);
+});
+
+test("une entrée déclarée que le projet ne porte pas n'est pas une dérive", () => {
+  // Il n'y a rien à quoi la comparer. C'est une lacune, elle se lit dans les
+  // lectures sans entrée — pas une contradiction.
+  const memoire = [calculeeSur("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]])];
+  assert.deepEqual(auditerLaMemoire(memoire).perimees, []);
+});
+
+test("une entrée périmée fait mentir « la mémoire tient », même sans règle", () => {
+  // Sur un projet dont le raisonnement passe surtout par des utilitaires,
+  // « rien à signaler » voulait dire « je n'ai presque rien regardé ».
+  const memoire = [
+    dit("Altitude du site", "890 m"),
+    calculeeSur("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]])
+  ];
+
+  const audit = auditerLaMemoire(memoire);
+  assert.equal(audit.regles, 0);
+  assert.equal(audit.tient, false);
+});

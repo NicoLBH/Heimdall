@@ -12,9 +12,19 @@
  * eux, dont la loi tient en une ligne et dont on connaît l'entrée.
  *
  * Ce fichier porte ces deux-là. Il ne s'allongera pas d'un cas par projet : ce
- * serait réécrire le serveur dans le navigateur, un utilitaire à la fois. Il
- * **disparaîtra** le jour où les utilitaires nommeront leurs sources — voir
- * `docs/a-traiter-plus-tard.md`, § 1.
+ * serait réécrire le serveur dans le navigateur, un utilitaire à la fois.
+ *
+ * ## Ce qu'il a perdu, et pourquoi c'est un progrès
+ *
+ * Il portait aussi une liste de **lignées** d'utilitaires « qui lisent
+ * l'altitude », tenue à la main. Elle n'est plus là : les utilitaires déclarent
+ * maintenant les sujets qu'ils lisent, dans leur propre fichier et sous leur
+ * version, et savoir qu'une déduction est concernée n'est plus une devinette
+ * entretenue ici.
+ *
+ * Il ne reste donc que la **loi de calcul** — la seule chose que ce fichier
+ * sache et que la déclaration ne dise pas. Il **disparaîtra** le jour où les
+ * utilitaires se rejoueront eux-mêmes ; voir `docs/a-traiter-plus-tard.md`, § 1.
  *
  * ## Pourquoi la table départementale ne descend pas au navigateur
  *
@@ -32,6 +42,8 @@ import { NATURE, classifyAssertion } from "./assertion-taxonomy.js";
 import { DERIVED_CONSTRAINT_KIND } from "./derived-constraints.js";
 import { RESERVE, RESERVES } from "../utilitaires/reserves.js";
 import { lireUnNombre } from "./memoire-en-texte.js";
+import { cleDuSujet } from "./memoire-identifiants.js";
+import { lecturesDeLUtilitaire } from "./memoire-applications.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -49,27 +61,6 @@ export function estLAltitude(assertion) {
   if (classifyAssertion(assertion).nature !== NATURE.DONNEE_BASE) return false;
   const sujet = texte(assertion?.payload?.subject) || texte(assertion?.statement);
   return /altitude/i.test(sujet);
-}
-
-/**
- * Les lignées d'utilitaires qui **lisent l'altitude**, quelle que soit la version.
- *
- * Distincte de `RELECTURES`, et la distinction est le cœur du problème. Savoir
- * qu'une déduction lit l'altitude et savoir la rejouer sont deux choses : la
- * première dit qu'elle est **concernée**, la seconde qu'on peut lui rendre un
- * chiffre. Une contrainte concernée qu'on ne sait pas rejouer doit être nommée —
- * ne pas savoir n'autorise pas à prétendre qu'il n'y a rien (règle 5).
- */
-const LIGNEES_QUI_LISENT_ALTITUDE = new Set([
-  "deduction_profondeur_hors_gel_altitude",
-  "deduction_zone_neige_commune"
-]);
-
-/** La lignée d'un utilitaire : son nom, sans la version. */
-function ligneeDe(reference) {
-  const brut = texte(reference);
-  const coupe = brut.lastIndexOf("_V");
-  return coupe > 0 ? brut.slice(0, coupe) : brut;
 }
 
 /**
@@ -120,17 +111,26 @@ function altitudeDeLEntree(assertion) {
 }
 
 /**
- * Une contrainte du site que l'altitude concerne.
+ * Une contrainte du site que ce sujet concerne.
  *
- * Deux façons de le savoir, et il faut les deux : la contrainte **garde**
- * l'altitude sur laquelle elle a été calculée, ou bien l'utilitaire qui l'a
- * déduite est d'une lignée qui lit l'altitude. La première seule laissait
- * disparaître toutes celles versées avant qu'on conserve les entrées.
+ * **Ce que l'utilitaire déclare lire**, d'abord. C'est le chemin normal depuis
+ * que les utilitaires citent leurs sources : la contrainte porte les sujets
+ * qu'elle a lus, ou son catalogue les donne pour sa version, et le lien est
+ * **dit** au lieu d'être deviné. Une liste de lignées tenue à la main vivait ici ;
+ * elle disait la même chose, en moins fiable et en un endroit de plus.
+ *
+ * **Ce que le calcul a conservé**, à défaut : `payload.inputs.altitude`. Une
+ * contrainte versée avant que les utilitaires déclarent quoi que ce soit, et dont
+ * l'utilitaire a depuis quitté le catalogue, n'a plus que ce nombre. Ne pas savoir
+ * n'autorise pas à prétendre qu'il n'y a rien (règle 5).
  */
-export function litLAltitude(assertion) {
+export function litLAltitude(assertion, sujetVarie = SUJET_ALTITUDE) {
   if (texte(assertion?.kind) !== DERIVED_CONSTRAINT_KIND) return false;
-  if (altitudeDeLEntree(assertion) !== null) return true;
-  return LIGNEES_QUI_LISENT_ALTITUDE.has(ligneeDe(assertion?.payload?.utilitaire));
+
+  const cible = cleDuSujet(sujetVarie);
+  if (cible && lecturesDeLUtilitaire(assertion).map(cleDuSujet).includes(cible)) return true;
+
+  return altitudeDeLEntree(assertion) !== null;
 }
 
 /** Ce qui manque à une contrainte pour être relue : son altitude de départ. */
@@ -222,11 +222,15 @@ export function relecturesConnues({ enVigueur = [], substitutions = new Map(), s
   if (!Number.isFinite(metres)) return rien;
 
   const depart = lireUnNombre(altitudeDite?.payload?.value);
+  // Le sujet tel que **ce projet** l'écrit : c'est lui que les déclarations
+  // citent, et le comparer à un libellé canonique manquerait « Altitude du
+  // terrain ».
+  const sujetVarie = texte(altitudeDite?.payload?.subject) || SUJET_ALTITUDE;
   const recalculees = [];
   const refusees = [];
 
   for (const assertion of enVigueur) {
-    if (!litLAltitude(assertion)) continue;
+    if (!litLAltitude(assertion, sujetVarie)) continue;
     const relue = relireLaContrainte(assertion, metres, {
       supposerDepuis: supposer && Number.isFinite(depart) ? depart : null
     });

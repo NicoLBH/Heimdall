@@ -15,7 +15,7 @@
 import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
-import { reservesConservees, entreesDe } from "./lecture-fait.js";
+import { lecturesDeclarees, reservesConservees, entreesDe } from "./lecture-fait.js";
 
 export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
   nom: "deduction_zone_neige_commune",
@@ -26,6 +26,18 @@ export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
   sujet: "Zone de neige",
   domaine: DOMAIN.STRUCTURE,
   cleDonnee: "snow_zone",
+
+  /**
+   * L'altitude, et rien d'autre du projet.
+   *
+   * La zone elle-même vient d'une table communale que la mémoire ne porte pas :
+   * la commune n'est pas un sujet versé, et déclarer la lire serait déclarer un
+   * lien vers rien. L'altitude, si — c'est elle qui décide de la réserve
+   * au-delà de 900 m, et un projet qui la corrige doit voir cette zone bouger.
+   */
+  lit: [
+    { sujet: "Altitude du site", lire: (fait) => fait?.fact_value?.inputs?.altitude }
+  ],
 
   deduire(fait = {}) {
     const valeur = String(fait?.fact_value?.zone ?? "").trim();
@@ -39,6 +51,11 @@ export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
     const altitude = Number(entrees?.altitude);
     if (Number.isFinite(altitude) && altitude > 900) reserves.add(RESERVE.ALTITUDE_HORS_TABLE);
 
-    return { valeur, entrees, reserves: [...reserves].filter((code) => RESERVES.includes(code)).sort() };
+    return {
+      valeur,
+      entrees,
+      lectures: lecturesDeclarees(DEDUCTION_ZONE_NEIGE_COMMUNE_V1, fait),
+      reserves: [...reserves].filter((code) => RESERVES.includes(code)).sort()
+    };
   }
 };

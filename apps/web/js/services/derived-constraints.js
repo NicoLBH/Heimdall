@@ -38,6 +38,20 @@
  * utilitaires. Ajouter une déduction, c'est ajouter un fichier et une ligne au
  * catalogue — rien ici ne bouge.
  *
+ * ## Chaque contrainte dit ce qu'elle a lu du projet
+ *
+ * Un utilitaire calcule au serveur et ne rapporte qu'un nombre : `altitude = 13`.
+ * Rien dans ce nombre ne dit qu'il vient de la donnée de base « Altitude du
+ * site » que le projet a versée — et tant que personne ne le disait, une donnée
+ * employée uniquement par un utilitaire comptait « aucun emploi », l'étude
+ * d'impact ne voyait pas ce chemin, et une altitude corrigée laissait la cote
+ * hors gel derrière elle sans un mot.
+ *
+ * L'utilitaire le déclare maintenant, dans son fichier et sous sa version. La
+ * contrainte porte cette déclaration, le versement la résout en lectures
+ * enregistrées, et tout ce qui lit `assertion_applications` — l'index, l'étude
+ * d'impact, la variante, le plan — la voit sans rien changer.
+ *
  * ## Ce que Géorisques ne produit pas
  *
  * Géorisques répond **par commune**, ou dans un rayon d'un kilomètre autour du
@@ -176,6 +190,10 @@ export function constraintsFromContextFacts(facts = []) {
       source: texte(outil.source),
       provenance: describeProvenance(outil),
       inputs: rendu.entrees ?? null,
+      // Les sujets du projet que cet utilitaire déclare lire. Voir
+      // `lecturesDeclarees` : une déclaration écrite dans son fichier, pas un
+      // rapprochement de noms fait après coup.
+      lectures: Array.isArray(rendu.lectures) ? rendu.lectures : [],
       sourceRef: texte(fait?.source_ref) || null,
       computedAt: texte(fait?.updated_at) || null
     });
@@ -226,6 +244,12 @@ export function plannedConstraintRows({ projectId = "", candidates = [], declare
         utilitaire: candidat.utilitaire,
         source: candidat.source,
         inputs: candidat.inputs ?? null,
+        // Ce que l'utilitaire a déclaré lire, avec la valeur qu'il a lue. Le
+        // versement les résout en lectures enregistrées, comme les conditions
+        // d'une règle ; la valeur reste ici pour qu'on puisse dire, plus tard,
+        // que ce calcul a été fait sur une valeur que le projet a changée
+        // depuis.
+        lectures: Array.isArray(candidat.lectures) ? candidat.lectures : [],
         sourceRef: candidat.sourceRef,
         computedAt: candidat.computedAt
       },

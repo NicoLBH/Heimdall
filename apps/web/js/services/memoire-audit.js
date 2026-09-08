@@ -31,6 +31,24 @@
  *
  * Un audit qui multiplie les signalements s'apprend à être ignoré, et un écran
  * qui signale tout ne signale plus rien.
+ *
+ * ## Les entrées périmées : ce que l'audit ne savait pas voir
+ *
+ * Une règle se rejoue ; une déduction d'utilitaire, non — elle calcule au serveur,
+ * et l'audit la rangeait parmi les opaques, comptée et tue. Sur un projet dont le
+ * raisonnement passe surtout par des utilitaires, « rien à signaler » voulait donc
+ * dire « je n'ai presque rien regardé ».
+ *
+ * Depuis que les utilitaires **déclarent ce qu'ils lisent**, il reste une chose
+ * qu'on peut dire sans savoir recalculer, et c'est la plus utile : *cette
+ * contrainte a été calculée sur une altitude de 13 m, et le projet dit aujourd'hui
+ * 890 m*. On ne prétend pas connaître la nouvelle cote — la table est au serveur —,
+ * on dit que celle qui est affichée ne vaut plus. C'est exactement le défaut qui
+ * gangrenait tout : une valeur d'apparence normale, dont l'entrée a bougé sous
+ * elle, et que rien ne signalait.
+ *
+ * Ce contrôle est local lui aussi : il compare une entrée déclarée à ce que le
+ * projet affirme aujourd'hui, sans rien remonter.
  */
 
 import { cleDuSujet } from "./memoire-identifiants.js";
@@ -39,6 +57,7 @@ import { normalizeZoneKey } from "./project-zones.js";
 import { sujetDe, valeurDuSujet } from "./memoire-raisonnement.js";
 import { VERDICT, lecteurDeValeurs, rejouerLaRegle } from "./memoire-evaluateur.js";
 import { planDeRecalcul } from "./memoire-plan.js";
+import { lireUnNombre } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -83,6 +102,68 @@ function porteesDesRegles(assertions) {
     for (const zone of porteesDe(assertion)) zones.add(zone);
   }
   return [...zones];
+}
+
+/** Une contrainte déduite porte l'utilitaire qui l'a produite. */
+const estDeduite = (assertion) => texte(assertion?.payload?.utilitaire) !== "";
+
+/**
+ * Deux valeurs disent-elles la même chose ?
+ *
+ * Les nombres se comparent en nombres — `13` et « 13 m » sont la même altitude,
+ * et signaler une dérive sur une unité écrite ferait crier au défaut sur une
+ * mémoire saine. Le reste se compare comme un sujet : casse et accents mis à
+ * part, rien de plus.
+ */
+function memeValeur(gauche, droite) {
+  const a = lireUnNombre(gauche);
+  const b = lireUnNombre(droite);
+  if (Number.isFinite(a) && Number.isFinite(b)) return a === b;
+  return cleDuSujet(gauche) === cleDuSujet(droite);
+}
+
+/**
+ * Les calculs faits sur une entrée que le projet a changée depuis.
+ *
+ * On ne signale que ce qu'on sait : une entrée déclarée, **avec** la valeur lue au
+ * moment du calcul, et un sujet que la mémoire porte encore aujourd'hui. Une
+ * contrainte versée avant que les utilitaires déclarent quoi que ce soit ne dit pas
+ * sur quoi elle a été calculée ; elle reste opaque, et l'écran le dit là.
+ */
+function entreesPerimees(assertions) {
+  const lignes = [];
+
+  for (const assertion of assertions) {
+    if (estUneRegle(assertion) || !estDeduite(assertion)) continue;
+    const declarees = Array.isArray(assertion?.payload?.lectures) ? assertion.payload.lectures : [];
+    if (!declarees.length) continue;
+
+    const zone = porteesDe(assertion)[0] ?? "";
+    const valeurs = valeursDeLaZone(assertions, zone);
+
+    for (const lecture of declarees) {
+      const sujet = texte(lecture?.sujet);
+      const lue = texte(lecture?.valeur);
+      // Sans la valeur lue, il n'y a rien à comparer ; sans le sujet en mémoire,
+      // il n'y a rien à quoi la comparer. Ni l'un ni l'autre n'est une dérive.
+      if (!sujet || !lue) continue;
+      const dite = valeurs.get(cleDuSujet(sujet));
+      if (dite === undefined || !texte(dite) || memeValeur(lue, dite)) continue;
+
+      lignes.push({
+        assertion,
+        sujet: sujetDe(assertion),
+        valeur: texte(assertion?.payload?.value),
+        entree: sujet,
+        calculeeSur: lue,
+        aujourdhui: texte(dite),
+        utilitaire: texte(assertion?.payload?.utilitaire),
+        zone
+      });
+    }
+  }
+
+  return lignes;
 }
 
 /** L'affirmation qui porte la conclusion d'une règle, dans cette zone. */
@@ -150,6 +231,7 @@ export function auditerLaMemoire(assertions = []) {
   }
 
   const plan = planDeRecalcul(toutes);
+  const perimees = entreesPerimees(toutes);
   const compte = (quoi) => verdicts.filter((ligne) => ligne.verdict === quoi).length;
 
   const differentes = compte(VERDICT.DIFFERENTE);
@@ -164,8 +246,17 @@ export function auditerLaMemoire(assertions = []) {
       indecidables,
       sansObjet,
       opaques: plan.opaques,
+      perimees: perimees.length,
       cycles: plan.cycles.reduce((somme, cycle) => somme + cycle.noeuds.length, 0)
     },
+    /**
+     * Les calculs d'utilitaire faits sur une entrée qui a bougé depuis.
+     *
+     * On ne les recalcule pas — la table est au serveur —, on dit que la valeur
+     * affichée ne vaut plus. C'est tout ce qu'on peut dire honnêtement, et c'est
+     * beaucoup plus que le silence d'avant.
+     */
+    perimees,
     // Ce que l'audit n'a pas pu regarder : les déductions d'un utilitaire. Les
     // taire ferait passer « rien à signaler » pour « tout a été vérifié ».
     opaques: plan.zones.flatMap((zone) => zone.opaques),
@@ -175,11 +266,13 @@ export function auditerLaMemoire(assertions = []) {
      * La mémoire tient-elle ?
      *
      * Vrai quand aucune règle ne conclut autre chose que ce que le projet
-     * affirme, et qu'aucune n'a perdu son objet. L'indécidable ne compte pas
-     * comme une dérive : c'est une lacune d'entrée, pas une contradiction — et
-     * les confondre ferait crier au défaut sur un projet simplement incomplet.
+     * affirme, qu'aucune n'a perdu son objet, et qu'aucun calcul d'utilitaire ne
+     * repose sur une entrée que le projet a changée depuis. L'indécidable ne
+     * compte pas comme une dérive : c'est une lacune d'entrée, pas une
+     * contradiction — et les confondre ferait crier au défaut sur un projet
+     * simplement incomplet.
      */
-    tient: differentes === 0 && sansObjet === 0
+    tient: differentes === 0 && sansObjet === 0 && perimees.length === 0
   };
 }
 

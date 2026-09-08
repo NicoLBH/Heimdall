@@ -33,6 +33,25 @@
  * porte `reconstruit`, et l'écran doit le dire : confondre les deux ferait passer
  * pour établi un lien qui n'est qu'une ressemblance de noms.
  *
+ * ## Deux producteurs de lectures, et le second n'était pas là
+ *
+ * Une **règle** dit ce qu'elle lit : ses conditions portent des sujets, et c'est
+ * de là que viennent ses lectures. Un **utilitaire** ne le disait pas — il
+ * calcule au serveur et ne rapporte qu'un nombre —, si bien qu'une donnée de base
+ * employée uniquement par lui comptait « aucun emploi » et qu'une altitude
+ * corrigée laissait la cote hors gel derrière elle, muette.
+ *
+ * Il le déclare maintenant, dans son fichier et sous sa version, et la contrainte
+ * qu'il produit porte cette déclaration dans `payload.lectures`. Ce module la
+ * résout **par le même chemin** que les conditions d'une règle : même résolution
+ * de sujet, même zone, même rang, même figeage au versement. Il n'y a pas deux
+ * mécanismes — il y a deux façons de déclarer, et une seule façon de résoudre.
+ *
+ * La différence tient en un champ : une lecture de règle porte
+ * `rule_assertion_id`, une lecture d'utilitaire porte `utility`. La colonne
+ * existait déjà, et l'`input_assertion_id` nullable aussi : elles ont été posées
+ * pour ce jour-là.
+ *
  * ## Un appel, c'est une règle et une zone
  *
  * Une règle **appliquée** dépend de la zone : l'escalier A classé en 3ᵉ famille B
@@ -45,6 +64,7 @@ import { cleDuSujet } from "./memoire-identifiants.js";
 import { zonesLisibles } from "./memoire-blame.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { sujetDe } from "./memoire-raisonnement.js";
+import { utilitaireByReference } from "../utilitaires/catalogue.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -100,6 +120,35 @@ export function lecturesDeLaRegle(regle = {}) {
 }
 
 /**
+ * Les sujets qu'une contrainte déduite a lus, dans l'ordre.
+ *
+ * Deux sources, et l'ordre entre elles importe.
+ *
+ * **Ce que la contrainte porte**, d'abord : le versement y a recopié la
+ * déclaration de l'utilitaire, avec la valeur lue. C'est un enregistrement, daté
+ * de la contrainte, et il vaut même si le catalogue change ensuite.
+ *
+ * **Ce que le catalogue déclare**, à défaut : une contrainte versée avant que les
+ * utilitaires déclarent quoi que ce soit ne porte rien, et elle ne se reverse pas
+ * pour si peu — reverser une valeur juste périmerait une ligne exacte et
+ * marquerait à revérifier ce que rien n'a touché. Sa référence d'utilitaire, elle,
+ * est là, version comprise, et le catalogue dit ce que cette version lit. Ce n'est
+ * pas un rapprochement de noms : c'est la même déclaration, lue à sa source.
+ *
+ * Une contrainte dont l'utilitaire est inconnu du catalogue ne rend rien. Son
+ * silence se lit dans le compte des opaques, jamais dans un lien inventé.
+ */
+export function lecturesDeLUtilitaire(assertion = {}) {
+  const portees = assertion?.payload?.lectures;
+  if (Array.isArray(portees) && portees.length) {
+    return portees.map((lecture) => texte(lecture?.sujet)).filter(Boolean);
+  }
+
+  const outil = utilitaireByReference(texte(assertion?.payload?.utilitaire));
+  return (Array.isArray(outil?.lit) ? outil.lit : []).map((entree) => texte(entree?.sujet)).filter(Boolean);
+}
+
+/**
  * Ce qu'un nom désignait, dans cette zone.
  *
  * Deux préférences, dans cet ordre. **La même proposition d'abord** : une règle
@@ -149,6 +198,7 @@ export function applicationsDeLaMemoire(assertions = [], {
 
   const parSujet = new Map();
   const regles = [];
+  const deduites = [];
 
   for (const assertion of toutes) {
     const cle = cleDuSujet(sujetDe(assertion));
@@ -156,10 +206,25 @@ export function applicationsDeLaMemoire(assertions = [], {
     if (estUneRegle(assertion)) { regles.push(assertion); continue; }
     if (!parSujet.has(cle)) parSujet.set(cle, []);
     parSujet.get(cle).push(assertion);
+    // Une contrainte qui déclare ce qu'elle a lu est une valeur **et** un
+    // producteur de lectures. Les deux, pas l'un ou l'autre.
+    if (lecturesDeLUtilitaire(assertion).length) deduites.push(assertion);
   }
 
   const lignes = [];
   const projet = texte(projectId);
+
+  /**
+   * Ce qu'une règle produit déjà, pour ne pas le produire deux fois.
+   *
+   * Une même affirmation conclue par une règle **et** déduite par un utilitaire
+   * est un défaut de la mémoire, pas deux raisonnements. La règle l'emporte :
+   * elle porte le texte, elle s'audite, elle se rejoue. Écrire les deux jeux de
+   * lectures ferait en plus deux rangs 1 pour un même appel, ce que la clé de
+   * `assertion_applications` refuse — et le versement entier échouerait pour un
+   * lien de second rang.
+   */
+  const produitesParUneRegle = new Set();
 
   for (const regle of regles) {
     const noms = lecturesDeLaRegle(regle);
@@ -176,6 +241,7 @@ export function applicationsDeLaMemoire(assertions = [], {
       // Une règle qui n'a rien produit dans cette zone n'y a pas servi. On ne
       // rattache pas ses lectures à la valeur d'une autre zone.
       if (!sortie?.id) continue;
+      produitesParUneRegle.add(texte(sortie.id));
       if (retenues && !retenues.has(texte(sortie.id))) continue;
 
       noms.forEach((nom, index) => {
@@ -193,6 +259,45 @@ export function applicationsDeLaMemoire(assertions = [], {
           zone,
           utility: texte(regle.payload?.utilitaire) || null,
           proposition_id: texte(propositionId) || texte(regle.proposition_id) || null,
+          resolution
+        });
+      });
+    }
+  }
+
+  // Les lectures qu'un utilitaire a déclarées. La contrainte **est** sa propre
+  // sortie — il n'y a pas de sujet à résoudre pour la trouver —, et le reste
+  // suit le chemin des règles : même résolution, même zone, même rang.
+  for (const contrainte of deduites) {
+    const sortie = texte(contrainte.id);
+    if (!sortie || produitesParUneRegle.has(sortie)) continue;
+    if (retenues && !retenues.has(sortie)) continue;
+
+    const noms = lecturesDeLUtilitaire(contrainte);
+    const zones = porteesDe(contrainte);
+
+    for (const zone of zones.length ? zones : [""]) {
+      noms.forEach((nom, index) => {
+        const entree = resoudre(nom, {
+          parSujet, zone, propositionId: texte(contrainte.proposition_id)
+        });
+
+        lignes.push({
+          project_id: projet || texte(contrainte.project_id),
+          // Aucune règle du projet n'est en cause : c'est un utilitaire, et
+          // c'est la colonne `utility` qui le nomme.
+          rule_assertion_id: null,
+          output_assertion_id: sortie,
+          // Une contrainte ne se lit pas elle-même. Si le sujet déclaré se
+          // résout sur elle, la déclaration est fautive : on la garde sans
+          // entrée plutôt que de la taire, parce qu'un sujet déclaré qui ne
+          // désigne rien est le trou du raisonnement, et il se compte.
+          input_assertion_id: texte(entree?.id) === sortie ? null : texte(entree?.id) || null,
+          input_subject: nom,
+          input_rank: index + 1,
+          zone,
+          utility: texte(contrainte.payload?.utilitaire) || null,
+          proposition_id: texte(propositionId) || texte(contrainte.proposition_id) || null,
           resolution
         });
       });

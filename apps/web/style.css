@@ -21702,6 +21702,11 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .audit-rang--lacune h5{ color:var(--accent); }
 .audit-rang--opaque{ border-left-color:var(--border); }
 .audit-rang--opaque h5{ color:var(--muted); }
+/* Calculé sur une entrée qui a bougé : ni une règle qui dérive, ni un angle
+   mort. Sa propre couleur, pour qu'on ne le lise pas comme l'un des deux. */
+.audit-rang--perime{ border-left-color:#a371f7; }
+.audit-rang--perime h5{ color:#a371f7; }
+.audit-ligne--perime .audit-ligne__affirmee{ text-decoration:line-through; }
 
 .audit-lignes{ list-style:none; display:flex; flex-direction:column; gap:4px; margin:8px 0 0; padding:0; }
 .audit-ligne{

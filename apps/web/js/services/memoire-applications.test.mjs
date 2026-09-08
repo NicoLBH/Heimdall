@@ -313,3 +313,164 @@ test("la couverture distingue ce qui a été figé de ce qui a été rapproché"
 
   assert.deepEqual(rendu, { lectures: 3, enregistrees: 1, reconstruites: 2, orphelines: 1 });
 });
+
+/* ── Les lectures d'un utilitaire ────────────────────────────────────────── */
+
+/** Une contrainte déduite, qui déclare ce qu'elle a lu du projet. */
+const deduite = (sujet, valeur, lectures = [], { id = null, zones = null, utilitaire = "outil_V1" } = {}) => ({
+  id: id ?? `c-${sujet}`,
+  project_id: "p1",
+  kind: "site-constraint",
+  subject_key: `site:${sujet}`,
+  status: "assumed",
+  superseded_by: null,
+  proposition_id: null,
+  zones,
+  payload: {
+    subject: sujet, value: valeur, derived: true, utilitaire,
+    ...(zones ? { zones } : {}),
+    lectures: lectures.map(([sujetLu, valeurLue]) => ({ sujet: sujetLu, valeur: valeurLue }))
+  }
+});
+
+test("un utilitaire qui déclare ce qu'il lit fait des lectures, comme une règle", () => {
+  // C'était le trou : une donnée employée uniquement par un utilitaire comptait
+  // « aucun emploi », et l'étude d'impact disait « rien ne repose dessus » à un
+  // projet dont la moitié des fondations en dépendait.
+  const memoire = [
+    dit("Altitude du site", "13 m", { id: "ddb-alt" }),
+    dit("H0 retenu pour le département", "0,50 m", { id: "ddb-h0" }),
+    deduite("Profondeur hors gel", "0.71 m", [
+      ["H0 retenu pour le département", "0.5"],
+      ["Altitude du site", "13"]
+    ], { id: "c-gel" })
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+
+  assert.deepEqual(lignes.map((l) => [l.input_subject, l.input_rank, l.input_assertion_id]), [
+    ["H0 retenu pour le département", 1, "ddb-h0"],
+    ["Altitude du site", 2, "ddb-alt"]
+  ]);
+  // Aucune règle du projet n'est en cause : c'est la colonne `utility` qui nomme
+  // le producteur, et elle était posée pour ce jour-là.
+  assert.equal(lignes[0].rule_assertion_id, null);
+  assert.equal(lignes[0].utility, "outil_V1");
+  assert.equal(lignes[0].output_assertion_id, "c-gel");
+});
+
+test("l'altitude cesse d'être comptée « aucun emploi »", () => {
+  const memoire = [
+    dit("Altitude du site", "13 m", { id: "ddb-alt" }),
+    deduite("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]])
+  ];
+
+  const emplois = emploisParAffirmation(applicationsDeLaMemoire(memoire, { projectId: "p1" }));
+  assert.equal(emplois.get("ddb-alt")?.lectures, 1);
+
+  // Et l'étude d'impact voit enfin ce chemin-là.
+  const impact = impactDe("ddb-alt", applicationsDeLaMemoire(memoire, { projectId: "p1" }));
+  assert.equal(impact.total, 1);
+});
+
+test("un sujet déclaré que rien ne verse fait une lecture sans entrée", () => {
+  // Le trou du raisonnement se compte : le taire ferait passer pour complet un
+  // calcul auquel il manquait une entrée.
+  const memoire = [deduite("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]])];
+
+  const [ligne] = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  assert.equal(ligne.input_assertion_id, null);
+  assert.equal(ligne.input_subject, "Altitude du site");
+});
+
+test("une contrainte versée sans déclaration prend celle de son catalogue", () => {
+  // Reverser une contrainte juste pour lui attacher une déclaration périmerait
+  // une ligne exacte et marquerait à revérifier ce que rien n'a touché. La
+  // référence d'utilitaire est là, version comprise, et le catalogue dit ce que
+  // cette version lit — c'est la même déclaration, lue à sa source.
+  const ancienne = {
+    ...deduite("Profondeur hors gel", "0.71 m", [], { utilitaire: "deduction_profondeur_hors_gel_altitude_V1" })
+  };
+  delete ancienne.payload.lectures;
+
+  const lignes = applicationsDeLaMemoire(
+    [dit("Altitude du site", "13 m", { id: "ddb-alt" }), ancienne],
+    { projectId: "p1" }
+  );
+
+  assert.deepEqual(lignes.map((l) => l.input_subject), [
+    "H0 retenu pour le département", "Altitude du site"
+  ]);
+  assert.equal(lignes[1].input_assertion_id, "ddb-alt");
+});
+
+test("un utilitaire inconnu du catalogue ne rend aucun lien", () => {
+  const orpheline = { ...deduite("Zone de sismicité", "3", [], { utilitaire: "outil_disparu_V9" }) };
+  delete orpheline.payload.lectures;
+
+  assert.deepEqual(applicationsDeLaMemoire([orpheline], { projectId: "p1" }), []);
+});
+
+test("une règle et un utilitaire pour un même sujet : la règle l'emporte", () => {
+  // C'est un défaut de la mémoire, pas deux raisonnements. La règle porte le
+  // texte, elle s'audite, elle se rejoue. Écrire les deux ferait en plus deux
+  // rangs 1 pour un même appel, ce que la clé de la table refuse — et le
+  // versement entier échouerait pour un lien de second rang.
+  const memoire = [
+    dit("Altitude du site", "13 m", { id: "ddb-alt" }),
+    dit("Commune", "Nantes", { id: "ddb-com" }),
+    regle("Profondeur hors gel", "0.71 m", ["Commune"]),
+    deduite("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]], { id: "c-gel" })
+  ];
+
+  const lignes = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  assert.deepEqual(lignes.map((l) => [l.input_subject, l.rule_assertion_id]), [
+    ["Commune", "r-Profondeur hors gel"]
+  ]);
+});
+
+test("une contrainte qui se déclarerait sa propre lecture ne se lie pas à elle-même", () => {
+  const memoire = [deduite("Profondeur hors gel", "0.71 m", [["Profondeur hors gel", "0.71"]], { id: "c-gel" })];
+
+  const [ligne] = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  // La déclaration est fautive ; on la garde sans entrée plutôt que de la taire.
+  assert.equal(ligne.input_assertion_id, null);
+  assert.equal(ligne.input_subject, "Profondeur hors gel");
+});
+
+test("les lectures d'un utilitaire respectent la zone, comme celles d'une règle", () => {
+  const memoire = [
+    dit("Altitude du site", "13 m", { id: "alt-a", zones: ["batiment-a"] }),
+    dit("Altitude du site", "890 m", { id: "alt-b", zones: ["batiment-b"] }),
+    deduite("Profondeur hors gel", "1.09 m", [["Altitude du site", "890"]], {
+      id: "c-gel-b", zones: ["batiment-b"]
+    })
+  ];
+
+  const [ligne] = applicationsDeLaMemoire(memoire, { projectId: "p1" });
+  // On n'emprunte jamais la valeur du bâtiment voisin : elle se lirait comme
+  // celle d'ici.
+  assert.equal(ligne.zone, "batiment-b");
+  assert.equal(ligne.input_assertion_id, "alt-b");
+});
+
+test("les lectures d'un utilitaire dessinent un lien de dépendance", () => {
+  const memoire = [
+    dit("Altitude du site", "13 m", { id: "ddb-alt" }),
+    deduite("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]], { id: "c-gel" })
+  ];
+
+  assert.deepEqual(dependancesDesApplications(applicationsDeLaMemoire(memoire, { projectId: "p1" })), [
+    { assertion_id: "c-gel", depends_on_assertion_id: "ddb-alt", declared_by: null }
+  ]);
+});
+
+test("le versement n'enregistre que les lectures de ce qu'il vient d'écrire", () => {
+  const memoire = [dit("Altitude du site", "13 m", { id: "ddb-alt" })];
+  const ecrites = [deduite("Profondeur hors gel", "0.71 m", [["Altitude du site", "13"]], { id: "c-gel" })];
+
+  const lignes = applicationsDuVersement({ memoire, ecrites, projectId: "p1" });
+  assert.equal(lignes.length, 1);
+  assert.equal(lignes[0].resolution, RESOLUTION.ENREGISTRE);
+  assert.equal(lignes[0].output_assertion_id, "c-gel");
+});

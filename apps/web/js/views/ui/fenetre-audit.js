@@ -127,7 +127,7 @@ function renderRang(rang, lignes) {
 
 /** Le verdict d'ensemble, en tête. C'est ce qu'on vient lire. */
 function renderTitre(audit) {
-  if (!audit.regles) {
+  if (!audit.regles && !audit.perimees?.length) {
     return `
       <div class="audit-verdict audit-verdict--vide">
         <b>Rien à auditer</b>
@@ -155,18 +155,67 @@ function renderTitre(audit) {
     `;
   }
 
-  const graves = audit.compte.differentes + audit.compte.sansObjet;
+  const perimees = audit.perimees?.length ?? 0;
+  const graves = audit.compte.differentes + audit.compte.sansObjet + perimees;
 
   return `
     <div class="audit-verdict audit-verdict--derive">
       <b>${svgIcon("alert-fill", { className: "octicon" })}
         ${graves} ${accorde(graves, "valeur ne tient plus", "valeurs ne tiennent plus")}</b>
       <p>
-        Ce que le projet affirme n'est plus ce que ses règles concluent. Rien n'a été écrit :
-        cet écran constate, il ne corrige pas — corriger est une décision, et elle passe par
-        une proposition.
+        ${
+          audit.compte.differentes + audit.compte.sansObjet
+            ? "Ce que le projet affirme n'est plus ce que ses règles concluent. "
+            : ""
+        }${
+          perimees
+            ? `${perimees} ${accorde(perimees, "valeur a été calculée", "valeurs ont été calculées")}
+               sur une entrée que le projet a changée depuis. `
+            : ""
+        }Rien n'a été écrit : cet écran constate, il ne corrige pas — corriger est une décision,
+        et elle passe par une proposition.
       </p>
     </div>
+  `;
+}
+
+/**
+ * Les calculs faits sur une entrée que le projet a changée depuis.
+ *
+ * Son propre rang, et volontairement : ce n'est ni une règle qui dérive — aucune
+ * règle n'est en cause — ni un angle mort — on sait très bien ce qui ne va pas.
+ * C'est une valeur d'apparence normale dont l'entrée a bougé sous elle, et
+ * jusqu'ici rien ne la signalait.
+ */
+function renderPerimees(perimees = []) {
+  if (!perimees.length) return "";
+
+  return `
+    <section class="audit-rang audit-rang--perime">
+      <h5>${svgIcon("history", { className: "octicon" })} Calculé sur une valeur qui a changé
+        <span class="audit-rang__compte">${perimees.length}</span></h5>
+      <p>
+        Ces valeurs viennent d'un utilitaire, et l'entrée sur laquelle il les a calculées
+        n'est plus celle que le projet affirme. Nous ne les recalculons pas — la table est au
+        serveur —, mais celle qui est affichée <b>ne vaut plus</b>.
+      </p>
+      <ul class="audit-lignes">
+        ${perimees.map((ligne) => `
+          <li class="audit-ligne audit-ligne--perime">
+            <span class="audit-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
+            <span class="audit-ligne__valeurs">
+              <b class="audit-ligne__affirmee">${escapeHtml(ligne.valeur || "—")}</b>
+            </span>
+            <span class="audit-ligne__motif">
+              calculée sur ${escapeHtml(ligne.entree)} = ${escapeHtml(ligne.calculeeSur)} ;
+              le projet dit ${escapeHtml(ligne.aujourdhui)}${
+                ligne.utilitaire ? ` · ${escapeHtml(ligne.utilitaire)}` : ""
+              }
+            </span>
+          </li>
+        `).join("")}
+      </ul>
+    </section>
   `;
 }
 
@@ -217,7 +266,8 @@ function renderAudit(audit) {
 
         <p class="variante-lead">
           Chaque règle a été rejouée sur ce que la mémoire dit <b>aujourd'hui</b>, et sa
-          conclusion comparée à ce que le projet affirme. Rien n'a été écrit.
+          conclusion comparée à ce que le projet affirme. Ce que les utilitaires ont déclaré
+          lire est relu de la même façon. Rien n'a été écrit.
         </p>
 
         ${renderTitre(audit)}
@@ -229,9 +279,10 @@ function renderAudit(audit) {
                   rang,
                   audit.verdicts.filter((ligne) => ligne.verdict === rang.verdict)
                 )).join("")}
+                ${renderPerimees(audit.perimees)}
                 ${renderAngleMort(audit)}
               </div>`
-            : ""
+            : renderPerimees(audit.perimees)
         }
 
         <footer class="fichiers-saisie__pied">
