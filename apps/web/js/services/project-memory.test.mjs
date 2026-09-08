@@ -507,3 +507,38 @@ test("une zone sans nom est refusée, et le refus donne un exemple", () => {
   assert.equal(plan.ok, false);
   assert.match(plan.reason, /Zone A|Rez-de-chauss/);
 });
+
+test("une affirmation dit ce qu'elle affirme, pas qu'elle est un document", async () => {
+  const { assertionsFromProposition, titreDeLAffirmation } = await import("./project-memory.js");
+
+  // Les affirmations tombaient dans le repli des documents et se relisaient
+  // « Document au corpus : acces-des-vehicules-lourds@batiment-a » : cela nomme
+  // un fichier qui n'existe pas, avec une clé que personne n'écrit.
+  const [ligne] = assertionsFromProposition({
+    proposition: { id: "p1", project_id: "pr", merged_at: "2026-01-01T00:00:00Z" },
+    items: [{
+      itemType: "base-datum",
+      itemKey: "acces-des-vehicules-lourds@batiment-a",
+      status: "accepted",
+      payload: { subject: "Accès des véhicules lourds", value: "interdit au-delà de 3,5 t" }
+    }]
+  });
+
+  assert.equal(ligne.statement, "Accès des véhicules lourds : interdit au-delà de 3,5 t");
+
+  // Et celles déjà en mémoire ne se réécrivent pas — la phrase versée est
+  // conservée. On lit leur `payload`, qui dit la même chose en mieux.
+  assert.equal(
+    titreDeLAffirmation({
+      statement: "Document au corpus : acces-des-vehicules-lourds@batiment-a",
+      payload: { subject: "Accès des véhicules lourds", value: "interdit au-delà de 3,5 t" }
+    }),
+    "Accès des véhicules lourds : interdit au-delà de 3,5 t"
+  );
+
+  // Un vrai document garde le sien : il n'a pas de sujet à afficher.
+  assert.equal(
+    titreDeLAffirmation({ statement: "Document au corpus : RICT.pdf", payload: { name: "RICT.pdf" } }),
+    "Document au corpus : RICT.pdf"
+  );
+});

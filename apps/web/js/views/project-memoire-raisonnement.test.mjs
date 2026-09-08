@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES
+  renderEspaceDuRaisonnement, ancresDuCode, espaceParDefaut, BORNES, niveauxDesPaires
 } from "./project-memoire-raisonnement.js";
 
 /** Une ligne de code, telle que l'écriture la rend. */
@@ -33,17 +33,21 @@ const GRAPHE = {
   liens: [{ de: "donnee:classement du batiment", vers: "regle:colonne seche", fait: "Classement du bâtiment" }]
 };
 
-test("chaque rangée porte le code, son numéro et sa valeur — dans cet ordre", () => {
+test("chaque rangée porte la valeur, son numéro et le code — dans cet ordre", () => {
   // C'est ce qui rend le décalage impossible : deux fenêtres côte à côte, l'une
   // qui replie une ligne et pas l'autre, comparaient la condition d'une ligne à
   // la valeur d'une autre sans que rien ne le signale.
+  //
+  // Et les valeurs viennent **en premier** : on lit d'abord ce que le projet
+  // dit, puis pourquoi. L'inverse obligeait à traverser cent caractères de code
+  // avant d'atteindre la valeur qu'on était venu vérifier.
   const html = renderEspaceDuRaisonnement({
     graphe: GRAPHE, lignes: CODE, trace: TRACE,
     ancres: ancresDuCode(CODE, TRACE, GRAPHE).parRang, etat: espaceParDefaut()
   });
 
   const rangee = html.slice(html.indexOf('data-raison-rang="0"'));
-  const ordre = ["raison-ligne__code", "raison-ligne__num", "raison-ligne__etat"]
+  const ordre = ["raison-ligne__etat", "raison-ligne__num", "raison-ligne__code"]
     .map((classe) => rangee.indexOf(classe));
   assert.deepEqual(ordre, [...ordre].sort((a, b) => a - b));
 
@@ -113,4 +117,37 @@ test("sans schéma, l'espace montre quand même le code", () => {
 
   assert.equal(html.includes("data-raison-schema"), false);
   assert.match(html, /data-raison-code/);
+});
+
+test("une ouverture et sa fermeture portent la même teinte", () => {
+  // `si (Sujet = "x") alors ( enregistre ( … ) );` : trois niveaux, et trois
+  // fermetures de suite. Sans couleur, retrouver quelle fermeture répond à
+  // quelle ouverture se fait en comptant à voix basse.
+  const bloc = [
+    ligne(["mot-fonction", "fonction"], ["sujet", "X"], ["ponctuation", "("], ["parametre", "zones"], ["ponctuation", ")"], ["accolade", "{"]),
+    ligne(["mot-condition", "alors"], ["ponctuation", "("]),
+    ligne(["mot-natif", "enregistre"], ["ponctuation", "("]),
+    ligne(["ponctuation", ")"]),
+    ligne(["ponctuation", ")"]),
+    ligne(["accolade", "}"])
+  ];
+
+  const paires = niveauxDesPaires(bloc);
+
+  // La parenthèse des paramètres ouvre et se referme au même niveau…
+  assert.equal(paires.get(0).get(2), paires.get(0).get(4));
+  // …et l'accolade de la fonction retrouve la sienne six lignes plus bas.
+  assert.equal(paires.get(0).get(5), paires.get(5).get(0));
+  // Deux niveaux imbriqués n'ont jamais la même teinte.
+  assert.notEqual(paires.get(1).get(1), paires.get(2).get(1));
+  // Et une fermeture retrouve son ouverture, pas sa voisine.
+  assert.equal(paires.get(2).get(1), paires.get(3).get(0));
+  assert.equal(paires.get(1).get(1), paires.get(4).get(0));
+});
+
+test("une fermeture orpheline ne prend aucune teinte", () => {
+  // Mentir sur l'appariement est pire que de ne rien dire : un extrait de code
+  // peut commencer au milieu d'un bloc.
+  const paires = niveauxDesPaires([ligne(["ponctuation", ")"])]);
+  assert.equal(paires.get(0), undefined);
 });

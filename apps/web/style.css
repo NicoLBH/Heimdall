@@ -4737,6 +4737,7 @@ body.route--project:not(.project-shell-compact) [data-chrome-visibility="compact
 
 
 body.route--project #situationsDetailsTitle.details-head--compact,
+body.route--project #memoryDetailsTitle.details-head--compact,
 body.route--project #propositionsDetailsTitle.details-head--compact{
   position:sticky;
   top:var(--app-top);
@@ -4756,6 +4757,7 @@ body.route--project #propositionsDetailsTitle.details-head--compact{
    depuis le début ; la proposition posait un `z-index` qui ne pouvait pas
    gagner, et sa barre se dessinait derrière l'en-tête, invisible. */
 body.route--project.project-shell-compact.project-subject-details-top-compact #globalHeaderHost,
+body.route--project.project-shell-compact.project-memory-details-top-compact #globalHeaderHost,
 body.route--project.project-shell-compact.project-proposition-details-top-compact #globalHeaderHost{
   opacity:0;
   visibility:hidden;
@@ -4763,6 +4765,7 @@ body.route--project.project-shell-compact.project-proposition-details-top-compac
 }
 
 body.route--project.project-shell-compact.project-subject-details-top-compact #situationsDetailsTitle.details-head--compact,
+body.route--project.project-shell-compact.project-memory-details-top-compact #memoryDetailsTitle.details-head--compact,
 body.route--project.project-shell-compact.project-proposition-details-top-compact #propositionsDetailsTitle.details-head--compact{
   top:0;
   z-index:calc(var(--z-header) + 1);
@@ -16583,6 +16586,10 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .memory-detail__tags{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:0 0 4px; }
 .memory-detail__tags-label{ color:var(--muted); font-size:11px; }
 .memory-detail__tags .memory-tag{ margin-right:2px; }
+/* Dans la barre compactée : les valeurs, sur une ligne, sans repli — un titre
+   qui change de hauteur au défilement fait sauter tout ce qui est dessous. */
+.memory-detail__tags--compacts{ display:inline-flex; align-items:center; gap:6px; flex-wrap:nowrap; overflow:hidden; margin:0; }
+.memory-detail__tags--compacts .memory-tag{ flex:0 0 auto; }
 
 /* Le Copilote du projet.
 
@@ -17682,21 +17689,60 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 /* Le détail d'une affirmation : son histoire, et ce sur quoi elle s'appuie.
    C'est ici que la mémoire cesse d'être une liste. */
 .memory-detail{ display:flex; flex-direction:column; gap:16px; }
+/* L'en-tête n'a pas de style à lui : c'est celui d'un sujet et d'une
+   proposition, du DOM (`overlay-chrome__head` > `details-title-wrap`) jusqu'aux
+   bascules (`details-head--expanded` / `--compact`). Ne restent ici que le
+   rythme et le débordement propre à cet écran. */
 .memory-detail__head{
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
-  padding:16px;
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  background:var(--panel2);
+  padding:12px 0 14px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
 }
-.memory-detail__head > div{ flex:1 1 auto; min-width:0; }
-.memory-detail__mark{ line-height:0; padding-top:4px; color:var(--muted); }
-.memory-detail__title{ margin:0 0 4px; font-size:16px; }
-.memory-detail__lead{ margin:0; color:var(--muted); font-size:13px; }
+.overlay-chrome--compact .memory-detail__head{ padding:6px 0; }
+
+/* Compactée, la barre prend la largeur de l'écran — comme celle d'un sujet.
+   Elle reste alignée sur la colonne de lecture, sauf sur le raisonnement, où le
+   contenu prend l'écran : un titre resté dans une colonne de 1012 pixels
+   au-dessus d'un poste de travail pleine largeur se lit comme le titre d'autre
+   chose. */
+/* La clé métier accompagne le titre, elle ne le concurrence pas : un numéro de
+   proposition tient en trois caractères, une clé d'affirmation en soixante. À
+   la taille du titre, elle le recouvrait. */
+#memoryDetailsTitle .details-title--expanded .details-title-id{
+  font-size:12px;
+  line-height:18px;
+  align-self:flex-end;
+  padding-bottom:6px;
+  color:var(--muted);
+}
+
+#memoryDetailsTitle.details-head--compact .overlay-chrome__bar{
+  width:100%;
+  max-width:1012px;
+  margin-left:auto;
+  margin-right:auto;
+  padding:0 16px;
+}
+#memoryDetailsTitle.memory-detail__head--pleine.details-head--compact .overlay-chrome__bar{
+  max-width:none;
+  padding:0 20px;
+}
+
+/* Déplié, l'en-tête déborde aussi : le titre, ses pastilles et ses onglets sont
+   une seule pièce, et deux d'entre elles à la largeur de l'écran avec la
+   troisième dans une colonne se lisent comme deux pages superposées. */
+.memory-detail__head--pleine,
+.memory-detail__tagsrow--pleine{
+  margin-left:calc(50% - 50vw);
+  margin-right:calc(50% - 50vw);
+  padding-left:24px;
+  padding-right:24px;
+}
+@media (max-width: 900px){
+  .memory-detail__head--pleine,
+  .memory-detail__tagsrow--pleine{ margin-left:0; margin-right:0; padding-left:0; padding-right:0; }
+}
 .memory-detail__section{ margin:0; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-.memory-detail__facts{ display:flex; flex-direction:column; gap:8px; }
 .memory-detail__back{ margin:0; color:var(--muted); font-size:12px; font-style:italic; }
 
 .memory-facts{
@@ -18834,7 +18880,11 @@ strong.est-verifie{ color:#3fb950; }
 /* Les traits passent derrière les boîtes : un trait par-dessus un titre le rend
    illisible, et c'est le titre qu'on lit. */
 .graphe__liens{ position:absolute; inset:0; pointer-events:none; overflow:visible; z-index:0; }
-.graphe-lien{ fill:none; stroke:var(--border2, #30363d); stroke-width:1.2; }
+/* Au repos, le trait portait la couleur d'une bordure : il se devinait plutôt
+   qu'il ne se lisait, alors que c'est **lui** qui porte ce que l'esprit a du
+   mal à reconstruire — qui décide de quoi. Il prend donc le gris du texte
+   secondaire, et un peu d'épaisseur. */
+.graphe-lien{ fill:none; stroke:var(--graphe-trait, rgb(110,118,129)); stroke-width:1.5; }
 /* Le chemin amont en entier, l'intensité décroissant avec l'éloignement :
    l'opacité et l'épaisseur sont posées au tracé, module par module. */
 .graphe-lien.est-marque{ stroke:var(--graphe-contraste); }
@@ -20274,7 +20324,11 @@ body.proposition-merge-open{ overflow:hidden; }
 .raison-espace__poignee--horizontale{ height:4px; cursor:row-resize; }
 .raison-espace__poignee--verticale{ width:4px; cursor:col-resize; }
 
-.raison-espace__bas{ display:flex; min-height:0; flex:1 1 auto; }
+/* La discussion prend toute la hauteur, schéma compris : elle porte un fil de
+   messages, et une colonne haute de la moitié de l'écran n'en montre que deux.
+   Elle est donc à côté de tout le reste, pas seulement du code. */
+.raison-espace__corps{ display:flex; min-height:0; flex:1 1 auto; }
+.raison-espace__principal{ display:flex; flex-direction:column; min-width:0; min-height:0; flex:1 1 auto; }
 .raison-espace__code{
   flex:1 1 auto; min-width:0; min-height:0;
   overflow:auto;
@@ -20290,12 +20344,22 @@ body.proposition-merge-open{ overflow:hidden; }
 .raison-espace__copilote .copilote-thread__inner{ padding:16px 12px 4px; }
 .raison-espace__panne{ margin:16px 12px; color:var(--muted); font-size:12px; }
 
-/* Plein écran : l'espace prend la page, et rien d'autre ne défile derrière. */
+/* Plein écran : l'espace prend **tout** l'écran. Calé sous l'en-tête global, il
+   laissait paraître le nom du projet et sa barre d'onglets — c'est-à-dire qu'il
+   n'était pas plein. L'en-tête s'efface, comme il s'efface déjà sous une barre
+   de titre compactée : `#app` est un contexte d'empilement, aucun `z-index`
+   posé à l'intérieur ne peut monter au-dessus de lui. */
 .raison-espace.est-plein-ecran{
-  position:fixed; inset:var(--app-top, 0) 0 0 0; z-index:calc(var(--z-header, 40) + 2);
-  border-radius:0; border-width:0;
+  position:fixed; inset:0; z-index:calc(var(--z-header, 40) + 3);
+  height:auto; border-radius:0; border-width:0;
 }
-.raison-espace.est-plein-ecran{ height:auto; }
+body.memoire-raisonnement-plein-ecran #globalHeaderHost,
+body.memoire-raisonnement-plein-ecran .project-context-header,
+body.memoire-raisonnement-plein-ecran .project-tabs{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
 
 /* ── Le code et les valeurs, en une grille ──────────────────────────────────
    Trois colonnes : le raisonnement, son numéro, ce que le projet en dit. Les
@@ -20310,7 +20374,7 @@ body.proposition-merge-open{ overflow:hidden; }
   /* Le code prend au moins la largeur qu'on lui a donnée, et davantage si une
      ligne l'exige : une citation tronquée ne se relit pas. Le conteneur défile
      — une fois, pour les trois colonnes à la fois. */
-  grid-template-columns:minmax(var(--raison-code), max-content) 46px var(--raison-etat);
+  grid-template-columns:var(--raison-etat) 46px minmax(var(--raison-code), max-content);
   width:max-content;
   min-width:100%;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -20320,12 +20384,12 @@ body.proposition-merge-open{ overflow:hidden; }
 .raison-ligne{ display:contents; }
 .raison-ligne__code{ padding:0 12px; white-space:pre; }
 
-/* Les numéros et les valeurs restent collés au bord droit pendant que le code
+/* Les valeurs et les numéros restent collés au bord gauche pendant que le code
    défile sous eux. Une citation d'arrêté fait mille pixels : sans cela, la lire
    emportait les valeurs hors de l'écran, et l'on se retrouvait devant du code
    sans savoir ce qu'il vaut. */
 .raison-ligne__num{
-  position:sticky; right:var(--raison-etat); z-index:1;
+  position:sticky; left:var(--raison-etat); z-index:1;
   padding:0 8px;
   border-left:1px solid var(--border);
   border-right:1px solid var(--border);
@@ -20336,7 +20400,7 @@ body.proposition-merge-open{ overflow:hidden; }
   user-select:none;
 }
 .raison-ligne__etat{
-  position:sticky; right:0; z-index:1;
+  position:sticky; left:0; z-index:1;
   padding:0 12px;
   background:rgb(13,17,23);
   white-space:normal;
@@ -20355,12 +20419,32 @@ body.proposition-merge-open{ overflow:hidden; }
   line-height:2.4;
   white-space:nowrap;
 }
-/* Les deux cellules de droite sont collées deux fois — en haut et à droite : le
+/* Les deux cellules de gauche sont collées deux fois — en haut et à gauche : le
    coin doit rester au-dessus du reste, sinon le code lui passe devant. */
 .raison-ligne--tete .raison-ligne__num,
 .raison-ligne--tete .raison-ligne__etat{ z-index:3; }
 .raison-ligne__num--poignee{ cursor:col-resize; text-align:center; }
 .raison-ligne__num--poignee:hover{ background:var(--graphe-contraste-fond); color:var(--text); }
+
+/* ── Les paires de bornes ───────────────────────────────────────────────────
+   Une fonction Mdall imbrique trois niveaux — `si (…)`, `alors (`, `enregistre
+   (` — et se ferme sur trois lignes qui ne portent que `)`, `);`, `}`. Sans
+   couleur, retrouver quelle fermeture répond à quelle ouverture se fait en
+   comptant à voix basse, et l'on se trompe d'un cran une fois sur trois.
+
+   Trois teintes qui tournent avec la profondeur, comme dans un éditeur de
+   code : une ouverture et sa fermeture portent la même, deux niveaux voisins
+   n'ont jamais la même. */
+.raison-paire{ font-weight:600; }
+.raison-paire--0{ color:#ffd700; }
+.raison-paire--1{ color:#da70d6; }
+.raison-paire--2{ color:#179fff; }
+
+/* La rangée survolée s'éclaire d'un rien — assez pour suivre du regard d'une
+   colonne à l'autre sans compter les lignes, pas assez pour concurrencer ce que
+   la rangée dit. */
+.raison-ligne:hover > *{ background-image:linear-gradient(rgba(110,118,129,.09), rgba(110,118,129,.09)); }
+.raison-ligne--tete:hover > *{ background-image:none; }
 
 /* Ce que personne n'a versé se voit sur toute la rangée : c'est le trou du
    raisonnement, et il ne se cherche pas. */

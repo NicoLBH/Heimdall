@@ -17,22 +17,29 @@
  * ## Sa forme
  *
  * ```
- * ┌──────────────────────────────────────────────────────────┐
- * │  le schéma des dépendances, toute largeur                │
- * ├──────────────────────────────────────────────────────────┤
- * │  le raisonnement    │ n° │  ce que le projet dit  │ cop. │
- * └──────────────────────────────────────────────────────────┘
+ * ┌───────────────────────────────────────────────┬──────────┐
+ * │  le schéma des dépendances                    │          │
+ * ├───────────────────────────────────────────────│ la       │
+ * │  ce que le projet dit  │ n° │  le raisonnement │ discussion│
+ * └───────────────────────────────────────────────┴──────────┘
  * ```
+ *
+ * Les valeurs sont **à gauche**, le code à droite : on lit d'abord ce que le
+ * projet dit, puis pourquoi. L'inverse obligeait à traverser cent caractères de
+ * code avant d'atteindre la valeur qu'on était venu vérifier.
  *
  * Les numéros de ligne sont **au milieu**. Ils séparent les deux lectures, et
  * ce sont eux qu'on saisit pour changer le partage : la frontière est là où
  * elle se voit.
  *
- * Les numéros et les valeurs restent **collés à droite** pendant qu'on fait
+ * Les valeurs et les numéros restent **collés à gauche** pendant qu'on fait
  * défiler le code. Une citation d'arrêté fait mille pixels de large ; sans
  * cela, la lire emportait les valeurs hors de l'écran, et l'on se retrouvait
  * devant du code sans savoir ce qu'il vaut — c'est-à-dire devant la moitié de
  * ce qu'on était venu voir.
+ *
+ * La discussion prend toute la hauteur, schéma compris : elle porte un fil de
+ * messages, et une colonne haute de la moitié de l'écran n'en montre que deux.
  *
  * Le schéma commande le code : cliquer une carte y fait défiler jusqu'à la
  * fonction. C'est le geste qu'on fait vingt fois — « et celle-là, elle a lu
@@ -85,9 +92,14 @@ export function espaceParDefaut() {
  * classes donnerait deux façons de colorer le même langage, et la seconde
  * finirait par ne plus ressembler à la première.
  */
-function renderJetons(jetons = []) {
+function renderJetons(jetons = [], paires = null) {
   return (jetons ?? [])
-    .map((jeton) => `<span class="mdall-${escapeHtml(jeton.type)}">${escapeHtml(jeton.texte)}</span>`)
+    .map((jeton, index) => {
+      const teinte = paires?.get(index);
+      const classes = `mdall-${escapeHtml(jeton.type)}${
+        teinte === undefined ? "" : ` raison-paire raison-paire--${teinte}`}`;
+      return `<span class="${classes}">${escapeHtml(jeton.texte)}</span>`;
+    })
     .join("");
 }
 
@@ -111,16 +123,21 @@ function renderEtat(entree) {
  * trois — c'est le conteneur qui l'a, pas les colonnes.
  */
 function renderGrille(lignes = [], trace = [], ancres = new Map()) {
+  const paires = niveauxDesPaires(lignes);
+
   const rangees = lignes.map((ligne, rang) => {
     const dite = trace[rang] ?? {};
     const ancre = ancres.get(rang);
 
+    // Les valeurs **à gauche**, le code à droite. On lit d'abord ce que le
+    // projet dit, puis pourquoi : l'inverse obligeait à traverser cent
+    // caractères de code avant d'atteindre la valeur qu'on était venu vérifier.
     return `
       <div class="raison-ligne${dite.manquant ? " raison-ligne--manquante" : ""}"
         ${ancre ? `data-raison-ancre="${escapeHtml(ancre)}"` : ""} data-raison-rang="${rang}">
-        <span class="raison-ligne__code">${renderJetons(ligne.jetons)}</span>
-        <span class="raison-ligne__num">${rang + 1}</span>
         <span class="raison-ligne__etat">${renderEtat(dite)}</span>
+        <span class="raison-ligne__num">${rang + 1}</span>
+        <span class="raison-ligne__code">${renderJetons(ligne.jetons, paires.get(rang))}</span>
       </div>
     `;
   }).join("");
@@ -128,14 +145,70 @@ function renderGrille(lignes = [], trace = [], ancres = new Map()) {
   return `
     <div class="raison-grille">
       <div class="raison-ligne raison-ligne--tete">
-        <span class="raison-ligne__code">Le raisonnement</span>
-        <span class="raison-ligne__num raison-ligne__num--poignee" data-raison-poignee="etat"
-          title="Tirez pour changer le partage" aria-label="Changer le partage entre le code et les valeurs">⋮</span>
         <span class="raison-ligne__etat">Ce que le projet dit aujourd'hui</span>
+        <span class="raison-ligne__num raison-ligne__num--poignee" data-raison-poignee="etat"
+          title="Tirez pour changer le partage" aria-label="Changer le partage entre les valeurs et le code">⋮</span>
+        <span class="raison-ligne__code">Le raisonnement</span>
       </div>
       ${rangees}
     </div>
   `;
+}
+
+/** Ce qui ouvre un niveau, et ce qui le ferme. */
+const OUVRANTS = new Set(["(", "[", "{"]);
+const FERMANTS = new Set([")", "]", "}"]);
+
+/** Combien de teintes tournent avant de se répéter. Au-delà, on ne distingue plus. */
+const TEINTES_DE_PAIRE = 3;
+
+/**
+ * Le niveau d'imbrication de chaque borne, ligne par ligne.
+ *
+ * ## Pourquoi les colorer
+ *
+ * Une fonction Mdall imbrique trois niveaux — `si (…)`, `alors (`, `enregistre
+ * (` — et se ferme sur trois lignes qui ne portent que `)`, `);`, `}`. Sans
+ * couleur, retrouver quelle fermeture répond à quelle ouverture se fait en
+ * comptant à voix basse, et l'on se trompe d'un cran une fois sur trois.
+ *
+ * La teinte tourne avec la profondeur, comme dans un éditeur de code : une
+ * ouverture et sa fermeture portent la même, et deux niveaux voisins n'ont
+ * jamais la même.
+ *
+ * Une fermeture orpheline — il y en a, dans un extrait de code — ne prend
+ * aucune teinte plutôt qu'une fausse : mentir sur l'appariement est pire que de
+ * ne rien dire.
+ *
+ * @returns {Map<number, Map<number, number>>} rang de ligne → index du jeton → teinte
+ */
+export function niveauxDesPaires(lignes = []) {
+  const parLigne = new Map();
+  const pile = [];
+  let profondeur = 0;
+
+  const marquer = (rang, index, teinte) => {
+    if (!parLigne.has(rang)) parLigne.set(rang, new Map());
+    parLigne.get(rang).set(index, teinte);
+  };
+
+  (Array.isArray(lignes) ? lignes : []).forEach((ligne, rang) => {
+    (ligne?.jetons ?? []).forEach((jeton, index) => {
+      const dit = texte(jeton?.texte);
+      if (OUVRANTS.has(dit)) {
+        const teinte = profondeur % TEINTES_DE_PAIRE;
+        marquer(rang, index, teinte);
+        pile.push(teinte);
+        profondeur += 1;
+        return;
+      }
+      if (!FERMANTS.has(dit) || pile.length === 0) return;
+      marquer(rang, index, pile.pop());
+      profondeur -= 1;
+    });
+  });
+
+  return parLigne;
 }
 
 /**
@@ -183,30 +256,33 @@ export function renderEspaceDuRaisonnement({
         </div>
       </header>
 
-      ${graphe.noeuds.length ? `
-        <div class="raison-espace__schema" data-raison-schema>
-          ${dessinerGrapheLiaisons({
-            graphe,
-            selection: etat.carte,
-            zoom: etat.zoom,
-            legende: "<b>Le schéma des dépendances</b> — de gauche à droite : ce qui décide, "
-              + "puis ce qui en découle. La colonne de gauche est ce qu'aucune règle ne produit : "
-              + "les données de base. Survolez une carte pour voir ses liens, cliquez-la pour aller "
-              + "à sa fonction dans le code.",
-            rangNomme: "Étape",
-            // L'espace porte déjà le sien, dans sa barre : deux boutons pour un
-            // même geste font douter qu'ils fassent la même chose.
-            peutSAgrandir: false
-          })}
-        </div>
-        <div class="raison-espace__poignee raison-espace__poignee--horizontale"
-          data-raison-poignee="schema" role="separator" aria-orientation="horizontal"
-          aria-label="Changer la hauteur du schéma"></div>` : ""}
+      <div class="raison-espace__corps">
+        <div class="raison-espace__principal">
+          ${graphe.noeuds.length ? `
+            <div class="raison-espace__schema" data-raison-schema>
+              ${dessinerGrapheLiaisons({
+                graphe,
+                selection: etat.carte,
+                zoom: etat.zoom,
+                legende: "<b>Le schéma des dépendances</b> — de gauche à droite : ce qui décide, "
+                  + "puis ce qui en découle. La colonne de gauche est ce qu'aucune règle ne produit : "
+                  + "les données de base. Survolez une carte pour voir ses liens, cliquez-la pour aller "
+                  + "à sa fonction dans le code.",
+                rangNomme: "Étape",
+                // L'espace porte déjà le sien, dans sa barre : deux boutons pour
+                // un même geste font douter qu'ils fassent la même chose.
+                peutSAgrandir: false
+              })}
+            </div>
+            <div class="raison-espace__poignee raison-espace__poignee--horizontale"
+              data-raison-poignee="schema" role="separator" aria-orientation="horizontal"
+              aria-label="Changer la hauteur du schéma"></div>` : ""}
 
-      <div class="raison-espace__bas">
-        <div class="raison-espace__code" data-raison-code>
-          ${renderGrille(lignes, trace, ancres)}
+          <div class="raison-espace__code" data-raison-code>
+            ${renderGrille(lignes, trace, ancres)}
+          </div>
         </div>
+
         ${etat.copiloteOuvert ? `
           <div class="raison-espace__poignee raison-espace__poignee--verticale"
             data-raison-poignee="copilote" role="separator" aria-orientation="vertical"
