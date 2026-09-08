@@ -46,7 +46,8 @@
 import {
   OPERATEUR, PROVENANCES, STATUTS, RETRAIT, JETON,
   ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
-  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote, ligneDeLocale
+  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote, ligneDeLocale,
+  ligneDImport, ligneDeDecision, jetonsDeValeur
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -121,6 +122,70 @@ export function lireUneLocale(reste = "") {
   const nom = texte(coupe[1]);
   const { valeur } = lireUneValeur(texte(coupe[2]));
   return nom && valeur ? { nom, valeur } : null;
+}
+
+/**
+ * Les formes multi-lignes d'un `.ref`, reconnues à leur seule ligne.
+ *
+ * Un lecteur ligne à ligne ne peut pas se permettre d'ambiguïté : chaque ligne
+ * doit dire ce qu'elle ouvre, ce qu'elle porte ou ce qu'elle ferme, sans
+ * dépendre de ce qui précède au-delà d'un état minimal. C'est ce que ces motifs
+ * garantissent, et c'est aussi ce qui rend le fichier relisible par un humain
+ * qui tombe au milieu.
+ */
+const CONCLUSION_OUVRANTE = /^(alors|sinon)\s*\($/i;
+const ENREGISTRE_OUVRANT = /^enregistre\s*\($/i;
+const IMPORT_LIGNE = /^importe\s*\((.*)\)\s*;?$/i;
+const DECISION_LIGNE = /^décision humaine assumée\s*\((.*)\)\s*;?$/i;
+const FERMETURE = /^\)+\s*;?$/;
+const CHAMP_DENREGISTREMENT = /^([^:]+)\s*:\s*(.*?),?$/;
+
+/**
+ * Un `importe (variable: X, depuis: fichier);`
+ *
+ * Ce qu'il porte est **déductible** — la variable est le sujet d'une condition,
+ * le fichier est celui qui la déclare — et ne se conserve donc pas. On le lit
+ * pour pouvoir le réécrire à l'identique, pas pour le garder.
+ */
+export function lireUnImport(ligne = "") {
+  const trouve = texte(ligne).match(IMPORT_LIGNE);
+  if (!trouve) return null;
+
+  const champs = new Map(
+    trouve[1].split(",").map((morceau) => {
+      const coupe = texte(morceau).match(/^([^:]+)\s*:\s*(.*)$/);
+      return coupe ? [texte(coupe[1]).toLowerCase(), texte(coupe[2])] : null;
+    }).filter(Boolean)
+  );
+
+  const variable = champs.get("variable") ?? "";
+  return variable ? { variable, depuis: champs.get("depuis") ?? "" } : null;
+}
+
+/**
+ * `décision humaine assumée (réunion du 3 mars, par: X, le: …);`
+ *
+ * Ce qui se conserve est la provenance — « réunion du 3 mars » — ; l'auteur et
+ * la date se lisent sur la ligne de la mémoire, et les garder ici en ferait une
+ * seconde vérité. On les relit pour pouvoir réécrire la ligne, pas pour les
+ * ranger.
+ */
+export function lireUneDecision(ligne = "") {
+  const trouve = texte(ligne).match(DECISION_LIGNE);
+  if (!trouve) return null;
+
+  const morceaux = trouve[1].split(",").map(texte).filter(Boolean);
+  const champs = new Map();
+  const restes = [];
+
+  for (const morceau of morceaux) {
+    const coupe = morceau.match(/^(par|le)\s*:\s*(.*)$/i);
+    if (coupe) champs.set(texte(coupe[1]).toLowerCase(), texte(coupe[2]));
+    else restes.push(morceau);
+  }
+
+  const quoi = restes.join(", ");
+  return quoi ? { quoi, par: champs.get("par") ?? "", le: champs.get("le") ?? "" } : null;
 }
 
 /**
@@ -290,6 +355,10 @@ export function lireUnFichier(contenu = "") {
   let chemin = "";
   let zone = "";
   let courant = null;
+  // La conclusion en cours d'écriture, quand elle s'étale sur plusieurs lignes.
+  // C'est le seul état que la lecture porte au-delà d'une ligne, et il tient en
+  // un mot : « alors » ou « sinon ».
+  let conclusion = "";
 
   const fermer = () => {
     if (courant) {
@@ -318,6 +387,34 @@ export function lireUnFichier(contenu = "") {
     // il ne se refuse jamais. Le refuser serait dire qu'écrire pour soi est une
     // faute.
     if (estUnCommentaire(corps)) return;
+
+    // Les formes d'un `.ref` qui s'étalent sur plusieurs lignes. Tout ce qu'un
+    // `importe` et un `enregistre` portent se **déduit** — la variable est le
+    // sujet d'une condition, le fichier celui qui la déclare, la portée celle
+    // de l'affirmation. On les lit pour ne pas les refuser, pas pour les garder.
+    if (lireUnImport(corps)) return;
+
+    // Une décision signée : ce qui se conserve est sa provenance. L'auteur et la
+    // date vivent sur la ligne de la mémoire, pas dans son écriture.
+    const decision = lireUneDecision(corps);
+    if (decision && courant) { courant.provenance = { type: "décision", quoi: decision.quoi }; return; }
+    if (FERMETURE.test(corps)) { conclusion = ""; return; }
+    if (ENREGISTRE_OUVRANT.test(corps)) return;
+
+    const ouvreUneConclusion = corps.match(CONCLUSION_OUVRANTE);
+    if (ouvreUneConclusion && courant) { conclusion = ouvreUneConclusion[1].toLowerCase(); return; }
+
+    if (conclusion && courant) {
+      const champ = corps.match(CHAMP_DENREGISTREMENT);
+      const cle = texte(champ?.[1]).toLowerCase();
+      // `dans` et `zones` se déduisent ; le reste est le sujet enregistré, et sa
+      // valeur est ce que la branche pose.
+      if (champ && cle !== "dans" && cle !== "zones") {
+        const lue = lireUneValeur(texte(champ[2]));
+        courant[conclusion] = lue.unite ? `${lue.valeur} ${lue.unite}` : lue.valeur;
+      }
+      return;
+    }
 
     const { mot, reste } = teteDe(corps);
 
@@ -537,6 +634,59 @@ export function jetonsDeLaLigne(ligne = "") {
   if (mot === "parce que:") return [...marge, ...(ligneDePreuve(lireUneValeur(reste).valeur, 0) ?? []).slice(1)];
   if (mot === "statut:") return [...marge, ...(ligneDeStatut(reste, 0) ?? []).slice(1)];
   if (mot === "le:") return [...marge, ...(ligneDeDate(reste, 0) ?? []).slice(1)];
+
+  // Les lignes d'un `.ref` qui s'étalent : on les rend telles qu'elles sont
+  // écrites. Elles n'ont rien à recomposer — leur contenu est déductible —,
+  // mais elles ont tout à colorer.
+  const importe = lireUnImport(nu);
+  if (importe) return [...marge, ...(ligneDImport(importe, 0) ?? []).slice(1)];
+
+  const decision = lireUneDecision(nu);
+  if (decision) return [...marge, ...(ligneDeDecision(decision, 0) ?? []).slice(1)];
+
+  const ouvreUneConclusion = nu.match(CONCLUSION_OUVRANTE);
+  if (ouvreUneConclusion) {
+    return [...marge,
+      { type: JETON.MOT_CONDITION, texte: ouvreUneConclusion[1] },
+      { type: JETON.NEUTRE, texte: " " },
+      { type: JETON.PONCTUATION, texte: "(" }];
+  }
+
+  if (ENREGISTRE_OUVRANT.test(nu)) {
+    return [...marge,
+      { type: JETON.MOT_NATIF, texte: "enregistre" },
+      { type: JETON.NEUTRE, texte: " " },
+      { type: JETON.PONCTUATION, texte: "(" }];
+  }
+
+  if (FERMETURE.test(nu)) return [...marge, { type: JETON.PONCTUATION, texte: nu }];
+
+  const champ = nu.match(CHAMP_DENREGISTREMENT);
+  if (champ && !mot) {
+    const cle = texte(champ[1]);
+    const suite = texte(champ[2]);
+    const virgule = /,\s*$/.test(nu) ? [{ type: JETON.PONCTUATION, texte: "," }] : [];
+    const nomEnCle = cle.toLowerCase();
+
+    // `dans:` porte un fichier, `zones:` une portée, le reste est le sujet qu'on
+    // enregistre — trois natures, trois couleurs.
+    if (nomEnCle === "dans" || nomEnCle === "zones") {
+      return [...marge,
+        { type: JETON.LOCALE, texte: cle },
+        { type: JETON.PONCTUATION, texte: ":" },
+        { type: JETON.NEUTRE, texte: " " },
+        { type: nomEnCle === "dans" ? JETON.FICHIER : JETON.PORTEE, texte: suite.replace(/,$/, "") },
+        ...virgule];
+    }
+
+    const lue = lireUneValeur(suite.replace(/,$/, ""));
+    return [...marge,
+      { type: JETON.SUJET, texte: cle },
+      { type: JETON.PONCTUATION, texte: ":" },
+      { type: JETON.NEUTRE, texte: " " },
+      ...jetonsDeValeur(lue.valeur, lue.unite),
+      ...virgule];
+  }
 
   // `soit texte = "…";` — une locale de règle. Le nom porte le sens, la valeur
   // se cite : on la relit pour la réécrire telle qu'elle était.

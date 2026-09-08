@@ -5,7 +5,7 @@ import {
   lignesDeLAssertion, provenanceDeLAssertion, statutDeLAssertion,
   jetonsDeLAssertion, octets, ilYA, lignesAffichables, ligneCachee, grouperParVersement,
   preparerLaMemoire, fichierDesVariables, adresseDuFichier, nomDuFichier, contexteDuSujet,
-  FICHIER_DES_VARIABLES
+  fonctionsSansDoublon, ouChaqueValeurEstEcrite, FICHIER_DES_VARIABLES
 } from "./project-memoire-fichiers.js";
 import { enClair, texteDesLignes, PROVENANCE, STATUT } from "../services/memoire-en-texte.js";
 import { lireUnFichier } from "../services/memoire-en-lecture.js";
@@ -207,8 +207,14 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
     }
   });
 
+  // Auto-portée : ce qu'elle fait, d'où viennent ses entrées, ce qui la fonde,
+  // ce qu'elle conclut. La portée est son premier paramètre.
   assert.equal(texte, [
-    "fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    "// À DÉCRIRE — à quoi sert « Classement du bâtiment » ? Ce que la fonction établit, et dans quel cas on l\'applique.",
+    "fonction Classement du bâtiment(zones, Logements superposés, Hauteur du plancher bas du logement le plus haut) {",
+    "   importe (variable: Logements superposés, depuis: variables-du-projet.ref);",
+    "   importe (variable: Hauteur du plancher bas du logement le plus haut, depuis: variables-du-projet.ref);",
+    "",
     '   soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°)";',
     '   soit parce que = "Troisième famille B : habitations ne satisfaisant pas à l\'une des conditions précédentes.";',
     "",
@@ -220,7 +226,7 @@ test("une règle appliquée s'écrit comme une règle, pas comme un fait du proj
   ].join("\n"));
 
   // Pas de `=` sur la tête : la règle ne dit pas ce que vaut la donnée ici.
-  assert.equal(texte.split("\n")[0].includes(" = "), false);
+  assert.equal(texte.split("\n")[1].includes(" = "), false);
   // Et pas de statut : un référentiel n'a pas d'état dans un projet.
   assert.equal(texte.includes("statut"), false);
 });
@@ -267,12 +273,23 @@ test("la racine de la Mémoire porte le dictionnaire du projet", () => {
 
   const [variables] = memoire.racine;
   assert.equal(nomDuFichier(variables), FICHIER_DES_VARIABLES);
-  // À la racine, pas dans un dossier : il ne relève d'aucune discipline.
-  assert.equal(adresseDuFichier(variables), `Mémoire/${FICHIER_DES_VARIABLES}`);
+  // À la racine, pas dans un dossier : il ne relève d'aucune discipline, et son
+  // adresse n'a donc pas de dossier devant elle — sinon le fil d'Ariane
+  // affichait « Fichiers / Mémoire / Mémoire / variables-du-projet.ref ».
+  assert.equal(adresseDuFichier(variables), FICHIER_DES_VARIABLES);
 
   const texte = texteDesLignes(lignesAffichables(variables).map((ligne) => ligne.jetons));
-  assert.match(texte, /const Hauteur du plancher bas = \{ type: "mesure", unité: "m" \};/);
-  assert.match(texte, /const Classement du bâtiment = \{ type: "texte" \};/);
+  assert.match(texte, /const Hauteur du plancher bas = \{/);
+  assert.match(texte, /type: "mesure",/);
+  assert.match(texte, /unité: "m",/);
+  // Une déclaration doit suffire à décider si l'on réutilise ce nom : le type
+  // seul ne suffit pas, et ce qui manque s'appelle par son nom.
+  assert.match(texte, /description: "À DÉCRIRE/);
+  assert.match(texte, /utilisation: "À DÉCRIRE/);
+  // Et où il sert déjà — c'est cette liste qui empêche d'en recréer un voisin.
+  assert.match(texte, /déjà utilisé dans: \[/);
+  assert.match(texte, /Classement du bâtiment \(memoire\/incendie\.ref\)/);
+
   // Ce qu'une variable vaut n'y est pas : elle en prend plusieurs au fil d'un
   // projet, et une définition qui en porterait une cesserait d'être vraie.
   assert.equal(texte.includes("26 m"), false);
@@ -297,17 +314,90 @@ test("un projet sans mémoire n'a pas de dictionnaire", () => {
 test("le survol d'un nom dit ce qu'il faut pour ne pas le confondre", () => {
   const variables = new Map([["hauteur du plancher bas", {
     nom: "Hauteur du plancher bas", valeur: "26 m", declaree: true,
-    declarePar: "memoire/donnees-de-base.ddb", citeePar: ["memoire/incendie.ref"]
+    declarePar: "memoire/donnees-de-base.ddb", citeePar: ["memoire/incendie.ref"],
+    usages: [{ fonction: "Classement du bâtiment", fichier: "memoire/incendie.ref" }]
   }]]);
 
   const dit = contexteDuSujet("Hauteur du plancher bas", { resolution: "connu", variables });
   assert.match(dit, /mesure · m/);
   assert.match(dit, /vaut 26 m/);
   assert.match(dit, /déclarée dans memoire\/donnees-de-base\.ddb/);
-  assert.match(dit, /1 usage/);
+  // La fonction qui l'emploie, nommément : savoir dans quel fichier chercher ne
+  // dit pas quoi y lire.
+  assert.match(dit, /1 usage — Classement du bâtiment \(memoire\/incendie\.ref\)/);
 
   // Sans table, on ne dit rien plutôt que d'inventer : une info-bulle vide vaut
   // mieux qu'une info-bulle fausse.
   assert.equal(contexteDuSujet("Hauteur du plancher bas", { resolution: "connu" }), "");
   assert.match(contexteDuSujet("Autre chose", { resolution: "inconnu" }), /ne mène nulle part/);
+});
+
+test("une même règle versée pour trois zones ne s'écrit qu'une fois", () => {
+  // Une règle est le capital de raisonnement du projet. Recopiée par zone, elle
+  // ferait trois versions à corriger le jour où l'arrêté bouge, et deux
+  // resteraient en arrière.
+  const regle = (zone) => ({
+    id: `r-${zone}`, subject_key: `regle:colonne-seche@${zone}`, status: "assumed", superseded_by: null,
+    domain: "incendie",
+    payload: {
+      subject: "Colonne sèche", value: "exigée", referentiel: true, zones: [zone],
+      regle: { conditions: [{ sujet: "Classement du bâtiment", operateur: "=", valeur: ["3e famille B"] }], sauf: [] }
+    }
+  });
+
+  const memoire = preparerLaMemoire([regle("batiment-a"), regle("batiment-b"), regle("batiment-c")]);
+  const ref = memoire.fichiers.find((fichier) => fichier.extension === "ref" && !fichier.nom);
+  const texte = texteDesLignes(lignesAffichables(ref).map((ligne) => ligne.jetons));
+
+  assert.equal((texte.match(/fonction Colonne sèche/g) ?? []).length, 1);
+  // Et pas de section de zone : la portée est un paramètre, pas un rangement.
+  assert.equal(texte.includes("zone:"), false);
+  assert.match(texte, /fonction Colonne sèche\(zones, Classement du bâtiment\)/);
+});
+
+test("une règle dit d'où viennent ses entrées et où va son résultat", () => {
+  const memoire = preparerLaMemoire([
+    ligneDeMemoire("Classement du bâtiment", "3e famille B"),
+    {
+      id: "r1", subject_key: "regle:colonne-seche", status: "assumed", superseded_by: null,
+      nature: null, domain: "incendie",
+      payload: {
+        subject: "Colonne sèche", value: "exigée", referentiel: true,
+        regle: { conditions: [{ sujet: "Classement du bâtiment", operateur: "=", valeur: ["3e famille B"] }], sauf: [] }
+      }
+    },
+    {
+      id: "c1", subject_key: "colonne-seche", status: "assumed", superseded_by: null,
+      nature: "contrainte", domain: "incendie",
+      payload: { subject: "Colonne sèche", value: "exigée" }
+    }
+  ]);
+
+  const ref = memoire.fichiers.find((fichier) => fichier.extension === "ref" && !fichier.nom);
+  const texte = texteDesLignes(lignesAffichables(ref, { ouEcrit: memoire.ouEcrit }).map((ligne) => ligne.jetons));
+
+  // L'entrée vient du fichier qui la déclare, le résultat va où il est écrit.
+  assert.match(texte, /importe \(variable: Classement du bâtiment, depuis: memoire\/donnees-de-base\.ddb\);/);
+  assert.match(texte, /dans: memoire\/incendie\.ctr,/);
+});
+
+test("une règle ne s'enregistre pas elle-même", () => {
+  // Elle produit la valeur, elle ne la porte pas. Sans cette distinction, une
+  // règle dirait qu'elle écrit son résultat dans le fichier où elle vit.
+  const ou = ouChaqueValeurEstEcrite([
+    { fichier: "memoire/incendie.ref", lignes: [{ subject_key: "colonne-seche", payload: { subject: "Colonne sèche", referentiel: true } }] },
+    { fichier: "memoire/incendie.ctr", lignes: [{ subject_key: "colonne-seche", payload: { subject: "Colonne sèche" } }] }
+  ]);
+
+  assert.equal(ou.get("colonne seche"), "memoire/incendie.ctr");
+});
+
+test("un doublon de fonction garde la première", () => {
+  const gardees = fonctionsSansDoublon([
+    { payload: { subject: "Colonne sèche", value: "exigée" } },
+    { payload: { subject: "colonne  Sèche", value: "autre chose" } },
+    { payload: { subject: "Classement du bâtiment" } }
+  ]);
+
+  assert.deepEqual(gardees.map((a) => a.payload.subject), ["Colonne sèche", "Classement du bâtiment"]);
 });

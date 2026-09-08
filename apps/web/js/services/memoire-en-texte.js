@@ -159,8 +159,13 @@
  * v4.2 — ce qui fonde une règle se déclare en tête, comme les `const` d'une
  * fonction : `soit texte = …`, `soit parce que = …`. Les commentaires `//` et
  * `/* … *\/` entrent dans le langage, et `const` définit un nom du projet.
+ *
+ * v4.3 — une fonction est **auto-portée** : un commentaire dit à quoi elle sert,
+ * `importe` d'où viennent ses entrées, `enregistre` où va son résultat, et la
+ * portée est son premier paramètre. Une déclaration de variable porte ce qu'elle
+ * désigne, ce à quoi elle sert et où elle sert déjà.
  */
-export const ECRITURE = "4.2";
+export const ECRITURE = "4.3";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
@@ -209,6 +214,12 @@ export const JETON = {
   MOT_SOIT: "mot-soit",
   /** `const` — le mot qui déclare une variable du projet. */
   MOT_CONST: "mot-const",
+  /** `importe`, `enregistre`, `décision humaine assumée` — les verbes du langage. */
+  MOT_NATIF: "mot-natif",
+  /** Le nom d'un fichier, cité dans un `importe` ou un `enregistre`. */
+  FICHIER: "fichier",
+  /** `zones` — le paramètre de portée, cité comme tel. */
+  PORTEE: "portee",
   /** Le nom d'une locale : `texte`, `document`, `parce que`. */
   LOCALE: "locale",
   /** `// …` ou `/* … *\/` — ce qu'on écrit pour soi, jamais interprété. */
@@ -370,8 +381,14 @@ export function estMesuree(valeur) {
   return /^-?\d+(?:[.,\s]\d+)*$/.test(texte(nombre));
 }
 
-/** Une valeur, écrite selon qu'elle se mesure ou se cite. */
-function jetonsDeValeur(valeur, unite = "") {
+/**
+ * Une valeur, écrite selon qu'elle se mesure ou se cite.
+ *
+ * Exportée parce que la lecture en a besoin pour recolorer une valeur trouvée
+ * ailleurs que sur une ligne d'affirmation — dans un `enregistre`, par exemple.
+ * Deux façons d'écrire une valeur finiraient par ne plus s'accorder.
+ */
+export function jetonsDeValeur(valeur, unite = "") {
   const brut = texte(valeur);
   if (!brut) return [];
 
@@ -516,6 +533,172 @@ export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1,
 }
 
 /**
+ * Les verbes du langage — ce qu'une règle sait **faire**, et pas seulement dire.
+ *
+ * ## Pourquoi un langage de métier a des verbes
+ *
+ * Une règle qui se contente de conclure laisse la moitié du travail à celui qui
+ * la lit : où est-ce écrit ? qui l'a décidé ? que fait-on si le référentiel ne
+ * s'applique pas ? Ces gestes-là reviennent dans tous les projets, et les
+ * écrire en prose à chaque fois donne mille formulations pour une seule chose.
+ *
+ * La liste est **fermée**, et c'est ce qui en fait un langage : un verbe de plus
+ * inventé au fil de l'eau ne se relirait nulle part.
+ *
+ * | verbe | ce qu'il fait |
+ * | --- | --- |
+ * | `importe` | dit d'où vient une entrée, et où aller la lire |
+ * | `enregistre` | écrit une valeur dans un fichier, sur une portée |
+ * | `décision humaine assumée` | quelqu'un a tranché, et il signe |
+ *
+ * D'autres suivront, et le besoin les nommera plutôt que l'imagination :
+ * `constate` (une observation datée), `suppose` (avec ce qui la lèverait),
+ * `sans objet` (le référentiel ne s'applique pas, ce qui n'est pas une
+ * condition fausse), `à vérifier` (la machine s'arrête et appelle quelqu'un).
+ */
+export const VERBES = {
+  IMPORTE: "importe",
+  ENREGISTRE: "enregistre",
+  DECISION: "décision humaine assumée"
+};
+
+/**
+ * `décision humaine assumée (réunion de chantier du 3 mars, par: Nicolas L., le: 12 mars 2026);`
+ *
+ * ## Pourquoi un verbe, et non une provenance de plus
+ *
+ * `hypothèse:` dit d'où une valeur vient ; **ce verbe dit qui la porte**. Les
+ * deux ne se remplacent pas : une hypothèse se lève quand la donnée arrive, une
+ * décision se conteste devant celui qui l'a prise. Sans nom et sans date, une
+ * valeur tranchée à la main se relit six mois plus tard comme un fait établi —
+ * et personne ne sait plus qu'elle était un choix.
+ *
+ * Il remplace la ligne `décision:` quand on sait qui a tranché et quand : la
+ * mémoire le sait depuis toujours — `decided_by`, `decided_at` — et ne le
+ * montrait nulle part.
+ */
+export function ligneDeDecision({ quoi = "", par = "", le = "" } = {}, profondeur = 1) {
+  const dit = texte(quoi);
+  if (!dit) return null;
+
+  const jetons = [
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.MOT_NATIF, VERBES.DECISION),
+    espace(),
+    jeton(JETON.PONCTUATION, "("),
+    jeton(JETON.SOURCE, dit)
+  ];
+
+  // Qui, et quand. Une décision sans auteur ni date n'est pas une décision :
+  // c'est une valeur dont plus personne ne répond.
+  for (const [cle, dit] of [["par", texte(par)], ["le", texte(le)]]) {
+    if (!dit) continue;
+    jetons.push(jeton(JETON.PONCTUATION, ","), espace(),
+      jeton(JETON.LOCALE, cle), jeton(JETON.PONCTUATION, ":"), espace(),
+      jeton(cle === "le" ? JETON.DATE : JETON.SOURCE, dit));
+  }
+
+  jetons.push(jeton(JETON.PONCTUATION, ")"), jeton(JETON.PONCTUATION, ";"));
+  return jetons;
+}
+
+/**
+ * `importe (variable: Champ d'application du titre VI, depuis: variables-du-projet.ref);`
+ *
+ * ## Pourquoi une règle dit d'où viennent ses entrées
+ *
+ * Sans cela, une fonction lue seule ne se comprend pas : « Champ d'application
+ * du titre VI » apparaît dans une condition sans qu'on sache qui le pose ni où
+ * aller le lire. Il faut alors parcourir les autres fichiers pour reconstituer
+ * la chaîne — et c'est précisément ce que la mémoire existe pour éviter.
+ *
+ * Une fonction **auto-portée** se lit d'un bout à l'autre : ce dont elle a
+ * besoin, d'où cela vient, ce qu'elle en fait, et où le résultat va.
+ *
+ * Un import par ligne : ajouter une entrée ajoute exactement une ligne, et le
+ * diff dit « une entrée de plus » plutôt que de redessiner un bloc.
+ */
+export function ligneDImport({ variable = "", depuis = "" } = {}, profondeur = 1) {
+  const nom = texte(variable);
+  if (!nom) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_NATIF, "importe"),
+    espace(),
+    jeton(JETON.PONCTUATION, "("),
+    jeton(JETON.LOCALE, "variable"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.SUJET, nom),
+    jeton(JETON.PONCTUATION, ","),
+    espace(),
+    jeton(JETON.LOCALE, "depuis"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.FICHIER, texte(depuis) || "inconnu"),
+    jeton(JETON.PONCTUATION, ")"),
+    jeton(JETON.PONCTUATION, ";")
+  ];
+}
+
+/**
+ * `enregistre ( Sujet: "valeur", dans: incendie.ctr, zones: zones )`
+ *
+ * Ce que la règle **fait** de sa conclusion. Une règle qui se contente de
+ * conclure laisse ouverte la question qui vient toujours après : « et alors, où
+ * est-ce écrit ? ». Le bloc y répond sur place — le fichier qui reçoit, et la
+ * portée sur laquelle cela vaut.
+ *
+ * Il s'écrit sur plusieurs lignes, contrairement à l'import : chacun de ses
+ * trois champs peut changer seul, et une seule ligne les ferait tous bouger
+ * ensemble dans le diff.
+ *
+ * @returns {object[][]} les lignes du bloc
+ */
+export function blocDEnregistrement({ sujet = "", valeur = "", unite = "", dans = "", zones = "zones" } = {}, profondeur = 2) {
+  const nom = texte(sujet);
+  if (!nom) return [];
+
+  const dedans = profondeur + 1;
+  const lignes = [[
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.MOT_NATIF, "enregistre"),
+    espace(),
+    jeton(JETON.PONCTUATION, "(")
+  ]];
+
+  lignes.push([
+    espace(RETRAIT.repeat(dedans)),
+    jeton(JETON.SUJET, nom),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    ...jetonsDeValeur(valeur, unite),
+    jeton(JETON.PONCTUATION, ",")
+  ]);
+
+  lignes.push([
+    espace(RETRAIT.repeat(dedans)),
+    jeton(JETON.LOCALE, "dans"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.FICHIER, texte(dans) || "inconnu"),
+    jeton(JETON.PONCTUATION, ",")
+  ]);
+
+  lignes.push([
+    espace(RETRAIT.repeat(dedans)),
+    jeton(JETON.LOCALE, "zones"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.PORTEE, texte(zones) || "zones")
+  ]);
+
+  lignes.push([espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.PONCTUATION, ")")]);
+  return lignes;
+}
+
+/**
  * `soit texte = "arrêté du 31 janvier 1986, article 98";`
  *
  * Une locale d'une règle. Elle se pose en tête du bloc, avant les conditions,
@@ -543,9 +726,19 @@ export function ligneDeLocale(nom = "", valeur = "", profondeur = 1) {
 }
 
 /**
- * `const Hauteur du plancher bas = { type: "mesure", unité: "m" };`
+ * ```
+ * const Hauteur du plancher bas = {
+ *    type: "mesure",
+ *    unité: "m",
+ *    description: "Hauteur du plancher bas du logement le plus haut…",
+ *    utilisation: "Entrée du classement en famille, article 3 de l'arrêté…",
+ *    déjà utilisé dans: [
+ *       Classement du bâtiment (incendie.ref)
+ *    ]
+ * };
+ * ```
  *
- * ## Ce que cette ligne dit, et ce qu'elle ne dit pas
+ * ## Ce que ce bloc dit, et ce qu'il ne dit pas
  *
  * Elle **définit** un nom : ce qu'il désigne, comment il se mesure. Elle ne dit
  * pas ce qu'il vaut dans ce projet — une variable prend plusieurs valeurs au
@@ -557,19 +750,25 @@ export function ligneDeLocale(nom = "", valeur = "", profondeur = 1) {
  * et « Hauteur du dernier plancher », on se trompe vite, et un nom mal
  * orthographié fabrique une seconde variable qui ne servira jamais.
  *
- * @param {{nom: string, type?: string, unite?: string, quoi?: string}} variable
+ * ## Pourquoi il en dit autant
+ *
+ * Dix-huit mois de chantier et douze mois d'études font des milliers de noms.
+ * Si personne ne sait dire ce que fait celui-ci, chacun en recréera un voisin —
+ * et la mémoire se remplira de synonymes qui ne se rejoignent jamais. Le nom, le
+ * type et l'unité ne suffisent pas : il faut ce qu'il **désigne**, ce à quoi il
+ * **sert**, et où il sert **déjà**.
+ *
+ * @param {{nom: string, type?: string, unite?: string, description?: string,
+ *          utilisation?: string, usages?: {fonction: string, fichier: string}[]}} variable
  */
-export function ligneDeVariable({ nom = "", type = "", unite = "", quoi = "" } = {}, profondeur = 0) {
+export function blocDeVariable({
+  nom = "", type = "", unite = "", description = "", utilisation = "", usages = []
+} = {}, profondeur = 0) {
   const dit = texte(nom);
-  if (!dit) return null;
+  if (!dit) return [];
 
-  const champs = [
-    ["type", texte(type) || "inconnu"],
-    ...(texte(unite) ? [["unité", texte(unite)]] : []),
-    ...(texte(quoi) ? [["quoi", texte(quoi)]] : [])
-  ];
-
-  const jetons = [
+  const dedans = profondeur + 1;
+  const lignes = [[
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
     jeton(JETON.MOT_CONST, "const"),
     espace(),
@@ -579,18 +778,64 @@ export function ligneDeVariable({ nom = "", type = "", unite = "", quoi = "" } =
     espace(),
     jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
     espace(),
-    jeton(JETON.PONCTUATION, "{"),
-    espace()
+    jeton(JETON.PONCTUATION, "{")
+  ]];
+
+  const champ = (cle, valeur, virgule = true) => [
+    espace(RETRAIT.repeat(dedans)),
+    jeton(JETON.LOCALE, cle),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.VALEUR, `"${texte(valeur)}"`),
+    ...(virgule ? [jeton(JETON.PONCTUATION, ",")] : [])
   ];
 
-  champs.forEach(([cle, valeur], rang) => {
-    if (rang > 0) jetons.push(jeton(JETON.PONCTUATION, ","), espace());
-    jetons.push(jeton(JETON.LOCALE, cle), jeton(JETON.PONCTUATION, ":"), espace(), jeton(JETON.VALEUR, `"${valeur}"`));
+  lignes.push(champ("type", texte(type) || "inconnu"));
+  if (texte(unite)) lignes.push(champ("unité", texte(unite)));
+  lignes.push(champ("description", texte(description) || À_DÉCRIRE.description));
+  lignes.push(champ("utilisation", texte(utilisation) || À_DÉCRIRE.utilisation));
+
+  // Où elle sert déjà : la fonction, et le fichier où on la trouve. C'est la
+  // liste qui empêche d'en recréer une treize millième — on voit d'un coup
+  // d'œil que celle-ci fait déjà le travail.
+  const emplois = (Array.isArray(usages) ? usages : []).filter((usage) => texte(usage?.fonction));
+  lignes.push([
+    espace(RETRAIT.repeat(dedans)),
+    jeton(JETON.LOCALE, "déjà utilisé dans"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.PONCTUATION, emplois.length ? "[" : "[]")
+  ]);
+
+  emplois.forEach((usage, rang) => {
+    lignes.push([
+      espace(RETRAIT.repeat(dedans + 1)),
+      jeton(JETON.SUJET, texte(usage.fonction)),
+      espace(),
+      jeton(JETON.PONCTUATION, "("),
+      jeton(JETON.FICHIER, texte(usage.fichier) || "inconnu"),
+      jeton(JETON.PONCTUATION, ")"),
+      ...(rang < emplois.length - 1 ? [jeton(JETON.PONCTUATION, ",")] : [])
+    ]);
   });
 
-  jetons.push(espace(), jeton(JETON.PONCTUATION, "}"), jeton(JETON.PONCTUATION, ";"));
-  return jetons;
+  if (emplois.length) lignes.push([espace(RETRAIT.repeat(dedans)), jeton(JETON.PONCTUATION, "]")]);
+
+  lignes.push([espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.PONCTUATION, "}"), jeton(JETON.PONCTUATION, ";")]);
+  return lignes;
 }
+
+/**
+ * Ce qu'on écrit quand personne n'a encore écrit.
+ *
+ * Pas une phrase vague, pas un champ absent : une phrase qui **appelle** celui
+ * qui passe à la remplir. Sur douze mille variables, une description manquante
+ * qui ne se voit pas est une variable qu'on recréera.
+ */
+export const À_DÉCRIRE = {
+  description: "À DÉCRIRE — que désigne exactement ce nom, et comment se mesure-t-il ?",
+  utilisation: "À DÉCRIRE — dans quel calcul, selon quel texte, pour décider de quoi ?"
+};
 
 /**
  * `// ce qu'on écrit pour soi`
@@ -620,9 +865,17 @@ export function ligneDeCommentaire(phrase = "", profondeur = 0) {
  * ligne qui dit `règle:` est déduite, `document:` est lue, `calcul:` est
  * calculée. Rien à déclarer en plus, et une flèche de moins à taper.
  */
-export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "" } = {}, profondeur = 1, { regle = false } = {}) {
+export function ligneDeProvenance({ type = PROVENANCE.TEXTE, quoi = "", par = "", le = "" } = {}, profondeur = 1, { regle = false } = {}) {
   const dit = texte(quoi);
   if (!dit) return null;
+
+  // Une décision se signe. Quand on sait qui a tranché et quand, la ligne le
+  // dit : sans nom ni date, une valeur choisie à la main se relit six mois
+  // plus tard comme un fait établi, et personne ne sait plus que c'était un
+  // choix. La mémoire le savait déjà et ne le montrait pas.
+  if (texte(type) === PROVENANCE.DECISION && (texte(par) || texte(le))) {
+    return ligneDeDecision({ quoi: dit, par, le }, profondeur);
+  }
 
   // Dans une règle, la provenance se **déclare** : elle se pose en tête du
   // bloc, comme les `const` d'une fonction, et le nom de la locale reste le
@@ -782,7 +1035,8 @@ export function ligneDeZone(zone = TOUTES_ZONES, profondeur = 0) {
  * @param {number} profondeur le cran d'indentation du bloc, dans sa zone
  */
 export function blocDeRegle({
-  sujet = "", conditions = [], alors = "", sinon = "", sauf = [], provenance = null, preuve = ""
+  sujet = "", quoi = "", conditions = [], alors = "", sinon = "", sauf = [],
+  provenance = null, preuve = "", importe = [], enregistre = null, portee = "zones"
 } = {}, profondeur = 0) {
   const dedans = profondeur + 1;
   const toutes = [...(Array.isArray(conditions) ? conditions : []), ...(Array.isArray(sauf) ? sauf : [])];
@@ -791,9 +1045,19 @@ export function blocDeRegle({
 
   const corps = [];
 
-  // Les locales d'abord, comme les `const` d'une fonction : ce qui fonde la
-  // règle se lit avant ce qu'elle fait. Elles étaient en bas, après la
-  // conclusion — c'est-à-dire là où on ne les cherche plus.
+  // D'où viennent les entrées, d'abord : une fonction lue seule doit dire où
+  // aller lire ce dont elle a besoin, sinon il faut parcourir les autres
+  // fichiers pour reconstituer la chaîne.
+  for (const entree of Array.isArray(importe) ? importe : []) {
+    const ligne = ligneDImport(entree, dedans);
+    if (ligne) corps.push(ligne);
+  }
+  if (corps.length) corps.push(ligneVide());
+
+  // Puis les locales, comme les `const` d'une fonction : ce qui fonde la règle
+  // se lit avant ce qu'elle fait. Elles étaient en bas, après la conclusion —
+  // c'est-à-dire là où on ne les cherche plus.
+  const localesDebut = corps.length;
   const depuis = provenance ? ligneDeProvenance(provenance, dedans, commeUneRegle) : null;
   if (depuis) corps.push(depuis);
 
@@ -802,27 +1066,71 @@ export function blocDeRegle({
 
   // Une ligne vide entre ce qu'on pose et ce qu'on en fait : sans elle, les
   // deux se lisent comme une seule suite d'instructions.
-  if (corps.length) corps.push(ligneVide());
+  if (corps.length > localesDebut) corps.push(ligneVide());
 
   (Array.isArray(conditions) ? conditions : []).forEach((condition, rang) => {
     corps.push(ligneDeCondition(rang === 0 ? "si" : (condition.joint || "et"), condition, dedans, commeUneRegle));
   });
 
-  if (texte(alors)) corps.push(ligneDeConsequence("alors", alors, "", dedans, commeUneRegle));
-  if (texte(sinon)) corps.push(ligneDeConsequence("sinon", sinon, "", dedans, commeUneRegle));
+  // La conclusion, et ce qu'on en fait. Un `enregistre` répond à la question
+  // qui vient toujours après « alors quoi ? » : où est-ce écrit, et pour quelle
+  // partie de l'ouvrage.
+  if (texte(alors)) {
+    corps.push(...(enregistre
+      ? lignesDeConclusion("alors", { ...enregistre, sujet: texte(enregistre.sujet) || texte(sujet), valeur: alors, zones: portee }, dedans)
+      : [ligneDeConsequence("alors", alors, "", dedans, commeUneRegle)]));
+  }
+  if (texte(sinon)) {
+    corps.push(...(enregistre
+      ? lignesDeConclusion("sinon", { ...enregistre, sujet: texte(enregistre.sujet) || texte(sujet), valeur: sinon, zones: portee }, dedans)
+      : [ligneDeConsequence("sinon", sinon, "", dedans, commeUneRegle)]));
+  }
 
   for (const exception of (Array.isArray(sauf) ? sauf : [sauf]).filter(Boolean)) {
     corps.push(ligneDeCondition("sauf si", exception, dedans, commeUneRegle));
   }
 
+  // La portée est un paramètre, et le premier : une même règle s'applique à
+  // plusieurs parties de l'ouvrage, et la recopier par zone en ferait trois
+  // règles à maintenir pour un seul raisonnement.
+  const entrees = [texte(portee) || "zones", ...toutes.map((condition) => condition?.sujet)];
+
   const tete = [
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
-    ...ligneDeDonnee(sujet, toutes.map((condition) => condition?.sujet), commeUneRegle)
+    ...ligneDeDonnee(sujet, entrees, commeUneRegle)
   ];
 
-  return corps.length
+  // Le commentaire qui dit à quoi la fonction sert, au-dessus d'elle. Une
+  // fonction sans lui oblige à lire ses conditions pour deviner son objet — et
+  // sur douze mille fonctions, personne ne le fera.
+  const avant = ligneDeCommentaire(quoi, profondeur);
+
+  const bloc = corps.length
     ? [[...tete, espace(), jeton(JETON.ACCOLADE, "{")], ...corps, ligneFermante(profondeur)]
     : [tete];
+
+  return avant ? [avant, ...bloc] : bloc;
+}
+
+/**
+ * `alors ( enregistre ( … ) );` — la conclusion, et ce qu'elle écrit.
+ *
+ * Deux niveaux de parenthèses, comme un appel dans un appel : c'est ce que
+ * c'est. `alors` dit que la branche est prise, `enregistre` dit ce qu'on en
+ * fait — et les séparer permet de conclure sans rien écrire, ce qui arrive
+ * pour une règle qui ne fait que produire une valeur intermédiaire.
+ */
+export function lignesDeConclusion(mot, enregistre = {}, profondeur = 1) {
+  return [
+    [
+      espace(RETRAIT.repeat(Math.max(1, profondeur))),
+      jeton(JETON.MOT_CONDITION, texte(mot)),
+      espace(),
+      jeton(JETON.PONCTUATION, "(")
+    ],
+    ...blocDEnregistrement(enregistre, profondeur + 1),
+    [espace(RETRAIT.repeat(Math.max(1, profondeur))), jeton(JETON.PONCTUATION, ")"), jeton(JETON.PONCTUATION, ";")]
+  ];
 }
 
 /**

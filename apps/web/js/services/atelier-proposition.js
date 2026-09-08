@@ -44,6 +44,8 @@ const texte = (valeur) => String(valeur ?? "").trim();
  * @property {string} [source]  « arrêté du 31 janvier 1986 modifié »
  * @property {string} [article] « article 6, premier alinéa »
  * @property {string} [citation] la phrase du texte qui décide
+ * @property {string} [quoi]      ce que ce nom désigne, en une phrase
+ * @property {string} [utilisation] ce à quoi il sert, et selon quel texte
  * @property {string} [reference] l'identifiant stable côté utilitaire
  * @property {string[]} [zones] la portée, vide pour l'ensemble
  */
@@ -178,6 +180,12 @@ export function itemsDeProposition(affirmations = []) {
           // sait de quoi il parle, et il le dit.
           nature: texte(affirmation.nature) || null,
           domain: texte(affirmation.domaine) || null,
+          // Ce que ce nom désigne, et ce à quoi il sert. Ni l'un ni l'autre ne
+          // se déduit d'une valeur : sans eux, un projet de douze mille noms
+          // devient un projet où chacun recrée le sien plutôt que de chercher
+          // celui qui existe. Voir `docs/langage-mdall.md`.
+          quoi: texte(affirmation.quoi) || null,
+          utilisation: texte(affirmation.utilisation) || null,
           zones: portees.length ? portees : null,
           // De quoi rouvrir le texte à la bonne ligne devant qui conteste.
           source: texte(affirmation.source) || null,

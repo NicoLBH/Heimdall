@@ -28,11 +28,11 @@ import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import {
   blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
-  ligneDeZone, ligneFermante, ligneDeVariable, ligneDeCommentaire, PROVENANCE, STATUT
+  ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
   phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE,
-  MEMOIRE, EXTENSION_REGLE
+  MEMOIRE, EXTENSION_REGLE, LANGAGES
 } from "../services/memoire-rangement.js";
 import {
   fichiersDeLaMemoire, dossiersDeLaMemoire, blameDeLaLigne, chaleurDeLaLigne, bornesDuFichier,
@@ -63,13 +63,39 @@ export function preparerLaMemoire(assertions = []) {
     .sort((gauche, droite) => rangDuDossier(gauche.nom) - rangDuDossier(droite.nom)
       || gauche.nom.localeCompare(droite.nom, "fr"));
 
+  // Où chaque valeur est écrite. C'est ce qui permet à une règle de dire d'où
+  // viennent ses entrées et où va son résultat, sans le deviner : la mémoire le
+  // sait, il suffit de le lui demander une fois.
+  const ouEcrit = ouChaqueValeurEstEcrite(fichiersDeLaMemoire(assertions));
+
   // La racine porte ce qui ne relève d'aucun domaine et d'aucune nature : la
   // liste des noms que le projet partage. Elle se calcule depuis les dossiers,
   // et n'y figure donc pas elle-même — sinon chaque variable se déclarerait
   // dans le fichier qui la liste, ce qui ne veut rien dire.
-  const racine = [fichierDesVariables(dossiers)].filter(Boolean);
+  const racine = [fichierDesVariables(dossiers, { ouEcrit })].filter(Boolean);
 
-  return { dossiers, racine, fichiers: [...fichiersDeLaMemoire(assertions), ...racine] };
+  return { dossiers, racine, ouEcrit, fichiers: [...fichiersDeLaMemoire(assertions), ...racine] };
+}
+
+/**
+ * Où chaque valeur du projet est écrite : `sujet → memoire/incendie.ctr`.
+ *
+ * Une **règle** n'y entre pas : elle produit la valeur, elle ne la porte pas.
+ * Sans cette distinction, une règle dirait qu'elle enregistre son résultat dans
+ * le fichier où elle vit elle-même, ce qui est un cercle.
+ */
+export function ouChaqueValeurEstEcrite(fichiers = []) {
+  const ou = new Map();
+
+  for (const fichier of Array.isArray(fichiers) ? fichiers : []) {
+    for (const assertion of fichier.lignes ?? []) {
+      if (assertion?.payload?.referentiel === true) continue;
+      const cle = cleDuSujet(texte(assertion?.payload?.subject) || texte(assertion?.subject_key));
+      if (cle && !ou.has(cle)) ou.set(cle, fichier.fichier);
+    }
+  }
+
+  return ou;
 }
 
 /** Le nom du fichier des variables. Il est à la racine, et il est unique. */
@@ -96,10 +122,10 @@ export const FICHIER_DES_VARIABLES = "variables-du-projet.ref";
  *
  * @returns {object|null} un fichier, ou `null` si le projet n'a encore aucun nom
  */
-export function fichierDesVariables(dossiers = []) {
+export function fichierDesVariables(dossiers = [], { ouEcrit = null } = {}) {
   const fichiers = (Array.isArray(dossiers) ? dossiers : []).flatMap((dossier) => dossier.fichiers ?? []);
-  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
-  const definitions = definitionsDesVariables(variables);
+  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier, { ouEcrit }));
+  const definitions = definitionsDesVariables(variables, explicationsVersees(fichiers));
   if (!definitions.length) return null;
 
   const lignesPretes = [
@@ -107,10 +133,24 @@ export function fichierDesVariables(dossiers = []) {
       "Les noms que le projet partage. Une règle qui cite un nom absent d'ici s'appuie sur ce que personne n'a versé.") },
     { nature: "commentaire", jetons: ligneDeCommentaire(
       "Ce fichier s'engendre depuis les autres : il ne se verse pas, il se relit.") },
-    { nature: "vide", jetons: [] },
-    // Une déclaration par ligne, sans blanc entre elles : c'est une liste qu'on
-    // parcourt de l'œil, pas une suite de blocs qu'on lit.
-    ...definitions.map((definition) => ({ nature: "variable", jetons: ligneDeVariable(definition) }))
+    { nature: "commentaire", jetons: ligneDeCommentaire(
+      "Une déclaration doit suffire à décider si l'on réutilise ce nom ou si l'on en crée un autre.") },
+    ...definitions.flatMap((definition, rang) => {
+      // Un bloc par variable, repliable : à douze mille noms, c'est le repli
+      // qui rend la liste parcourable. Le blanc au-dessus sépare deux blocs.
+      const bloc = `v${rang + 1}`;
+      const lignes = blocDeVariable(definition);
+      return [
+        { nature: "vide", jetons: [] },
+        ...lignes.map((jetons, place) => ({
+          nature: place === 0 ? "variable" : "detail",
+          jetons,
+          ouvre: place === 0 ? bloc : null,
+          ferme: place === lignes.length - 1 ? bloc : null,
+          ancetres: place === 0 ? [] : [bloc]
+        }))
+      ];
+    })
   ];
 
   return {
@@ -123,6 +163,30 @@ export function fichierDesVariables(dossiers = []) {
     sections: [],
     lignesPretes
   };
+}
+
+/**
+ * Ce que les utilitaires ont dit d'une variable, quand ils l'ont dit.
+ *
+ * Le type et l'unité se déduisent des valeurs ; ce qu'un nom **désigne** et ce
+ * à quoi il **sert** ne se déduisent de rien. Ils se versent, avec
+ * l'affirmation, et se relisent ici.
+ */
+function explicationsVersees(fichiers = []) {
+  const dites = new Map();
+
+  for (const fichier of Array.isArray(fichiers) ? fichiers : []) {
+    for (const assertion of fichier.lignes ?? []) {
+      const payload = assertion?.payload ?? {};
+      const cle = cleDuSujet(texte(payload.subject) || texte(assertion?.subject_key));
+      if (!cle || dites.has(cle)) continue;
+      const description = texte(payload.quoi);
+      const utilisation = texte(payload.utilisation);
+      if (description || utilisation) dites.set(cle, { description, utilisation });
+    }
+  }
+
+  return dites;
 }
 
 /** Le même passage en minuscules sans accents que `cheminDeFichier`. */
@@ -154,6 +218,13 @@ function parLecture(gauche, droite) {
 export function adresseDuFichier(fichier) {
   // Relative à la branche : `Incendie/incendie.ctr`, et non `Mémoire/…`. La
   // racine est celle de l'onglet, pas un dossier où l'on entre.
+  //
+  // Un fichier **à la racine** n'a donc pas de dossier devant lui : son adresse
+  // est son nom. Sans cela, `variables-du-projet.ref` s'adressait
+  // `Mémoire/variables-du-projet.ref`, et le fil d'Ariane affichait
+  // « Fichiers / Mémoire / Mémoire / variables-du-projet.ref ».
+  if (fichier.chemin.length <= 1) return nomDuFichier(fichier);
+
   const dossier = fichier.chemin[fichier.chemin.length - 1];
   return `${dossier}/${nomDuFichier(fichier)}`;
 }
@@ -169,11 +240,21 @@ export function nomDuFichier(fichier) {
   return texte(fichier?.nom) || nomDeFichier(fichier.chemin, fichier.extension);
 }
 
-/** Le fichier d'un chemin, s'il existe. */
+/**
+ * Le fichier d'un chemin, s'il existe.
+ *
+ * Deux formes d'adresse : `Incendie/incendie.ctr` pour un fichier de dossier,
+ * et le seul nom pour un fichier de la racine. C'est ce que
+ * `adresseDuFichier` rend, et il n'y a qu'une façon de comparer.
+ */
 export function fichierDuChemin(memoire, chemin = []) {
-  if (chemin.length < 2) return null;
+  if (!chemin.length) return null;
   const cle = chemin.slice(0, 2).join("/");
-  return (memoire.fichiers ?? []).find((fichier) => adresseDuFichier(fichier) === cle) ?? null;
+  const seul = texte(chemin[0]);
+  return (memoire.fichiers ?? []).find((fichier) => {
+    const adresse = adresseDuFichier(fichier);
+    return adresse === cle || (chemin.length === 1 && adresse === seul);
+  }) ?? null;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -382,7 +463,22 @@ export function renderFilDAriane({ chemin = [] } = {}) {
     .join(`<span class="documents-breadcrumb__sep">/</span>`)
     + (surUnFichier ? "" : `<span class="documents-breadcrumb__sep">/</span>`);
 
-  return `<nav class="documents-breadcrumb" aria-label="Chemin">${miettes}</nav>`;
+  // Le chemin, tel qu'on le cite : c'est ce qu'on colle dans un message pour
+  // dire à quelqu'un où regarder. Le retaper à la main d'après l'écran est le
+  // genre de geste où l'on se trompe d'un accent, et le destinataire ne trouve
+  // rien.
+  const aCopier = morceaux.slice(1).map((morceau) => morceau.libelle).join("/");
+
+  return `
+    <nav class="documents-breadcrumb" aria-label="Chemin">
+      ${miettes}
+      <button type="button" class="documents-breadcrumb__copier"
+        data-fil-copier="${escapeHtml(aCopier)}"
+        title="Copier le chemin dans le presse-papiers" aria-label="Copier le chemin dans le presse-papiers">
+        ${svgIcon("copy", { className: "octicon" })}
+      </button>
+    </nav>
+  `;
 }
 
 /**
@@ -696,7 +792,7 @@ export function ilYA(quand) {
  *
  * @returns {{rang, jetons, nature, bloc, ouvre, assertion, position}[]}
  */
-export function lignesAffichables(fichier) {
+export function lignesAffichables(fichier, { ouEcrit = null, auteurs = null } = {}) {
   // Un fichier engendré porte ses lignes toutes faites : il n'y a pas
   // d'affirmation derrière elles, et il n'y a rien à recomposer.
   if (Array.isArray(fichier?.lignesPretes)) {
@@ -705,9 +801,9 @@ export function lignesAffichables(fichier) {
       jetons: ligne.jetons ?? [],
       nature: ligne.nature ?? "detail",
       profondeur: 0,
-      ancetres: [],
-      ouvre: null,
-      ferme: null,
+      ouvre: ligne.ouvre ?? null,
+      ferme: ligne.ferme ?? null,
+      ancetres: ligne.ancetres ?? [],
       assertion: null,
       position: 0
     }));
@@ -717,7 +813,16 @@ export function lignesAffichables(fichier) {
   let rang = 0;
   let numeroDeBloc = 0;
 
-  for (const section of fichier.sections ?? [{ zone: "", lignes: fichier.lignes ?? [] }]) {
+  // Un fichier de règles ne se découpe pas par zone, et ne répète pas une
+  // fonction. Une règle est le **capital de raisonnement** du projet : la même
+  // recopiée dans trois zones ferait trois versions à corriger le jour où
+  // l'arrêté bouge, et deux d'entre elles resteraient en arrière. La portée est
+  // un paramètre de la fonction, pas un rangement.
+  const sections = langageDeLExtension(fichier.extension) === LANGAGES.REGLE
+    ? [{ zone: "", lignes: fonctionsSansDoublon(fichier.lignes ?? []) }]
+    : (fichier.sections ?? [{ zone: "", lignes: fichier.lignes ?? [] }]);
+
+  for (const section of sections) {
     const zone = texte(section.zone);
     const dedans = zone ? 1 : 0;
     numeroDeBloc += 1;
@@ -747,7 +852,7 @@ export function lignesAffichables(fichier) {
 
       numeroDeBloc += 1;
       const cle = `b${numeroDeBloc}`;
-      const lignes = lignesDeLAssertion(assertion, dedans);
+      const lignes = lignesDeLAssertion(assertion, dedans, { ouEcrit, auteurs });
       const aUnCorps = lignes.length > 1;
 
       lignes.forEach((ligne, position) => {
@@ -869,11 +974,11 @@ export function ligneCachee(ligne, plies) {
  */
 export function renderFichier(fichier, {
   lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
-  propositions = new Map(), plies = new Set(), declares = null, variables = null
+  propositions = new Map(), plies = new Set(), declares = null, variables = null, ouEcrit = null
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
-  const lignes = grouperParVersement(lignesAffichables(fichier));
+  const lignes = grouperParVersement(lignesAffichables(fichier, { ouEcrit, auteurs }));
   const pliable = lecture === LECTURE.CODE;
 
   const corps = lignes.map((ligne) => {
@@ -1169,6 +1274,73 @@ export function fichierEnClair(fichier, { enClair } = {}) {
 }
 
 /**
+ * Une fonction, une fois — quelle que soit la zone où elle s'applique.
+ *
+ * Le même raisonnement versé pour trois bâtiments produit trois affirmations,
+ * qui ne diffèrent que par leur portée. Les écrire trois fois donnerait trois
+ * fonctions identiques à relire, et à corriger séparément le jour où le texte
+ * change : c'est exactement ce qu'une mémoire est censée éviter.
+ *
+ * On garde la première, et la portée devient ce qu'elle a toujours été — un
+ * paramètre.
+ */
+export function fonctionsSansDoublon(lignes = []) {
+  const vues = new Set();
+  const gardees = [];
+
+  for (const assertion of Array.isArray(lignes) ? lignes : []) {
+    const cle = cleDuSujet(texte(assertion?.payload?.subject) || texte(assertion?.subject_key));
+    if (!cle || vues.has(cle)) continue;
+    vues.add(cle);
+    gardees.push(assertion);
+  }
+
+  return gardees;
+}
+
+/**
+ * Le fichier où une variable est déclarée, pour un `importe`.
+ *
+ * À défaut, le dictionnaire : il les liste toutes, y compris celles que
+ * personne n'a versées. Renvoyer vers lui n'est pas un pis-aller — c'est
+ * exactement l'endroit où l'on verra qu'elle manque.
+ */
+function fichierQuiDeclare(nom, ouEcrit) {
+  const dit = ouEcrit instanceof Map ? texte(ouEcrit.get(cleDuSujet(nom))) : "";
+  return dit || FICHIER_DES_VARIABLES;
+}
+
+/**
+ * Où une règle enregistre ce qu'elle conclut, quand la mémoire le sait.
+ *
+ * `null` quand elle ne le sait pas : la règle conclut alors sans dire où, ce
+ * qui est la vérité du moment. Deviner un fichier ferait lire « écrit dans
+ * incendie.ctr » là où rien n'est écrit.
+ */
+function fichierOuEcrire(sujet, ouEcrit) {
+  const dans = ouEcrit instanceof Map ? texte(ouEcrit.get(cleDuSujet(sujet))) : "";
+  return dans ? { dans } : null;
+}
+
+/**
+ * Ce qu'une fonction fait, quand personne ne l'a écrit.
+ *
+ * ## Pourquoi on ne se tait pas
+ *
+ * Une fonction sans commentaire oblige à lire ses conditions pour deviner son
+ * objet. Sur douze mille fonctions, personne ne le fera : on en réécrira une
+ * treize millième plutôt que de comprendre celle qui existe.
+ *
+ * On n'invente donc pas une description — on **nomme le manque**. Une phrase
+ * qui dit « à décrire » se voit dans le fichier, se cherche d'un coup d'œil, et
+ * appelle quelqu'un à l'écrire ; une ligne absente ne se voit pas.
+ */
+export function quoiParDefaut(sujet) {
+  const nom = texte(sujet);
+  return nom ? `À DÉCRIRE — à quoi sert « ${nom} » ? Ce que la fonction établit, et dans quel cas on l'applique.` : "";
+}
+
+/**
  * Une affirmation de la mémoire, en un bloc.
  *
  * ## Ce qu'un bloc porte, et ce qu'il ne porte plus
@@ -1188,7 +1360,7 @@ export function fichierEnClair(fichier, { enClair } = {}) {
  *
  * @returns {{jetons: object[], nature: string}[]}
  */
-export function lignesDeLAssertion(assertion = {}, profondeur = 0) {
+export function lignesDeLAssertion(assertion = {}, profondeur = 0, { ouEcrit = null, auteurs = null } = {}) {
   const payload = assertion.payload ?? {};
   const brute = texte(payload.value) || texte(assertion.statement);
   const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
@@ -1200,14 +1372,31 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0) {
   // `alors` n'est pas stocké : c'est `payload.value`, et une valeur écrite à
   // deux endroits finit par diverger. On la remet ici.
   if (payload.regle) {
+    const sujet = texte(payload.subject) || texte(assertion.subject_key);
+    const conditions = payload.regle.conditions ?? [];
+    const exceptions = payload.regle.sauf ?? [];
+
     const regle = blocDeRegle({
-      sujet: texte(payload.subject) || texte(assertion.subject_key),
-      conditions: payload.regle.conditions ?? [],
+      sujet,
+      quoi: texte(payload.quoi) || quoiParDefaut(sujet),
+      // D'où viennent ses entrées : le fichier qui déclare chacune, quand la
+      // mémoire le sait. À défaut le dictionnaire, qui les liste toutes — même
+      // celles que personne n'a versées, et c'est là qu'on le verra.
+      importe: [...conditions, ...exceptions]
+        .map((condition) => texte(condition?.sujet))
+        .filter(Boolean)
+        .filter((nom, rang, tous) => tous.indexOf(nom) === rang)
+        .map((nom) => ({ variable: nom, depuis: fichierQuiDeclare(nom, ouEcrit) })),
+      conditions,
       alors: brute,
       sinon: texte(payload.regle.sinon),
-      sauf: payload.regle.sauf ?? [],
-      provenance: provenanceDeLAssertion(assertion),
-      preuve: texte(payload.citation)
+      sauf: exceptions,
+      provenance: provenanceDeLAssertion(assertion, { auteurs }),
+      preuve: texte(payload.citation),
+      // Où le résultat s'écrit. On ne l'invente pas : si la mémoire ne porte
+      // pas encore la valeur produite, la règle conclut sans dire où — ce qui
+      // est la vérité du moment.
+      enregistre: fichierOuEcrire(sujet, ouEcrit)
     }, profondeur);
     return regle.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
   }
@@ -1219,7 +1408,7 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0) {
     // La date d'un constat : elle passe avant la provenance, parce qu'un
     // constat se situe d'abord dans le temps.
     le: texte(payload.le) || (texte(assertion.nature) === "constat" ? dateLisible(assertion.decided_at) : ""),
-    provenance: provenanceDeLAssertion(assertion),
+    provenance: provenanceDeLAssertion(assertion, { auteurs }),
     preuve: texte(payload.citation),
     statut: statutDeLAssertion(assertion)
   }, profondeur);
@@ -1247,11 +1436,23 @@ function dateLisible(valeur) {
  * qui l'emporte sur le texte. Une valeur calculée à partir d'une règle se
  * refait en refaisant le calcul, et c'est cela qu'on veut savoir en premier.
  */
-export function provenanceDeLAssertion(assertion = {}) {
+export function provenanceDeLAssertion(assertion = {}, { auteurs = null } = {}) {
   const payload = assertion.payload ?? {};
+
+  // Qui a tranché, et quand. La mémoire le sait pour chaque ligne, et ne le
+  // montrait que dans la lecture « Origine ». Une décision est le seul cas où
+  // cela appartient à la ligne elle-même : sans nom ni date, un choix se relit
+  // comme un fait.
+  const signature = {
+    par: auteurs instanceof Map ? texte(auteurs.get(texte(assertion?.decided_by))) : "",
+    le: dateLisible(assertion?.decided_at)
+  };
+
   const declaree = payload.provenance ?? null;
   if (declaree && texte(declaree.type) && texte(declaree.quoi)) {
-    return { type: texte(declaree.type), quoi: texte(declaree.quoi) };
+    return texte(declaree.type) === PROVENANCE.DECISION
+      ? { type: texte(declaree.type), quoi: texte(declaree.quoi), ...signature }
+      : { type: texte(declaree.type), quoi: texte(declaree.quoi) };
   }
 
   const calcul = payload.deduitDe ?? null;
@@ -1362,9 +1563,16 @@ export function contexteDuSujet(sujet, { resolution = "", variables = null } = {
     lignes.push("personne ne l'a versée");
   }
 
-  lignes.push(variable.citeePar.length
-    ? `${variable.citeePar.length} usage${variable.citeePar.length > 1 ? "s" : ""} — ${variable.citeePar.join(", ")}`
-    : "aucun usage");
+  // Les fonctions qui l'emploient, nommément : savoir dans quel fichier
+  // chercher ne dit pas quoi y lire, et c'est ce qu'on veut avant de réutiliser
+  // un nom ou d'en créer un autre.
+  const usages = Array.isArray(variable.usages) ? variable.usages : [];
+  lignes.push(usages.length
+    ? `${usages.length} usage${usages.length > 1 ? "s" : ""} — ${
+        usages.map((usage) => `${usage.fonction} (${usage.fichier})`).join(", ")}`
+    : variable.citeePar.length
+      ? `${variable.citeePar.length} fichier${variable.citeePar.length > 1 ? "s" : ""} — ${variable.citeePar.join(", ")}`
+      : "aucun usage");
 
   return lignes.join("\n");
 }

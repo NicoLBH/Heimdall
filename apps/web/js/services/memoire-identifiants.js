@@ -109,7 +109,13 @@ export function sujetsDeclares(assertions = []) {
 export function roleDesJetons(jetons = []) {
   const premier = (Array.isArray(jetons) ? jetons : []).find((jeton) => jeton?.type && jeton.type !== "neutre");
   const mot = texte(premier?.type);
-  return mot === "mot-condition" || mot === "mot-exception" ? ROLE.RENVOI : ROLE.DECLARATION;
+
+  // `importe (variable: X, …)` cite X, il ne le pose pas — c'est même sa raison
+  // d'être : dire d'où vient ce qu'on emprunte. Le lire comme une déclaration
+  // ferait de chaque emprunt une définition, et plus rien ne manquerait jamais.
+  return mot === "mot-condition" || mot === "mot-exception" || mot === "mot-natif"
+    ? ROLE.RENVOI
+    : ROLE.DECLARATION;
 }
 
 /**
@@ -208,7 +214,15 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
   const entree = (nom) => {
     const cle = cleDuSujet(nom);
     if (!variables.has(cle)) {
-      variables.set(cle, { cle, nom: texte(nom), valeur: "", declarePar: "", citeePar: [], declaree: false });
+      variables.set(cle, {
+        cle, nom: texte(nom), valeur: "", declarePar: "", declaree: false,
+        citeePar: [],
+        // Où elle sert déjà, nommément : la fonction et son fichier. C'est cette
+        // liste qui empêche d'en recréer une voisine — on voit que celle-ci
+        // fait déjà le travail.
+        usages: [],
+        description: "", utilisation: ""
+      });
     }
     return variables.get(cle);
   };
@@ -223,14 +237,20 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
       const jetons = ligne?.jetons ?? [];
       const role = roleDesJetons(jetons);
 
-      // Ce qu'une règle pose se lit sur sa ligne `alors`, pas sur sa tête :
-      // `fonction Classement du bâtiment(…)` ne dit pas ce que le classement
-      // vaut. Sans cela, toute variable produite par une règle s'affichait sans
-      // valeur — c'est-à-dire pour rien.
+      // Ce qu'une règle pose se lit plus bas que sa tête : `fonction Classement
+      // du bâtiment(…)` ne dit pas ce que le classement vaut. Deux endroits le
+      // disent — la ligne `alors (…)` d'une règle qui conclut sans écrire, et
+      // la ligne de son `enregistre` quand elle écrit. Sans cela, toute
+      // variable produite par une règle s'affichait sans valeur, donc pour rien.
       const premier = jetons.find((jeton) => jeton?.type && jeton.type !== "neutre");
+      const ouvre = texte(premier?.texte).toLowerCase();
       if (derniereDeclaration && !derniereDeclaration.valeur
-        && texte(premier?.texte).toLowerCase() === "alors") {
-        derniereDeclaration.valeur = valeurDesJetons(jetons);
+        && (ouvre === "alors" || cleDuSujet(premier?.texte) === derniereDeclaration.cle)) {
+        const posee = valeurDesJetons(jetons);
+        if (posee) {
+          derniereDeclaration.valeur = posee;
+          continue;
+        }
       }
 
       if (role === ROLE.DECLARATION) {
@@ -246,10 +266,10 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
           // La valeur se lit sur la ligne, pas à côté d'elle : c'est déjà ce
           // que le fichier montre, et le recopier ailleurs le ferait diverger.
           variable.valeur = valeurDesJetons(jetons);
-          derniereDeclaration = variable;
-        } else {
-          derniereDeclaration = null;
         }
+        // Déclarée ou non, c'est elle qu'on lit maintenant : ce qui suit lui
+        // appartient — sa valeur, et les noms qu'elle emprunte.
+        derniereDeclaration = variable;
         continue;
       }
 
@@ -257,6 +277,14 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
         if (jeton?.type !== "sujet" || !cleDuSujet(jeton.texte)) continue;
         const variable = entree(jeton.texte);
         if (nomDuFichier && !variable.citeePar.includes(nomDuFichier)) variable.citeePar.push(nomDuFichier);
+
+        // La fonction qui l'emploie, quand on la connaît : c'est la dernière
+        // déclarée au-dessus. Sans elle on saurait dans quel fichier chercher,
+        // pas quoi y lire.
+        const fonction = texte(derniereDeclaration?.nom);
+        if (!fonction) continue;
+        const deja = variable.usages.some((usage) => usage.fonction === fonction && usage.fichier === nomDuFichier);
+        if (!deja) variable.usages.push({ fonction, fichier: nomDuFichier });
       }
     }
   }
@@ -287,11 +315,23 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
  *
  * @returns {{nom: string, type: string, unite: string, devine: boolean}[]}
  */
-export function definitionsDesVariables(variables = []) {
+export function definitionsDesVariables(variables = [], explications = null) {
   return (Array.isArray(variables) ? variables : [])
     .map((variable) => {
       const { type, unite } = typeDeLaValeur(variable?.valeur);
-      return { nom: texte(variable?.nom), type, unite, devine: true };
+      const dit = explications instanceof Map ? explications.get(texte(variable?.cle)) : null;
+      return {
+        nom: texte(variable?.nom),
+        type,
+        unite,
+        // Ce qu'elle désigne et ce à quoi elle sert ne se déduisent pas : ils
+        // se versent. Vides, les champs le diront eux-mêmes plutôt que de
+        // disparaître — voir `À_DÉCRIRE`.
+        description: texte(dit?.description),
+        utilisation: texte(dit?.utilisation),
+        usages: Array.isArray(variable?.usages) ? variable.usages : [],
+        devine: true
+      };
     })
     .filter((definition) => definition.nom);
 }

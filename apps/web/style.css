@@ -6420,6 +6420,24 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   text-decoration:underline;
 }
 .documents-breadcrumb__sep{color:var(--muted);}
+/* Copier le chemin : c'est ce qu'on colle dans un message pour dire où
+   regarder. Discret tant qu'on ne le cherche pas, franc au survol. */
+.documents-breadcrumb__copier{
+  margin-left:6px;
+  padding:2px;
+  border:0;
+  border-radius:4px;
+  background:transparent;
+  color:var(--muted);
+  line-height:0;
+  cursor:pointer;
+  opacity:.55;
+  transition:opacity .12s ease, color .12s ease;
+}
+.documents-breadcrumb:hover .documents-breadcrumb__copier{ opacity:1; }
+.documents-breadcrumb__copier:hover{ background:rgba(110,118,129,.16); color:var(--text); }
+/* Copié : la coche est verte le temps qu'on la voie, sans message à fermer. */
+.documents-breadcrumb__copier.is-copie{ color:rgb(63,185,80); opacity:1; }
 .documents-breadcrumb__link:first-of-type{font-weight:600;}
 .documents-breadcrumb__current{font-size:15px;line-height:24px;font-weight:600;color:rgb(240, 246, 252);}
 .documents-repo__message-main{
@@ -20078,6 +20096,14 @@ body.proposition-merge-open{ overflow:hidden; }
    couleur. Le nom qui suit reste blanc — c'est un nom, pas un mot-clé. */
 .mdall-mot-soit,
 .mdall-mot-const{ color:rgb(255,123,114); }
+/* Les verbes du langage — `importe`, `enregistre`, `décision humaine assumée`.
+   Ce sont des appels, et ils prennent la couleur d'un nom de fonction. */
+.mdall-mot-natif{ color:rgb(210,168,255); }
+/* Un chemin de fichier, cité dans un `importe` ou un `enregistre` : la même
+   couleur que l'en-tête `fichier:`, parce que c'est la même chose. */
+.mdall-fichier{ color:rgb(255,166,87); }
+/* La portée passée à une fonction : c'est son paramètre, pas une valeur. */
+.mdall-portee{ color:var(--text); }
 .mdall-locale{ color:var(--text); }
 /* Ce qu'on écrit pour soi s'efface derrière ce qui décide. Un commentaire aussi
    visible que le code se lit comme du code. */

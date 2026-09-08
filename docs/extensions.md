@@ -45,14 +45,24 @@ change réécrirait l'histoire en silence.
 point-virgule sur ce que la règle pose.
 
 ```
-// Le classement commande tout le reste : c'est la première règle qu'on lit.
-fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas) {
+// Classe le bâtiment en famille au sens de l'article 3 : c'est le nom que
+// presque toutes les autres exigences citent.
+fonction Classement du bâtiment(zones, Logements superposés, Hauteur du plancher bas) {
+   importe (variable: Logements superposés, depuis: donnees-de-base.ddb);
+   importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb);
+
    soit texte = "arrêté du 31 janvier 1986 modifié, article 3, 3°";
    soit parce que = "Troisième famille B : habitations ne satisfaisant pas à…";
 
    si (Logements superposés = oui)
    et (Hauteur du plancher bas <= 28 m)
-   alors ("3e famille B");
+   alors (
+      enregistre (
+         Classement du bâtiment: "3e famille B",
+         dans: donnees-de-base.ddb,
+         zones: zones
+      )
+   );
    sinon ("3e famille A");
 }
 ```
@@ -60,11 +70,24 @@ fonction Classement du bâtiment(Logements superposés, Hauteur du plancher bas)
 - La parenthèse de tête nomme les **entrées** : on voit de quoi la règle a
   besoin sans lire ses conditions. Elle ne se stocke pas — les entrées **sont**
   les sujets des conditions, et une signature recopiée diverge.
+- **Un commentaire dit à quoi elle sert**, toujours. Sans lui il faut lire les
+  conditions pour deviner l'objet, et sur douze mille fonctions personne ne le
+  fera. Une fonction qui n'en a pas porte, à sa place, une ligne qui appelle :
+  `// À DÉCRIRE — à quoi sert « … » ?`.
+- **La portée est un paramètre**, et le premier. Un raisonnement ne s'applique
+  pas « dans le bâtiment A », il s'applique : un `.ref` ne se découpe donc pas
+  par zone et n'y répète pas une fonction. La même recopiée trois fois ferait
+  trois versions à corriger, et deux d'entre elles resteraient en arrière.
+- **`importe` dit d'où vient chaque entrée** : le fichier qui la déclare, ou le
+  dictionnaire à défaut — c'est là qu'on verra qu'elle manque.
 - **Ce qui fonde la règle se déclare en tête**, comme les `const` d'une
   fonction : `soit texte = …` porte la provenance, `soit parce que = …` la
   citation. Le nom de la locale **est** le type de provenance — `soit
   document = …`, `soit règle = …` —, et c'est ce qui dit comment la valeur a été
   obtenue. En bas, après la conclusion, on ne les cherchait plus.
+- **`enregistre` dit où va le résultat.** C'est la question qui vient toujours
+  après « alors quoi ? ». Une règle peut conclure sans rien écrire quand elle
+  produit une valeur intermédiaire que d'autres reprennent.
 - **Les commentaires** s'écrivent `// …` ou `/* … */`. Ils ne posent rien, ne
   conditionnent rien, et deviennent nécessaires dès qu'une règle passe quinze
   lignes : dire *pourquoi* une condition existe est autre chose que dire ce
@@ -86,11 +109,25 @@ règle, seulement les **noms** que le projet partage.
 // Les noms que le projet partage. Une règle qui cite un nom absent d'ici
 // s'appuie sur ce que personne n'a versé.
 // Ce fichier s'engendre depuis les autres : il ne se verse pas, il se relit.
+// Une déclaration doit suffire à décider si l'on réutilise ce nom ou si l'on
+// en crée un autre.
 
-const Hauteur du plancher bas = { type: "mesure", unité: "m" };
-const Classement du bâtiment = { type: "texte" };
-const Logements superposés = { type: "inconnu" };
+const Hauteur du plancher bas = {
+   type: "mesure",
+   unité: "m",
+   description: "Hauteur du plancher bas du dernier niveau accessible, depuis le sol.",
+   utilisation: "Entrée du classement en famille (article 3), et du désenfumage selon l'IT 246.",
+   déjà utilisé dans: [
+      Classement du bâtiment (incendie.ref)
+   ]
+};
 ```
+
+Six champs, et aucun n'est décoratif — voir
+[`langage-mdall.md`](langage-mdall.md), « une déclaration de variable doit être
+explicite ». Dix-huit mois de chantier font des milliers de noms : si personne ne
+sait dire ce que fait celui-ci, chacun en recréera un voisin. Ce qui manque porte
+à sa place un `À DÉCRIRE —` suivi de la question à laquelle répondre.
 
 C'est ce qu'on lit **avant** d'écrire une règle : pour réutiliser un nom qui
 existe plutôt que d'en inventer un voisin. Entre « Hauteur du plancher bas » et

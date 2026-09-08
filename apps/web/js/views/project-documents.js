@@ -2276,6 +2276,21 @@ function bindLaMemoire(root) {
     });
   }
 
+  // Le chemin où l'on se trouve, copié tel qu'on le cite. Le même geste des deux
+  // côtés de l'onglet : le fil d'Ariane est le même composant.
+  for (const bouton of root.querySelectorAll("[data-fil-copier]")) {
+    bouton.addEventListener("click", async () => {
+      const chemin = bouton.getAttribute("data-fil-copier") || "";
+      try {
+        await navigator.clipboard.writeText(chemin);
+        bouton.classList.add("is-copie");
+        setTimeout(() => bouton.classList.remove("is-copie"), 1200);
+      } catch {
+        window.prompt("Le presse-papiers a été refusé — copiez le chemin ci-dessous.", chemin);
+      }
+    });
+  }
+
   root.querySelector("[data-memoire-copier]")?.addEventListener("click", async () => {
     const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
     const fichier = fichierDuChemin(memoire, docsViewState.memoireChemin ?? []);
@@ -2663,7 +2678,7 @@ function renderSaisieDAPropos() {
  */
 function contexteDesVariables(memoire) {
   const fichiers = (memoire?.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
-  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier));
+  const variables = variablesDeLaMemoire(fichiers, (fichier) => lignesAffichables(fichier, { ouEcrit: memoire?.ouEcrit ?? null }));
   return new Map(variables.map((variable) => [cleDuSujet(variable.nom), variable]));
 }
 
@@ -2686,7 +2701,10 @@ function renderBrancheMemoire() {
     declares: sujetsDeclares(docsViewState.memoireAssertions ?? []),
     // Et ce qu'on sait de chaque nom, pour le dire au survol : entre deux noms
     // voisins on se trompe vite, et se tromper ne se voit pas.
-    variables: contexteDesVariables(memoire)
+    variables: contexteDesVariables(memoire),
+    // Où chaque valeur est écrite : c'est ce qui permet à une règle de dire
+    // d'où viennent ses entrées et où va son résultat, sans le deviner.
+    ouEcrit: memoire.ouEcrit ?? null
   };
 
   const fichier = chemin.length >= 2 ? fichierDuChemin(memoire, chemin) : null;
