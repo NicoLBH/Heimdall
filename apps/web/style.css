@@ -21847,6 +21847,11 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .cerveau-legende__item--serveur i{ background:transparent; border-color:#a371f7; }
 /* Une règle n'est pas une nature de valeur : le losange le dit sans une ligne de
    texte de plus, et c'est la forme qu'elle a dans le dessin. */
+/* Une lacune n'est pas une panne : elle se dit sans alarmer, en ambre plutôt
+   qu'en rouge — le rouge est pris, il dit « l'audit signale ». */
+.cerveau__provenance--lacune{ color:var(--muted); }
+.cerveau__provenance--lacune b{ color:#d29922; }
+
 /* Une bille claire cerclée : l'électron, tel qu'il tourne autour d'un nœud. */
 .cerveau-legende__item--famille i{
   width:7px; height:7px; background:var(--text);

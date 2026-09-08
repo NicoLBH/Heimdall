@@ -78,15 +78,55 @@ function assertionLigne(assertion) {
 }
 
 /**
+ * Une lecture enregistrée, telle que l'index la garde.
+ *
+ * Les colonnes sont recopiées **sans être renommées** : ce sont celles de
+ * `assertion_applications`, et un export qui les rebaptiserait obligerait à
+ * traduire dans les deux sens le jour où l'on cherche pourquoi une chaîne est
+ * coupée.
+ */
+function lectureLigne(ligne) {
+  return {
+    regle: texte(ligne?.rule_assertion_id) || null,
+    sortie: texte(ligne?.output_assertion_id) || null,
+    // `null` n'est pas un oubli : le nom lu ne désignait rien que le projet ait
+    // versé. C'est le trou du raisonnement, et c'est **la** chose qu'on vient
+    // chercher dans ce fichier.
+    entree: texte(ligne?.input_assertion_id) || null,
+    sujetLu: texte(ligne?.input_subject) || null,
+    rang: Number(ligne?.input_rank) || null,
+    zone: texte(ligne?.zone) || null,
+    utilitaire: texte(ligne?.utility) || null,
+    proposition: texte(ligne?.proposition_id) || null,
+    resolution: texte(ligne?.resolution) || null
+  };
+}
+
+/**
  * Toute la mémoire d'un projet, en un objet.
  *
- * @param {{project: object, assertions: object[]|null, generatedAt: string}} entree
+ * ## Pourquoi les lectures en font partie
+ *
+ * Sans elles, un export ne dit **que ce que le projet affirme**, jamais comment
+ * il y est arrivé. Or les défauts qui coûtent cher vivent là : une règle dont
+ * l'entrée n'a pas été résolue, une conclusion qu'aucune valeur ne porte, une
+ * chaîne coupée au milieu. Aucun de ces trois-là ne se voit dans la liste des
+ * affirmations, et un export qui les tait rend le diagnostic impossible ailleurs
+ * que devant l'écran.
+ *
+ * @param {{project: object, assertions: object[]|null, applications: object[]|null,
+ *   generatedAt: string}} entree
  *   `assertions` vaut `null` quand la lecture a échoué : l'export le dit, il
  *   n'écrit pas une mémoire vide qu'on prendrait pour un projet sans histoire.
+ *   `applications` suit la même règle — « aucune lecture » et « je n'ai pas pu
+ *   lire l'index » sont deux phrases différentes.
  */
-export function buildMemoryExport({ project = {}, assertions = null, generatedAt = "" } = {}) {
+export function buildMemoryExport({
+  project = {}, assertions = null, applications = null, generatedAt = ""
+} = {}) {
   const lues = Array.isArray(assertions) ? assertions : null;
   const ordonnees = lues ? ordonner(lues) : null;
+  const lectures = Array.isArray(applications) ? applications : null;
 
   return {
     format: MEMORY_EXPORT_FORMAT,
@@ -109,7 +149,19 @@ export function buildMemoryExport({ project = {}, assertions = null, generatedAt
     vocabulaire: ordonnees ? summarizeTaxonomy(currentAssertions(ordonnees)) : null,
     affirmations: ordonnees ? ordonnees.map(assertionLigne) : null,
     // L'état courant, isolé : c'est ce qu'on compare à une proposition.
-    enVigueur: ordonnees ? currentAssertions(ordonnees).map(assertionLigne) : null
+    enVigueur: ordonnees ? currentAssertions(ordonnees).map(assertionLigne) : null,
+    raisonnement: {
+      lu: lectures !== null,
+      message: lectures === null
+        ? "L'index des lectures n'a pas pu être lu."
+        : null,
+      total: lectures?.length ?? null,
+      // Deux comptes qui se lisent sans ouvrir le tableau, et qui suffisent
+      // souvent à expliquer une chaîne trop courte.
+      sansEntree: lectures ? lectures.filter((ligne) => !texte(ligne?.input_assertion_id)).length : null,
+      parUtilitaire: lectures ? lectures.filter((ligne) => texte(ligne?.utility)).length : null,
+      lectures: lectures ? lectures.map(lectureLigne) : null
+    }
   };
 }
 

@@ -144,9 +144,14 @@ export function liensDuRaisonnement(assertions = [], applications = null) {
 /**
  * La strate de chaque nœud : sa distance au socle, par le plus long chemin.
  *
+ * `cout` permet de compter autre chose que les nœuds : rendre 0 pour les uns et
+ * 1 pour les autres mesure la longueur d'une chaîne **dans l'unité qu'on veut**.
+ * C'est ainsi qu'on compte des pas de raisonnement dans un graphe qui alterne
+ * valeurs et règles.
+ *
  * @returns {{strates: Map<string, number>, enRond: Set<string>, profondeur: number}}
  */
-export function stratesDuGraphe(ids = [], liens = []) {
+export function stratesDuGraphe(ids = [], liens = [], { cout = null } = {}) {
   const connus = new Set(ids.map(texte).filter(Boolean));
   const amont = new Map([...connus].map((id) => [id, []]));
 
@@ -166,7 +171,8 @@ export function stratesDuGraphe(ids = [], liens = []) {
     tours += 1;
     for (const [id, entrees] of amont) {
       if (!entrees.length) continue;
-      const rang = Math.max(...entrees.map((entree) => strates.get(entree) ?? 0)) + 1;
+      const rang = Math.max(...entrees.map((entree) => strates.get(entree) ?? 0))
+        + (cout ? cout(id) : 1);
       if (rang > (strates.get(id) ?? 0)) { strates.set(id, rang); bouge = true; }
     }
   }
@@ -248,6 +254,39 @@ export function famillesParSujet(assertions = []) {
  * @returns {{noeuds: object[], liens: object[], profondeur: number,
  *   compte: object, enregistres: boolean, cycles: string[]}}
  */
+/**
+ * La plus longue chaîne de raisonnement : combien de **règles** à la file.
+ *
+ * ## Pourquoi ce n'est pas une profondeur de dessin
+ *
+ * Déplier les règles ajoute un rang par étape : une chaîne de trois pas se
+ * dessine sur six rangs. Le chiffre annoncé doit compter les pas, sinon le même
+ * projet changerait de profondeur selon un bouton d'affichage.
+ *
+ * ## Pourquoi on ne compte pas les valeurs
+ *
+ * C'est la faute qu'on répare ici, et elle mentait de beaucoup. Compter les
+ * sauts d'une valeur à l'autre suppose qu'entre deux règles il y ait toujours
+ * une valeur versée. Ce n'est pas vrai : « Famille : 2 » peut n'exister que dans
+ * la règle qui l'établit. Toute chaîne traversant une conclusion sans valeur
+ * était **coupée en deux**, et un projet dont une contrainte demande six étapes
+ * s'annonçait à deux pas — un chiffre faux, affiché sans réserve.
+ *
+ * On compte donc les règles traversées, sur le graphe **déplié**, quoi que
+ * l'écran montre. Une règle coûte un pas, une valeur zéro : le compte est le même
+ * que la case « Montrer les règles » soit cochée ou non, et il vaut ce que vaut
+ * l'index des lectures — ni plus, ni moins.
+ */
+export function pasDuRaisonnement(enVigueur = [], applications = null) {
+  const lues = Array.isArray(applications) ? lecturesAvecLesFonctions(applications) : applications;
+  const { liens } = liensDuRaisonnement(enVigueur, lues);
+
+  const regles = new Set(enVigueur.filter(estUneRegle).map((assertion) => texte(assertion.id)));
+  const ids = enVigueur.map((assertion) => texte(assertion.id)).filter(Boolean);
+
+  return stratesDuGraphe(ids, liens, { cout: (id) => (regles.has(id) ? 1 : 0) }).profondeur;
+}
+
 export function cerveauDuProjet(assertions = [], applications = null, { avecLesFonctions = false } = {}) {
   const enVigueur = currentAssertions(Array.isArray(assertions) ? assertions : []);
 
@@ -274,24 +313,14 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
   const ids = dessines.map((assertion) => texte(assertion.id));
   const { strates, enRond, profondeur } = stratesDuGraphe(ids, liens);
 
-  /**
-   * La profondeur du **raisonnement**, qui n'est pas celle du dessin.
-   *
-   * Déplier les règles ajoute un niveau par étape : une chaîne de trois pas se
-   * dessine sur six rangs. « La plus longue chaîne fait N pas » doit continuer de
-   * compter les **pas**, sinon le même projet changerait de profondeur selon un
-   * bouton d'affichage — ce qui ferait douter du chiffre, à raison.
-   */
-  const pasDeRaisonnement = avecLesFonctions
-    ? stratesDuGraphe(
-        valeurs.map((assertion) => texte(assertion.id)),
-        liensDuRaisonnement(enVigueur, applications).liens
-      ).profondeur
-    : profondeur;
+  const pasDeRaisonnement = pasDuRaisonnement(enVigueur, applications);
 
   const emplois = emploisParAffirmation(Array.isArray(lues) ? lues : []);
   const dedans = new Set(ids);
   const familles = famillesParSujet(valeurs);
+  const sujetsDesValeurs = new Set(
+    valeurs.map((assertion) => cleDuSujet(texte(assertion?.payload?.subject))).filter(Boolean)
+  );
 
   /** La sortie d'une règle, pour lui prêter un domaine quand elle n'en a pas. */
   const sortieDe = new Map(
@@ -405,6 +434,28 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
      * peut retenir la mauvaise valeur.
      */
     familles: new Set(valeursDessinees.filter((n) => n.famille).map((n) => cleDuSujet(n.sujet))).size,
+    /**
+     * Les règles dessinées dont **aucune entrée** n'est enregistrée.
+     *
+     * Elles pendent : on voit ce qu'elles concluent, jamais ce qu'elles ont lu.
+     * Le chiffre existe pour être dit — une chaîne mesurée sur un index à moitié
+     * rempli est plus courte que la réalité, et se taire là-dessus fait passer
+     * une lacune de l'outil pour une propriété du projet.
+     */
+    reglesSansEntree: noeuds.filter((n) => n.genre === GENRE.FONCTION && !n.entrant).length,
+    /**
+     * Les sujets qu'une règle conclut sans qu'aucune valeur ne les porte.
+     *
+     * « Famille : 2 » n'existe alors que dans la règle qui l'établit. Ce n'est pas
+     * une faute — la valeur est là, dans le bloc —, mais elle n'est ni auditable,
+     * ni rattachable à un document, ni comparable d'une version à l'autre. On le
+     * compte plutôt que de laisser croire que la mémoire porte tout.
+     */
+    conclusionsSansValeur: new Set(
+      enVigueur.filter(estUneRegle)
+        .map((regle) => cleDuSujet(texte(regle?.payload?.subject)))
+        .filter((cle) => cle && !sujetsDesValeurs.has(cle))
+    ).size,
     liens: liens.length,
     /** Le poids le plus lourd : c'est l'échelle à laquelle les autres se lisent. */
     poidsMax: noeuds.reduce((max, noeud) => Math.max(max, noeud.poids), 0)
