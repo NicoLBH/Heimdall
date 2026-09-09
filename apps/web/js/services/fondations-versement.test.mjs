@@ -59,7 +59,16 @@ test("les entrées partent telles que le calcul les reçoit", () => {
   // occasion de changer un chiffre sans le vouloir.
   const table = tableauDesEntrees(SEMELLES);
   assert.equal(table.length, 2);
-  assert.deepEqual(table[0], { designation: "File A", nombre: 9, entrees: SEMELLES[0].entrees });
+  // Tout devient du texte, et en français : la mémoire est un texte, et un
+  // aller-retour qui change la forme d'une valeur fait mentir le diff.
+  assert.deepEqual(table[0], {
+    designation: "File A",
+    nombre: "9",
+    entrees: {
+      sectionLx: "1,2", sectionLy: "1,2", hauteurLz: "0,9", araseSuperieure: "-0,1",
+      hauteurFut: "0", futA: "0", futB: "0"
+    }
+  });
 });
 
 test("le tableau d'entrée se verse comme une donnée de base, avec sa forme", () => {
@@ -87,14 +96,23 @@ test("le résultat est un tableau, sous un seul nom", () => {
   const resultat = resultatVersable(SEMELLES, RESULTATS, "Bâtiment A");
   assert.equal(resultat.sujet, SUJET_RESULTAT);
   assert.equal(resultat.tableau.length, 2);
-  assert.deepEqual(
-    { ...resultat.tableau[0], volume: Number(resultat.tableau[0].volume.toFixed(3)) },
-    {
-      designation: "File A", nombre: 9, sectionLx: 1.2, sectionLy: 1.2,
-      hauteur: 0.9, arase: -0.1, volume: 11.664,
-      verification: "vérifiée", ratio: 0.82
+  assert.deepEqual(resultat.tableau[0], {
+    "désignation": "File A",
+    "nombre de massifs": "9",
+    "section Lx": "1,20 m",
+    "section Ly": "1,20 m",
+    "hauteur": "0,90 m",
+    "arase supérieure": "-0,10 m",
+    "volume de béton": "11,66 m3",
+    "vérification": "vérifiée",
+    "ratio déterminant": "0,820",
+    // Ce que le calcul a reçu pour cette ligne-là : sans lui, on ne peut ni
+    // vérifier ce résultat ni le refaire.
+    "entrées": {
+      sectionLx: "1,2", sectionLy: "1,2", hauteurLz: "0,9", araseSuperieure: "-0,1",
+      hauteurFut: "0", futA: "0", futB: "0"
     }
-  );
+  });
   assert.ok(resultat.structure.some((champ) => champ.nom === "vérification"));
 });
 
@@ -118,7 +136,7 @@ test("une semelle dont le calcul a échoué reste dans le tableau", () => {
   // celui-là qu'il faut voir.
   const table = tableauDuResultat(SEMELLES, [RESULTATS[0], { error: "le serveur a refusé" }]);
   assert.equal(table.length, 2);
-  assert.equal(table[1].verification, "non calculée");
+  assert.equal(table[1]["vérification"], "non calculée");
 });
 
 test("une étude vide ne propose rien — pas même une fonction qui n'aurait rien fait", () => {

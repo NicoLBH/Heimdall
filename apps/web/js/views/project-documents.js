@@ -38,6 +38,7 @@ import { emploisParAffirmation } from "../services/memoire-applications.js";
 import { MEMOIRE, DOCUMENTS, phraseDeLaRacine } from "../services/memoire-rangement.js";
 import { versementsDeLaMemoire } from "../services/memoire-blame.js";
 import { sujetsDeclares, variablesDeLaMemoire, cleDuSujet } from "../services/memoire-identifiants.js";
+import { rangVoisin } from "../services/memoire-recherche-texte.js";
 import {
   lireAPropos, ecrireAPropos, topicsDeLaSaisie, descriptionDeLaSaisie,
   DESCRIPTION_MAX, TOPICS_MAX
@@ -114,6 +115,14 @@ const docsViewState = {
   memoireLecture: "code",
   /** Les blocs repliés du fichier ouvert, par leur identifiant. */
   memoirePlies: new Set(),
+  /**
+   * Ce qu'on cherche **dans** le fichier ouvert : `{ouverte, mot, rang}`.
+   *
+   * Distinct de `memoireQuery`, qui cherche dans tout le projet. Les deux
+   * partagent le même service et le même surlignage, mais pas le même geste :
+   * l'une répond « où est-ce ? », l'autre « où en suis-je ? ».
+   */
+  memoireCherche: { ouverte: false, mot: "", rang: null },
   /** Le menu « Ajouter un fichier », ouvert ou non. */
   ajoutOuvert: false,
   /** Ce que le projet dit de lui-même. `null` tant qu'on n'a pas lu. */
@@ -2012,8 +2021,26 @@ async function allerDansLArbre(root, adresse) {
     return;
   }
 
+  if (prefixe === "trouver") {
+    // Aller sur une ligne trouvée : le fichier s'ouvre, le mot reste cherché, et
+    // l'écran descend jusqu'à lui. Sans la dernière étape, on retombait en haut
+    // d'un fichier de dix-sept cents lignes avec le mot quelque part dedans.
+    const [adresse, rang, mot] = cible.split("\u0000");
+    docsViewState.branche = BRANCHE.MEMOIRE;
+    setActiveProjectDocument(null);
+    docsViewState.memoireChemin = adresse ? adresse.split("/").filter(Boolean) : [];
+    docsViewState.memoirePlies = new Set();
+    docsViewState.memoireCherche = { ouverte: true, mot: mot ?? "", rang: Number(rang) || null };
+    renderProjectDocumentsContent(root);
+    descendreJusquALaLigne(root);
+    return;
+  }
+
   if (prefixe === "memoire") {
     docsViewState.branche = BRANCHE.MEMOIRE;
+    // Une recherche vaut pour le fichier où on l'a tapée : la traîner dans le
+    // suivant surlignerait des mots que personne n'y cherche.
+    docsViewState.memoireCherche = { ouverte: false, mot: "", rang: null };
     // La pièce ouverte se referme : on ne regarde qu'une chose à la fois, et
     // l'arbre ne doit montrer qu'une sélection.
     setActiveProjectDocument(null);
@@ -2096,6 +2123,54 @@ function emploisDeLaMemoire() {
 }
 
 /**
+ * Redessiner sans perdre le curseur du champ de recherche.
+ *
+ * Tout l'écran se refait à chaque frappe — c'est ainsi que cette vue
+ * fonctionne — et le champ disparaît avec. Sans ce report, on tapait une lettre
+ * et le clavier se retrouvait ailleurs : la recherche était inutilisable.
+ */
+function redessinerEnGardantLeChamp(root) {
+  const avant = root.querySelector("[data-memoire-cherche-champ]");
+  const place = avant?.selectionStart ?? null;
+
+  renderProjectDocumentsContent(root);
+
+  const apres = root.querySelector("[data-memoire-cherche-champ]");
+  if (!apres) return;
+  apres.focus();
+  if (place !== null) apres.setSelectionRange(place, place);
+}
+
+/** Passer à la trouvaille suivante — ou précédente —, et y descendre. */
+function allerAlaTrouvaille(root, direction) {
+  const rangs = [...root.querySelectorAll(".memoire-ligne--trouvee[data-memoire-rang]")]
+    .map((ligne) => Number(ligne.getAttribute("data-memoire-rang")))
+    .filter((rang) => Number.isFinite(rang));
+  if (!rangs.length) return;
+
+  const suivant = rangVoisin(rangs, docsViewState.memoireCherche?.rang, direction);
+  docsViewState.memoireCherche = { ...docsViewState.memoireCherche, ouverte: true, rang: suivant };
+  redessinerEnGardantLeChamp(root);
+  descendreJusquALaLigne(root);
+}
+
+/**
+ * Descendre jusqu'à la ligne courante de la recherche.
+ *
+ * `center` et non `start` : une ligne collée en haut de la fenêtre perd son
+ * contexte, et c'est le contexte qu'on est venu chercher. Le défilement est
+ * lisse parce qu'un saut instantané ne dit pas d'où l'on vient.
+ */
+function descendreJusquALaLigne(root) {
+  if (typeof requestAnimationFrame !== "function") return;
+  requestAnimationFrame(() => {
+    const ligne = root.querySelector(".memoire-ligne.is-courante")
+      ?? root.querySelector(".memoire-ligne--trouvee");
+    ligne?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+/**
  * Les gestes de la branche Mémoire.
  *
  * Le même vocabulaire que la branche Documents — un chemin, un fil d'Ariane,
@@ -2106,6 +2181,60 @@ function bindLaMemoire(root) {
   for (const bouton of root.querySelectorAll("[data-fichiers-branche]")) {
     bouton.addEventListener("click", () => {
       void allerDansLArbre(root, `branche:${bouton.getAttribute("data-fichiers-branche") || ""}`);
+    });
+  }
+
+  // La recherche **dans** le fichier ouvert : ouvrir, taper, aller et venir.
+  const ouvrirLaRecherche = root.querySelector("[data-memoire-chercher-ici]");
+  if (ouvrirLaRecherche) {
+    ouvrirLaRecherche.addEventListener("click", () => {
+      const etat = docsViewState.memoireCherche;
+      docsViewState.memoireCherche = etat.ouverte
+        ? { ouverte: false, mot: "", rang: null }
+        : { ...etat, ouverte: true };
+      renderProjectDocumentsContent(root);
+      root.querySelector("[data-memoire-cherche-champ]")?.focus();
+    });
+  }
+
+  const champ = root.querySelector("[data-memoire-cherche-champ]");
+  if (champ) {
+    // On tape, on cherche. Le rang repart de zéro : garder la position d'une
+    // recherche précédente ferait sauter à une ligne qui ne porte plus le mot.
+    champ.addEventListener("input", (event) => {
+      docsViewState.memoireCherche = { ouverte: true, mot: event.target.value, rang: null };
+      redessinerEnGardantLeChamp(root);
+    });
+    champ.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        docsViewState.memoireCherche = { ouverte: false, mot: "", rang: null };
+        renderProjectDocumentsContent(root);
+        return;
+      }
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      allerAlaTrouvaille(root, event.shiftKey ? -1 : 1);
+    });
+  }
+
+  for (const bouton of root.querySelectorAll("[data-memoire-cherche-pas]")) {
+    bouton.addEventListener("click", () => {
+      allerAlaTrouvaille(root, Number(bouton.getAttribute("data-memoire-cherche-pas")) || 1);
+    });
+  }
+
+  root.querySelector("[data-memoire-cherche-fermer]")?.addEventListener("click", () => {
+    docsViewState.memoireCherche = { ouverte: false, mot: "", rang: null };
+    renderProjectDocumentsContent(root);
+  });
+
+  // Cliquer une ligne d'un résultat de recherche : on ouvre le fichier là.
+  for (const bouton of root.querySelectorAll("[data-memoire-trouver]")) {
+    bouton.addEventListener("click", () => {
+      const adresse = bouton.getAttribute("data-memoire-trouver") || "";
+      const rang = bouton.getAttribute("data-memoire-trouver-rang") || "";
+      const mot = bouton.getAttribute("data-memoire-trouver-mot") || "";
+      void allerDansLArbre(root, `trouver:${adresse}\u0000${rang}\u0000${mot}`);
     });
   }
 
@@ -2753,6 +2882,7 @@ function renderBrancheMemoire() {
           lecture: [LECTURE.BLAME, LECTURE.EMPLOIS].includes(docsViewState.memoireLecture)
             ? docsViewState.memoireLecture : LECTURE.CODE,
           plies: docsViewState.memoirePlies ?? new Set(),
+          recherche: docsViewState.memoireCherche,
           ...emploisDeLaMemoire(),
           ...contexte
         })

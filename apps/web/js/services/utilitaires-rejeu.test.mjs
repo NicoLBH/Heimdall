@@ -126,7 +126,7 @@ test("la réponse du serveur est relue par l'utilitaire lui-même", () => {
   });
 
   assert.equal(relue.avant, "0.71 m");
-  assert.equal(relue.apres, "0.94 m");
+  assert.equal(relue.apres, "0,94 m");
   assert.equal(relue.valeurABouge, true);
 });
 
@@ -180,7 +180,7 @@ test("le rejeu redemande le même appel, avec la valeur essayée, et sans écrir
   ]);
 
   assert.deepEqual(rendu.recalculees.map((l) => [l.sujet, l.avant, l.apres]), [
-    ["Profondeur hors gel", "0.71 m", "0.94 m"],
+    ["Profondeur hors gel", "0.71 m", "0,94 m"],
     ["Zone de neige", "A1", "A1"]
   ]);
   assert.deepEqual(rendu.refusees, []);

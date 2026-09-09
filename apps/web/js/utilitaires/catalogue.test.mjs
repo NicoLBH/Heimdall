@@ -124,7 +124,10 @@ test("une profondeur hors gel absente n'entre pas comme zéro", () => {
 
   assert.equal(outil.deduire({ fact_value: { frost_depth_m: null, inputs: {} } }), null);
   assert.equal(outil.deduire({ fact_value: { frost_depth_m: "", inputs: {} } }), null);
-  assert.equal(outil.deduire({ fact_value: { frost_depth_m: 0.8125, inputs: {} } }).valeur, "0.81 m");
+  // La virgule décimale, comme partout ailleurs dans la mémoire : « 0.81 m » ne
+  // se rapproche pas de « 0,81 m », et la même cote s'écrivait de deux façons
+  // selon qu'un humain l'avait tranchée ou qu'un utilitaire l'avait déduite.
+  assert.equal(outil.deduire({ fact_value: { frost_depth_m: 0.8125, inputs: {} } }).valeur, "0,81 m");
 });
 
 test("la zone sismique se lit quelle que soit la forme de la réponse", () => {

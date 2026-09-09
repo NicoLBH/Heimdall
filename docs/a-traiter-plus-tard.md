@@ -718,3 +718,31 @@ l'Atelier, il n'y avait rien à renvoyer.
   `payload.tableau` et l'affiche par sa phrase. Aucun écran ne sait encore
   déplier un tableau de mémoire ligne à ligne ; c'est le même manque que pour le
   point 1, et ils se traiteront ensemble.
+
+---
+
+## 11. La variante : deux façons de changer la même valeur
+
+**Ce qui a été trouvé et corrigé.** Un utilitaire écrivait ses mesures avec un
+point — `2.59 m` — quand tout le reste de la mémoire écrit `2,59 m`. La même
+profondeur hors gel s'écrivait donc de deux façons selon qu'un humain l'avait
+tranchée ou qu'un calcul l'avait déduite, et une valeur écrite de deux façons ne
+se compare plus. C'est la règle 4 appliquée à la forme, et c'est corrigé :
+`mesureEcrite()` dans `lecture-fait.js`.
+
+**Ce qui n'est pas expliqué.** Changer la profondeur hors gel à la main et
+changer l'altitude — donc la profondeur hors gel — ne donnent pas la même liste
+« à revérifier ». La reproduction ne le reproduit pas : elle **refuse** la
+première, parce qu'une contrainte déduite n'est pas substituable (seul le socle
+se change, `valeursSubstituables`). Or elle a bien été substituée sur le projet
+réel.
+
+La piste la plus probable, et la première à vérifier sur un export : **le projet
+porte deux lignes « Profondeur hors gel »** — l'une posée à la main, du socle et
+donc substituable, l'autre déduite par l'utilitaire climat. Chacune a ses
+héritiers, et le calcul lit celle que la résolution choisit. C'est une famille
+au sens du cerveau — un sujet qui vaut plusieurs choses à la fois —, et c'est
+exactement le défaut que le compte des familles existe pour montrer.
+
+Tant que ce n'est pas établi, on ne touche pas au moteur de la variante : une
+correction posée sur une hypothèse non vérifiée en casserait une autre.
