@@ -19892,6 +19892,51 @@ body.proposition-merge-open{ overflow:hidden; }
 }
 
 
+/* ── L'écran d'une variante ─────────────────────────────────────────────────
+   Deux rangs : ce qu'on essaie, ce que cela change. La couleur de la variante
+   — le cyan — tient la ligne de titre, comme le bandeau qui la suit partout
+   ailleurs : on doit savoir d'un coup d'œil qu'on ne lit pas le projet. */
+.variante-ecran{ display:flex; flex-direction:column; gap:16px; }
+.variante-ecran__tete{
+  display:flex; align-items:center; gap:12px;
+  padding:10px 14px;
+  border:1px solid var(--variante, #39c5cf);
+  border-radius:var(--radius);
+  background:color-mix(in srgb, var(--variante, #39c5cf) 10%, transparent);
+}
+.variante-ecran__marque{
+  display:inline-flex; align-items:center; gap:6px;
+  color:var(--variante, #39c5cf);
+  font-weight:600; font-size:13px; white-space:nowrap;
+}
+.variante-ecran__titre{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); font-size:13px; }
+.variante-ecran__exporter{ margin-left:auto; flex:0 0 auto; }
+
+/* Deux colonnes tant que l'écran les porte : la question et la réponse doivent
+   se lire ensemble — c'est ce que les fenêtres empilées interdisaient. */
+.variante-ecran__rang--haut{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+@media (max-width:900px){ .variante-ecran__rang--haut{ grid-template-columns:1fr; } }
+
+.variante-colonne{
+  display:flex; flex-direction:column; gap:10px;
+  padding:14px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--panel);
+}
+.variante-colonne h4{ margin:0; display:flex; align-items:center; gap:6px; font-size:13px; }
+.variante-colonne--vide{ justify-content:center; }
+.variante-colonne__pied{ display:flex; justify-content:flex-end; }
+.variante-colonne .impact-liste{ max-height:38vh; }
+.impact-choix.is-active{ background:color-mix(in srgb, var(--variante, #39c5cf) 18%, transparent); }
+
+.variante-resultat{
+  padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel);
+  display:flex; flex-direction:column; gap:12px;
+}
+.variante-resultat--vide, .variante-resultat--attente{ border-style:dashed; }
+.variante-resultat__tete{ display:flex; align-items:baseline; gap:12px; }
+.variante-resultat__compte{ margin-left:auto; color:var(--muted); font-size:12px; white-space:nowrap; }
+.variante-resultat__pied{ display:flex; justify-content:flex-end; gap:8px; }
+
 /* ── Le diff d'un dépôt ─────────────────────────────────────────────────────
    Le châssis de GitHub — une barre d'outils, une arborescence à gauche, les
    écarts à droite — sur une unité qui n'est pas la ligne de texte mais le

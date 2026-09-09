@@ -58,7 +58,7 @@
  */
 
 import { NATURE, normalizeNature, normalizeDomain, domainLabel } from "./assertion-taxonomy.js";
-import { TOUTES_ZONES } from "./memoire-en-texte.js";
+import { TOUTES_ZONES, SANS_NATURE } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -79,8 +79,13 @@ export const EXTENSIONS = {
 /** Les règles appliquées. Elles n'ont pas de nature : ce sont des textes. */
 export const EXTENSION_REGLE = "ref";
 
-/** Ce dont on ignore la nature. Cette extension ne devrait pas se rencontrer. */
-export const SANS_NATURE = "mdall";
+/**
+ * Ce dont on ignore la nature. Cette extension ne devrait pas se rencontrer.
+ *
+ * Déclarée avec les fonctions qui nomment les fichiers — c'est leur défaut —,
+ * et reprise ici parce que c'est ici qu'on la range.
+ */
+export { SANS_NATURE };
 
 /** La racine de ce que le projet écrit. */
 export const MEMOIRE = "Mémoire";

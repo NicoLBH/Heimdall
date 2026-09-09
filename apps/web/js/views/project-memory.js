@@ -120,15 +120,20 @@ import {
 } from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
-import { ouvrirLaFenetreDeVariante } from "./ui/fenetre-variante.js";
+import { renderEcranDeVariante, varianteEnJson, ETAPE } from "./memoire/ecran-variante.js";
 import { ouvrirLEtudeDImpact } from "./ui/fenetre-impact.js";
 import { ouvrirLeCerveau } from "./ui/cerveau-du-projet.js";
 import { ouvrirLePlanDeRecalcul } from "./ui/fenetre-plan.js";
 import { ouvrirLAudit } from "./ui/fenetre-audit.js";
 import { planDeRecalcul } from "../services/memoire-plan.js";
 import { renderBoutonTester } from "./ui/bouton-tester.js";
-import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
-import { laMemoireABouge, memoireAvecLaVariante, valeursSubstituables } from "../services/memoire-variante.js";
+import { quandLaVarianteChange, varianteEnCours, essayerLaVariante } from "../services/variante-en-cours.js";
+import {
+  laMemoireABouge, memoireAvecLaVariante, valeursSubstituables,
+  consequencesDeLaVariante, variantePourLEcran
+} from "../services/memoire-variante.js";
+import { emploisParAffirmation } from "../services/memoire-applications.js";
+import { rejouerLesUtilitaires } from "../services/utilitaires-rejeu.js";
 
 /**
  * Les champs interrogeables de la mémoire.
@@ -245,6 +250,16 @@ function repliRetenu() {
 
 const view = {
   loading: true,
+  /**
+   * L'écran de variante, quand il est ouvert.
+   *
+   * `null` : on est sur la mémoire. Sinon `{etape, choisie, saisie, echec,
+   * cherche, rendu}` — l'état complet de ce qu'on essaie. Il vit ici, dans la
+   * vue, et non dans une fenêtre : cliquer l'onglet Mémoire remonte la vue et
+   * le remet à `null`, donc ramène à l'accueil, ce qui est exactement ce qu'on
+   * attend d'un onglet.
+   */
+  variante: null,
   /**
    * La mémoire telle qu'elle a été lue en base.
    *
@@ -2094,6 +2109,21 @@ function renderContent(root) {
     return;
   }
 
+  // La variante a son écran. Il vient avant le détail comme avant l'accueil :
+  // on ne lit pas une variante « par-dessus » autre chose, on la regarde.
+  if (view.variante) {
+    root.innerHTML = `
+      <section class="project-simple-page project-simple-page--memory"
+      style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
+        <div class="propositions-shell">
+          ${renderEcranDeVariante(view.variante)}
+        </div>
+      </section>
+    `;
+    brancherLEcranDeVariante(root);
+    return;
+  }
+
   if (view.open) {
     // La coque d'un détail, celle des sujets et des propositions : c'est elle
     // que `bindOverlayChromeCompact` marque au défilement, et c'est sa classe
@@ -3193,6 +3223,9 @@ function bindTabReset() {
     view.notice = "";
     view.open = null;
     view.page = 1;
+    // Et l'écran de variante se ferme : cliquer l'onglet Mémoire ramène à
+    // l'accueil de la Mémoire, comme n'importe quel onglet ramène chez lui.
+    view.variante = null;
     renderContent(mountedRoot);
   });
 }
@@ -3217,6 +3250,147 @@ function brancherLeFiltreDeVariante(root) {
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * L'écran de variante
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Ouvrir l'écran, sur la liste du socle.
+ *
+ * Rien n'est calculé ici : on pose l'état et on redessine. Le seul moment qui
+ * attend le réseau est le calcul lui-même, et il le dit.
+ */
+function ouvrirLaVariante(root) {
+  const emplois = emploisParAffirmation(Array.isArray(view.applications) ? view.applications : []);
+  const valeurs = valeursSubstituables(view.memoire ?? [])
+    .map((entree) => ({ ...entree, lectures: emplois.get(entree.id)?.lectures ?? 0 }))
+    .sort((gauche, droite) =>
+      droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr"));
+
+  view.variante = {
+    valeurs, etape: ETAPE.CHOIX, choisie: null,
+    saisie: "", echec: "", cherche: "", rendu: null,
+    projet: view.projectId ?? ""
+  };
+  renderContent(root);
+}
+
+/** Quitter l'écran : on revient à la mémoire, telle qu'elle est. */
+function fermerLaVariante(root) {
+  view.variante = null;
+  renderContent(root);
+}
+
+/**
+ * Calculer, en laissant d'abord les utilitaires se rejouer.
+ *
+ * Le seul moment de tout l'écran qui attend le réseau. Il attend parce qu'il le
+ * faut : le référentiel a la table, et lui demander sa réponse vaut mieux que de
+ * refaire son calcul de notre côté — deux copies d'une même loi divergent
+ * toujours. Rien n'est écrit là-bas : l'outil calcule et se tait.
+ */
+async function calculerLaVariante(root) {
+  const etat = view.variante;
+  if (!etat?.choisie) return;
+
+  const saisie = texteDuChamp(root, "[data-variante-valeur]") || etat.saisie;
+  const substitutions = new Map([[etat.choisie.id, saisie]]);
+
+  // Refusé d'entrée — même valeur, valeur vide — : inutile de déranger le
+  // serveur pour une variante qui n'en est pas une.
+  const controle = consequencesDeLaVariante({
+    assertions: view.memoire ?? [], substitutions, applications: view.applications
+  });
+  if (!controle.ok) {
+    view.variante = { ...etat, saisie, echec: controle.raison, etape: ETAPE.SAISIE, rendu: null };
+    renderContent(root);
+    return;
+  }
+
+  view.variante = { ...etat, saisie, echec: "", etape: ETAPE.ATTENTE, rendu: null };
+  renderContent(root);
+
+  const relectures = await rejouerLesUtilitaires({
+    projectId: view.projectId ?? "", enVigueur: view.memoire ?? [], substitutions
+  }).catch(() => null);
+
+  const rendu = consequencesDeLaVariante({
+    assertions: view.memoire ?? [], substitutions, applications: view.applications, relectures
+  });
+
+  view.variante = {
+    ...view.variante,
+    etape: rendu.ok ? ETAPE.RESULTAT : ETAPE.SAISIE,
+    echec: rendu.ok ? "" : rendu.raison,
+    rendu
+  };
+  renderContent(root);
+}
+
+/** La valeur d'un champ, ou `""`. */
+function texteDuChamp(root, selecteur) {
+  return String(root.querySelector(selecteur)?.value ?? "").trim();
+}
+
+/** Emporter la variante en JSON — de quoi refaire le raisonnement sans l'écran. */
+function emporterLaVariante() {
+  const contenu = JSON.stringify(varianteEnJson(view.variante ?? {}), null, 2);
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(new Blob([contenu], { type: "application/json" }));
+  lien.download = `variante-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}.json`;
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+  setTimeout(() => URL.revokeObjectURL(lien.href), 0);
+}
+
+/** Les gestes de l'écran de variante. */
+function brancherLEcranDeVariante(root) {
+  for (const bouton of root.querySelectorAll("[data-variante-choisir]")) {
+    bouton.addEventListener("click", () => {
+      const id = bouton.getAttribute("data-variante-choisir") || "";
+      const choisie = (view.variante?.valeurs ?? []).find((valeur) => valeur.id === id) ?? null;
+      if (!choisie) return;
+      view.variante = { ...view.variante, choisie, saisie: "", echec: "", etape: ETAPE.SAISIE, rendu: null };
+      renderContent(root);
+      root.querySelector("[data-variante-valeur]")?.focus();
+    });
+  }
+
+  const recherche = root.querySelector("[data-variante-recherche]");
+  if (recherche) {
+    recherche.addEventListener("input", (evenement) => {
+      // La saisie en cours ne se perd pas parce qu'on cherche à côté : les deux
+      // colonnes vivent ensemble, et c'est tout l'intérêt de l'écran.
+      view.variante = {
+        ...view.variante,
+        cherche: evenement.target.value,
+        saisie: texteDuChamp(root, "[data-variante-valeur]") || view.variante?.saisie || ""
+      };
+      renderContent(root);
+      const champ = root.querySelector("[data-variante-recherche]");
+      champ?.focus();
+      champ?.setSelectionRange(champ.value.length, champ.value.length);
+    });
+  }
+
+  root.querySelector("[data-variante-calculer]")?.addEventListener("click", () => {
+    void calculerLaVariante(root);
+  });
+  root.querySelector("[data-variante-valeur]")?.addEventListener("keydown", (evenement) => {
+    if (evenement.key === "Enter") { evenement.preventDefault(); void calculerLaVariante(root); }
+  });
+  root.querySelector("[data-variante-abandonner]")?.addEventListener("click", () => fermerLaVariante(root));
+  root.querySelector("[data-variante-exporter]")?.addEventListener("click", () => emporterLaVariante());
+
+  root.querySelector("[data-variante-lire]")?.addEventListener("click", () => {
+    const rendu = view.variante?.rendu;
+    if (!rendu?.ok) return;
+    essayerLaVariante(variantePourLEcran({ consequences: rendu }));
+    fermerLaVariante(root);
+  });
+}
+
 function brancherLeBoutonTester(root) {
   const action = root.querySelector('[data-action-id="memoireTester"]');
   if (!action) return;
@@ -3226,14 +3400,7 @@ function brancherLeBoutonTester(root) {
     // Rien à faire en entrant dans une variante : on est déjà sur la mémoire, et
     // l'abonnement au magasin la redessine.
     if (quoi === "tester:variante") {
-      // L'identifiant du projet n'est pas décoratif : sans lui, la fenêtre ne
-      // peut pas redemander aux utilitaires de se rejouer, et tout ce qu'ils
-      // produisent retombe dans « à revérifier ».
-      void ouvrirLaFenetreDeVariante({
-        projectId: view.projectId ?? "",
-        assertions: view.memoire ?? [],
-        applications: view.applications
-      });
+      ouvrirLaVariante(root);
     }
     if (quoi === "tester:impact") {
       ouvrirLEtudeDImpact({ assertions: view.memoire ?? [], applications: view.applications });
@@ -3289,6 +3456,7 @@ export function renderProjectMemory(root) {
   view.notice = "";
   view.open = null;
   view.page = 1;
+  view.variante = null;
   view.navCollapsed = repliRetenu();
   view.navWidth = largeurRetenue();
   view.query = "";
