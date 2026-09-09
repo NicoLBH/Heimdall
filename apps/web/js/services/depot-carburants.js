@@ -36,7 +36,7 @@ import { ITEM_TYPE, STATUS_LABELS } from "./proposition-review.js";
 import { cheminDeRangement, extensionDeRangement } from "./memoire-rangement.js";
 import {
   enClair, ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
-  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate
+  ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, blocDeFonction
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -131,11 +131,16 @@ export function reperesDAffirmations(tableau = null) {
     const commun = {
       id: `affirmation:${texte(ligne.cle)}`,
       famille: "affirmation",
-      // Zone puis domaine, et l'extension dit la nature. Voir
-      // `memoire-rangement.js` : on cherche par le morceau d'ouvrage qu'on a en
-      // tête, pas par la famille de l'information.
-      chemin: cheminDeRangement({ nature: ligne.nature, domain: ligne.domaine, referentiel }),
-      extension: extensionDeRangement({ nature: ligne.nature, referentiel }),
+      // Où la ligne ira, **tel que la mémoire le calcule** : le tableau
+      // avant/après l'a résolu par le domicile du nom, registre consulté. Le
+      // recalculer ici depuis le seul `{nature, domaine}` faisait deux réponses
+      // à la même question, et le diff pouvait annoncer un fichier que la
+      // mémoire ne crée pas. Le calcul local ne sert plus qu'aux tableaux qui
+      // n'ont pas été résolus — des essais, et rien d'autre.
+      chemin: ligne.rangement?.chemin
+        ?? cheminDeRangement({ nature: ligne.nature, domain: ligne.domaine, referentiel }),
+      extension: ligne.rangement?.extension
+        ?? extensionDeRangement({ nature: ligne.nature, referentiel }),
       titre: texte(ligne.sujet) || texte(ligne.cle),
       provenance: {
         source: texte(ligne.source) || null,
@@ -149,14 +154,16 @@ export function reperesDAffirmations(tableau = null) {
       avant.push({ ...commun, champs: champsDuBloc({
         sujet: commun.titre, valeur: ligne.avant, referentiel,
         regle: ligne.regleAvant, provenance: ligne.provenanceAvant,
-        preuve: ligne.preuveAvant, statut: ligne.statutAvant, le: ligne.leAvant
+        preuve: ligne.preuveAvant, statut: ligne.statutAvant, le: ligne.leAvant,
+        fonction: ligne.fonctionAvant ?? null
       }) });
     }
     if (texte(ligne.apres)) {
       apres.push({ ...commun, champs: champsDuBloc({
         sujet: commun.titre, valeur: ligne.apres, referentiel,
         regle: ligne.regle, provenance: ligne.provenance,
-        preuve: ligne.preuve, statut: ligne.statut, le: ligne.le
+        preuve: ligne.preuve, statut: ligne.statut, le: ligne.le,
+        fonction: ligne.fonction ?? null
       }) });
     }
   }
@@ -174,7 +181,9 @@ export function reperesDAffirmations(tableau = null) {
  */
 export function champsDuBloc({
   sujet = "", valeur = "", referentiel = false,
-  regle = null, provenance = null, preuve = "", statut = "", le = ""
+  regle = null, provenance = null, preuve = "", statut = "", le = "",
+  /** Une fonction qui appelle un agent — `fonctionAEcrire()`. */
+  fonction = null
 } = {}) {
   const champs = {};
   // L'indentation reste : c'est elle qui dit à quelle ligne une ligne se
@@ -183,6 +192,19 @@ export function champsDuBloc({
 
   const conditions = Array.isArray(regle?.conditions) ? regle.conditions : [];
   const exceptions = Array.isArray(regle?.sauf) ? regle.sauf : [];
+
+  // Une fonction qui appelle un agent s'écrit en entier, avec **le même
+  // écrivain que le fichier**. Le diff en rendait sa propre version — une tête
+  // sans signature et un `alors (…)` que le fichier ne porte pas —, et l'on
+  // relisait deux textes différents de la même ligne.
+  if (fonction) {
+    for (const [rang, jetons] of blocDeFonction(fonction).entries()) {
+      // Un nom par ligne, et son rang : deux lignes de même texte — deux `};` —
+      // ne doivent pas se confondre, sans quoi le diff en perdrait une.
+      poser(`ligne ${rang + 1}`, jetons.length ? jetons : null);
+    }
+    return champs;
+  }
 
   if (referentiel) {
     // Une règle s'écrit comme elle s'exécute — voir `memoire-en-texte.js`. Le

@@ -40,6 +40,7 @@ import { TOUTES_ZONES } from "./memoire-en-texte.js";
 import { zonesLisibles } from "./memoire-blame.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { versementQuiVaut } from "./memoire-valeurs.js";
+import { lecturesDeLaRegle, sortiesDeLaFonction } from "./memoire-applications.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -432,15 +433,20 @@ export function dependancesDeLaMemoire(assertions = []) {
 
   for (const regle of regles) {
     const portees = zonesLisibles(regle).map(normalizeZoneKey).filter(Boolean);
-    const produites = valeurs.get(cleDuSujet(sujetDe(regle))) ?? [];
 
-    const conditions = [
-      ...(regle.payload?.regle?.conditions ?? []),
-      ...(regle.payload?.regle?.sauf ?? [])
-    ];
+    // Ce qu'elle produit, et ce qu'elle lit — demandés à qui le sait.
+    //
+    // Une fonction qui **appelle un agent** n'a ni conditions ni conclusion
+    // portant son nom : elle déclare ce qu'elle lit et ce qu'elle range, sous
+    // d'autres noms que le sien. Lire ici les seules conditions ne trouvait
+    // donc rien — le graphe était vide, la profondeur hors gel n'avait aucun
+    // aval, et une variante posée dessus annonçait « rien ne bouge » alors
+    // qu'elle refait toutes les fondations.
+    const produites = sortiesDeLaFonction(regle)
+      .flatMap((nom) => valeurs.get(cleDuSujet(nom)) ?? []);
 
-    for (const condition of conditions) {
-      const lues = valeurs.get(cleDuSujet(texte(condition?.sujet))) ?? [];
+    for (const nomLu of lecturesDeLaRegle(regle)) {
+      const lues = valeurs.get(cleDuSujet(nomLu)) ?? [];
 
       for (const produite of produites) {
         for (const lue of lues) {

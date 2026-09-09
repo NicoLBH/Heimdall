@@ -221,3 +221,58 @@ test("une dépendance ne traverse pas les zones", () => {
 
   assert.deepEqual(liens.map((lien) => lien.depends_on_assertion_id), [ici.id]);
 });
+
+
+test("une fonction qui appelle un agent relie ce qu'elle lit à ce qu'elle range", () => {
+  // Le défaut : le graphe ne lisait que les conditions d'une règle. Une
+  // fonction qui appelle un agent n'en a pas — elle **déclare** ce qu'elle lit
+  // et ce qu'elle range, sous d'autres noms que le sien. Le graphe était donc
+  // vide : la profondeur hors gel n'avait aucun aval, et une variante posée
+  // dessus annonçait « rien ne bouge » alors qu'elle refait les fondations.
+  const zones = ["batiment-a"];
+  const horsGel = {
+    id: "hg", subject_key: "profondeur-hors-gel", nature: "contrainte", domain: "structure",
+    superseded_by: null, zones, payload: { subject: "Profondeur hors gel", value: "0,47 m", zones }
+  };
+  const fonction = {
+    id: "fn", subject_key: "predimensionnement", superseded_by: null, zones,
+    payload: {
+      subject: "Prédimensionnement des fondations superficielles", referentiel: true, zones,
+      agent: {
+        genre: "agent-D", utilitaire: "dimensionnement_fondations_superficielles", version: "V1",
+        lit: ["Profondeur hors gel"],
+        ecrit: [{ sujet: "Résultat du calcul des fondations superficielles" }]
+      }
+    }
+  };
+  const resultat = {
+    id: "res", subject_key: "resultat", nature: "contrainte", domain: "structure",
+    superseded_by: null, zones,
+    payload: { subject: "Résultat du calcul des fondations superficielles", value: "11 massifs", zones }
+  };
+
+  assert.deepEqual(dependancesDeLaMemoire([horsGel, fonction, resultat]), [
+    { assertion_id: "res", depends_on_assertion_id: "hg", declared_by: null }
+  ]);
+});
+
+test("une valeur d'une autre zone ne fait pas dépendance", () => {
+  // Le résultat du bâtiment A ne dépend pas de la profondeur du bâtiment B.
+  const fonction = (zones) => ({
+    id: `fn-${zones[0]}`, subject_key: "predimensionnement", superseded_by: null, zones,
+    payload: {
+      subject: "Prédimensionnement des fondations superficielles", referentiel: true, zones,
+      agent: { genre: "agent-D", lit: ["Profondeur hors gel"], ecrit: [{ sujet: "Résultat" }] }
+    }
+  });
+
+  const liens = dependancesDeLaMemoire([
+    { id: "hg-b", subject_key: "phg", superseded_by: null, zones: ["batiment-b"],
+      payload: { subject: "Profondeur hors gel", value: "0,47 m", zones: ["batiment-b"] } },
+    fonction(["batiment-a"]),
+    { id: "res-a", subject_key: "res", superseded_by: null, zones: ["batiment-a"],
+      payload: { subject: "Résultat", value: "11 massifs", zones: ["batiment-a"] } }
+  ]);
+
+  assert.deepEqual(liens, []);
+});
