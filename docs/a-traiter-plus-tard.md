@@ -800,11 +800,14 @@ Deux précautions le jour où on l'écrira :
 d'utilitaire qui reprend le travail d'une précédente, et une zone retirée du
 projet, sortent leurs lignes du présent — au pied du fichier, avec leur motif.
 
-Ce qui reste, et qui est le geste plutôt que le mécanisme :
+**Le retrait délibéré est abandonné.** Un verbe pour retirer une ligne « parce
+qu'on le veut », sans qu'un utilitaire ni une zone ne l'y oblige, a été écarté :
+il n'y a pas de geste sans motif dans ce projet, et un motif qui n'est ni une
+version reprise ni une zone partie n'a pas été trouvé. Ce qui sort du présent en
+sort parce que quelque chose de nommable l'en a sorti.
 
-- **le retrait délibéré.** Un utilisateur qui veut retirer une ligne sans qu'un
-  utilitaire ni une zone ne l'y oblige n'a pas de verbe pour le dire. Ce serait
-  une décision comme une autre — versée, datée, signée, refusable ;
+Ce qui reste :
+
 - **le versement qui déclare ce qu'il remplace.** Aujourd'hui la reprise se
   **déduit** des numéros de version. C'est juste, et c'est fragile : un
   utilitaire qui changerait de lignée en changeant de nom ne reprendrait rien.

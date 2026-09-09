@@ -66,14 +66,19 @@ const essayer = (id, valeur) => new Map([[id, valeur]]);
  * ce qui vient du serveur et ce qui vient d'ici.
  */
 const repondu = (lignes = [], refusees = []) => ({
-  recalculees: lignes.map(({ assertion, avant, apres, reservesAvant = [], reservesApres = [], utilitaire = "" }) => ({
+  recalculees: lignes.map(({
+    assertion, avant, apres, reservesAvant = [], reservesApres = [], utilitaire = "", tableau = null
+  }) => ({
     assertion,
     sujet: assertion.payload.subject,
     utilitaire: utilitaire || assertion.payload.utilitaire,
     avant, apres,
     valeurABouge: apres !== avant,
     reservesAvant, reservesApres,
-    reservesOntBouge: reservesAvant.join("|") !== reservesApres.join("|")
+    reservesOntBouge: reservesAvant.join("|") !== reservesApres.join("|"),
+    // Ce qu'une fonction native rend en plus de sa phrase : le détail, ligne à
+    // ligne. `utilitaires-rejeu.js` le pose sur chaque ligne recalculée.
+    ...(tableau ? { tableau } : {})
   })),
   refusees
 });
@@ -302,6 +307,63 @@ test("la mémoire sous la variante rend une autre liste, sans rien écrire", () 
   assert.equal(vue[2], memoire[2]);
   // Et la mémoire d'origine n'a pas bougé d'un octet.
   assert.deepEqual(JSON.parse(JSON.stringify(memoire)), copie);
+});
+
+test("le tableau d'une fonction native suit la phrase qu'il détaille", () => {
+  // Le défaut vu à l'écran : passer la profondeur hors gel à 8 m donnait bien
+  // « 8 vérifiées, 4 en défaut » sur la ligne, et juste en dessous les douze
+  // massifs du tableau restaient verts, à leur ancienne arase. Le résumé disait
+  // qu'il y avait des défauts, le détail qu'il n'y en avait aucun — et c'est le
+  // détail qu'on croit.
+  const resultat = {
+    id: "fondations", kind: "site-constraint", subject_key: "resultat", nature: "contrainte",
+    status: "assumed", superseded_by: null, decided_at: "2026-01-10T09:00:00Z",
+    statement: "Résultat du calcul : 12 massifs — 12 vérifiées",
+    payload: {
+      subject: "Résultat du calcul", value: "12 massifs — 12 vérifiées", derived: true,
+      utilitaire: "dimensionnement_fondations_superficielles_V1",
+      tableau: [{ designation: "File A", "arase supérieure": "-0,60 m", "vérification": "OK" }]
+    }
+  };
+
+  const vue = memoireAvecLaVariante([altitude("490 m"), resultat], {
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([{
+      assertion: resultat,
+      avant: "12 massifs — 12 vérifiées",
+      apres: "12 massifs — 8 vérifiées, 4 en défaut",
+      tableau: [{ designation: "File A", "arase supérieure": "-8,00 m", "vérification": "non vérifiée" }]
+    }])
+  });
+
+  const refaite = vue.find((ligne) => ligne.id === "fondations");
+  assert.equal(refaite.payload.value, "12 massifs — 8 vérifiées, 4 en défaut");
+  assert.equal(refaite.payload.tableau[0]["vérification"], "non vérifiée");
+  assert.equal(refaite.payload.tableau[0]["arase supérieure"], "-8,00 m");
+  // Et la mémoire versée n'a pas changé : la variante ne s'écrit nulle part.
+  assert.equal(resultat.payload.tableau[0]["vérification"], "OK");
+});
+
+test("sans tableau rendu, celui d'avant reste plutôt que de disparaître", () => {
+  // Une relecture qui ne détaille pas — un utilitaire, pas une fonction native —
+  // ne doit pas vider le détail de la ligne qu'elle réécrit.
+  const resultat = {
+    id: "frost", kind: "site-constraint", subject_key: "site:frost", nature: "contrainte",
+    status: "assumed", superseded_by: null, decided_at: "2026-01-10T09:00:00Z",
+    statement: "Profondeur hors gel : 0.99 m",
+    payload: {
+      subject: "Profondeur hors gel", value: "0.99 m", derived: true,
+      utilitaire: "deduction_profondeur_hors_gel_altitude_V1",
+      tableau: [{ station: "poste d'essai" }]
+    }
+  };
+
+  const vue = memoireAvecLaVariante([altitude("490 m"), resultat], {
+    substitutions: essayer("ddb-altitude", "890 m"),
+    relectures: repondu([{ assertion: resultat, avant: "0.99 m", apres: "1.09 m" }])
+  });
+
+  assert.deepEqual(vue.find((ligne) => ligne.id === "frost").payload.tableau, [{ station: "poste d'essai" }]);
 });
 
 test("le calque distingue « recalculée », « relue » et « rejouée »", () => {

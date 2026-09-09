@@ -332,7 +332,7 @@ export function consequencesDeLaVariante({
  * ────────────────────────────────────────────────────────────────────────── */
 
 /** Une affirmation réécrite sans toucher à l'originale. Rien d'ici ne s'écrit. */
-function substituee(assertion, { valeur, reserves = null, effet, avant = "", pourquoi = "" }) {
+function substituee(assertion, { valeur, reserves = null, effet, avant = "", pourquoi = "", tableau = null }) {
   const payload = { ...(assertion?.payload ?? {}) };
   const sujet = texte(payload.subject) || texte(assertion?.statement);
   payload.value = valeur;
@@ -340,6 +340,14 @@ function substituee(assertion, { valeur, reserves = null, effet, avant = "", pou
     payload.reserves = reserves;
     payload.inputsState = inputsStateOf(reserves);
   }
+
+  // **Le tableau suit la phrase.** Sans cela, lire la mémoire avec la variante
+  // montrait la phrase refaite — « 8 vérifiées, 4 en défaut » — au-dessus du
+  // tableau d'avant, où les douze massifs étaient encore verts et posés à leur
+  // ancienne arase. La ligne disait qu'il y avait des défauts, et le détail
+  // qu'il n'y en avait aucun : c'est le pire des deux, parce qu'on croit le
+  // détail. Le tableau est ce que l'utilitaire vient de rendre, il vient avec.
+  if (Array.isArray(tableau)) payload.tableau = tableau;
 
   return {
     ...assertion,
@@ -400,6 +408,8 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
     remplacements.set(idDe(ligne.assertion), substituee(ligne.assertion, {
       valeur: ligne.apres,
       reserves: ligne.reservesApres,
+      // Ce que l'utilitaire vient de rendre, ligne à ligne. Voir `substituee`.
+      tableau: Array.isArray(ligne.tableau) ? ligne.tableau : null,
       effet: ligne.valeurABouge || ligne.reservesOntBouge ? "recalculee" : "relue",
       avant: ligne.avant,
       // « recalculée » quand elle a bougé, « relue » quand elle n'a pas bougé :
