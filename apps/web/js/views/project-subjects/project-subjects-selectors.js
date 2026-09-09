@@ -306,15 +306,25 @@ export function createProjectSubjectsSelectors({
     });
   }
 
+  /**
+   * Ouverts ou fermés : ce que le bouton du tableau a demandé.
+   *
+   * `subjectsStatusFilter` **est** le filtre ; `filters.status` en est une copie
+   * que la normalisation entretient pour le code qui la lit encore. Lire la copie
+   * d'abord faisait exactement ce qu'une valeur écrite à deux endroits finit
+   * toujours par faire : le clic écrivait l'original, le getter rendait la copie,
+   * et le bouton ne faisait plus rien (`docs/fondamentaux.md`, règle 4).
+   */
   function getCurrentSubjectsStatusFilter() {
     const v = getViewState();
-    const value = String(v.filters?.status || v.subjectsStatusFilter || "open").toLowerCase();
+    const value = String(v.subjectsStatusFilter || v.filters?.status || "open").toLowerCase();
     return value === "closed" ? "closed" : "open";
   }
 
+  /** Même règle : l'original d'abord, la copie à défaut. */
   function getCurrentSubjectsPriorityFilter() {
     const v = getViewState();
-    return normalizeBackendPriority(v.filters?.priority || v.subjectsPriorityFilter || "");
+    return normalizeBackendPriority(v.subjectsPriorityFilter || v.filters?.priority || "");
   }
 
   function getSubjectsPaginationState(totalItems = 0) {

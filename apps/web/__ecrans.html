@@ -1,0 +1,18 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><link rel="stylesheet" href="/style.css"></head>
+<body class="route--project" style="margin:0">
+  <div style="padding:20px;max-width:1000px" id="cible"></div>
+  <div style="padding:0 20px;max-width:1000px">
+    <p style="margin-top:24px">
+      <button type="button" class="memory-counts__item memory-counts__item--plan" data-memory-plan>
+        <b>2 pas de raisonnement</b> 186/193 rejouables
+      </button>
+    </p>
+  </div>
+  <script type="module">
+    const { renderMemoryList } = await import("/js/views/project-memory.js");
+    document.getElementById("cible").innerHTML = renderMemoryList(window.__lignes, 1, {
+      enteteHtml: '<div class="memory-table__head"><b>en-tête du tableau</b></div>'
+    });
+    window.__pret = true;
+  </script>
+</body></html>

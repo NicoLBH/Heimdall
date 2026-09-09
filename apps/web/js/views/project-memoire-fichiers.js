@@ -34,7 +34,7 @@ import {
   JETON, OPERATEUR, TOUTES_ZONES, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
 import {
-  phraseDeLExtension, rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE,
+  rangDuDossier, rangDeLExtension, langageDeLExtension, SANS_NATURE,
   MEMOIRE, EXTENSION_REGLE, LANGAGES, zonesDeRangement, rangDeLaZone
 } from "../services/memoire-rangement.js";
 import {
@@ -688,7 +688,6 @@ export function renderFichiers(memoire, dossier, { auteurs = new Map(), proposit
               <span class="memoire-entree__nom">
                 <span class="memoire-entree__icone">${svgIcon("file", { className: "octicon" })}</span>
                 ${escapeHtml(nomDuFichier(fichier))}
-                <span class="memoire-entree__quoi">${escapeHtml(phraseDeLExtension(fichier.extension))}</span>
               </span>
               <span class="memoire-entree__message">${escapeHtml(dernier?.message || "—")}</span>
               <span class="memoire-entree__date">${escapeHtml(dernier ? ilYA(dernier.quand) : "—")}</span>
