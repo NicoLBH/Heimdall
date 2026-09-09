@@ -144,8 +144,9 @@ const STRUCTURE = [
 
 const avecStructure = (rendu, structure) => {
   rendu.recalculees[0].assertion.payload.structure = structure;
-  // Le catalogue l'emporte sur la copie figée : pour éprouver une déclaration
-  // donnée, la ligne ne doit se réclamer d'aucun utilitaire connu.
+  // La déclaration se cherche **par le sujet** : pour éprouver une structure
+  // donnée, la ligne ne doit porter aucun sujet que le catalogue déclare.
+  rendu.recalculees[0].sujet = "Résultat d'un utilitaire d'essai";
   rendu.recalculees[0].utilitaire = "utilitaire_d_essai_V1";
   return rendu;
 };
@@ -227,6 +228,40 @@ test("la déclaration d'aujourd'hui l'emporte sur la copie figée au versement",
   const html = ecran(rendu);
   assert.match(html, /variante-tableau__apres--rompu">en défaut/);
   assert.match(html, /16 fois la limite/);
+});
+
+test("un champ de tableau porte son groupe, et se cherche par lui", () => {
+  // Le défaut vécu : la contrainte de sol ne se trouvait pas sans connaître son
+  // nom exact. Elle se cherche maintenant par « sol », par son groupe ou par sa
+  // description.
+  const sol = {
+    id: "x#entrees.contrainteLimite", sujet: "contrainte limite à l'ELS", valeur: "2",
+    zones: ["batiment-a"], lectures: 0, partagee: true,
+    champ: { groupe: "sol et matériaux", cle: "entrees.contrainteLimite" },
+    quoi: "La contrainte que le sol admet à l'état-limite de service."
+  };
+  const autre = { id: "y", sujet: "Altitude du site", valeur: "13,22 m", zones: [], lectures: 0, quoi: "" };
+
+  const tout = renderEcranDeVariante({ valeurs: [sol, autre], etape: ETAPE.CHOIX });
+  assert.match(tout, /<i>sol et matériaux<\/i> · contrainte limite/);
+
+  const cherche = renderEcranDeVariante({ valeurs: [sol, autre], etape: ETAPE.CHOIX, cherche: "sol" });
+  assert.match(cherche, /contrainte limite à l&#39;ELS/);
+  assert.doesNotMatch(cherche, /Altitude du site : /);
+});
+
+test("un champ dont les lignes ne s'accordent pas le dit", () => {
+  const arase = {
+    id: "x#entrees.araseSuperieure", sujet: "arase supérieure", valeur: "",
+    zones: [], lectures: 0, partagee: false, lignes: 12,
+    champ: { groupe: "géométrie", cle: "entrees.araseSuperieure" }, quoi: ""
+  };
+
+  const html = renderEcranDeVariante({ valeurs: [arase], etape: ETAPE.CHOIX });
+  assert.match(html, /12 valeurs différentes/);
+  // Surtout pas un tiret : « — » se lit comme « pas de valeur », alors qu'il y
+  // en a douze.
+  assert.doesNotMatch(html, /arase supérieure : —/);
 });
 
 test("le résultat porte ses deux gestes, et le second se refuse s'il ne dit rien", () => {

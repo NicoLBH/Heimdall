@@ -57,7 +57,10 @@ import { versementsEclipses } from "./memoire-valeurs.js";
 import { mesureEnFrancais } from "./memoire-en-texte.js";
 import { currentAssertions } from "./project-memory.js";
 import { describeReserves, inputsStateOf } from "./derived-constraints.js";
-import { describeProvenance, utilitaireByReference } from "../utilitaires/catalogue.js";
+import { describeProvenance, utilitaireByReference, declarationDuSujet } from "../utilitaires/catalogue.js";
+import {
+  champsAvecCle, valeurAuChemin, idDuChamp, champDeLIdentifiant, memoireAvecLesChamps
+} from "./tableau-structure.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
 import { dependancesDesApplications } from "./memoire-applications.js";
 import { rejouerLesRegles } from "./memoire-rejeu.js";
@@ -129,13 +132,76 @@ export function descriptionDeLaValeur(assertion = null) {
  * colore pas — jamais un mauvais rapprochement.
  */
 export function structureDuTableau(ligne = null) {
-  const outil = utilitaireByReference(texte(ligne?.utilitaire)
-    || texte(ligne?.assertion?.payload?.utilitaire));
-  const vivante = outil?.rend?.structure;
+  const assertion = ligne?.assertion ?? ligne;
+  const sujet = texte(assertion?.payload?.subject) || texte(ligne?.sujet);
+
+  // Par le **sujet**, et non par l'utilitaire cité : un tableau d'entrée est
+  // saisi dans l'Atelier et ne cite personne, alors qu'un utilitaire le déclare
+  // entièrement dans son `lit`. Chercher par l'utilitaire laisserait cette
+  // déclaration-là inatteignable — et c'est précisément celle des entrées.
+  const vivante = declarationDuSujet(sujet)?.structure;
   if (Array.isArray(vivante) && vivante.length) return vivante;
 
-  const figee = ligne?.assertion?.payload?.structure;
+  const figee = assertion?.payload?.structure;
   return Array.isArray(figee) && figee.length ? figee : null;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Les champs d'un tableau, un par un
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Ce qu'une ligne de tableau porte à ce chemin, écrit. */
+function valeurDuChamp(ligne, cle) {
+  const brute = valeurAuChemin(ligne, cle);
+  return brute === undefined || brute === null ? "" : texte(brute);
+}
+
+/**
+ * Les champs déclarés d'un tableau, avec ce que le projet y met aujourd'hui.
+ *
+ * ## Un champ, pas un champ par massif
+ *
+ * On veut changer la contrainte de sol **de la zone**, pas celle du massif n° 7.
+ * Douze massifs par douze champs feraient cent quarante-quatre entrées, et la
+ * liste où l'on cherchait déjà mal deviendrait illisible. Un champ apparaît donc
+ * une fois, avec la valeur que ses lignes partagent — ou rien quand elles
+ * diffèrent, ce qui se dit plutôt que de choisir la première.
+ *
+ * ## Ce qui n'est pas déclaré n'apparaît pas
+ *
+ * Seuls les champs dont l'utilitaire a déclaré la clé. Parcourir les données
+ * elles-mêmes offrirait `buteeZf` et `typeSolEc8` sous leur nom de code, sans
+ * dire ce qu'ils sont ni ce qu'ils admettent — et personne n'oserait y toucher.
+ */
+export function champsDunTableau(assertion = null) {
+  const tableau = Array.isArray(assertion?.payload?.tableau) ? assertion.payload.tableau : null;
+  if (!tableau?.length) return [];
+
+  const structure = structureDuTableau(assertion);
+  if (!structure) return [];
+
+  const champs = [];
+
+  for (const champ of champsAvecCle(structure)) {
+    const dites = tableau.map((ligne) => valeurDuChamp(ligne, champ.cle));
+    const portantes = dites.filter(Boolean);
+    // Un champ que le tableau ne porte nulle part n'est pas une valeur du
+    // projet : c'est une case de la déclaration que cette étude n'a pas remplie.
+    if (!portantes.length) continue;
+
+    const partagee = new Set(portantes).size === 1 && portantes.length === dites.length;
+    champs.push({
+      cle: champ.cle,
+      nom: texte(champ.nom),
+      groupe: texte(champ.groupe),
+      quoi: texte(champ.quoi),
+      lignes: portantes.length,
+      partagee,
+      valeur: partagee ? portantes[0] : ""
+    });
+  }
+
+  return champs;
 }
 
 export function valeursSubstituables(assertions = []) {
@@ -157,22 +223,65 @@ export function valeursSubstituables(assertions = []) {
     .filter((assertion) => !produites.has(idDe(assertion)))
     .filter((assertion) => natureDuNoeud(assertion, { produites }) === NOEUD.SOCLE)
     .filter((assertion) => idDe(assertion) && texte(assertion?.payload?.subject))
-    .map((assertion) => ({
-      id: idDe(assertion),
-      assertion,
-      sujet: texte(assertion.payload.subject),
-      // La même écriture que la mémoire : « 0.5 m » ici et « 0,5 m » dans le
-      // fichier feraient douter qu'il s'agisse de la même valeur.
-      valeur: mesureEnFrancais(assertion.payload.value),
-      // La portée, sans quoi quatre « Altitude du site » se ressemblent trait
-      // pour trait dans la liste : on en choisissait une au hasard sans savoir
-      // sur quelle partie de l'ouvrage on était en train de varier.
-      zones: zonesLisibles(assertion),
-      // Ce qu'elle est, quand le projet le dit. Sans elle, une liste de noms
-      // obscurs se choisit au jugé. Voir `descriptionDeLaValeur`.
-      quoi: descriptionDeLaValeur(assertion),
-      nature: classifyAssertion(assertion).nature
-    }));
+    .flatMap((assertion) => {
+      // Une affirmation qui porte un tableau **déclaré** offre ses champs plutôt
+      // qu'elle-même : sa valeur est « 12 lignes », et faire varier « 12 lignes »
+      // ne veut rien dire. C'est ce qui rend la contrainte de sol atteignable.
+      const champs = champsDunTableau(assertion);
+      return champs.length
+        ? champs.map((champ) => entreeDunChamp(assertion, champ))
+        : [entreeDuneValeur(assertion)];
+    });
+}
+
+/** Une valeur du socle, telle que l'écran la propose. */
+function entreeDuneValeur(assertion) {
+  return {
+    id: idDe(assertion),
+    assertion,
+    sujet: texte(assertion.payload.subject),
+    // La même écriture que la mémoire : « 0.5 m » ici et « 0,5 m » dans le
+    // fichier feraient douter qu'il s'agisse de la même valeur.
+    valeur: mesureEnFrancais(assertion.payload.value),
+    // La portée, sans quoi quatre « Altitude du site » se ressemblent trait
+    // pour trait dans la liste : on en choisissait une au hasard sans savoir
+    // sur quelle partie de l'ouvrage on était en train de varier.
+    zones: zonesLisibles(assertion),
+    // Ce qu'elle est, quand le projet le dit. Sans elle, une liste de noms
+    // obscurs se choisit au jugé. Voir `descriptionDeLaValeur`.
+    quoi: descriptionDeLaValeur(assertion),
+    nature: classifyAssertion(assertion).nature
+  };
+}
+
+/**
+ * Un champ **à l'intérieur** d'un tableau, tel que l'écran le propose.
+ *
+ * Le nom affiché est celui que l'utilitaire a déclaré — « contrainte limite à
+ * l'ELS » —, jamais la clé technique. Et il dit de quel tableau il sort : deux
+ * ateliers peuvent avoir chacun leur « drainage », et les confondre ferait varier
+ * l'un en croyant varier l'autre.
+ */
+function entreeDunChamp(assertion, champ) {
+  const dansQuoi = texte(assertion?.payload?.subject);
+
+  return {
+    id: idDuChamp(idDe(assertion), champ.cle),
+    assertion,
+    champ,
+    sujet: champ.nom,
+    // Vide quand les lignes ne s'accordent pas : montrer la première vaudrait
+    // pour un massif et pour aucun autre.
+    valeur: champ.partagee ? mesureEnFrancais(champ.valeur) : "",
+    zones: zonesLisibles(assertion),
+    quoi: champ.quoi
+      // Pas une invention : le tableau dont il sort est un fait, et c'est
+      // exactement ce qu'il faut savoir pour ne pas se tromper de « drainage ».
+      || (dansQuoi ? `Champ du tableau « ${dansQuoi} ».` : ""),
+    lignes: champ.lignes,
+    partagee: champ.partagee,
+    nature: classifyAssertion(assertion).nature
+  };
 }
 
 /**
@@ -245,9 +354,16 @@ export function consequencesDeLaVariante({
 } = {}) {
   const toutes = Array.isArray(assertions) ? assertions : [];
   const voulues = substitutions instanceof Map ? substitutions : new Map(Object.entries(substitutions ?? {}));
-  const enVigueur = currentAssertions(toutes);
 
+  // Ce qu'on peut essayer se lit sur la mémoire **telle qu'elle est**. La lire
+  // sur la mémoire déjà modifiée ferait répondre « c'est ce que le projet dit
+  // déjà » à la valeur qu'on vient précisément de poser.
   const substituables = new Map(valeursSubstituables(toutes).map((entree) => [entree.id, entree]));
+
+  // Les champs essayés entrent dans les tableaux avant tout le reste. C'est ce
+  // qui rend le reste possible sans y toucher : le rejeu relit le tableau du
+  // projet, et il doit l'y trouver déjà porteur de la valeur qu'on essaie.
+  const enVigueur = currentAssertions(memoireAvecLesChamps(toutes, voulues));
   const depart = [];
 
   for (const [id, valeur] of voulues) {
@@ -303,7 +419,9 @@ export function consequencesDeLaVariante({
   );
 
   const changees = new Set([
-    ...depart.map((entree) => entree.id),
+    // Un champ n'a pas d'aval à lui : c'est l'affirmation qui le porte que les
+    // autres lisent. Chercher depuis l'identifiant composite ne trouverait rien.
+    ...depart.map((entree) => champDeLIdentifiant(entree.id).id),
     ...recalculees.filter((l) => l.valeurABouge || l.reservesOntBouge).map((l) => idDe(l.assertion)),
     ...refusees.map((ligne) => idDe(ligne.assertion)),
     ...rejouees.map((l) => idDe(l.assertion))
@@ -323,7 +441,7 @@ export function consequencesDeLaVariante({
     .filter((id) => !rejouees.some((ligne) => idDe(ligne.assertion) === id));
 
   const traitees = new Set([
-    ...depart.map((entree) => entree.id),
+    ...depart.map((entree) => champDeLIdentifiant(entree.id).id),
     ...recalculees.map((l) => idDe(l.assertion)),
     ...rejouees.map((l) => idDe(l.assertion)),
     ...confirmees
@@ -517,10 +635,35 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
   });
   if (!consequences.ok) return toutes;
 
+  // Les champs essayés sont déjà dans les tableaux : la même fonction pure que
+  // le rejeu a employée, appelée ici pour que l'écran montre exactement ce qui a
+  // été calculé — pas une seconde version du même geste (règle 4).
+  const socle = memoireAvecLesChamps(toutes, voulues);
+  const parId = new Map(socle.map((assertion) => [idDe(assertion), assertion]));
   const remplacements = new Map();
 
   for (const entree of consequences.depart) {
-    remplacements.set(entree.id, substituee(entree.assertion, {
+    const { id, cle } = champDeLIdentifiant(entree.id);
+
+    // Un champ ne réécrit pas la valeur de l'affirmation : « 12 lignes » reste
+    // vrai, c'est une ligne du tableau qui a changé. On la marque seulement,
+    // pour que l'écran dise que ce qu'il montre n'est pas la mémoire.
+    if (cle) {
+      const portee = parId.get(id);
+      if (portee) {
+        remplacements.set(id, {
+          ...portee,
+          variante: {
+            effet: "variante",
+            avant: entree.valeur,
+            pourquoi: `${entree.sujet} essayé à ${entree.vers}`
+          }
+        });
+      }
+      continue;
+    }
+
+    remplacements.set(id, substituee(entree.assertion, {
       valeur: entree.vers, effet: "variante", avant: entree.valeur
     }));
   }
@@ -551,7 +694,7 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
 
   const raisons = new Map(consequences.aRevoir.map((ligne) => [idDe(ligne.assertion), ligne.pourquoi]));
 
-  return toutes.map((assertion) => {
+  return socle.map((assertion) => {
     const id = idDe(assertion);
     if (remplacements.has(id)) return remplacements.get(id);
     // On ne devine pas leur nouvelle valeur : on les marque, et l'écran dit

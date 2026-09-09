@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 
 import {
   SENS, COMPARAISON, colonnesDeclarees, colonneNommee, valeursDeclarees,
-  sensDeLaValeur, uniteDeclaree, margeDeclaree, ecartALaMarge, pireEcart
+  sensDeLaValeur, uniteDeclaree, margeDeclaree, ecartALaMarge, pireEcart,
+  champsAvecCle, valeurAuChemin, avecValeurAuChemin, idDuChamp, champDeLIdentifiant
 } from "./tableau-structure.js";
 
 const VERDICT = { nom: "vérification", valeurs: [
@@ -95,4 +96,49 @@ test("la pire valeur est celle qui décide, et elle dépend du sens de la limite
 
   assert.equal(pireEcart({ nom: "hauteur", type: "nombre" }, ["1", "2"]), null);
   assert.equal(pireEcart(RATIO, ["sans objet"]), null);
+});
+
+test("seuls les champs dont la clé est déclarée se proposent", () => {
+  const structure = [
+    { nom: "désignation", type: "texte" },
+    { nom: "sol et matériaux", champs: [
+      { nom: "contrainte limite à l'ELS", cle: "entrees.contrainteLimite", type: "nombre" },
+      // Plusieurs valeurs sous un seul nom : sans clé, donc sans proposition.
+      // Lui en inventer trois reviendrait à nommer à la place de l'auteur.
+      { nom: "poids volumique du béton", type: "semelle et fût" }
+    ] }
+  ];
+
+  assert.deepEqual(champsAvecCle(structure).map((c) => [c.groupe, c.nom, c.cle]), [
+    ["sol et matériaux", "contrainte limite à l'ELS", "entrees.contrainteLimite"]
+  ]);
+});
+
+test("un chemin atteint une valeur, et la pose sans rien muter", () => {
+  const ligne = { designation: "A", entrees: { contrainteLimite: "2", sectionLx: "1,2" } };
+
+  assert.equal(valeurAuChemin(ligne, "entrees.contrainteLimite"), "2");
+  assert.equal(valeurAuChemin(ligne, "entrees.inconnu"), undefined);
+  assert.equal(valeurAuChemin(ligne, "designation.trop.loin"), undefined);
+  assert.equal(valeurAuChemin(null, "entrees.x"), undefined);
+
+  const refaite = avecValeurAuChemin(ligne, "entrees.contrainteLimite", "0,5");
+  assert.equal(refaite.entrees.contrainteLimite, "0,5");
+  assert.equal(refaite.entrees.sectionLx, "1,2", "le reste de la ligne ne bouge pas");
+  assert.equal(refaite.designation, "A");
+  // Une variante ne s'écrit nulle part : muter l'original ferait de la mémoire
+  // du projet le brouillon de l'essai qu'on vient de faire.
+  assert.equal(ligne.entrees.contrainteLimite, "2");
+
+  // Le chemin se crée s'il manque : refuser reviendrait à ne pas pouvoir essayer.
+  assert.equal(avecValeurAuChemin({}, "entrees.x", "1").entrees.x, "1");
+});
+
+test("un identifiant composite se lit dans les deux sens", () => {
+  assert.equal(idDuChamp("abc", "entrees.x"), "abc#entrees.x");
+  assert.deepEqual(champDeLIdentifiant("abc#entrees.x"), { id: "abc", cle: "entrees.x" });
+  // Un identifiant simple n'en est pas un : `cle` vide, et tout le reste du
+  // code continue de le traiter comme une affirmation entière.
+  assert.deepEqual(champDeLIdentifiant("abc"), { id: "abc", cle: "" });
+  assert.deepEqual(champDeLIdentifiant(""), { id: "", cle: "" });
 });

@@ -217,3 +217,132 @@ export function pireEcart(colonne = null, valeurs = []) {
 
   return pire;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Les champs qu'on peut atteindre dans une ligne
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Les champs dont l'utilitaire a déclaré **où ils se trouvent** dans la donnée.
+ *
+ * `STRUCTURE_DES_ENTREES` décrivait la forme pour un lecteur humain — « contrainte
+ * limite à l'ELS » — sans dire que la valeur s'appelle `entrees.contrainteLimite`.
+ * Le nom se lisait donc à l'écran sans qu'on puisse l'atteindre, et l'on ne
+ * pouvait pas faire varier ce que le calcul lit vraiment.
+ *
+ * `cle` fait le lien, et elle seule : **ce qui n'est pas déclaré ne se propose
+ * pas.** Un champ recouvrant plusieurs valeurs — « fût », qui est une hauteur et
+ * deux côtés — n'a pas de clé, donc ne s'offre pas ; le nommer à sa place
+ * reviendrait à inventer trois noms que personne n'a écrits.
+ */
+export function champsAvecCle(structure = []) {
+  return colonnesDeclarees(structure).filter((colonne) => texte(colonne.cle));
+}
+
+/**
+ * La valeur qu'un chemin désigne dans un objet. `undefined` s'il n'y mène pas.
+ *
+ * Le chemin est celui que `cle` déclare : `entrees.contrainteLimite`. Pas de
+ * crochets, pas d'index — un champ qu'on fait varier est un champ nommé, et
+ * atteindre la troisième charge du deuxième cas serait une autre affaire.
+ */
+export function valeurAuChemin(objet = null, chemin = "") {
+  const etapes = texte(chemin).split(".").filter(Boolean);
+  if (!etapes.length) return undefined;
+
+  let courant = objet;
+  for (const etape of etapes) {
+    if (courant === null || typeof courant !== "object") return undefined;
+    courant = courant[etape];
+  }
+  return courant;
+}
+
+/**
+ * Le même objet, avec une valeur posée au bout du chemin. **Rien n'est modifié.**
+ *
+ * Une variante ne s'écrit nulle part : elle rend une seconde lecture. Muter
+ * l'objet d'origine ferait de la mémoire du projet le brouillon de l'essai qu'on
+ * vient de faire, et personne ne s'en apercevrait avant longtemps.
+ *
+ * Le chemin se crée s'il manque : un massif qui n'a pas encore de sol déclaré
+ * peut en recevoir un, et refuser reviendrait à ne pas pouvoir essayer.
+ */
+export function avecValeurAuChemin(objet = null, chemin = "", valeur = "") {
+  const etapes = texte(chemin).split(".").filter(Boolean);
+  if (!etapes.length) return objet;
+
+  const [tete, ...reste] = etapes;
+  const base = objet !== null && typeof objet === "object" ? objet : {};
+  const dedans = reste.length
+    ? avecValeurAuChemin(base[tete], reste.join("."), valeur)
+    : valeur;
+
+  return Array.isArray(base) ? Object.assign([...base], { [tete]: dedans }) : { ...base, [tete]: dedans };
+}
+
+/**
+ * Ce qui sépare une affirmation du champ qu'on vise à l'intérieur.
+ *
+ * Un caractère qu'aucun identifiant ne porte, et qui se lit : on doit pouvoir
+ * regarder `…8c#entrees.contrainteLimite` dans un export et comprendre ce qui a
+ * été essayé.
+ */
+export const SEPARATEUR_DE_CHAMP = "#";
+
+/** L'identifiant d'un champ à l'intérieur d'une affirmation. */
+export function idDuChamp(id, cle) {
+  return `${texte(id)}${SEPARATEUR_DE_CHAMP}${texte(cle)}`;
+}
+
+/** L'affirmation et le champ que porte un identifiant. `cle` vide s'il n'en vise pas. */
+export function champDeLIdentifiant(id = "") {
+  const dit = texte(id);
+  const coupe = dit.indexOf(SEPARATEUR_DE_CHAMP);
+  return coupe < 0 ? { id: dit, cle: "" } : { id: dit.slice(0, coupe), cle: dit.slice(coupe + 1) };
+}
+
+
+
+/**
+ * La mémoire dont les tableaux portent les champs qu'on essaie.
+ *
+ * **Pure, et appliquée une seule fois par pipeline.** C'est ce qui rend le reste
+ * possible sans y toucher : le rejeu relit le tableau du projet, et s'il le
+ * trouve déjà porteur de la valeur essayée, la fonction native se refait avec
+ * elle sans qu'aucun maillon de la chaîne ait à connaître la notion de champ.
+ *
+ * La valeur est posée sur **toutes les lignes** : c'est ce qu'on a choisi
+ * d'offrir — un champ de la zone, pas d'un massif — et la poser sur une seule
+ * ligne au hasard serait une variante que personne n'a demandée.
+ *
+ * Rien n'est modifié. Une variante ne s'écrit nulle part : muter le tableau
+ * d'origine ferait de la mémoire du projet le brouillon de l'essai qu'on vient
+ * de faire, et personne ne s'en apercevrait avant longtemps.
+ */
+export function memoireAvecLesChamps(assertions = [], substitutions = new Map()) {
+  const voulues = substitutions instanceof Map
+    ? substitutions
+    : new Map(Object.entries(substitutions ?? {}));
+
+  const parAffirmation = new Map();
+  for (const [id, valeur] of voulues) {
+    const { id: base, cle } = champDeLIdentifiant(id);
+    if (!cle) continue;
+    if (!parAffirmation.has(base)) parAffirmation.set(base, new Map());
+    parAffirmation.get(base).set(cle, texte(valeur));
+  }
+  if (!parAffirmation.size) return Array.isArray(assertions) ? assertions : [];
+
+  return (Array.isArray(assertions) ? assertions : []).map((assertion) => {
+    const champs = parAffirmation.get(texte(assertion?.id));
+    if (!champs || !Array.isArray(assertion?.payload?.tableau)) return assertion;
+
+    let tableau = assertion.payload.tableau;
+    for (const [cle, valeur] of champs) {
+      tableau = tableau.map((ligne) => avecValeurAuChemin(ligne, cle, valeur));
+    }
+
+    return { ...assertion, payload: { ...assertion.payload, tableau } };
+  });
+}
