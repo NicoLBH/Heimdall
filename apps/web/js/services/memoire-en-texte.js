@@ -1426,7 +1426,7 @@ export function ligneDeZone(zone = TOUTES_ZONES, profondeur = 0) {
  */
 export function blocDeRegle({
   sujet = "", quoi = "", conditions = [], alors = "", sinon = "", sauf = [],
-  provenance = null, preuve = "", importe = [], enregistre = null, portee = "zones"
+  provenance = null, preuve = "", importe = [], enregistre = null, portee = PORTEE_DUNE_FONCTION
 } = {}, profondeur = 0) {
   const dedans = profondeur + 1;
   const toutes = [...(Array.isArray(conditions) ? conditions : []), ...(Array.isArray(sauf) ? sauf : [])];
@@ -1483,7 +1483,7 @@ export function blocDeRegle({
   // La portée est un paramètre, et le premier : une même règle s'applique à
   // plusieurs parties de l'ouvrage, et la recopier par zone en ferait trois
   // règles à maintenir pour un seul raisonnement.
-  const entrees = [texte(portee) || "zones", ...toutes.map((condition) => condition?.sujet)];
+  const entrees = [texte(portee) || PORTEE_DUNE_FONCTION, ...toutes.map((condition) => condition?.sujet)];
 
   const tete = [
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
@@ -1706,6 +1706,15 @@ export function ligneDeFonction(nom = "", entrees = []) {
 }
 
 
+/**
+ * Le nom sous lequel une fonction reçoit sa portée.
+ *
+ * Un seul endroit : la signature, l'`importe`, l'appel de l'agent et
+ * l'`enregistre` doivent écrire le même mot, faute de quoi la fonction se
+ * lirait comme si elle changeait de portée en cours de route.
+ */
+export const PORTEE_DUNE_FONCTION = "zones";
+
 /** Le nom de la locale qui porte l'entrée retenue pour un appel. */
 export function nomARetenir(entree = "") {
   const dit = texte(entree);
@@ -1714,26 +1723,26 @@ export function nomARetenir(entree = "") {
 
 /**
  * ```
- * fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée…) {
+ * fonction Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, Données d'entrée…) {
  *    // Dimensionne les massifs superficiels d'une zone. La loi de calcul
  *    // appartient à l'utilitaire — elle ne s'écrit pas ici.
  *
  *    const Profondeur hors gel à retenir;
  *    si (Profondeur hors gel renseigné)
  *    alors (Profondeur hors gel à retenir = Profondeur hors gel)
- *    sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
+ *    sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: zones));
  *
  *    résultat = agent-D (
  *       utilitaire: dimensionnement_fondations_superficielles,
  *       version: V1,
- *       zones: Bâtiment A,
+ *       zones: zones,
  *       Profondeur hors gel: Profondeur hors gel à retenir
  *    );
  *
  *    enregistre (
  *       Résultat du calcul des fondations superficielles: résultat,
  *       dans: structure.ctr,
- *       zones: Bâtiment A
+ *       zones: zones
  *    )
  * }
  * ```
@@ -1758,21 +1767,31 @@ export function nomARetenir(entree = "") {
  *    déclare dans `variables-du-projet.ref` avec sa `structure attendue`.
  * 4. **Où est-il rangé ?** L'`enregistre` le dit — le fichier, et la portée.
  *
- * @param {{nom: string, quoi?: string, portee?: string,
+ * ## La portée est un paramètre, pas une valeur
+ *
+ * La signature nomme `zones`, et le corps ne cite que `zones` — jamais
+ * `batiment-a`. Une déclaration qui porterait la zone du jour se lirait comme
+ * une fonction propre à ce bâtiment, alors qu'elle vaut pour tous : c'est
+ * l'**appel** qui dit sur quoi elle a tourné, et le `.ctr` qui garde le
+ * résultat, zone par zone. Écrire la zone ici en ferait autant de fonctions
+ * qu'il y a de bâtiments, toutes identiques, toutes à corriger séparément.
+ *
+ * @param {{nom: string, quoi?: string,
  *          entrees?: {nom: string, depuis?: string}[],
  *          agent?: string, utilitaire?: string, version?: string,
  *          enregistre?: {sujet: string, dans?: string}[]}} fonction
  * @returns {object[][]} les lignes du bloc
  */
 export function blocDeFonction({
-  nom = "", quoi = "", portee = "zones", entrees = [],
+  nom = "", quoi = "", entrees = [],
   agent = AGENT.D, utilitaire = "", version = "", enregistre = []
 } = {}, profondeur = 0) {
   const dit = texte(nom);
   if (!dit) return [];
 
   const dedans = profondeur + 1;
-  const zones = texte(portee) || "zones";
+  // Le nom du paramètre, et rien d'autre. Voir plus haut.
+  const zones = PORTEE_DUNE_FONCTION;
   const prises = (Array.isArray(entrees) ? entrees : []).filter((entree) => texte(entree?.nom));
 
   const corps = [];

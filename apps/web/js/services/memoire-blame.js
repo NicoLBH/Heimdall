@@ -28,8 +28,8 @@
  * le reste ferait lire comme acquis ce que quelqu'un a refusé.
  */
 
-import { cheminDeRangement, extensionDeRangement, zonesDeRangement, rangDeLaZone } from "./memoire-rangement.js";
-import { cheminDeFichier } from "./memoire-en-texte.js";
+import { zonesDeRangement, rangDeLaZone } from "./memoire-rangement.js";
+import { domicilesDesNoms, rangementDuVersement } from "./memoire-domiciles.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -43,25 +43,32 @@ const VAUT = { ASSUMED: "assumed", REJECTED: "rejected" };
  * dossier vide ne s'affiche pas — un projet neuf n'a pas encore de contraintes,
  * et lui montrer douze dossiers vides lui ferait croire à une perte.
  *
+ * ## Un nom ne se range plus deux fois
+ *
+ * Le fichier ne se déduit plus du seul `{nature, domaine}` de l'affirmation :
+ * c'est le **domicile de son nom** qui décide, fixé par le premier versement.
+ * Sans cela, deux utilitaires donnaient deux domaines au même nom et « Profondeur
+ * hors gel » vivait dans deux fichiers à la fois. Voir `memoire-domiciles.js` et
+ * `docs/fondamentaux.md`, règle 10.
+ *
  * @returns {{chemin: string[], fichier: string, lignes: object[], ecartees: object[]}[]}
  */
 export function fichiersDeLaMemoire(assertions = []) {
   const parFichier = new Map();
+  const domiciles = domicilesDesNoms(assertions);
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
     // Ce qui a été remplacé n'est plus l'état. Il reste dans l'histoire de sa
     // ligne, qui est l'endroit où on le cherche.
     if (texte(assertion?.superseded_by)) continue;
 
-    const referentiel = assertion?.payload?.referentiel === true;
-    const extension = extensionDeRangement({ nature: assertion?.nature, referentiel });
-    const chemin = cheminDeRangement({ nature: assertion?.nature, domain: assertion?.domain, referentiel });
+    const { chemin, extension } = rangementDuVersement(assertion, domiciles);
 
     const cle = `${chemin.join(" / ")}.${extension}`;
     if (!parFichier.has(cle)) {
       parFichier.set(cle, {
         chemin, extension,
-        fichier: cheminDeFichier(chemin, extension),
+        fichier: rangementDuVersement(assertion, domiciles).fichier,
         lignes: [], ecartees: []
       });
     }

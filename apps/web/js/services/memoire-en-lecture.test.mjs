@@ -465,6 +465,9 @@ test("un import se lit, une décision aussi", () => {
 const FONCTION_AVEC_AGENT = {
   nom: "Prédimensionnement des fondations superficielles",
   quoi: "Dimensionne les massifs superficiels d'une zone.",
+  // Volontairement présent, et volontairement ignoré : une déclaration ne porte
+  // pas la zone du jour. Le garder ici fait échouer le test si quelqu'un
+  // recâble la portée dans la signature.
   portee: "Bâtiment A",
   entrees: [
     { nom: "Profondeur hors gel", depuis: "structure.ctr" },
@@ -504,10 +507,15 @@ test("une fonction écrit son appel, jamais ses résultats", () => {
 
   // Il n'y a qu'un genre de fonction : `native` n'est plus dans la tête, et ce
   // qui est opaque est l'appel qu'elle contient.
-  assert.match(texte, /^fonction Prédimensionnement des fondations superficielles\(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles\) \{$/m);
+  //
+  // La portée s'écrit `zones` — le **nom du paramètre**. Écrire « Bâtiment A »
+  // dans la déclaration en ferait une fonction propre à ce bâtiment, alors
+  // qu'elle vaut pour tous : c'est l'appel qui dit sur quoi elle a tourné.
+  assert.match(texte, /^fonction Prédimensionnement des fondations superficielles\(zones, Profondeur hors gel, Données d'entrée des fondations superficielles\) \{$/m);
   assert.doesNotMatch(texte, /fonction native/);
+  assert.doesNotMatch(texte, /Bâtiment A/, "aucune zone du projet dans une déclaration");
   assert.match(texte, /^ {3}résultat = agent-D \($/m);
-  assert.match(texte, /^ {6}zones: Bâtiment A,$/m, "l'appel montre ses arguments");
+  assert.match(texte, /^ {6}zones: zones,$/m, "l'appel montre ses arguments");
   assert.match(texte, /^ {6}Profondeur hors gel: Profondeur hors gel à retenir,$/m);
   assert.equal((texte.match(/enregistre \(/g) ?? []).length, 1, "un seul enregistre, un seul résultat");
   assert.match(texte, /^ {6}Résultat du calcul des fondations superficielles: résultat,$/m);
@@ -522,7 +530,7 @@ test("l'entrée à retenir dit qu'un paramètre l'emporte sur la mémoire", () =
   assert.match(texte, /^ {3}const Profondeur hors gel à retenir;$/m);
   assert.match(texte, /^ {3}si \(Profondeur hors gel renseigné\)$/m);
   assert.match(texte, /^ {3}alors \(Profondeur hors gel à retenir = Profondeur hors gel\)$/m);
-  assert.match(texte, /^ {3}sinon \(Profondeur hors gel à retenir = importe \(variable: Profondeur hors gel, depuis: structure\.ctr, zones: Bâtiment A\)\);$/m);
+  assert.match(texte, /^ {3}sinon \(Profondeur hors gel à retenir = importe \(variable: Profondeur hors gel, depuis: structure\.ctr, zones: zones\)\);$/m);
 });
 
 test("une locale ne se lit pas comme un renvoi sans déclaration", () => {

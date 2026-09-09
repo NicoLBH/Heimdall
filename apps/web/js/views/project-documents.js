@@ -2124,11 +2124,45 @@ function emploisDeLaMemoire() {
 }
 
 /**
+ * Le temps qu'on laisse à une frappe avant de refaire l'écran.
+ *
+ * Cette vue se redessine **entièrement** : trois cents affirmations recomposées
+ * en texte, colorées, mesurées. Le faire à chaque touche coûtait plus de temps
+ * qu'il n'en faut pour taper la suivante, et la saisie traînait derrière le
+ * doigt. Personne ne cherche entre deux lettres : ce qui compte est d'avoir le
+ * résultat quand on s'arrête.
+ *
+ * Assez court pour qu'on ne l'attende pas, assez long pour qu'un mot entier ne
+ * coûte qu'un rendu.
+ */
+const ATTENTE_DE_FRAPPE = 180;
+
+/**
+ * Appeler une fois, quand la frappe s'arrête.
+ *
+ * L'appel immédiat reste possible — `maintenant()` — pour ce qui ne se tape
+ * pas : une touche Entrée, un bouton. Attendre serait alors du retard pur.
+ */
+function quandLaFrappeSArrete(faire, attente = ATTENTE_DE_FRAPPE) {
+  let minuterie = null;
+
+  const differer = (...arguments_) => {
+    clearTimeout(minuterie);
+    minuterie = setTimeout(() => faire(...arguments_), attente);
+  };
+  differer.maintenant = (...arguments_) => {
+    clearTimeout(minuterie);
+    faire(...arguments_);
+  };
+  return differer;
+}
+
+/**
  * Redessiner sans perdre le curseur du champ de recherche.
  *
- * Tout l'écran se refait à chaque frappe — c'est ainsi que cette vue
- * fonctionne — et le champ disparaît avec. Sans ce report, on tapait une lettre
- * et le clavier se retrouvait ailleurs : la recherche était inutilisable.
+ * Tout l'écran se refait — c'est ainsi que cette vue fonctionne — et le champ
+ * disparaît avec. Sans ce report, on tapait une lettre et le clavier se
+ * retrouvait ailleurs : la recherche était inutilisable.
  */
 function redessinerEnGardantLeChamp(root) {
   const avant = root.querySelector("[data-memoire-cherche-champ]");
@@ -2190,7 +2224,7 @@ async function emporterLaMemoire() {
   const octets = ecrireUnZip(fichiers.map((fichier) => ({
     // Le chemin du dépôt, tel que l'arborescence le montre.
     chemin: `${fichier.chemin.join("/")}/${nomDuFichierDeLaMemoire(fichier)}`,
-    contenu: fichierEnClair(fichier, { enClair })
+    contenu: fichierEnClair(fichier, { enClair, ouEcrit: memoire?.ouEcrit ?? null })
   })));
 
   const lien = document.createElement("a");
@@ -2233,11 +2267,16 @@ function bindLaMemoire(root) {
 
   const champ = root.querySelector("[data-memoire-cherche-champ]");
   if (champ) {
+    // L'état suit la frappe **tout de suite** — sinon un redessin venu
+    // d'ailleurs réafficherait le champ avec l'avant-dernière lettre. Seul le
+    // redessin attend que la frappe s'arrête.
+    const chercherApresLaFrappe = quandLaFrappeSArrete(() => redessinerEnGardantLeChamp(root));
+
     // On tape, on cherche. Le rang repart de zéro : garder la position d'une
     // recherche précédente ferait sauter à une ligne qui ne porte plus le mot.
     champ.addEventListener("input", (event) => {
       docsViewState.memoireCherche = { ouverte: true, mot: event.target.value, rang: null };
-      redessinerEnGardantLeChamp(root);
+      chercherApresLaFrappe();
     });
     champ.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
@@ -2247,6 +2286,8 @@ function bindLaMemoire(root) {
       }
       if (event.key !== "Enter") return;
       event.preventDefault();
+      // Entrée n'attend pas : on vient de demander le résultat.
+      chercherApresLaFrappe.maintenant();
       allerAlaTrouvaille(root, event.shiftKey ? -1 : 1);
     });
   }
@@ -2300,14 +2341,23 @@ function bindLaMemoire(root) {
 
   const chercher = root.querySelector("[data-memoire-query]");
   if (chercher) {
-    chercher.addEventListener("input", (event) => {
-      docsViewState.memoireQuery = event.target.value;
+    // Elle traverse toute la mémoire : la refaire à chaque touche faisait
+    // traîner la saisie derrière le doigt.
+    const chercherApresLaFrappe = quandLaFrappeSArrete(() => {
       renderProjectDocumentsContent(root);
-      // Le curseur revient où il était : redessiner l'écran à chaque touche le
-      // renverrait au début du champ.
+      // Le curseur revient où il était : redessiner l'écran le renverrait au
+      // début du champ.
       const champ = root.querySelector("[data-memoire-query]");
       champ?.focus();
       champ?.setSelectionRange(champ.value.length, champ.value.length);
+    });
+
+    chercher.addEventListener("input", (event) => {
+      docsViewState.memoireQuery = event.target.value;
+      chercherApresLaFrappe();
+    });
+    chercher.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") chercherApresLaFrappe.maintenant();
     });
   }
 
@@ -2402,14 +2452,21 @@ function bindLaMemoire(root) {
   // mémoire et le nom des pièces déposées.
   const chercherDepuisLaRacine = root.querySelector("[data-fichiers-query]");
   if (chercherDepuisLaRacine) {
-    chercherDepuisLaRacine.addEventListener("input", (event) => {
-      docsViewState.memoireQuery = event.target.value;
-      docsViewState.branche = BRANCHE.MEMOIRE;
-      docsViewState.memoireChemin = [];
+    const chercherApresLaFrappe = quandLaFrappeSArrete(() => {
       renderProjectDocumentsContent(root);
       const champ = root.querySelector("[data-memoire-query]");
       champ?.focus();
       champ?.setSelectionRange(champ.value.length, champ.value.length);
+    });
+
+    chercherDepuisLaRacine.addEventListener("input", (event) => {
+      docsViewState.memoireQuery = event.target.value;
+      docsViewState.branche = BRANCHE.MEMOIRE;
+      docsViewState.memoireChemin = [];
+      chercherApresLaFrappe();
+    });
+    chercherDepuisLaRacine.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") chercherApresLaFrappe.maintenant();
     });
   }
 
@@ -2494,7 +2551,7 @@ function bindLaMemoire(root) {
       if (!cible.startsWith("fichier:")) return "";
       const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
       const fichier = fichierDuChemin(memoire, cible.slice("fichier:".length).split("/").filter(Boolean));
-      return fichier ? fichierEnClair(fichier, { enClair }) : "";
+      return fichier ? fichierEnClair(fichier, { enClair, ouEcrit: memoire?.ouEcrit ?? null }) : "";
     }
   });
 
@@ -2896,7 +2953,10 @@ function renderBrancheMemoire() {
     variables: contexteDesVariables(memoire),
     // Où chaque valeur est écrite : c'est ce qui permet à une règle de dire
     // d'où viennent ses entrées et où va son résultat, sans le deviner.
-    ouEcrit: memoire.ouEcrit ?? null
+    ouEcrit: memoire.ouEcrit ?? null,
+    // Les noms qu'un versement a voulu écrire ailleurs que chez eux. Règle 10,
+    // temps 3 : ils ont rejoint leur domicile, et le fichier le dit.
+    conflits: memoire.conflits ?? []
   };
 
   // Un fichier se cherche **avant** de conclure qu'on est dans un dossier : la
