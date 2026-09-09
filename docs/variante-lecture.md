@@ -269,38 +269,54 @@ norme dont elle vient. **Les quatre sont déclarées.** Quand les quatre se
 taisent, la ligne ne dit rien : une phrase fabriquée ici serait indiscernable
 d'une phrase versée.
 
-### Ce qui reste : varier un champ interne d'un agent-D
+### Livré : varier un champ interne d'un agent-D
 
-Le mécanisme est le même que ci-dessus — **la déclaration fait autorité** — et il
-demande un troisième ajout à `structure` : la **clé réelle** du champ.
+Le mécanisme est le même que ci-dessus — **la déclaration fait autorité** — avec
+un troisième ajout à `structure` : la **clé réelle** du champ.
 
 ```js
 { nom: "sol et matériaux", champs: [
     { nom: "contrainte limite à l'ELS", cle: "entrees.contrainteLimite", type: "nombre",
-      quoi: "La contrainte admissible du sol à l'ELS, retenue pour le prédimensionnement." }
+      quoi: "La contrainte que le sol admet à l'état-limite de service. C'est elle "
+        + "qu'un rapport géotechnique donne…" }
 ] }
 ```
 
-Aujourd'hui `STRUCTURE_DES_ENTREES` décrit la **forme** pour un lecteur humain —
-« contrainte limite à l'ELS » — sans dire où la valeur se trouve dans la donnée.
-La `cle` fait le lien, et elle seule : ce qui n'est pas déclaré ne se propose
-pas. Ajouter un utilitaire revient toujours à écrire une déclaration, jamais à
-toucher un écran.
+`STRUCTURE_DES_ENTREES` décrivait la **forme** pour un lecteur humain —
+« contrainte limite à l'ELS » — sans dire que la valeur s'appelle
+`entrees.contrainteLimite`. Le nom se lisait donc à l'écran sans qu'on puisse
+l'atteindre. La `cle` fait le lien, et elle seule : **ce qui n'est pas déclaré ne
+se propose pas.** Un champ qui recouvre plusieurs valeurs — « fût », qui est une
+hauteur et deux côtés — n'a pas de clé et ne s'offre donc pas ; lui en inventer
+trois reviendrait à nommer à la place de l'auteur.
 
-Ce que cela permet, une fois écrit :
+Ce que cela donne, et pourquoi :
 
-1. **La chercher.** Chaque champ déclaré entre dans « chercher une valeur », avec
-   son libellé, sa description et sa valeur du moment — « contrainte limite à
-   l'ELS : 2 » —, trouvable en tapant « contrainte » ou « sol ».
-2. **Une entrée par champ, pas par massif.** On veut changer la contrainte de sol
-   *de la zone*, pas celle du massif n° 7. Douze lignes × quinze champs feraient
-   cent quatre-vingts entrées illisibles. La valeur affichée est celle qu'ils
-   partagent, ou « plusieurs valeurs » quand ils diffèrent.
-3. **La faire varier.** L'identifiant devient composite —
-   `<affirmation>#entrees.contrainteLimite` — et la substitution réécrit le
-   tableau d'entrée **avant** le rejeu. Tout le reste de la chaîne fonctionne
-   alors sans changement : `tableauDuProjet` relit le tableau modifié,
-   `reprendreLEtude` redemande le calcul, et le calque de lecture montre le
-   résultat. Deux points à traiter : `fonctionsAReprendre` doit résoudre un
-   identifiant composite jusqu'à son affirmation de base, et la réécriture du
-   tableau doit être une fonction pure, appliquée une fois, jamais deux.
+1. **Un champ, pas un champ par massif.** On change la contrainte de sol *de la
+   zone*, pas celle du massif n° 7. Douze massifs par douze champs feraient cent
+   quarante-quatre entrées dans une liste où l'on cherchait déjà mal. Un champ
+   apparaît une fois, avec la valeur que ses lignes partagent — ou « 12 valeurs
+   différentes » quand elles divergent, ce qui se dit plutôt que de montrer la
+   première.
+2. **Il se cherche par son groupe et par sa description.** Taper « sol » ramène
+   « sol et matériaux · contrainte limite à l'ELS », avec la phrase qui dit ce
+   qu'elle est. C'était le blocage : on ne pouvait pas la trouver sans connaître
+   déjà son nom exact.
+3. **L'identifiant est composite** — `<affirmation>#entrees.contrainteLimite` —
+   et se lit dans un export. Les endroits qui raisonnent sur l'affirmation le
+   résolvent jusqu'à sa base : un champ n'a pas d'aval à lui, c'est l'affirmation
+   qui le porte que les autres lisent.
+4. **La substitution réécrit le tableau avant le rejeu**, par une fonction pure
+   appelée au seuil du rejeu et au seuil du calque de lecture. Tout le reste de
+   la chaîne fonctionne sans changement : `tableauDuProjet` relit le tableau
+   modifié, `reprendreLEtude` redemande le calcul, et aucun maillon n'a eu à
+   connaître la notion de champ.
+5. **La valeur de l'affirmation ne bouge pas.** « 12 lignes » reste vrai : c'est
+   une colonne du tableau qui a changé, pas le nombre de lignes. La ligne est
+   seulement marquée comme relevant de la variante.
+
+Ce qui reste à faire, et qui revient à l'auteur de l'utilitaire : déclarer les
+clés des champs composites — « fût », « excentrements », « poids volumique du
+béton », « butée mobilisée », « béton armé », « charges », « ferraillage ». Ce
+sont plusieurs valeurs sous un seul nom ; les découper demande de nommer chaque
+morceau, et c'est un travail de métier, pas d'écran.

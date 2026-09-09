@@ -54,6 +54,7 @@ import { DERIVED_CONSTRAINT_KIND, inputsStateOf } from "./derived-constraints.js
 import { RESERVES } from "../utilitaires/reserves.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
 import { lireUnNombre } from "./memoire-en-texte.js";
+import { champDeLIdentifiant, memoireAvecLesChamps } from "./tableau-structure.js";
 import { utilitaireByReference } from "../utilitaires/catalogue.js";
 import { lecturesDeLUtilitaire, agentDeLaFonction } from "./memoire-applications.js";
 
@@ -162,7 +163,11 @@ export function contraintesAReprendre({ enVigueur = [], substitutions = new Map(
   // et une comparaison sur l'identifiant manquerait la déclaration.
   const substituees = new Map();
   for (const [id, valeur] of voulues) {
-    const sujet = cleDuSujet(parId.get(texte(id))?.payload?.subject);
+    // Un identifiant peut viser un **champ** à l'intérieur d'une affirmation —
+    // `…#entrees.contrainteLimite`. Ce qu'une fonction lit reste le sujet qui le
+    // porte : sans cette résolution, changer la contrainte de sol ne rejouerait
+    // rien, et l'écran dirait sans broncher que rien ne dépend d'elle.
+    const sujet = cleDuSujet(parId.get(champDeLIdentifiant(id).id)?.payload?.subject);
     if (sujet) substituees.set(sujet, texte(valeur));
   }
   if (!substituees.size) return [];
@@ -216,7 +221,10 @@ export function fonctionsAReprendre({ enVigueur = [], substitutions = new Map() 
 
   const substituees = new Map();
   for (const [id, valeur] of voulues) {
-    const sujet = cleDuSujet(parId.get(texte(id))?.payload?.subject);
+    // Comme dans `contraintesAReprendre` : un identifiant peut viser un champ à
+    // l'intérieur d'une affirmation, et c'est le sujet qui le porte qu'une
+    // fonction déclare lire.
+    const sujet = cleDuSujet(parId.get(champDeLIdentifiant(id).id)?.payload?.subject);
     if (sujet) substituees.set(sujet, texte(valeur));
   }
   if (!substituees.size) return [];
@@ -411,9 +419,16 @@ async function reprendreLesFonctions({ enVigueur = [], substitutions = new Map()
  * @returns {Promise<{recalculees: object[], refusees: object[]}>}
  */
 export async function rejouerLesUtilitaires({
-  projectId = "", enVigueur = [], substitutions = new Map(),
+  projectId = "", enVigueur: memoire = [], substitutions = new Map(),
   appeler = null, dernierAppel = null, calculer = null
 } = {}) {
+  // Les champs essayés à l'intérieur d'un tableau entrent **ici**, une fois, au
+  // seuil du rejeu. Une fonction native relit ensuite le tableau du projet par
+  // `tableauDuProjet` : elle doit l'y trouver déjà modifié, sans avoir à
+  // connaître la notion de champ. C'est la même fonction pure que le calque de
+  // lecture emploie, et l'appeler des deux côtés est ce qui garantit qu'ils
+  // montrent le même essai (règle 4).
+  const enVigueur = memoireAvecLesChamps(memoire, substitutions);
   const reprises = contraintesAReprendre({ enVigueur, substitutions });
 
   /**

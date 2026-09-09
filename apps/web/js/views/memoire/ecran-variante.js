@@ -68,7 +68,18 @@ function renderChoixDUneValeur(valeur, choisie = null) {
     <button type="button" class="impact-choix${
       choisie?.id === valeur.id ? " is-active" : ""
     }" data-variante-choisir="${escapeHtml(valeur.id)}">
-      <span class="impact-choix__titre">${escapeHtml(valeur.sujet)} : ${escapeHtml(valeur.valeur || "—")}</span>
+      <span class="impact-choix__titre">${
+        // Le groupe que l'utilitaire a déclaré — « sol et matériaux » — devant le
+        // champ : « contrainte limite à l'ELS » seul ne dit pas de quoi il parle,
+        // et deux ateliers peuvent avoir chacun leur « drainage ».
+        valeur.champ?.groupe ? `<i>${escapeHtml(valeur.champ.groupe)}</i> · ` : ""
+      }${escapeHtml(valeur.sujet)} : ${
+        // Un champ dont les lignes ne s'accordent pas le dit : montrer la
+        // première vaudrait pour un massif et pour aucun autre.
+        valeur.champ && !valeur.partagee
+          ? `<span class="impact-choix__disperse">${valeur.lignes} valeurs différentes</span>`
+          : escapeHtml(valeur.valeur || "—")
+      }</span>
       <span class="impact-choix__portee">${
         // « Toutes zones » se dit : une valeur sans portée vaut partout, et
         // laisser la ligne muette la ferait passer pour une portée oubliée.
@@ -376,7 +387,13 @@ function renderARevoir(ligne) {
 /** La colonne de gauche : le socle, cherchable. */
 function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
   const filtre = texte(cherche).toLowerCase();
-  const retenues = filtre ? valeurs.filter((valeur) => valeur.sujet.toLowerCase().includes(filtre)) : valeurs;
+  // On cherche aussi dans le groupe et dans la description : « sol » doit
+  // ramener « contrainte limite à l'ELS », qu'on ne trouvait pas sans connaître
+  // déjà son nom exact.
+  const retenues = filtre
+    ? valeurs.filter((valeur) => [valeur.sujet, valeur.champ?.groupe, valeur.quoi]
+        .some((mot) => texte(mot).toLowerCase().includes(filtre)))
+    : valeurs;
 
   return `
     <section class="variante-colonne">

@@ -78,24 +78,36 @@ export const STRUCTURE_DES_ENTREES = [
   { nom: "désignation", type: "texte" },
   { nom: "nombre de massifs", type: "nombre" },
   { nom: "hypothèses réglementaires", champs: [
-    { nom: "règlement", valeurs: ["Fascicule 62", "DTU 13.12", "EC - NF P94-261", "EC8-5 Annexe F"] },
-    { nom: "répartition des contraintes", valeurs: ["Meyerhoff", "Constante"] },
-    { nom: "drainage", valeurs: ["Sol drainé", "Sol non drainé"] },
-    { nom: "unités", valeurs: ["{ T ; Tm }", "{ kN ; kNm }", "{ daN ; daNm }"] }
+    { nom: "règlement", cle: "entrees.reglement",
+      valeurs: ["Fascicule 62", "DTU 13.12", "EC - NF P94-261", "EC8-5 Annexe F"] },
+    { nom: "répartition des contraintes", cle: "entrees.repartition",
+      valeurs: ["Meyerhoff", "Constante"] },
+    { nom: "drainage", cle: "entrees.drainage",
+      valeurs: ["Sol drainé", "Sol non drainé"] },
+    { nom: "unités", cle: "entrees.unites",
+      valeurs: ["{ T ; Tm }", "{ kN ; kNm }", "{ daN ; daNm }"] }
   ] },
   { nom: "géométrie", champs: [
-    { nom: "arase supérieure", type: "nombre, en m" },
-    { nom: "hauteur Lz", type: "nombre, en m" },
-    { nom: "section Lx", type: "nombre, en m" },
-    { nom: "section Ly", type: "nombre, en m" },
+    { nom: "arase supérieure", cle: "entrees.araseSuperieure", type: "nombre, en m",
+      quoi: "La cote du dessus du massif. C'est elle que la profondeur hors gel commande." },
+    { nom: "hauteur Lz", cle: "entrees.hauteurLz", type: "nombre, en m",
+      quoi: "L'épaisseur du massif, du dessus à l'assise." },
+    { nom: "section Lx", cle: "entrees.sectionLx", type: "nombre, en m" },
+    { nom: "section Ly", cle: "entrees.sectionLy", type: "nombre, en m" },
+    // Trois clés pour un seul nom : « fût » recouvre une hauteur et deux côtés,
+    // « excentrements » quatre décalages. Les faire varier demande de les nommer
+    // un par un, et ce n'est pas à un écran de choisir ces noms-là.
     { nom: "fût", type: "hauteur, a et b, en m" },
     { nom: "excentrements", type: "charge/fût et fût/semelle, en m" }
   ] },
   { nom: "sol et matériaux", champs: [
-    { nom: "poids volumique du sol", type: "nombre" },
-    { nom: "contrainte limite à l'ELS", type: "nombre" },
-    { nom: "angle de frottement", type: "nombre, en degrés" },
-    { nom: "cohésion non drainée", type: "nombre" },
+    { nom: "poids volumique du sol", cle: "entrees.poidsVolumiqueSol", type: "nombre" },
+    { nom: "contrainte limite à l'ELS", cle: "entrees.contrainteLimite", type: "nombre",
+      quoi: "La contrainte que le sol admet à l'état-limite de service. C'est elle "
+        + "qu'un rapport géotechnique donne, et celle qu'on fait varier pour voir "
+        + "ce qu'un sol meilleur ou moins bon changerait au projet." },
+    { nom: "angle de frottement", cle: "entrees.angleFrottement", type: "nombre, en degrés" },
+    { nom: "cohésion non drainée", cle: "entrees.cohesionNonDrainee", type: "nombre" },
     { nom: "poids volumique du béton", type: "semelle et fût" }
   ] },
   { nom: "butée mobilisée", type: "part, angle, poids volumique, cotes haute et basse" },

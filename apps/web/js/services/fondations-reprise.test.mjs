@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 
 import { semellesReprises, tableauDuProjet, reprendreLEtude } from "./fondations-reprise.js";
 import { fonctionsAReprendre, repriseDeLaFonction, rejouerLesUtilitaires, REFUS } from "./utilitaires-rejeu.js";
+import { valeursSubstituables, consequencesDeLaVariante, memoireAvecLaVariante } from "./memoire-variante.js";
+import { memoireAvecLesChamps } from "./tableau-structure.js";
 import { affirmationsDeLEtude } from "./fondations-versement.js";
 import { SUJET_DONNEES, SUJET_RESULTAT } from "../utilitaires/dimensionnement_fondations_superficielles_V1.js";
 
@@ -195,4 +197,126 @@ test("les fonctions natives se reprennent en dernier, sur ce que les utilitaires
   });
 
   assert.deepEqual(recus, [], "sans nouvelle profondeur, il n'y a rien à refaire");
+});
+
+test("la contrainte de sol se trouve dans la liste, sous son nom déclaré", () => {
+  // Le défaut vécu : la contrainte admissible du sol existait dans les entrées
+  // de chaque massif, sous le nom de code `contrainteLimite`, et n'apparaissait
+  // nulle part. On ne pouvait pas la trouver sans connaître déjà son nom.
+  const projet = projetVerse().map((assertion) => (assertion.payload?.subject === SUJET_DONNEES
+    ? {
+        ...assertion,
+        payload: {
+          ...assertion.payload,
+          tableau: assertion.payload.tableau.map((ligne) => ({
+            ...ligne, entrees: { ...ligne.entrees, contrainteLimite: "2" }
+          }))
+        }
+      }
+    : assertion));
+
+  const proposees = valeursSubstituables(projet);
+  const sol = proposees.find((entree) => entree.sujet === "contrainte limite à l'ELS");
+
+  assert.ok(sol, "elle se propose");
+  assert.equal(sol.valeur, "2");
+  assert.match(sol.quoi, /contrainte que le sol admet/);
+  assert.match(sol.id, /#entrees\.contrainteLimite$/);
+
+  // Le tableau entier ne se propose plus à sa place : « 2 lignes » ne se fait
+  // pas varier.
+  assert.equal(proposees.some((entree) => entree.sujet === SUJET_DONNEES), false);
+
+  // Et ce que l'utilitaire n'a pas déclaré ne s'offre pas : `buteeZf` sous son
+  // nom de code serait un champ que personne n'oserait toucher.
+  assert.equal(proposees.some((entree) => entree.sujet.includes("butee")), false);
+});
+
+test("un champ dont les lignes ne s'accordent pas le dit plutôt que de choisir", () => {
+  // Ici les deux massifs n'ont pas la même arase : montrer la première vaudrait
+  // pour l'un et pour aucun autre.
+  const arase = valeursSubstituables(projetVerse()).find((entree) => entree.sujet === "arase supérieure");
+  assert.ok(arase);
+  assert.equal(arase.partagee, false);
+  assert.equal(arase.valeur, "");
+  assert.equal(arase.lignes, 2);
+});
+
+test("changer la contrainte de sol refait le calcul des massifs", async () => {
+  // C'est le but : une variante sur une variable **interne** d'un agent-D. La
+  // valeur essayée entre dans le tableau d'entrée, et le serveur la reçoit.
+  const projet = projetVerse().map((assertion) => (assertion.payload?.subject === SUJET_DONNEES
+    ? {
+        ...assertion,
+        payload: {
+          ...assertion.payload,
+          tableau: assertion.payload.tableau.map((ligne) => ({
+            ...ligne, entrees: { ...ligne.entrees, contrainteLimite: "2" }
+          }))
+        }
+      }
+    : assertion));
+
+  const sol = valeursSubstituables(projet).find((entree) => entree.sujet === "contrainte limite à l'ELS");
+  const substitutions = new Map([[sol.id, "0,5"]]);
+
+  const recus = [];
+  const rendu = await rejouerLesUtilitaires({
+    projectId: "p", enVigueur: projet, substitutions,
+    calculer: async (semelles) => {
+      recus.push(semelles.map((semelle) => semelle.entrees.contrainteLimite));
+      return semelles.map(() => ({ resultat: { bilan: { verifie: false, ratio: 3.2 } } }));
+    }
+  });
+
+  // Le serveur a bien reçu la valeur essayée, sur chaque massif.
+  assert.deepEqual(recus, [["0,5", "0,5"]]);
+  assert.deepEqual(rendu.recalculees.map((ligne) => ligne.sujet), [SUJET_RESULTAT]);
+  assert.equal(rendu.recalculees[0].valeurABouge, true);
+  assert.equal(rendu.recalculees[0].tableau[0]["vérification"], "en défaut");
+});
+
+test("la mémoire lue sous la variante porte le champ essayé, et rien de plus", () => {
+  const projet = projetVerse().map((assertion) => (assertion.payload?.subject === SUJET_DONNEES
+    ? {
+        ...assertion,
+        payload: {
+          ...assertion.payload,
+          tableau: assertion.payload.tableau.map((ligne) => ({
+            ...ligne, entrees: { ...ligne.entrees, contrainteLimite: "2" }
+          }))
+        }
+      }
+    : assertion));
+  const copie = JSON.parse(JSON.stringify(projet));
+
+  const sol = valeursSubstituables(projet).find((entree) => entree.sujet === "contrainte limite à l'ELS");
+  const vue = memoireAvecLaVariante(projet, { substitutions: new Map([[sol.id, "0,5"]]) });
+  const entrees = vue.find((assertion) => assertion.payload?.subject === SUJET_DONNEES);
+
+  assert.deepEqual(entrees.payload.tableau.map((ligne) => ligne.entrees.contrainteLimite), ["0,5", "0,5"]);
+  // Le reste de la ligne ne bouge pas d'un octet — le versement l'écrit en
+  // phrases, et la variante ne les retouche pas.
+  assert.equal(entrees.payload.tableau[0].entrees.sectionLx, "1,2");
+  assert.equal(entrees.variante.effet, "variante");
+  // Et la valeur de l'affirmation reste vraie : c'est une ligne du tableau qui
+  // a changé, pas le nombre de lignes.
+  assert.equal(entrees.payload.value, copie.find((a) => a.payload?.subject === SUJET_DONNEES).payload.value);
+  // La mémoire du projet n'a pas bougé.
+  assert.deepEqual(JSON.parse(JSON.stringify(projet)), copie);
+});
+
+test("poser un champ ne touche qu'au tableau visé", () => {
+  const memoire = [
+    { id: "a", payload: { subject: "A", tableau: [{ entrees: { x: "1" } }] } },
+    { id: "b", payload: { subject: "B", tableau: [{ entrees: { x: "1" } }] } },
+    { id: "c", payload: { subject: "C", value: "sans tableau" } }
+  ];
+
+  const [a, b, c] = memoireAvecLesChamps(memoire, new Map([["a#entrees.x", "9"]]));
+  assert.equal(a.payload.tableau[0].entrees.x, "9");
+  assert.equal(b, memoire[1], "l'autre tableau est rendu tel quel");
+  assert.equal(c, memoire[2]);
+  // Sans champ visé, la liste elle-même est rendue telle quelle.
+  assert.equal(memoireAvecLesChamps(memoire, new Map([["a", "9"]])), memoire);
 });

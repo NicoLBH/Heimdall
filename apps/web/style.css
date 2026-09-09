@@ -21788,6 +21788,13 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 }
 .impact-choix:hover{ background:rgba(110,118,129,.12); }
 .impact-choix__titre{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Le groupe déclaré, devant le champ : « sol et matériaux · contrainte limite à
+   l'ELS ». Discret, parce que c'est le champ qu'on cherche — mais présent,
+   parce que deux ateliers peuvent avoir chacun leur « drainage ». */
+.impact-choix__titre i{ color:var(--muted); font-style:normal; }
+/* Douze massifs qui n'ont pas la même arase : le dire vaut mieux que de montrer
+   celle du premier, qui ne vaudrait pour aucun des onze autres. */
+.impact-choix__disperse{ color:var(--muted); font-style:italic; }
 /* La portée : quatre « Altitude du site » ne diffèrent que par elle. Discrète,
    mais toujours là — c'est ce qui dit sur quoi l'on est en train de varier. */
 .impact-choix__portee{

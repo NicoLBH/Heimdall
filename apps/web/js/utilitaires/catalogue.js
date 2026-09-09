@@ -37,6 +37,7 @@ import { DEDUCTION_RETRAIT_GONFLEMENT_ARGILES_GEORISQUES_V1 } from "./deduction_
 import { EXTRACTION_AVIS_RAPPORTS_SOCOTEC_V1 } from "./extraction_avis_rapports_socotec_V1.js";
 import { DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 } from "./dimensionnement_fondations_superficielles_V1.js";
 import { PRODUIT } from "./vocabulaire.js";
+import { cleDuSujet } from "../services/memoire-identifiants.js";
 
 export { PRODUIT };
 
@@ -74,6 +75,45 @@ export function referenceOf(utilitaire = {}) {
 export function utilitaireByReference(reference = "") {
   const cle = texte(reference);
   return UTILITAIRES.find((outil) => referenceOf(outil) === cle) ?? null;
+}
+
+/**
+ * Ce que le catalogue déclare d'un sujet, quel que soit l'utilitaire qui le porte.
+ *
+ * ## Pourquoi par le sujet, et pas par l'utilitaire
+ *
+ * Une affirmation cite l'utilitaire qui l'a produite — quand elle en a un. Le
+ * tableau d'entrée d'une fonction native, lui, est **saisi dans l'Atelier** : il
+ * ne cite personne, et pourtant un utilitaire déclare exactement ce qu'il
+ * contient, dans son `lit`. Sans cette recherche, la déclaration existerait sans
+ * que rien ne puisse la retrouver.
+ *
+ * Deux utilitaires qui déclareraient le même sujet sont un désaccord à trancher,
+ * pas un cas à gérer : le premier du catalogue répond, et l'ordre du catalogue
+ * est celui du métier.
+ *
+ * @returns {{sujet: string, quoi: string, utilisation: string, structure: object[]|null,
+ *            utilitaire: object} | null}
+ */
+export function declarationDuSujet(sujet = "") {
+  const cherche = cleDuSujet(sujet);
+  if (!cherche) return null;
+
+  for (const outil of UTILITAIRES) {
+    const declarations = [...(Array.isArray(outil.lit) ? outil.lit : []), outil.rend].filter(Boolean);
+    const trouvee = declarations.find((declaration) => cleDuSujet(declaration?.sujet) === cherche);
+    if (!trouvee) continue;
+
+    return {
+      sujet: texte(trouvee.sujet),
+      quoi: texte(trouvee.quoi),
+      utilisation: texte(trouvee.utilisation),
+      structure: Array.isArray(trouvee.structure) && trouvee.structure.length ? trouvee.structure : null,
+      utilitaire: outil
+    };
+  }
+
+  return null;
 }
 
 /**

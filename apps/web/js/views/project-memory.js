@@ -112,6 +112,7 @@ import { renderSharedDetailsTitleWrap } from "./ui/detail-header.js";
 import { renderOverlayChromeHead, bindOverlayChromeCompact } from "./ui/overlay-chrome.js";
 import { enClair } from "../services/memoire-en-texte.js";
 import { frappeAvecUnite } from "../services/saisie-unite.js";
+import { champDeLIdentifiant } from "../services/tableau-structure.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
 import { fichiersDeLaMemoire, zonesLisibles } from "../services/memoire-blame.js";
 import { chaineDuRaisonnement, traceDesLignes, grapheDuRaisonnement } from "../services/memoire-raisonnement.js";
@@ -3264,7 +3265,14 @@ function brancherLeFiltreDeVariante(root) {
 function ouvrirLaVariante(root) {
   const emplois = emploisParAffirmation(Array.isArray(view.applications) ? view.applications : []);
   const valeurs = valeursSubstituables(view.memoire ?? [])
-    .map((entree) => ({ ...entree, lectures: emplois.get(entree.id)?.lectures ?? 0 }))
+    // Les emplois se comptent sur l'**affirmation**, pas sur le champ : c'est
+    // elle que les fonctions déclarent lire. Compter sur l'identifiant composite
+    // rendrait zéro, et « aucun emploi connu » s'afficherait sur la valeur même
+    // que le calcul consomme.
+    .map((entree) => ({
+      ...entree,
+      lectures: emplois.get(champDeLIdentifiant(entree.id).id)?.lectures ?? 0
+    }))
     .sort((gauche, droite) =>
       droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr"));
 
