@@ -387,18 +387,17 @@ function renderBarre(isoles) {
       ])}
       ${renderChoix("mode", "vivant", [
         { cle: "vivant", nom: "Vivant", icone: "heimdall", quoi: "Le projet bat tout seul ; il s'arrête quand vous survolez, et repart quand vous partez. Un clic lance l'onde." },
-        { cle: "onde", nom: "Onde au clic", icone: "graph", quoi: "Rien ne bouge tant qu'on ne demande rien : cliquez une valeur." },
-        { cle: "battement", nom: "Battement", icone: "pulse", quoi: "Le projet pense tout seul, sans jamais s'arrêter." }
+        { cle: "onde", nom: "Onde", icone: "graph", quoi: "Rien ne bouge tant qu'on ne demande rien : cliquez une valeur." },
+        { cle: "battement", nom: "Battre", icone: "pulse", quoi: "Le projet pense tout seul, sans jamais s'arrêter." }
+      ])}
+      ${renderChoix("orientation", "horizontal", [
+        { cle: "horizontal", nom: "Couché", icone: "sort-asc", quoi: "La mémoire au-dessus du raisonnement, le raisonnement se lit de gauche à droite." },
+        { cle: "vertical", nom: "Debout", icone: "sort-desc", quoi: "La mémoire à gauche du raisonnement, le raisonnement descend — la coupe d'un cerveau vue de face." }
       ])}
       ${renderChoix("couleur", "nature", [
         { cle: "nature", nom: "Nature", icone: "labels-distribution", quoi: "Socle, rejouable, opaque : ce que chaque valeur est." },
         { cle: "chaleur", nom: "Chaleur", icone: "fire", quoi: "Du froid au brûlant selon ce qui passe par là. Le rouge reste à ce que l'audit signale." }
       ])}
-      <div class="cerveau__navigation">
-        <button type="button" class="cerveau__outil" data-cerveau-zoom="-1" aria-label="Reculer">−</button>
-        <button type="button" class="cerveau__outil" data-cerveau-zoom="1" aria-label="Approcher">+</button>
-        <button type="button" class="cerveau__outil cerveau__outil--large" data-cerveau-recadrer>Recadrer</button>
-      </div>
       <label class="cerveau__isoles">
         <input type="checkbox" data-cerveau-fonctions checked>
         <span>Montrer les règles</span>
@@ -496,58 +495,122 @@ function renderLacunes(cerveau) {
   `;
 }
 
+/**
+ * Le cadre : une ligne de titre, un rail à gauche, le dessin partout ailleurs.
+ *
+ * ## Pourquoi un rail plutôt qu'une barre
+ *
+ * Les réglages, les alertes et la légende mangeaient un tiers de la hauteur —
+ * et c'est la hauteur qui manque à un graphe. Rangés debout à gauche, ils
+ * occupent la dimension dont le dessin a le moins besoin, et le rail se rétracte
+ * quand on veut tout l'écran.
+ *
+ * ## Ce qui reste en tête, quoi qu'il arrive
+ *
+ * Le nom de l'écran, la loupe, le recadrage, la fermeture. Ce sont les gestes
+ * qu'on fait sans réfléchir ; les chercher dans un rail qu'on vient de replier
+ * serait une punition pour l'avoir replié.
+ *
+ * Les compteurs, eux, **passent** dans le rail quand il est ouvert : les répéter
+ * en deux endroits ferait deux vérités à tenir d'accord.
+ */
 function renderCadre(cerveau, isoles, signales) {
-  const { compte, noeuds, cycles } = cerveau;
+  const { cycles } = cerveau;
 
   return `
     <div class="cerveau" role="dialog" aria-modal="true" aria-label="Le cerveau du projet">
       <header class="cerveau__tete">
+        <button type="button" class="cerveau__outil" data-cerveau-rail
+          aria-label="Replier les réglages" aria-expanded="true"
+          title="Replier les réglages">${svgIcon("sidebar-collapse", { className: "octicon" })}</button>
         <b>${svgIcon("beaker", { className: "octicon" })} Le cerveau du projet</b>
-        <span class="cerveau__compte" data-cerveau-resume>${renderResume(cerveau)}</span>
+        <span class="cerveau__compte" data-cerveau-resume-tete hidden></span>
+        <div class="cerveau__navigation">
+          <button type="button" class="cerveau__outil" data-cerveau-zoom="-1" aria-label="Reculer">−</button>
+          <button type="button" class="cerveau__outil" data-cerveau-zoom="1" aria-label="Approcher">+</button>
+          <button type="button" class="cerveau__outil cerveau__outil--large" data-cerveau-recadrer>Recadrer</button>
+        </div>
         <button type="button" class="cerveau__fermer" data-cerveau-fermer
           aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
       </header>
 
-      ${renderBarre(isoles)}
+      <div class="cerveau__corps">
+        <aside class="cerveau__rail" data-cerveau-panneau>
+          <span class="cerveau__compte" data-cerveau-resume>${renderResume(cerveau)}</span>
 
-      ${
-        // D'où viennent les liens. Le taire ferait passer un rapprochement de
-        // noms pour ce que les règles ont réellement lu.
-        cerveau.enregistres
-          ? ""
-          : `<p class="cerveau__provenance">
-              ${svgIcon("alert", { className: "octicon" })}
-              Aucune lecture n'est enregistrée pour ce projet : ces liens sont déduits des noms que
-              les règles citent. C'est vrai, en moins sûr.
-              Lancez « Verser › Reconstruire les liens du raisonnement » pour les établir.
-            </p>`
-      }
+          ${renderBarre(isoles)}
 
-      <div data-cerveau-lacunes>${cerveau.enregistres ? renderLacunes(cerveau) : ""}</div>
+          <hr class="cerveau__filet">
 
-      <div class="cerveau__scene">
-        <canvas data-cerveau-toile></canvas>
-        <div class="cerveau__bulle" data-cerveau-bulle hidden></div>
+          ${
+            // D'où viennent les liens. Le taire ferait passer un rapprochement de
+            // noms pour ce que les règles ont réellement lu.
+            cerveau.enregistres
+              ? ""
+              : `<p class="cerveau__provenance">
+                  ${svgIcon("alert", { className: "octicon" })}
+                  Aucune lecture n'est enregistrée pour ce projet : ces liens sont déduits des noms
+                  que les règles citent. C'est vrai, en moins sûr.
+                  Lancez « Verser › Reconstruire les liens du raisonnement » pour les établir.
+                </p>`
+          }
+
+          <div data-cerveau-lacunes>${cerveau.enregistres ? renderLacunes(cerveau) : ""}</div>
+
+          <div data-cerveau-legendes>${renderLegende(cerveau, signales)}</div>
+
+          <p class="cerveau__onde" data-cerveau-onde>
+            Le projet bat tout seul, et s'arrête dès que vous le survolez.
+            Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
+            Cliquez un secteur : il reste seul allumé.
+          </p>
+
+          ${
+            cycles.length
+              ? `<p class="cerveau__cycle">
+                  ${svgIcon("alert", { className: "octicon" })}
+                  ${cycles.length} ${accorde(cycles.length, "affirmation se lit", "affirmations se lisent")}
+                  en rond : ${accorde(cycles.length, "elle est placée", "elles sont placées")} à part.
+                  Rien n'en sort — un état de passage n'est pas un résultat.
+                </p>`
+              : ""
+          }
+        </aside>
+
+        <div class="cerveau__scene">
+          <canvas data-cerveau-toile></canvas>
+          <div class="cerveau__bulle" data-cerveau-bulle hidden></div>
+          ${renderDefilement()}
+        </div>
       </div>
+    </div>
+  `;
+}
 
-      <div class="cerveau__pied">
-        <div data-cerveau-legendes>${renderLegende(cerveau, signales)}</div>
-        <p class="cerveau__onde" data-cerveau-onde>
-          Le projet bat tout seul, et s'arrête dès que vous le survolez.
-          Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
-          Molette pour zoomer, glissé pour déplacer.
-        </p>
-        ${
-          cycles.length
-            ? `<p class="cerveau__cycle">
-                ${svgIcon("alert", { className: "octicon" })}
-                ${cycles.length} ${accorde(cycles.length, "affirmation se lit", "affirmations se lisent")}
-                en rond : ${accorde(cycles.length, "elle est placée", "elles sont placées")} à part.
-                Rien n'en sort — un état de passage n'est pas un résultat.
-              </p>`
-            : ""
-        }
-      </div>
+/**
+ * Les deux barres de défilement du dessin.
+ *
+ * ## Pourquoi il en fallait
+ *
+ * En volume, le glissé **tourne** — c'est le geste qu'on attend d'un objet. Il
+ * ne reste alors rien pour se déplacer : on approche un détail, il sort du cadre,
+ * et l'on ne peut plus aller le chercher. Le zoom devenait inutilisable au moment
+ * précis où il servait.
+ *
+ * ## Pourquoi pas celles du navigateur
+ *
+ * Une toile n'a pas de contenu à faire défiler : elle se redessine. Les barres du
+ * navigateur demanderaient un faux contenu de la bonne taille, entretenu à chaque
+ * image. Celles-ci lisent l'étendue réellement dessinée et écrivent le décalage
+ * de la caméra — une seule vérité, dans les deux sens.
+ */
+function renderDefilement() {
+  return `
+    <div class="cerveau-defile cerveau-defile--x" data-cerveau-defile="x" hidden>
+      <div class="cerveau-defile__pouce" data-cerveau-pouce></div>
+    </div>
+    <div class="cerveau-defile cerveau-defile--y" data-cerveau-defile="y" hidden>
+      <div class="cerveau-defile__pouce" data-cerveau-pouce></div>
     </div>
   `;
 }
@@ -838,16 +901,30 @@ function rayonDe(noeud) {
 function projeteur(etat, largeur, hauteur, temps) {
   const { camera, respire } = etat;
   const souffle = (noeud) => (respire ? Math.sin(temps / 1400 + noeud.phase) * 3 : 0);
+  // Le quart de tour se prend **ici**, une fois, et non sur les positions : tout
+  // ce que l'écran dessine — les nœuds, mais aussi les colonnes, les disques,
+  // l'équateur et les noms de secteur — passe par cette fonction. Tourner les
+  // positions seules laisserait les repères dans l'ancien sens, et le dessin
+  // dirait une chose pendant que ses repères en diraient une autre.
+  const debout = etat.orientation === "vertical";
 
   if (etat.vue === "strates") {
     const marge = { x: 74, y: 44 };
     const utile = { x: Math.max(1, largeur - marge.x * 2), y: Math.max(1, hauteur - marge.y * 2) };
-    return (noeud) => ({
-      x: (marge.x + noeud.x * utile.x) * camera.zoom + camera.dx,
-      y: (marge.y + noeud.y * utile.y + souffle(noeud)) * camera.zoom + camera.dy,
-      p: 1,
-      k: camera.zoom
-    });
+    return (noeud) => {
+      // Debout, la strate descend et les domaines s'étalent en largeur : on
+      // échange les deux axes. La mémoire, qui occupait le haut, passe ainsi à
+      // **gauche** — le même côté qu'en volume, pour qu'un basculement de vue ne
+      // renverse pas la lecture.
+      const large = debout ? noeud.y : noeud.x;
+      const haut = debout ? noeud.x : noeud.y;
+      return {
+        x: (marge.x + large * utile.x) * camera.zoom + camera.dx,
+        y: (marge.y + haut * utile.y + souffle(noeud)) * camera.zoom + camera.dy,
+        p: 1,
+        k: camera.zoom
+      };
+    };
   }
 
   // Le volume : on tourne autour de Y (l'orbite) puis de X (l'élévation), et on
@@ -857,18 +934,37 @@ function projeteur(etat, largeur, hauteur, temps) {
   const cosB = Math.cos(camera.elevation);
   const sinB = Math.sin(camera.elevation);
   const echelle = Math.min(largeur, hauteur) * 0.42;
-  const recul = 3.2 / Math.max(0.2, camera.zoom);
+
+  // La caméra recule pour dézoomer et s'approche pour zoomer — jusqu'à une
+  // **distance plancher**, après quoi c'est le grossissement qui prend le
+  // relais. Sans ce plancher, un zoom au-delà de deux la faisait entrer dans le
+  // volume : les nœuds passés derrière l'œil projetaient des coordonnées
+  // aberrantes, l'image se retournait, et le dessin disparaissait de l'écran au
+  // moment précis où l'on cherchait à le voir de près.
+  //
+  // Le grossissement compense exactement ce que le recul ne fait plus : au
+  // centre du volume, l'échelle apparente est la même qu'avant, à tous les zooms.
+  const voulu = 3.2 / Math.max(0.2, camera.zoom);
+  const recul = Math.max(1.9, voulu);
+  const grossit = recul / voulu;
 
   return (noeud) => {
-    const x1 = noeud.x * cosA - noeud.z * sinA;
-    const z1 = noeud.x * sinA + noeud.z * cosA;
-    const y1 = noeud.y * cosB - z1 * sinB;
-    const z2 = noeud.y * sinB + z1 * cosB;
+    // Un quart de tour autour de Z : l'axe qui portait la coupe passe à
+    // l'horizontale, et l'anneau des domaines se redresse avec lui. Les deux
+    // hémisphères se retrouvent alors côte à côte — la coupe sagittale d'un
+    // cerveau, plutôt que sa coupe horizontale.
+    const ax = debout ? noeud.y : noeud.x;
+    const ay = debout ? -noeud.x : noeud.y;
+
+    const x1 = ax * cosA - noeud.z * sinA;
+    const z1 = ax * sinA + noeud.z * cosA;
+    const y1 = ay * cosB - z1 * sinB;
+    const z2 = ay * sinB + z1 * cosB;
 
     // `recul + z2` ne s'annule pas : le recul minimal dépasse le rayon du volume,
     // qui vaut 1. Sans cette garantie, un nœud passant par l'œil enverrait des
     // coordonnées infinies et le tracé entier disparaîtrait.
-    const k = 2.6 / (recul + z2);
+    const k = (2.6 * grossit) / (recul + z2);
     return {
       x: largeur / 2 + x1 * echelle * k + camera.dx,
       y: hauteur / 2 + y1 * echelle * k + camera.dy + souffle(noeud) * 0.5,
@@ -903,6 +999,16 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
 
   const ou = projeteur(etat, largeur, hauteur, temps);
   const points = new Map(places.map((noeud) => [noeud.id, ou(noeud)]));
+
+  // Ce que le dessin occupe vraiment, relevé sur les points qu'on vient de
+  // projeter. Les barres de défilement le lisent : une étendue calculée
+  // autrement finirait par décrire un dessin qui n'est plus celui-là.
+  etat.etendue = [...points.values()]
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    .reduce((cadre, point) => ({
+      x0: Math.min(cadre.x0, point.x), x1: Math.max(cadre.x1, point.x),
+      y0: Math.min(cadre.y0, point.y), y1: Math.max(cadre.y1, point.y)
+    }), { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity });
 
   ctx.clearRect(0, 0, largeur, hauteur);
 
@@ -967,12 +1073,23 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
       ctx.strokeStyle = `rgba(139,148,158,${(0.16 + 0.24 * fond)})`;
     }
 
-    ctx.lineWidth = Math.min(3.4, 0.8 + lien.poids * 0.4) * (vif > 0 ? 2 : 1);
+    // Un lien allumé s'épaississait du double : à cette densité, trois liens
+    // allumés côte à côte formaient un ruban dont on ne suivait plus aucun.
+    // C'est l'éclat qui doit le distinguer, pas la masse.
+    ctx.lineWidth = Math.min(3.4, 0.8 + lien.poids * 0.4) * (vif > 0 ? 1.35 : 1);
+    // Un lien reste allumé s'il **touche** le secteur retenu : c'est par lui qu'on
+    // voit ce qui entre et ce qui sort, et l'éteindre ferait du secteur un îlot.
+    ctx.globalAlpha = etat.secteurChoisi
+      && !dansLeSecteurChoisi(etat, parId.get(lien.de) ?? {})
+      && !dansLeSecteurChoisi(etat, parId.get(lien.vers) ?? {})
+      ? 0.12
+      : 1;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.bezierCurveTo((a.x + b.x) / 2, a.y, (a.x + b.x) / 2, b.y, b.x, b.y);
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
 
   // Les nœuds, du fond vers le devant : sans ce tri, un nœud lointain se dessine
   // par-dessus un nœud proche et le volume se lit à l'envers.
@@ -1022,7 +1139,11 @@ function dessiner(ctx, etat, largeur, hauteur, temps) {
       }
     }
 
-    ctx.globalAlpha = enTroisD(etat) ? borne(0.3 + p * 0.7, 0.25, 1) : 1;
+    // Hors du secteur retenu, on s'efface sans disparaître : effacer tout à fait
+    // ferait perdre le reste du dessin, et l'on ne saurait plus où se trouve ce
+    // qu'on regarde.
+    const dedans = dansLeSecteurChoisi(etat, noeud);
+    ctx.globalAlpha = (enTroisD(etat) ? borne(0.3 + p * 0.7, 0.25, 1) : 1) * (dedans ? 1 : 0.16);
 
     const fonction = noeud.genre === GENRE.FONCTION;
     // Un losange à plat, un cube en volume : la même règle, dans la géométrie de
@@ -1159,25 +1280,32 @@ function dessinerLesColonnes(ctx, etat, largeur, hauteur, points) {
   // un bouton d'affichage, et le chiffre ne voudrait plus rien dire.
   let pas = -1;
 
+  // Debout, une colonne devient une ligne : le trait tourne avec le dessin, et
+  // son nom passe du haut vers la gauche. Le laisser vertical ferait un quadrillage
+  // qui ne dit plus rien de ce qu'il traverse.
+  const debout = etat.orientation === "vertical";
+  ctx.textAlign = debout ? "left" : "center";
+
   rangs.forEach((rang) => {
     const modele = etat.places.find((noeud) => noeud.x === rang);
     const regles = etat.rangsDeFonctions.has(modele.strate);
     if (!regles) pas += 1;
 
-    const x = points.get(modele.id).x;
-    if (x < -40 || x > largeur + 40) return;
+    const point = points.get(modele.id);
+    const ou = debout ? point.y : point.x;
+    const bout = debout ? hauteur : largeur;
+    if (ou < -40 || ou > bout + 40) return;
 
     ctx.strokeStyle = "rgba(139,148,158,.10)";
     ctx.beginPath();
-    ctx.moveTo(x, 24);
-    ctx.lineTo(x, hauteur - 12);
+    if (debout) { ctx.moveTo(60, ou); ctx.lineTo(largeur - 12, ou); }
+    else { ctx.moveTo(ou, 24); ctx.lineTo(ou, hauteur - 12); }
     ctx.stroke();
 
     ctx.fillStyle = "rgba(139,148,158,.55)";
-    ctx.fillText(
-      regles ? "règles" : pas === 0 ? "socle" : modele.enRond ? "en rond" : `${pas} pas`,
-      x, 16
-    );
+    const nom = regles ? "règles" : pas === 0 ? "socle" : modele.enRond ? "en rond" : `${pas} pas`;
+    if (debout) ctx.fillText(nom, 8, ou + 4);
+    else ctx.fillText(nom, ou, 16);
   });
 }
 
@@ -1260,12 +1388,22 @@ function dessinerLEquateur(ctx, etat, largeur, hauteur, ou) {
   if (etat.vue === "strates") {
     // La séparation est à `part` dans l'espace des nœuds, pas au milieu de
     // l'écran : la caméra a pu se déplacer, et un trait posé à `hauteur / 2`
-    // mentirait dès le premier glissé.
-    const { y } = ou({ x: 0, y: etat.partDeLaMemoire, phase: 0 });
-    ctx.moveTo(0, y);
-    ctx.lineTo(largeur, y);
-    gauche = { x: 12, y, align: "left" };
-    droite = { x: largeur - 12, y, align: "right" };
+    // mentirait dès le premier glissé. Debout, elle sépare la gauche de la
+    // droite et le trait se dresse avec elle.
+    const debout = etat.orientation === "vertical";
+    const point = ou({ x: 0, y: etat.partDeLaMemoire, phase: 0 });
+
+    if (debout) {
+      ctx.moveTo(point.x, 0);
+      ctx.lineTo(point.x, hauteur);
+      gauche = { x: point.x, y: point.y, debout: true };
+      droite = null;
+    } else {
+      ctx.moveTo(0, point.y);
+      ctx.lineTo(largeur, point.y);
+      gauche = { x: 12, y: point.y, align: "left" };
+      droite = { x: largeur - 12, y: point.y, align: "right" };
+    }
   } else {
     // En volume, l'équateur est un **cercle**, et la caméra le voit de biais. On
     // le projette comme n'importe quel nœud : un trait droit posé au milieu de
@@ -1302,6 +1440,18 @@ function dessinerLEquateur(ctx, etat, largeur, hauteur, ou) {
 
   for (const ancre of [gauche, droite]) {
     if (!ancre) continue;
+
+    // Debout, le trait sépare la gauche de la droite : les deux mots se posent
+    // de part et d'autre, en haut du cadre, et non au-dessus et au-dessous.
+    if (ancre.debout) {
+      const x = Math.min(largeur - 10, Math.max(10, ancre.x));
+      ctx.textAlign = "right";
+      ctx.fillText("MÉMOIRE", x - 8, 18);
+      ctx.textAlign = "left";
+      ctx.fillText("RAISONNEMENT", x + 8, 18);
+      continue;
+    }
+
     ctx.textAlign = ancre.align;
     const x = Math.min(largeur - 10, Math.max(10, ancre.x));
 
@@ -1329,6 +1479,7 @@ function dessinerLEquateur(ctx, etat, largeur, hauteur, ou) {
  * aucun nœud ne le recouvre, la spirale des nœuds partant du centre.
  */
 function dessinerLesDisques(ctx, etat, largeur, ou) {
+  const debout = etat.orientation === "vertical";
   // Arrondie : la hauteur est posée par la disposition et personne ne la
   // retouche, mais un disque qui se scinderait en deux pour un flottant près de
   // l'autre rendrait le compte des étages absurde.
@@ -1357,23 +1508,33 @@ function dessinerLesDisques(ctx, etat, largeur, ou) {
     ctx.strokeStyle = "rgba(139,148,158,.14)";
     ctx.lineWidth = 1;
     ctx.beginPath();
+
+    // Le bord du disque **tel qu'il est projeté**, relevé pendant qu'on le trace.
+    // Un point choisi dans l'espace du modèle se retrouverait n'importe où dès
+    // qu'on bascule la vue d'un quart de tour.
+    //
+    // Et pas n'importe quel bord : celui qui s'écarte de l'axe de la pile. Debout,
+    // les disques se suivent en largeur et leurs bords droits tombent presque au
+    // même endroit — les noms s'empileraient les uns sur les autres.
+    let bord = null;
+    const mieux = (point) => (debout ? point.y < bord.y : point.x > bord.x);
     for (let i = 0; i <= 72; i += 1) {
       const angle = (i / 72) * Math.PI * 2;
       const point = ou({ x: Math.cos(angle) * rayon, y, z: Math.sin(angle) * rayon, phase: 0 });
       if (i === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
+      if (!bord || mieux(point)) bord = point;
     }
     ctx.stroke();
 
     // Au bord, jamais au centre : la spirale des nœuds part du milieu du disque,
     // et un nom posé là serait recouvert par le nœud le plus employé de la strate.
-    const bord = ou({ x: rayon * 1.06, y, z: 0, phase: 0 });
-    if (bord.x < -80 || bord.x > largeur + 80) continue;
+    if (!bord || bord.x < -80 || bord.x > largeur + 80) continue;
 
-    ctx.textAlign = "left";
+    ctx.textAlign = debout ? "center" : "left";
     ctx.fillStyle = "rgba(139,148,158,.5)";
     ctx.fillText(
       `${regles ? "règles" : pas === 0 ? "socle" : `${pas} pas`} · ${combien}`,
-      bord.x + 6, bord.y + 4
+      debout ? bord.x : bord.x + 6, debout ? bord.y - 8 : bord.y + 4
     );
   }
 }
@@ -1410,7 +1571,7 @@ const MARGE_DU_VOILE = 26;
 function dessinerLesVoiles(ctx, etat, points, temps) {
   const voiles = [];
 
-  for (const { entree, siens: places } of secteursDuCerveau(etat)) {
+  for (const { entree, cote, siens: places } of secteursDuCerveau(etat)) {
     const siens = places.map((noeud) => points.get(noeud.id)).filter(Boolean);
     // Sous trois points il n'y a pas de territoire, seulement des points.
     if (siens.length < 3) continue;
@@ -1432,9 +1593,10 @@ function dessinerLesVoiles(ctx, etat, points, temps) {
       return { x: point.x + (dx / distance) * souffle, y: point.y + (dy / distance) * souffle };
     });
 
-    voiles.push({ domaine: entree.domaine, libelle: entree.libelle, contour });
+    voiles.push({ domaine: entree.domaine, cote: cote ?? null, libelle: entree.libelle, contour });
 
-    const vif = etat.survoleLeDomaine === entree.domaine;
+    const retenu = estLeSecteurChoisi(etat, entree.domaine, cote);
+    const vif = retenu || etat.survoleLeDomaine === entree.domaine;
     ctx.beginPath();
     ctx.moveTo((contour.at(-1).x + contour[0].x) / 2, (contour.at(-1).y + contour[0].y) / 2);
     // Des courbes passant par les milieux : les sommets d'une enveloppe convexe
@@ -1449,10 +1611,14 @@ function dessinerLesVoiles(ctx, etat, points, temps) {
     // Au repos, assez pour qu'on **voie qu'il y a des zones** ; au survol, assez
     // pour qu'on voie laquelle. Un voile invisible au repos ne dirait rien tant
     // qu'on ne l'a pas trouvé par hasard.
-    ctx.fillStyle = vif ? "rgba(201,209,217,.09)" : "rgba(139,148,158,.055)";
+    ctx.fillStyle = retenu
+      ? "rgba(201,209,217,.13)"
+      : vif ? "rgba(201,209,217,.09)" : "rgba(139,148,158,.055)";
     ctx.fill();
-    ctx.strokeStyle = vif ? "rgba(201,209,217,.42)" : "rgba(139,148,158,.2)";
-    ctx.lineWidth = vif ? 1.4 : 1;
+    ctx.strokeStyle = retenu
+      ? "rgba(240,246,252,.6)"
+      : vif ? "rgba(201,209,217,.42)" : "rgba(139,148,158,.2)";
+    ctx.lineWidth = retenu ? 1.6 : vif ? 1.4 : 1;
     ctx.stroke();
   }
 
@@ -1473,6 +1639,20 @@ function dessinerLesVoiles(ctx, etat, points, temps) {
  * Un secteur trop maigre n'est pas un secteur : trois points isolés portant une
  * étiquette feraient croire à une zone qui n'existe pas.
  */
+/** Ce secteur-ci est-il celui qu'on a retenu ? Sans secteur retenu, aucun ne l'est. */
+function estLeSecteurChoisi(etat, domaine, cote) {
+  const choisi = etat.secteurChoisi;
+  return Boolean(choisi) && choisi.domaine === domaine && (choisi.cote ?? null) === (cote ?? null);
+}
+
+/** Ce nœud appartient-il au secteur retenu ? Sans secteur retenu, tous y sont. */
+function dansLeSecteurChoisi(etat, noeud) {
+  const choisi = etat.secteurChoisi;
+  if (!choisi) return true;
+  return texte(noeud.domaine) === choisi.domaine
+    && (!choisi.cote || noeud.genre === choisi.cote);
+}
+
 function secteursDuCerveau(etat) {
   const cotes = etat.deuxHemispheres ? [GENRE.VALEUR, GENRE.FONCTION] : [null];
 
@@ -1522,8 +1702,15 @@ function dessinerLesDomaines(ctx, etat, points, ou, hauteur) {
     hauteur
   );
 
+  // Où l'on a écrit chaque nom : c'est la prise du clic dans la vue éclatée, qui
+  // n'a pas de voile — et une prise de plus, partout ailleurs.
+  etat.nomsDesSecteurs = nommes.map(({ entree, cote, ancre }) => ({
+    domaine: entree.domaine, cote: cote ?? null, libelle: entree.libelle, ...ancre
+  }));
+
   for (const { entree, cote, ancre } of nommes) {
-    const vif = etat.survoleLeDomaine === entree.domaine;
+    const vif = estLeSecteurChoisi(etat, entree.domaine, cote)
+      || etat.survoleLeDomaine === entree.domaine;
     ctx.fillStyle = vif ? "rgba(240,246,252,.92)" : "rgba(201,209,217,.38)";
 
     ctx.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -1635,7 +1822,8 @@ function dessinerLesNoms(ctx, etat, largeur, points, eclats) {
     // la seule dont on ne lit pas les noms.
     const aGauche = x + rayon + 10 + ctx.measureText(nom).width > largeur - 8;
     ctx.textAlign = aGauche ? "right" : "left";
-    ctx.globalAlpha = enTroisD(etat) ? borne(p * 1.3, 0.25, 1) : 1;
+    ctx.globalAlpha = (enTroisD(etat) ? borne(p * 1.3, 0.25, 1) : 1)
+      * (dansLeSecteurChoisi(etat, noeud) ? 1 : 0.16);
     // Un nom qui s'allume prend la couleur de sa famille, pas du blanc. Le blanc
     // était le seul endroit de l'écran où l'onde effaçait ce qu'elle traverse :
     // au moment où l'on regarde un nœud, il cessait de dire s'il était une
@@ -1696,6 +1884,12 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   const lacunes = hote.querySelector("[data-cerveau-lacunes]");
   const bulle = hote.querySelector("[data-cerveau-bulle]");
   const dit = hote.querySelector("[data-cerveau-onde]");
+  const panneau = hote.querySelector("[data-cerveau-panneau]");
+  const resumeEnTete = hote.querySelector("[data-cerveau-resume-tete]");
+  const defiles = {
+    x: hote.querySelector('[data-cerveau-defile="x"]'),
+    y: hote.querySelector('[data-cerveau-defile="y"]')
+  };
   const ctx = toile.getContext("2d");
 
   // Un utilisateur qui a demandé moins de mouvement en a demandé partout. Les
@@ -1705,6 +1899,8 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
     : false;
 
+  if (resumeEnTete) resumeEnTete.innerHTML = renderResume(cerveau);
+
   const etat = {
     vue: "strates",
     mode: "vivant",
@@ -1712,6 +1908,8 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     parDomaine: true,
     /** Les règles dessinées comme des nœuds, entre leurs entrées et leur sortie. */
     avecLesFonctions: true,
+    /** Couché ou debout : de quel côté la mémoire se sépare du raisonnement. */
+    orientation: "horizontal",
     /** La mémoire d'un côté, le raisonnement de l'autre. */
     parGenre: true,
     deuxHemispheres: false,
@@ -1728,6 +1926,19 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     survole: "", choisi: "",
     /** La zone sous le pointeur, quand il ne désigne aucun nœud. */
     survoleLeDomaine: "",
+    /** Où chaque nom de secteur a été écrit, pour qu'on puisse le cliquer. */
+    nomsDesSecteurs: [],
+    /** Ce que le dessin occupe à l'écran, relevé à chaque image. */
+    etendue: null,
+    /**
+     * Le secteur retenu au clic, et rien d'autre à l'écran.
+     *
+     * Le survol éclaircit un voile — assez pour dire « c'est par là », pas assez
+     * pour lire ce qu'il contient : à trois cents nœuds, la zone dense reste une
+     * zone dense. Le clic la **retient**, et tout ce qui n'en est pas s'efface.
+     * C'est le geste qu'on fait après avoir trouvé : on veut voir dedans.
+     */
+    secteurChoisi: null,
     voiles: [],
     respire: !calme,
     /** Au-delà de ce nombre de nœuds **à l'écran**, les étiquettes ne se lisent plus. */
@@ -1760,6 +1971,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     etat.profondeur = cerveau.profondeur;
     etat.impulsions = [];
     if (resume) resume.innerHTML = renderResume(cerveau);
+    if (resumeEnTete) resumeEnTete.innerHTML = renderResume(cerveau);
     // La légende aussi : annoncer « 41 règles » sous un dessin qui n'en montre
     // aucune ferait chercher longtemps ce qui n'y est pas.
     if (legendes) {
@@ -1827,6 +2039,32 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
    * croiser — ce dont le battement a besoin — et il n'y a aucune minuterie à
    * annuler quand on change de mode.
    */
+  /**
+   * Ce que le secteur retenu contient, dit sous le dessin.
+   *
+   * Le dessin montre où c'est ; la phrase dit combien et quoi. Sans elle, on
+   * saurait qu'on a retenu quelque chose sans savoir ce qu'on a retenu — et le
+   * relâcher redeviendrait un tâtonnement.
+   */
+  const direLeSecteur = () => {
+    const choisi = etat.secteurChoisi;
+    if (!choisi) { dit.innerHTML = phraseDuRepos(); return; }
+
+    const entree = etat.domaines.find((autre) => autre.domaine === choisi.domaine);
+    const siens = etat.places.filter((noeud) => dansLeSecteurChoisi(etat, noeud));
+    const regles = siens.filter((noeud) => noeud.genre === GENRE.FONCTION).length;
+    const malades = siens.filter((noeud) => etat.signales.has(noeud.id)).length;
+
+    dit.innerHTML = `<b>${escapeHtml(entree?.libelle ?? choisi.domaine)}${
+      choisi.cote ? ` · ${choisi.cote === GENRE.FONCTION ? "raisonnement" : "mémoire"}` : ""
+    }</b> — ${siens.length - regles}
+      ${accorde(siens.length - regles, "affirmation", "affirmations")}${
+        regles ? `, ${regles} ${accorde(regles, "règle", "règles")}` : ""
+      }${
+        malades ? `, dont ${malades} ${accorde(malades, "signalée", "signalées")} par l'audit` : ""
+      }. Cliquez à côté pour tout revoir.`;
+  };
+
   const allumer = (depart, { duree, dire = false } = {}) => {
     // Les lectures du cerveau, pas celles d'origine : dépliées, elles passent
     // *par* les règles. Avec les lectures d'origine, l'onde sauterait par-dessus
@@ -2082,7 +2320,17 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
       etat.choisi = noeud.id;
       allumer(noeud.id, { duree: TENUE.onde, dire: true });
       viser(noeud.id);
+      return;
     }
+
+    // Dans le vide entre les valeurs d'une zone : on retient le secteur, et un
+    // second clic le relâche. Ailleurs, on relâche aussi — cliquer le fond est
+    // le geste qu'on fait pour tout revoir.
+    const secteur = secteurSousLeCurseur(evenement);
+    etat.secteurChoisi = secteur && !estLeSecteurChoisi(etat, secteur.domaine, secteur.cote)
+      ? secteur
+      : null;
+    direLeSecteur();
   };
 
   const alaMolette = (evenement) => {
@@ -2114,21 +2362,32 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   };
 
   /** La zone sous le pointeur, ou rien. La plus petite gagne : elle est dedans. */
-  const domaineSousLeCurseur = (evenement) => {
+  const secteurSousLeCurseur = (evenement) => {
     const cadre = toile.getBoundingClientRect();
     const point = { x: evenement.clientX - cadre.left, y: evenement.clientY - cadre.top };
 
-    let trouve = "";
+    // Le nom d'abord : c'est une cible qu'on vise, alors qu'un voile est une
+    // zone où l'on tombe. Et c'est la seule prise de la vue éclatée, qui n'a
+    // pas de voile.
+    for (const nom of etat.nomsDesSecteurs) {
+      if (Math.abs(point.x - nom.x) < 60 && Math.abs(point.y - nom.y) < 14) {
+        return { domaine: nom.domaine, cote: nom.cote };
+      }
+    }
+
+    let trouve = null;
     let aire = Infinity;
     for (const voile of etat.voiles) {
       if (!dansLEnveloppe(point, voile.contour)) continue;
       // Deux voiles se chevauchent : c'est voulu. Le plus petit l'emporte, sans
       // quoi une grande zone masquerait toujours la petite qu'elle recouvre.
       const etendue = aireDuContour(voile.contour);
-      if (etendue < aire) { trouve = voile.domaine; aire = etendue; }
+      if (etendue < aire) { trouve = { domaine: voile.domaine, cote: voile.cote }; aire = etendue; }
     }
     return trouve;
   };
+
+  const domaineSousLeCurseur = (evenement) => secteurSousLeCurseur(evenement)?.domaine ?? "";
 
   const montrerLaBulleDuDomaine = (domaine, evenement) => {
     const entree = etat.domaines.find((autre) => autre.domaine === domaine);
@@ -2222,22 +2481,17 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
     marquer("vue", vue);
   };
 
-  const changerDeMode = (mode) => {
-    if (etat.mode === mode) return;
-    etat.mode = mode;
-    etat.impulsions = [];
-    marquer("mode", mode);
-    arreterLeBattement();
-
-    if (mode === "onde") {
-      dit.innerHTML = `Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
+  /** Ce que la ligne du bas dit quand rien n'est ni retenu ni allumé. */
+  const phraseDuRepos = () => {
+    if (etat.mode === "onde") {
+      return `Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
+        Cliquez un secteur : il reste seul allumé.
         Molette pour zoomer, glissé pour ${enTroisD(etat) ? "tourner" : "déplacer"}.`;
-      return;
     }
 
     const combien = etat.signales.size;
-    dit.innerHTML = `${
-      mode === "vivant"
+    return `${
+      etat.mode === "vivant"
         ? "Le projet bat tout seul, et s'arrête dès que vous le survolez. Un clic lance l'onde."
         : "Le projet pense tout seul, sans s'arrêter."
     } ${
@@ -2246,7 +2500,51 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
            ${escapeHtml(phraseDuSignal([...etat.signales.values()][0]))}${combien > 1 ? ", entre autres" : ""}.`
         : "<b>L'audit ne signale rien.</b>"
     }`;
-    accorderLeBattement();
+  };
+
+  const changerDeMode = (mode) => {
+    if (etat.mode === mode) return;
+    etat.mode = mode;
+    etat.impulsions = [];
+    marquer("mode", mode);
+    arreterLeBattement();
+
+    dit.innerHTML = phraseDuRepos();
+    if (mode !== "onde") accorderLeBattement();
+  };
+
+  /**
+   * Le quart de tour, et le recadrage qui va avec.
+   *
+   * On recadre : les repères de la caméra — le décalage surtout — ne veulent
+   * plus dire la même chose une fois le dessin tourné, et les garder laisserait
+   * l'écran vide en attendant qu'on cherche où le contenu est parti.
+   */
+  const basculer = (orientation) => {
+    if (etat.orientation === orientation) return;
+    etat.orientation = orientation;
+    marquer("orientation", orientation);
+    recadrer();
+    redimensionner();
+  };
+
+  /**
+   * Ouvrir ou replier le rail.
+   *
+   * Les compteurs suivent : ouverts, ils sont dans le rail ; repliés, ils
+   * remontent en tête. Les afficher aux deux endroits ferait deux vérités à
+   * tenir d'accord, et l'une des deux finirait par mentir.
+   */
+  const montrerLeRail = (ouvert) => {
+    panneau.hidden = !ouvert;
+    if (resumeEnTete) resumeEnTete.hidden = ouvert;
+    for (const bouton of hote.querySelectorAll("[data-cerveau-rail]")) {
+      bouton.setAttribute("aria-expanded", ouvert ? "true" : "false");
+      bouton.setAttribute("aria-label", ouvert ? "Replier les réglages" : "Déplier les réglages");
+      bouton.setAttribute("title", ouvert ? "Replier les réglages" : "Déplier les réglages");
+      bouton.innerHTML = svgIcon(ouvert ? "sidebar-collapse" : "sidebar-expand", { className: "octicon" });
+    }
+    redimensionner();
   };
 
   /** La légende suit la couleur : celle de l'autre ne dit rien de ce qu'on voit. */
@@ -2265,10 +2563,58 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   /* ── La boucle ─────────────────────────────────────────────────────────── */
 
+  /**
+   * Accorder les deux barres à ce que le dessin occupe.
+   *
+   * Le pouce dit **deux choses à la fois** : sa longueur, quelle part du dessin
+   * tient dans le cadre ; sa position, où l'on regarde dans le reste. C'est la
+   * seule façon de savoir qu'il y a autre chose à côté — un dessin qui déborde
+   * sans le dire fait chercher au hasard.
+   *
+   * Une barre disparaît quand tout tient : une barre pleine ne dit rien et
+   * mange le bord de l'image.
+   */
+  const accorderLeDefilement = () => {
+    const cadre = etat.etendue;
+    if (!cadre || !Number.isFinite(cadre.x0)) return;
+
+    // La marge évite qu'un nœud posé pile au bord fasse clignoter la barre
+    // d'une image à l'autre.
+    const marge = 40;
+    for (const [axe, dedans, debut, fin] of [
+      ["x", largeur, cadre.x0 - marge, cadre.x1 + marge],
+      ["y", hauteur, cadre.y0 - marge, cadre.y1 + marge]
+    ]) {
+      const barre = defiles[axe];
+      if (!barre) continue;
+
+      const etendue = Math.max(dedans, fin - debut);
+      const deborde = etendue > dedans + 1;
+      barre.hidden = !deborde;
+      if (!deborde) continue;
+
+      const piste = axe === "x" ? barre.clientWidth : barre.clientHeight;
+      const part = Math.min(1, dedans / etendue);
+      // Un pouce plus court que ça ne s'attrape plus à la souris.
+      const taille = Math.max(28, piste * part);
+      const avance = Math.min(1, Math.max(0, -debut / Math.max(1, etendue - dedans)));
+      const pouce = barre.firstElementChild;
+
+      if (axe === "x") {
+        pouce.style.width = `${taille}px`;
+        pouce.style.left = `${avance * (piste - taille)}px`;
+      } else {
+        pouce.style.height = `${taille}px`;
+        pouce.style.top = `${avance * (piste - taille)}px`;
+      }
+    }
+  };
+
   let image = 0;
   const boucle = (temps) => {
     glisserVersLaCible();
     dessiner(ctx, etat, largeur, hauteur, temps);
+    accorderLeDefilement();
     image = requestAnimationFrame(boucle);
   };
 
@@ -2316,6 +2662,58 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   }
   for (const bouton of hote.querySelectorAll("[data-cerveau-couleur]")) {
     bouton.addEventListener("click", () => changerDeCouleur(bouton.getAttribute("data-cerveau-couleur")));
+  }
+  for (const bouton of hote.querySelectorAll("[data-cerveau-orientation]")) {
+    bouton.addEventListener("click", () => basculer(bouton.getAttribute("data-cerveau-orientation")));
+  }
+  for (const bouton of hote.querySelectorAll("[data-cerveau-rail]")) {
+    bouton.addEventListener("click", () => montrerLeRail(panneau.hidden));
+  }
+
+  // Le glissé d'un pouce écrit le décalage de la caméra. C'est le même décalage
+  // que la molette et le glissé de la scène écrivent : une seule vérité, et donc
+  // pas de dérive entre ce que la barre montre et ce que le dessin fait.
+  for (const [axe, barre] of Object.entries(defiles)) {
+    if (!barre) continue;
+    const pouce = barre.firstElementChild;
+    let prise = null;
+
+    pouce.addEventListener("pointerdown", (evenement) => {
+      evenement.preventDefault();
+      const cadre = etat.etendue;
+      if (!cadre || !Number.isFinite(cadre.x0)) return;
+
+      // Le facteur se fige **au moment où l'on saisit**, et ne se recalcule plus.
+      // L'étendue se relève à chaque image sur ce qui est dessiné : la relire en
+      // cours de glissé ferait varier le facteur avec le déplacement qu'il vient
+      // de causer, et le pouce s'emballerait.
+      const dedans = axe === "x" ? largeur : hauteur;
+      const etendue = Math.max(dedans, axe === "x" ? cadre.x1 - cadre.x0 + 80 : cadre.y1 - cadre.y0 + 80);
+      const piste = axe === "x" ? barre.clientWidth : barre.clientHeight;
+      const taille = Math.max(28, piste * Math.min(1, dedans / etendue));
+
+      prise = {
+        depart: axe === "x" ? evenement.clientX : evenement.clientY,
+        decalage: axe === "x" ? etat.camera.dx : etat.camera.dy,
+        // Un pixel de pouce vaut d'autant plus de dessin que la piste est courte.
+        facteur: (etendue - dedans) / Math.max(1, piste - taille)
+      };
+      etat.vise = null;
+      pouce.setPointerCapture?.(evenement.pointerId);
+      pouce.style.cursor = "grabbing";
+    });
+
+    pouce.addEventListener("pointermove", (evenement) => {
+      if (!prise) return;
+      const bouge = (axe === "x" ? evenement.clientX : evenement.clientY) - prise.depart;
+      const decale = prise.decalage - bouge * prise.facteur;
+      if (axe === "x") etat.camera.dx = decale;
+      else etat.camera.dy = decale;
+    });
+
+    const lacher = () => { prise = null; pouce.style.cursor = "grab"; };
+    pouce.addEventListener("pointerup", lacher);
+    pouce.addEventListener("pointercancel", lacher);
   }
   const caseDesGenres = hote.querySelector("[data-cerveau-genres]");
   if (caseDesGenres) {

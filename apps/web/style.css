@@ -21737,9 +21737,22 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   color:var(--text);
 }
 .cerveau__tete{
-  display:flex; align-items:center; gap:16px;
-  padding:14px 20px; border-bottom:1px solid rgba(139,148,158,.16);
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px; border-bottom:1px solid rgba(139,148,158,.16);
 }
+/* Le seul élément poussé à droite : tout ce qui suit s'aligne sur lui. */
+.cerveau__tete .cerveau__navigation{ margin-left:auto; }
+
+/* Le corps : le rail debout à gauche, le dessin partout ailleurs. C'est la
+   hauteur qui manque à un graphe, et c'est la dimension que le rail rend. */
+.cerveau__corps{ display:flex; flex:1; min-height:0; }
+.cerveau__rail{
+  flex:0 0 300px; display:flex; flex-direction:column; gap:12px;
+  padding:14px 16px; overflow-y:auto; overscroll-behavior:contain;
+  border-right:1px solid rgba(139,148,158,.16);
+}
+.cerveau__rail[hidden]{ display:none; }
+.cerveau__filet{ margin:2px 0; border:0; border-top:1px solid rgba(139,148,158,.14); }
 .cerveau__tete > b{ display:inline-flex; align-items:center; gap:8px; font-size:15px; }
 .cerveau__compte{ color:var(--muted); font-size:12.5px; }
 .cerveau__compte b{ color:var(--text); }
@@ -21752,10 +21765,31 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 
 /* La barre : la vue, le mode, la navigation, et ce qu'on montre. Assez discrète
    pour ne pas se prendre pour le sujet, assez visible pour qu'on la trouve. */
+/* Dans le rail, les réglages s'empilent : une ligne par question posée, et
+   chaque groupe de boutons occupe toute la largeur pour qu'on les vise sans
+   viser. Les libellés ne se coupent jamais sur deux lignes — un bouton haut de
+   trois lignes ne se lit plus comme un bouton. */
 .cerveau__barre{
-  display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
-  padding:10px 20px; border-bottom:1px solid rgba(139,148,158,.16);
+  display:flex; flex-direction:column; align-items:stretch; gap:10px;
 }
+.cerveau__barre .cerveau-choix{ display:flex; }
+.cerveau__barre .cerveau-choix__bouton{
+  flex:1; justify-content:center; min-width:0; padding:6px 4px;
+  font-size:11.5px; white-space:nowrap;
+}
+.cerveau__barre .cerveau-choix__bouton .octicon{ flex:0 0 auto; }
+.cerveau__barre .cerveau__isoles{ align-items:flex-start; line-height:1.45; }
+.cerveau__barre .cerveau__isoles input{ margin-top:2px; }
+
+/* Une alerte dans le rail est un paragraphe, pas une rangée : en flex, chaque
+   fragment gras devenait sa propre colonne et le texte se lisait en escalier. */
+.cerveau__rail .cerveau__provenance{
+  display:block; padding:9px 11px; border:1px solid rgba(210,153,34,.28);
+  border-radius:var(--radius); line-height:1.5;
+}
+.cerveau__rail .cerveau__provenance .octicon{ vertical-align:-2px; margin-right:5px; }
+.cerveau__rail .cerveau__cycle{ display:block; line-height:1.5; }
+.cerveau__rail .cerveau__cycle .octicon{ vertical-align:-2px; margin-right:5px; }
 .cerveau-choix{ display:inline-flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
 .cerveau-choix__bouton{
   display:inline-flex; align-items:center; gap:6px;
@@ -21821,10 +21855,33 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 }
 .cerveau-bulle__cycle{ color:#d29922; font-size:11.5px; }
 
-.cerveau__pied{
-  display:flex; flex-direction:column; gap:8px;
-  padding:12px 20px 16px; border-top:1px solid rgba(139,148,158,.16);
+/* Debout dans le rail, la légende s'empile plutôt que de s'étaler : la pastille
+   dans une colonne, le nom et son explication dans l'autre. En ligne, la
+   pastille se retrouvait seule sur sa ligne et se lisait comme un caractère. */
+.cerveau__rail .cerveau-legende{ flex-direction:column; gap:9px; }
+.cerveau__rail .cerveau-legende__item{
+  display:grid; grid-template-columns:12px 1fr; align-items:start;
+  column-gap:8px; row-gap:1px; font-size:12px; line-height:1.45;
 }
+.cerveau__rail .cerveau-legende__item i{ grid-row:1 / span 2; margin-top:4px; }
+.cerveau__rail .cerveau-legende__item b{ grid-column:2; }
+.cerveau__rail .cerveau-legende__item small{ grid-column:2; }
+.cerveau__rail .cerveau-legende__echelle .cerveau-echelle{ grid-row:1 / span 2; margin-top:3px; }
+.cerveau__rail .cerveau__onde{ font-size:12px; }
+.cerveau__rail .cerveau__provenance{ margin:0; }
+
+/* Les barres de défilement : posées **sur** la scène, pas à côté. Le dessin ne
+   se rétrécit pas parce qu'on lui donne de quoi se parcourir. */
+.cerveau-defile{ position:absolute; z-index:2; background:rgba(139,148,158,.08); border-radius:5px; }
+.cerveau-defile[hidden]{ display:none; }
+.cerveau-defile--x{ left:8px; right:16px; bottom:6px; height:9px; }
+.cerveau-defile--y{ top:8px; bottom:16px; right:6px; width:9px; }
+.cerveau-defile__pouce{
+  position:absolute; background:rgba(201,209,217,.34); border-radius:5px; cursor:grab;
+}
+.cerveau-defile__pouce:hover{ background:rgba(201,209,217,.55); }
+.cerveau-defile--x .cerveau-defile__pouce{ top:0; bottom:0; }
+.cerveau-defile--y .cerveau-defile__pouce{ left:0; right:0; }
 .cerveau__onde{ margin:0; color:var(--muted); font-size:13px; line-height:1.5; }
 .cerveau__onde b{ color:var(--text); }
 .cerveau__cycle{

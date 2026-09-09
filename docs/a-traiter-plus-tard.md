@@ -614,3 +614,72 @@ bande verticale qui recouvre sans rien situer. Le nom du secteur suffit.
 La vue Volume ne bouge pas. Elle répond à une autre question — *où est la
 matière* — et elle y répond bien tant qu'on ne lui demande pas de compter les
 strates.
+
+---
+
+## 9. Le cerveau : la place, la prise, et un zoom qui se retournait — *fait*
+
+**État :** fait · **Nature :** de l'usage, plus un défaut de projection trouvé en
+route.
+
+### La place
+
+Barre de réglages, bandeau d'alerte et légende occupaient un tiers de la hauteur
+— et c'est la hauteur qui manque à un graphe. Ils passent dans un **rail debout à
+gauche**, qui se rétracte. Restent en tête, quoi qu'il arrive : le nom de
+l'écran, la loupe, le recadrage, la fermeture — les gestes qu'on fait sans
+réfléchir, et qu'on ne doit pas avoir à déplier pour retrouver.
+
+Les compteurs, eux, **passent** d'un endroit à l'autre : dans le rail quand il
+est ouvert, en tête quand il est replié. Les afficher aux deux endroits ferait
+deux vérités à tenir d'accord, et l'une des deux finirait par mentir.
+
+### La prise
+
+**Des barres de défilement.** En volume, le glissé tourne — c'est le geste qu'on
+attend d'un objet. Il ne restait donc rien pour se déplacer : on approchait un
+détail, il sortait du cadre, et l'on ne pouvait plus aller le chercher. Le zoom
+devenait inutilisable au moment précis où il servait.
+
+Elles ne sont pas celles du navigateur : une toile n'a pas de contenu à faire
+défiler, elle se redessine. Elles lisent **l'étendue réellement dessinée**,
+relevée sur les points projetés à chaque image, et écrivent le décalage de la
+caméra — le même que la molette et le glissé écrivent. Le facteur se fige au
+moment où l'on saisit le pouce : le relire en cours de glissé le ferait varier
+avec le déplacement qu'il vient de causer, et le pouce s'emballerait.
+
+**Le clic sur un secteur.** Le survol éclaircissait un voile — assez pour dire
+« c'est par là », pas assez pour lire ce qu'il contient. Le clic le **retient** :
+tout ce qui n'en est pas s'efface à seize pour cent, sauf les liens qui le
+touchent, par lesquels on voit ce qui y entre et ce qui en sort. Un secteur sans
+lien serait un îlot, et le cerveau n'en a pas.
+
+Les noms de secteur sont cliquables autant que les voiles : c'est la seule prise
+de la vue éclatée, qui n'a pas de voile.
+
+### Le quart de tour
+
+Un bouton **Couché / Debout**. Couché, la mémoire est au-dessus du raisonnement
+et les strates se lisent de gauche à droite. Debout, la mémoire est **à gauche**
+du raisonnement et les strates descendent — la coupe sagittale d'un cerveau
+plutôt que sa coupe horizontale.
+
+Le quart de tour se prend **dans la projection**, une fois, et non sur les
+positions : tout ce que l'écran dessine passe par cette fonction — les nœuds,
+mais aussi les colonnes, les disques, l'équateur et les noms de secteur. Tourner
+les positions seules aurait laissé les repères dans l'ancien sens, et le dessin
+aurait dit une chose pendant que ses repères en disaient une autre.
+
+### Le défaut trouvé en route
+
+En volume, `recul = 3,2 / zoom` : la caméra s'approchait pour zoomer. Au-delà
+d'un zoom de deux, elle **entrait dans le volume** — les nœuds passés derrière
+l'œil projetaient des coordonnées aberrantes, l'image se retournait, et le dessin
+disparaissait de l'écran au moment précis où l'on cherchait à le voir de près.
+
+La caméra recule maintenant jusqu'à une **distance plancher**, après quoi c'est
+le grossissement qui prend le relais — exactement ce que le recul ne fait plus, de
+sorte que l'échelle apparente au centre est inchangée à tous les zooms.
+
+Ce défaut ne s'était jamais vu : il fallait zoomer fort en volume, ce que rien
+n'invitait à faire tant qu'il n'y avait pas de quoi se déplacer ensuite.
