@@ -28,8 +28,9 @@ import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
 import { agentDeLaFonction } from "../services/memoire-applications.js";
+import { domicilesDesNoms, versementsHorsDomicile } from "../services/memoire-domiciles.js";
 import {
-  morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe
+  morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, phraseCherchee, porteLaPhrase
 } from "../services/memoire-recherche-texte.js";
 import { renderBoutonHaut } from "./ui/bouton-haut.js";
 import {
@@ -96,7 +97,12 @@ export function preparerLaMemoire(assertions = []) {
   // dans le fichier qui la liste, ce qui ne veut rien dire.
   const racine = [fichierDesVariables(dossiers, { ouEcrit })].filter(Boolean);
 
-  return { dossiers, racine, ouEcrit, fichiers: [...fichiersDeLaMemoire(assertions), ...racine] };
+  // Les versements qui visaient un autre fichier que le domicile de leur nom.
+  // Ils n'y ont rien créé — c'est le temps 3 de la règle 10 —, et l'écran les
+  // dit : ce qui est interdit, ce n'est pas le désaccord, c'est le silence.
+  const conflits = versementsHorsDomicile(assertions, domicilesDesNoms(assertions));
+
+  return { dossiers, racine, ouEcrit, conflits, fichiers: [...fichiersDeLaMemoire(assertions), ...racine] };
 }
 
 /**
@@ -105,6 +111,11 @@ export function preparerLaMemoire(assertions = []) {
  * Une **règle** n'y entre pas : elle produit la valeur, elle ne la porte pas.
  * Sans cette distinction, une règle dirait qu'elle enregistre son résultat dans
  * le fichier où elle vit elle-même, ce qui est un cercle.
+ *
+ * Cette carte **relit** le rangement, elle ne le décide pas : c'est le registre
+ * des domiciles qui a placé chaque ligne, et un nom n'est donc plus que dans un
+ * fichier. Recalculer ici où il « devrait » être ferait deux réponses à la même
+ * question, et c'est exactement le défaut que la règle 10 ferme.
  */
 export function ouChaqueValeurEstEcrite(fichiers = []) {
   const ou = new Map();
@@ -1151,7 +1162,12 @@ export function ligneCachee(ligne, plies) {
 function renderBandeauDeRecherche(recherche, trouves, courant) {
   if (!recherche?.ouverte) return "";
 
-  const mot = texte(recherche.mot);
+  // **Pas** de `texte()` ici : il rogne les blancs, et le champ se réécrit à
+  // chaque frappe depuis cette valeur. Taper un espace le voyait disparaître
+  // aussitôt — il fallait écrire « profondeurhors » puis revenir en arrière
+  // pour l'insérer. Ce que l'utilisateur a tapé se réaffiche tel quel ; c'est
+  // la recherche qui plie les blancs, pas le champ.
+  const mot = String(recherche.mot ?? "");
   const place = courant === null ? 0 : trouves.indexOf(courant) + 1;
 
   return `
@@ -1230,6 +1246,15 @@ export function renderFichier(fichier, {
   lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
   propositions = new Map(), plies = new Set(), declares = null, variables = null, ouEcrit = null,
   /**
+   * Les noms versés hors de leur domicile — `versementsHorsDomicile()`.
+   *
+   * Règle 10, temps 3. Un versement qui visait un autre fichier n'y a pas créé
+   * de seconde ligne : il a rejoint le domicile du nom. Le taire ferait
+   * chercher longtemps pourquoi une valeur n'est pas là où l'utilitaire a cru
+   * l'écrire.
+   */
+  conflits = [],
+  /**
    * Ce qu'on cherche dans ce fichier — `{ouverte, mot, rang}`.
    *
    * `variables-du-projet.ref` fait dix-sept cents lignes, et la seule façon d'y
@@ -1249,7 +1274,7 @@ export function renderFichier(fichier, {
   sujets = new Map()
 } = {}) {
   const bornes = bornesDuFichier(fichier.lignes);
-  const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
+  const clair = fichierEnClair(fichier, { enClair: enClairDesJetons, ouEcrit });
   const lignes = grouperParVersement(lignesAffichables(fichier, { ouEcrit, auteurs }));
   const pliable = lecture === LECTURE.CODE;
 
@@ -1332,6 +1357,12 @@ export function renderFichier(fichier, {
   const doubles = nomsDeclaresDeuxFois([...(variables?.values?.() ?? [])])
     .filter((double) => double.fichiers.some((ou) => ou === adresseComplete));
 
+  // Les deux faces d'un même conflit : ce que ce fichier a reçu sans qu'on le
+  // lui destine, et ce qu'on lui destinait sans qu'il le reçoive.
+  const monAdresse = cheminDeFichier(fichier.chemin, fichier.extension);
+  const venus = (Array.isArray(conflits) ? conflits : []).filter((conflit) => conflit.domicile === monAdresse);
+  const partis = (Array.isArray(conflits) ? conflits : []).filter((conflit) => conflit.vise === monAdresse);
+
   return `
     ${renderDernierVersement(fichier.lignes, { auteurs, avatars, propositions })}
     <section class="memoire-fichier memoire-fichier--${escapeHtml(langageDeLExtension(fichier.extension))}">
@@ -1394,6 +1425,34 @@ export function renderFichier(fichier, {
           : ""
       }
       ${
+        // Temps 3 de la règle 10 : un nom versé ailleurs a rejoint son domicile,
+        // et on le dit des deux côtés — ici parce qu'il y est arrivé, là-bas
+        // parce qu'on l'y cherche en vain.
+        venus.length
+          ? `<p class="memoire-fichier__manquants memoire-fichier__manquants--double">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>${venus.length}</b> nom${venus.length > 1 ? "s" : ""} versé${
+                 venus.length > 1 ? "s" : ""} vers un autre fichier ${venus.length > 1 ? "sont arrivés" : "est arrivé"} ici —
+               ${venus.slice(0, 3).map((conflit) => `${escapeHtml(conflit.nom)} (visait ${
+                 escapeHtml(conflit.vise)})`).join(", ")}${venus.length > 3 ? "…" : ""}.
+               Un nom vit à un seul endroit, et c'est ici : le premier versement l'y a fixé.
+               Si ce domicile est le mauvais, cela se tranche par une proposition.
+             </p>`
+          : ""
+      }
+      ${
+        partis.length
+          ? `<p class="memoire-fichier__manquants memoire-fichier__manquants--double">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>${partis.length}</b> versement${partis.length > 1 ? "s" : ""} visai${
+                 partis.length > 1 ? "ent" : "t"} ce fichier et ${partis.length > 1 ? "vivent" : "vit"} ailleurs —
+               ${partis.slice(0, 3).map((conflit) => `${escapeHtml(conflit.nom)} (dans ${
+                 escapeHtml(conflit.domicile)})`).join(", ")}${partis.length > 3 ? "…" : ""}.
+               Rien n'a été écrit ici : une seconde ligne du même nom aurait divergé de la première.
+             </p>`
+          : ""
+      }
+      ${
         manquants.length
           ? `<p class="memoire-fichier__manquants">
                ${svgIcon("alert", { className: "octicon" })}
@@ -1426,32 +1485,25 @@ export function renderFichier(fichier, {
  * La recherche
  * ───────────────────────────────────────────────────────────────────────────── */
 
-/** Sans accents ni casse : « Bâtiment » se trouve en tapant « batiment ». */
-function pourChercher(valeur) {
-  return String(valeur ?? "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
 /**
- * Les lignes de la mémoire qui portent les mots cherchés.
+ * Les lignes de la mémoire qui portent la phrase cherchée.
  *
  * On cherche dans le **texte du fichier**, pas dans les champs de la base :
  * c'est ce que l'écran montre, et une recherche qui trouverait autre chose que
- * ce qu'on lit ne serait pas croyable. Tous les mots doivent y être, dans
- * n'importe quel ordre.
+ * ce qu'on lit ne serait pas croyable.
+ *
+ * Le jugement vient de `memoire-recherche-texte.js`, comme celui de la
+ * recherche dans un fichier ouvert. Cet écran avait le sien — une découpe en
+ * mots, tous exigés, dans n'importe quel ordre — et il rendait des dizaines de
+ * lignes que le fichier ouvert ne surlignait pas.
  */
 export function lignesTrouvees(memoire, query = "") {
-  const mots = pourChercher(query).split(/\s+/).filter(Boolean);
-  if (!mots.length) return [];
+  if (!phraseCherchee(query)) return [];
 
   return (memoire.fichiers ?? [])
     .map((fichier) => {
-      const lignes = lignesAffichables(fichier).filter((ligne) => {
-        if (!ligne.jetons.length) return false;
-        const clair = pourChercher(enClairDesJetons(ligne.jetons));
-        return mots.every((mot) => clair.includes(mot));
-      });
+      const lignes = lignesAffichables(fichier)
+        .filter((ligne) => ligne.jetons.length && porteLaPhrase(enClairDesJetons(ligne.jetons), query));
       return { fichier, lignes };
     })
     .filter((trouvaille) => trouvaille.lignes.length);
@@ -1465,13 +1517,10 @@ export function lignesTrouvees(memoire, query = "") {
  * ferait conclure qu'il n'y est pas.
  */
 export function piecesTrouvees(pieces = [], query = "") {
-  const mots = pourChercher(query).split(/\s+/).filter(Boolean);
-  if (!mots.length) return [];
+  if (!phraseCherchee(query)) return [];
 
-  return (Array.isArray(pieces) ? pieces : []).filter((piece) => {
-    const nom = pourChercher(piece?.name || piece?.original_filename || piece?.filename || "");
-    return nom && mots.every((mot) => nom.includes(mot));
-  });
+  return (Array.isArray(pieces) ? pieces : []).filter((piece) =>
+    porteLaPhrase(piece?.name || piece?.original_filename || piece?.filename || "", query));
 }
 
 /** Les pièces trouvées, en tête des résultats : elles s'ouvrent, elles ne se lisent pas ici. */
@@ -1591,12 +1640,20 @@ function enClairDesJetons(jetons = []) {
   return jetons.map((entree) => entree.texte).join("");
 }
 
-/** Le fichier, en clair — ce que le bouton met dans le presse-papiers. */
-export function fichierEnClair(fichier, { enClair } = {}) {
+/**
+ * Le fichier, en clair — ce que le bouton met dans le presse-papiers, et ce que
+ * le ZIP emporte.
+ *
+ * `ouEcrit` n'est pas une option d'affichage : sans lui, une fonction ne sait
+ * plus où elle range son résultat et l'écrit « dans: inconnu ». L'écran le
+ * passait, le presse-papiers et l'archive non — deux textes pour un seul
+ * fichier, et c'est le muet qu'on envoyait à un tiers.
+ */
+export function fichierEnClair(fichier, { enClair, ouEcrit = null } = {}) {
   const lignes = [
     `fichier: ${cheminDeFichier(fichier.chemin, fichier.extension)}`,
     "",
-    ...lignesAffichables(fichier).map((ligne) => enClair(ligne.jetons))
+    ...lignesAffichables(fichier, { ouEcrit }).map((ligne) => enClair(ligne.jetons))
   ];
 
   if (fichier.ecartees.length) {
@@ -1752,12 +1809,10 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
   const agent = agentDeLaFonction(assertion);
   if (agent) {
     const sujet = texte(payload.subject) || texte(assertion.subject_key);
-    const portee = zone || (zonesLisibles(assertion)[0] ?? "");
 
     const bloc = blocDeFonction({
       nom: sujet,
       quoi: texte(payload.quoi) || quoiParDefaut(sujet),
-      portee,
       // Chaque entrée, et **où le projet la porte**. C'est cette adresse qui
       // permet d'écrire la branche « sinon, va la lire là » — et donc de dire
       // qu'un paramètre passé à l'appel l'emporte sur ce que la mémoire tient.

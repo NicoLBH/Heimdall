@@ -18,14 +18,20 @@
  * fait dix-sept cents lignes, et la seule façon d'y chercher un nom était de
  * lire.
  *
+ * ## On cherche une expression, pas un sac de mots
+ *
+ * « Résultat du calcul des fondations superficielles » désigne **une** chose. La
+ * découper en mots et rendre tout ce qui en porte un — ou deux, ou trois, dans
+ * n'importe quel ordre — rendait des dizaines de lignes qu'on n'avait pas
+ * demandées. La phrase se cherche entière, dans son ordre ; seuls les blancs
+ * sont souples.
+ *
  * ## Ce fichier ne connaît ni l'écran ni la mémoire
  *
  * Il reçoit des lignes de texte et rend des positions. C'est ce qui permet de
  * s'en servir aux deux endroits — dans un fichier ouvert et dans les résultats
  * du projet — sans que les deux se mettent à chercher différemment.
  */
-
-const texte = (valeur) => String(valeur ?? "").trim();
 
 /**
  * Le texte, réduit à ce sur quoi on compare.
@@ -40,62 +46,68 @@ export function pourChercher(valeur) {
 }
 
 /**
- * Les mots d'une recherche, pliés et sans doublon.
+ * Ce qu'on cherche : **la phrase**, blancs normalisés.
  *
- * Une recherche porte souvent plusieurs mots — « Résultat du calcul des
- * fondations superficielles ». Les traiter comme **une seule chaîne** revient à
- * n'accepter que la phrase exacte, dans cet ordre, sur une seule ligne : c'est
- * ce que faisait la recherche d'un fichier, et c'est pourquoi elle ne trouvait
- * rien alors que la recherche du projet trouvait.
+ * ## Pourquoi la phrase, et pas les mots
  *
- * Les deux emploient maintenant la même découpe.
+ * La version précédente découpait la recherche en mots et gardait les lignes qui
+ * les portaient tous, dans n'importe quel ordre. Taper « Résultat du calcul des
+ * fondations superficielles » rendait alors tout ce qui contient « calcul », ou
+ * « des fondations », ou n'importe quel assemblage de ces mots — des dizaines de
+ * lignes qu'on n'a pas demandées, dans lesquelles il fallait rechercher à l'œil
+ * ce qu'on venait de chercher.
+ *
+ * Une recherche multi-mots est une **expression** : on cherche cette chose-là,
+ * nommée par ces mots-là, dans cet ordre. C'est ce que fait tout éditeur, et
+ * c'est ce qu'un lecteur attend. Chercher un seul mot reste possible — c'est
+ * une phrase d'un mot.
+ *
+ * Les blancs se normalisent : deux espaces entre deux mots, ou une fin de ligne,
+ * ne doivent pas empêcher de trouver. Ce qui est refusé, c'est l'ordre différent
+ * et les mots absents.
+ *
+ * @returns {string} la phrase pliée, ou `""` s'il n'y a rien à chercher
  */
-export function motsDeLaRecherche(quoi) {
-  return [...new Set(pourChercher(quoi).split(/\s+/).filter(Boolean))];
+export function phraseCherchee(quoi) {
+  return pourChercher(quoi).replace(/\s+/g, " ").trim();
 }
 
 /**
- * Les endroits d'une chaîne où les mots cherchés apparaissent.
+ * Les endroits d'une chaîne où la phrase cherchée apparaît.
  *
  * Rendus sur la chaîne **d'origine** : on compare sur la forme pliée, on
  * découpe sur la vraie. Sans cela, un texte accentué se recomposerait sans ses
  * accents, et l'écran montrerait autre chose que le fichier.
  *
- * Les places se **fusionnent** quand elles se touchent : « calcul » et « des »
- * cherchés ensemble dans « calcul des fondations » donnent un seul surlignage,
- * pas deux marques séparées par un blanc surligné à moitié.
+ * Un blanc de la phrase accepte n'importe quel blanc du texte, et autant qu'il
+ * y en a : c'est le seul écart toléré, et il ne change pas ce qu'on lit.
  *
  * @returns {{debut: number, fin: number}[]} triées, sans chevauchement
  */
 export function placesDuMot(chaine, mot) {
-  const mots = motsDeLaRecherche(mot);
-  if (!mots.length) return [];
+  const phrase = phraseCherchee(mot);
+  if (!phrase) return [];
 
   const dans = pourChercher(chaine);
-  const brutes = [];
-
-  for (const cherche of mots) {
-    let depuis = dans.indexOf(cherche);
-    while (depuis !== -1) {
-      brutes.push({ debut: depuis, fin: depuis + cherche.length });
-      depuis = dans.indexOf(cherche, depuis + Math.max(1, cherche.length));
-    }
-  }
-
-  brutes.sort((gauche, droite) => gauche.debut - droite.debut || gauche.fin - droite.fin);
-
   const places = [];
-  for (const place of brutes) {
-    const dernier = places.at(-1);
-    // Deux places se rejoignent quand elles se touchent, ou quand il n'y a
-    // qu'un blanc entre elles : chercher « calcul des » doit marquer
-    // « calcul des » d'un trait, et non deux mots autour d'un espace nu.
-    const colle = dernier
-      && (place.debut <= dernier.fin || !dans.slice(dernier.fin, place.debut).trim());
 
-    if (colle) dernier.fin = Math.max(dernier.fin, place.fin);
-    else places.push({ ...place });
+  // Les blancs de la phrase valent pour un ou plusieurs blancs du texte ; le
+  // reste se cherche à la lettre. Échapper d'abord : une recherche qui contient
+  // « ( » ou « . » — et le langage en est plein — deviendrait sans cela une
+  // expression régulière qui trouve n'importe quoi.
+  const motif = new RegExp(
+    phrase.split(/\s+/).map((mot) => mot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+"),
+    "g"
+  );
+
+  for (const trouve of dans.matchAll(motif)) {
+    const debut = trouve.index;
+    const fin = debut + trouve[0].length;
+    const dernier = places.at(-1);
+    if (dernier && debut <= dernier.fin) dernier.fin = Math.max(dernier.fin, fin);
+    else places.push({ debut, fin });
   }
+
   return places;
 }
 
@@ -127,7 +139,20 @@ export function morceauxSurlignes(chaine, mot) {
 }
 
 /**
- * Les rangs des lignes qui portent le mot, dans l'ordre du fichier.
+ * Une ligne porte-t-elle la phrase cherchée ?
+ *
+ * Un seul juge pour toute l'application : la recherche du projet et celle d'un
+ * fichier ouvert répondent oui aux mêmes lignes. Elles en avaient deux, qui ont
+ * fini par diverger — la liste des résultats montrait des lignes que le fichier
+ * ouvert ne surlignait pas, et le clic depuis un résultat ne menait nulle part.
+ */
+export function porteLaPhrase(chaine, mot) {
+  const phrase = phraseCherchee(mot);
+  return Boolean(phrase) && placesDuMot(chaine, phrase).length > 0;
+}
+
+/**
+ * Les rangs des lignes qui portent la phrase, dans l'ordre du fichier.
  *
  * On cherche sur le **texte affiché** de la ligne, pas sur ce que la mémoire
  * porte derrière : c'est ce que le lecteur voit, et c'est donc ce qu'il croit
@@ -137,18 +162,10 @@ export function morceauxSurlignes(chaine, mot) {
  * @returns {number[]} les rangs, sans doublon
  */
 export function lignesQuiPortent(lignes = [], mot) {
-  const mots = motsDeLaRecherche(mot);
-  if (!mots.length) return [];
+  if (!phraseCherchee(mot)) return [];
 
-  // **Tous** les mots, dans n'importe quel ordre — la même règle que la
-  // recherche du projet. Exiger la phrase exacte ferait trouver dans la liste
-  // des résultats ce qu'on ne retrouverait pas en ouvrant le fichier, et le
-  // clic depuis un résultat ne menait alors nulle part.
   return (Array.isArray(lignes) ? lignes : [])
-    .filter((ligne) => {
-      const clair = pourChercher(ligne?.clair);
-      return mots.every((cherche) => clair.includes(cherche));
-    })
+    .filter((ligne) => porteLaPhrase(ligne?.clair, mot))
     .map((ligne) => Number(ligne.rang))
     .filter((rang) => Number.isFinite(rang));
 }

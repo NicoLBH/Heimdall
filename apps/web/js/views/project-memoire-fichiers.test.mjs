@@ -521,6 +521,38 @@ test("sans lectures lisibles, la gouttière se tait plutôt que de dire « aucun
   assert.match(html, /memoire-emploi--suite/);
 });
 
+test("le champ de recherche garde l'espace qu'on vient de taper", () => {
+  // Le défaut : la valeur du champ était rognée à chaque redessin, et cette vue
+  // se redessine à la frappe. L'espace disparaissait donc aussitôt tapé — il
+  // fallait écrire « profondeurhors » puis revenir en arrière pour l'insérer.
+  const html = renderFichier(premierFichier([donnee("altitude", "Altitude du site", "13 m")]), {
+    recherche: { ouverte: true, mot: "profondeur hors ", rang: null }
+  });
+
+  assert.match(html, /value="profondeur hors "/);
+});
+
+test("un nom versé hors de son domicile se dit des deux côtés", () => {
+  // Règle 10, temps 3. Le taire ferait chercher longtemps pourquoi une valeur
+  // n'est pas là où l'utilitaire a cru l'écrire.
+  const fichier = premierFichier([donnee("altitude", "Altitude du site", "13 m")]);
+  const conflit = {
+    id: "x1", nom: "Profondeur hors gel",
+    vise: "memoire/structure.ctr", domicile: "memoire/donnees-de-base.ddb"
+  };
+
+  const recu = renderFichier(fichier, { conflits: [{ ...conflit, domicile: fichier.fichier }] });
+  assert.match(recu, /vers un autre fichier est arrivé ici/);
+  assert.match(recu, /visait memoire\/structure\.ctr/);
+
+  const attendu = renderFichier(fichier, { conflits: [{ ...conflit, vise: fichier.fichier }] });
+  assert.match(attendu, /visait ce fichier et vit ailleurs/);
+  assert.match(attendu, /dans memoire\/donnees-de-base\.ddb/);
+
+  // Sans conflit, aucun bandeau : un écran qui crie pour rien cesse d'être lu.
+  assert.doesNotMatch(renderFichier(fichier, {}), /vit ailleurs|arrivé ici/);
+});
+
 test("les trois lectures d'un fichier sont offertes", () => {
   const html = renderFichier(premierFichier([donnee("altitude", "Altitude du site", "13 m")]), {});
   for (const libelle of ["Code", "Origine", "Emplois"]) assert.match(html, new RegExp(`>${libelle}<`));

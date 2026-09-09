@@ -303,7 +303,7 @@ fondations **est** sa loi. On ne peut ni la donner, ni la taire. Le langage a
 donc un verbe pour cela — mais **pas** un second genre de fonction :
 
 ```
-fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
+fonction Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, Données d'entrée des fondations superficielles) {
    // Dimensionne les massifs superficiels d'une zone : descente de charge,
    // combinaisons, portance du sol, glissement, renversement et ferraillage.
    // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
@@ -311,12 +311,12 @@ fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profonde
    const Profondeur hors gel à retenir;
    si (Profondeur hors gel renseigné)
    alors (Profondeur hors gel à retenir = Profondeur hors gel)
-   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
+   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: zones));
 
    résultat = agent-D (
       utilitaire: dimensionnement_fondations_superficielles,
       version: V1,
-      zones: Bâtiment A,
+      zones: zones,
       Profondeur hors gel: Profondeur hors gel à retenir,
       Données d'entrée des fondations superficielles: Données d'entrée des fondations superficielles à retenir
    );
@@ -324,7 +324,7 @@ fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profonde
    enregistre (
       Résultat du calcul des fondations superficielles: résultat,
       dans: structure.ctr,
-      zones: Bâtiment A
+      zones: zones
    )
 }
 ```
@@ -333,6 +333,14 @@ fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profonde
 l'appel. C'est la différence entre « le corps de cette fonction est secret » —
 faux, et décourageant — et « cette fonction appelle un tiers, le voici nommé » —
 vrai, et vérifiable.
+
+**La portée s'écrit `zones`, jamais le nom d'une zone.** Une version antérieure
+écrivait `fonction …(batiment-a, …)` et `zones: batiment-a` dans le corps : c'est
+confondre le paramètre et l'argument. Une déclaration qui porte la zone du jour
+se lit comme une fonction propre à ce bâtiment, alors qu'elle vaut pour tous — et
+un projet de trois bâtiments montrerait trois fonctions identiques, toutes à
+corriger séparément. Ce qu'une fonction a réellement traité se lit dans le
+`.ctr`, zone par zone.
 
 Une version antérieure écrivait `fonction native NOM(…)`, ce qui confondait les
 deux. Le mot a disparu de la tête.
@@ -364,7 +372,7 @@ n'est pas le calcul, c'est qu'un tiers fait le travail et rend un résultat.
 const Profondeur hors gel à retenir;
 si (Profondeur hors gel renseigné)
 alors (Profondeur hors gel à retenir = Profondeur hors gel)
-sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
+sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: zones));
 ```
 
 Un **paramètre passé à l'appel l'emporte sur ce que la mémoire porte**. C'est

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 
 import {
   placesDuMot, morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, pourChercher,
-  motsDeLaRecherche
+  phraseCherchee, porteLaPhrase
 } from "./memoire-recherche-texte.js";
 
 test("on cherche sans accents et sans casse, on découpe sur le vrai texte", () => {
@@ -86,33 +86,47 @@ test("chercher se plie, la casse et les accents ne comptent pas", () => {
   assert.equal(pourChercher("Bâtiment A"), "batiment a");
 });
 
-test("plusieurs mots se cherchent tous, dans n'importe quel ordre", () => {
-  // « Résultat du calcul des fondations superficielles » ne se trouvait pas
-  // dans un fichier alors que la recherche du projet le trouvait : l'une
-  // cherchait la phrase exacte, l'autre les mots. Le clic depuis un résultat ne
-  // menait donc nulle part.
+test("une recherche de plusieurs mots cherche la phrase, pas les mots", () => {
+  // Le défaut : taper « Résultat du calcul des fondations superficielles »
+  // rendait tout ce qui porte « calcul », ou « des fondations », ou n'importe
+  // quel assemblage de ces mots. On cherchait ensuite à l'œil, dans les
+  // résultats, ce qu'on venait de demander.
   const lignes = [
     { rang: 1, clair: "      Résultat du calcul des fondations superficielles: résultat," },
-    { rang: 2, clair: "      utilitaire: dimensionnement," }
+    { rang: 2, clair: "      utilitaire: dimensionnement," },
+    { rang: 3, clair: "   const Profondeur des fondations = 0,47 m;" },
+    { rang: 4, clair: "   // le calcul reprend le résultat des fondations" }
   ];
+
   assert.deepEqual(lignesQuiPortent(lignes, "Résultat du calcul des fondations superficielles"), [1]);
-  assert.deepEqual(lignesQuiPortent(lignes, "fondations résultat"), [1], "l'ordre ne compte pas");
-  assert.deepEqual(lignesQuiPortent(lignes, "fondations absent"), [], "il les faut tous");
+  assert.deepEqual(lignesQuiPortent(lignes, "des fondations"), [1, 3, 4], "une phrase plus courte trouve plus");
+  assert.deepEqual(lignesQuiPortent(lignes, "fondations résultat"), [], "l'ordre compte");
+  assert.deepEqual(lignesQuiPortent(lignes, "calcul fondations"), [], "les mots épars ne suffisent plus");
 });
 
-test("deux mots voisins font un seul surlignage", () => {
-  // « calcul » et « des » cherchés ensemble donnent une marque continue, pas
-  // deux marques séparées par un blanc surligné à moitié.
+test("les blancs sont souples, le reste ne l'est pas", () => {
+  // Deux espaces entre deux mots ne doivent pas empêcher de trouver ; un mot
+  // manquant, si.
+  assert.equal(phraseCherchee("  Hors   GEL \n"), "hors gel");
+  assert.ok(porteLaPhrase("Profondeur hors   gel", "hors gel"));
+  assert.ok(!porteLaPhrase("Profondeur hors du gel", "hors gel"));
+});
+
+test("une phrase qui porte une parenthèse se cherche à la lettre", () => {
+  // Sans échappement, « agent-D ( » deviendrait une expression régulière : le
+  // « ( » ouvrirait un groupe et la recherche trouverait n'importe quoi — ou
+  // lèverait une erreur en pleine frappe.
+  assert.deepEqual(placesDuMot("résultat = agent-D (", "agent-D ("), [{ debut: 11, fin: 20 }]);
+  assert.deepEqual(placesDuMot("resultat", "a(b"), []);
+});
+
+test("la phrase trouvée se surligne d'un seul trait", () => {
   assert.deepEqual(morceauxSurlignes("calcul des fondations", "calcul des"), [
     { texte: "calcul des", trouve: true },
     { texte: " fondations", trouve: false }
   ]);
-});
-
-test("chaque mot se surligne là où il est", () => {
+  // Des mots épars ne se surlignent plus : ils ne sont pas trouvés.
   assert.deepEqual(morceauxSurlignes("hors gel du site", "site hors"), [
-    { texte: "hors", trouve: true },
-    { texte: " gel du ", trouve: false },
-    { texte: "site", trouve: true }
+    { texte: "hors gel du site", trouve: false }
   ]);
 });

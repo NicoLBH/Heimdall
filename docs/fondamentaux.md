@@ -404,22 +404,43 @@ sujet, et le même nom atterrit à deux endroits sans que personne l'ait voulu.
 l'affiche en tête, en rouge, avec l'autre fichier. Un défaut invisible ne se
 corrige jamais ; un défaut nommé se corrige à la première relecture.
 
-**2. Le registre fait autorité.** `variables-du-projet.ref` liste déjà tous les
-noms. Il devient le **registre** : le premier versement qui déclare un nom fixe
-son domicile, et tout versement ultérieur du même nom écrit là. Un nom ne
-« choisit » plus son fichier à chaque écriture — il en a un, une fois pour
-toutes.
+**2. Le registre fait autorité.** C'est fait. Le premier versement qui déclare
+un nom fixe son **domicile** ; tout versement ultérieur du même nom écrit là,
+quel que soit le domaine qu'il s'était donné. Un nom ne « choisit » plus son
+fichier à chaque écriture — il en a un, une fois pour toutes.
 
-**3. Verser ailleurs ouvre un conflit, jamais une seconde ligne.** Mdall sait
-déjà arbitrer deux valeurs contradictoires du même sujet. Un versement qui
-déclarerait un nom hors de son domicile est exactement cela : une contradiction,
-et elle se règle comme les autres — devant quelqu'un, par une proposition. Ce
-qui est interdit, c'est le **silence**.
+« Premier » se lit dans le temps, et à date égale par l'identifiant : il faut un
+ordre **total**, sans quoi deux lectures des mêmes affirmations éliraient deux
+premiers et les noms déménageraient d'un rendu à l'autre. Le registre ne se verse
+pas : il se déduit des affirmations à chaque lecture, comme
+`variables-du-projet.ref`. Un registre stocké serait une seconde vérité, et elle
+divergerait au premier versement (règle 4).
+
+**3. Verser ailleurs ouvre un conflit, jamais une seconde ligne.** C'est fait.
+Un versement qui visait un autre fichier n'y crée rien : il rejoint le domicile
+du nom, et le désaccord se **dit** — des deux côtés. Le fichier qui a reçu la
+ligne annonce « ce nom vous a été versé ailleurs, il vit ici » ; celui qu'on
+visait annonce « ce nom vous était destiné, il vit là-bas ». Sans les deux, on
+chercherait longtemps pourquoi une valeur n'est pas là où l'utilitaire a cru
+l'écrire.
+
+Le conflit se compte par **nom**, pas par versement : ce qui se tranche est « où
+vit ce nom », et le répéter pour chaque valeur ferait lire trente désaccords là
+où il y en a un. Il se règle comme les autres — devant quelqu'un, par une
+proposition. Ce qui est interdit, c'est le **silence**.
 
 C'est la même réponse que partout ailleurs en informatique — *une seule source de
 vérité par nom*, une clé unique, une résolution qui ne devine pas —, appliquée à
 une mémoire de projet plutôt qu'à une base.
 
-### Ce qui reste à écrire
+### Où c'est écrit
 
-Les temps 2 et 3. Le temps 1 est livré, et il suffit à ne plus être surpris.
+`apps/web/js/services/memoire-domiciles.js` — le registre et les conflits ; le
+rangement des affirmations passe par lui.
+
+### Ce qui reste
+
+Rien du mécanisme. Reste l'usage : un domicile mal choisi au premier versement se
+corrige aujourd'hui en versant une proposition, comme toute contradiction. Un
+geste dédié — « déménager ce nom » — se justifiera le jour où l'on en fera assez
+souvent pour que le détour se remarque.
