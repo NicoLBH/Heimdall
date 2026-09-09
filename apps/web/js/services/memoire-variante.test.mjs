@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   consequencesDeLaVariante, differencesDuTableau, laMemoireABouge, memoireAvecLaVariante,
-  valeursSubstituables, variantePourLEcran
+  resumeParColonne, valeursSubstituables, variantePourLEcran
 } from "./memoire-variante.js";
 
 /** L'altitude du site, telle que le projet la pose. Aucun nom réel nulle part. */
@@ -566,4 +566,31 @@ test("un tableau se compare par désignation, pas par rang", () => {
   assert.equal(differences[0].connue, false, "la nouvelle ligne n'a pas de passé");
   assert.deepEqual(differences[0].cellules, []);
   assert.deepEqual(differences[1], { nom: "Pignon", connue: true, cellules: [] });
+});
+
+test("une colonne qui change à l'identique partout se compte une fois", () => {
+  const differences = [
+    { nom: "A", connue: true, cellules: [
+      { colonne: "arase supérieure", avant: "-0,10 m", apres: "-0,16 m" },
+      { colonne: "ratio déterminant", avant: "0,888", apres: "0,846" }
+    ] },
+    { nom: "B", connue: true, cellules: [
+      { colonne: "arase supérieure", avant: "-0,10 m", apres: "-0,16 m" },
+      { colonne: "ratio déterminant", avant: "0,929", apres: "0,890" }
+    ] }
+  ];
+
+  const [arase, ratio] = resumeParColonne(differences);
+  assert.deepEqual(arase, {
+    colonne: "arase supérieure", lignes: 2, avant: "-0,10 m", apres: "-0,16 m", uniforme: true
+  });
+  // Deux valeurs différentes : la colonne ne se résume pas, elle se lit ligne à
+  // ligne. Dire « 0,888 → 0,846, sur 2 lignes » serait faux pour la seconde.
+  assert.equal(ratio.uniforme, false);
+  assert.equal(ratio.lignes, 2);
+});
+
+test("un tableau sans différence ne résume rien", () => {
+  assert.deepEqual(resumeParColonne([]), []);
+  assert.deepEqual(resumeParColonne([{ nom: "A", connue: true, cellules: [] }]), []);
 });

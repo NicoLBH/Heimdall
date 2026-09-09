@@ -40,7 +40,7 @@ import { svgIcon } from "../../ui/icons.js";
 import { phraseDeReserve } from "../../utilitaires/reserves.js";
 import { TOUTES_ZONES } from "../../services/memoire-en-texte.js";
 import { uniteImposee } from "../../services/saisie-unite.js";
-import { differencesDuTableau } from "../../services/memoire-variante.js";
+import { differencesDuTableau, resumeParColonne } from "../../services/memoire-variante.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -102,24 +102,36 @@ function renderReserves(codes = []) {
 }
 
 
+/** Une cellule qui change : ce qu'elle disait, ce qu'elle dit. */
+function renderCellule({ colonne, avant, apres }) {
+  return `
+    <span class="variante-tableau__cellule">
+      <i>${escapeHtml(colonne)}</i>
+      <b class="variante-tableau__avant">${escapeHtml(avant || "—")}</b>
+      ${svgIcon("arrow-right", { className: "octicon" })}
+      <b class="variante-tableau__apres">${escapeHtml(apres || "—")}</b>
+    </span>
+  `;
+}
+
 /**
- * Une valeur recalculée : ce qu'elle disait, ce qu'elle dirait.
+ * Le détail d'un tableau recalculé.
  *
- * Une valeur identique dont la réserve apparaît n'est pas une valeur inchangée :
- * un doute vient de naître, et le taire ferait passer pour acquis ce qui ne
- * l'est plus.
- */
-/**
- * Le détail d'un tableau recalculé, replié.
+ * ## Pourquoi il est ouvert
  *
- * Une fonction native ne rend pas une valeur mais douze massifs. Sa phrase —
- * « 12 vérifiées » — peut être identique avant et après alors que les douze
- * arases ont bougé : c'est ce qu'on n'arrivait pas à voir depuis cet écran, et
- * donc pas à croire. Il fallait sortir dans la mémoire pour en juger.
+ * Une fonction native ne rend pas une valeur mais douze massifs, et la phrase
+ * qui les résume peut mentir par omission : « 12 vérifiées » avant comme après,
+ * alors que dix arases ont bougé. Replié, ce détail se lisait comme une option ;
+ * il est ce qu'on est venu voir. Il s'ouvre donc dès qu'une ligne a bougé, et
+ * reste fermé quand il n'a rien à dire.
  *
- * Replié parce que douze lignes de cotes n'ont pas à recouvrir les trois valeurs
- * qui bougent ailleurs ; ouvrable parce que, le jour où l'on doute, c'est
- * exactement là qu'il faut regarder.
+ * ## Pourquoi la colonne passe avant la ligne
+ *
+ * Douze massifs qui descendent tous de six centimètres, ce n'est pas douze
+ * informations : c'en est une. Écrite douze fois, elle noie les deux lignes qui
+ * font autre chose — et c'est exactement ce qu'on regarde. Ce qui est **le même
+ * partout** se dit donc une fois, en tête ; les lignes ne portent plus que ce
+ * qui leur est propre, et celles qui n'ont plus rien à ajouter se comptent.
  */
 function renderTableauRecalcule(ligne) {
   const apres = Array.isArray(ligne?.tableau) ? ligne.tableau : null;
@@ -127,39 +139,80 @@ function renderTableauRecalcule(ligne) {
 
   const differences = differencesDuTableau(ligne?.assertion?.payload?.tableau ?? [], apres);
   const bougees = differences.filter((entree) => entree.cellules.length);
+  const immobiles = differences.filter((entree) => entree.connue && !entree.cellules.length);
+
+  // Une colonne qui change à l'identique partout : dite une fois, en tête. Il
+  // en faut deux lignes au moins — sur une seule, « en tête » et « dans la
+  // ligne » sont le même endroit, et l'écrire deux fois serait un doublon.
+  const colonnes = resumeParColonne(bougees);
+  const partout = new Set(colonnes.filter((vue) => vue.uniforme && vue.lignes > 1).map((vue) => vue.colonne));
+
+  const propres = bougees
+    .map((entree) => ({ ...entree, cellules: entree.cellules.filter((cellule) => !partout.has(cellule.colonne)) }));
+  const detaillees = propres.filter((entree) => entree.cellules.length);
+  const commeLesAutres = propres.filter((entree) => !entree.cellules.length);
 
   return `
-    <details class="variante-tableau">
+    <details class="variante-tableau"${bougees.length ? " open" : ""}>
       <summary>${
         bougees.length
-          ? `${bougees.length} ${accorde(bougees.length, "ligne du tableau a bougé", "lignes du tableau ont bougé")} sur ${apres.length}`
+          ? `<b>${bougees.length}</b> ${accorde(bougees.length, "ligne du tableau a bougé", "lignes du tableau ont bougé")} sur ${apres.length}`
           : `${apres.length} ${accorde(apres.length, "ligne", "lignes")} — aucune n'a bougé`
       }</summary>
+
+      ${
+        partout.size
+          ? `<ul class="variante-tableau__partout">${
+              colonnes.filter((vue) => partout.has(vue.colonne)).map((vue) => `
+                <li>
+                  ${renderCellule(vue)}
+                  <span class="variante-tableau__compte">sur ${vue.lignes} ${accorde(vue.lignes, "ligne", "lignes")}</span>
+                </li>
+              `).join("")
+            }</ul>`
+          : ""
+      }
+
       <ul class="variante-tableau__lignes">${
-        differences.map((entree) => `
-          <li class="variante-tableau__ligne${entree.cellules.length ? " variante-tableau__ligne--bouge" : ""}">
+        detaillees.map((entree) => `
+          <li class="variante-tableau__ligne variante-tableau__ligne--bouge">
             <span class="variante-tableau__nom">${escapeHtml(entree.nom)}</span>
-            ${
-              entree.cellules.length
-                ? `<span class="variante-tableau__cellules">${
-                    entree.cellules.map((cellule) => `
-                      <span class="variante-tableau__cellule">
-                        <i>${escapeHtml(cellule.colonne)}</i>
-                        <b class="variante-ligne__avant">${escapeHtml(cellule.avant || "—")}</b>
-                        ${svgIcon("arrow-right", { className: "octicon" })}
-                        <b class="variante-ligne__apres">${escapeHtml(cellule.apres || "—")}</b>
-                      </span>
-                    `).join("")
-                  }</span>`
-                : `<span class="variante-ligne__egal">${entree.connue ? "inchangée" : "nouvelle"}</span>`
-            }
+            <span class="variante-tableau__cellules">${entree.cellules.map(renderCellule).join("")}</span>
           </li>
         `).join("")
       }</ul>
+
+      ${
+        // Nommées, jamais escamotées : « et 2 autres » sans dire lesquelles
+        // laisserait chercher lesquelles.
+        commeLesAutres.length
+          ? `<p class="variante-tableau__reste">${
+              commeLesAutres.length
+            } ${accorde(commeLesAutres.length, "ligne ne change", "lignes ne changent")} que par ce qui précède : ${
+              escapeHtml(commeLesAutres.map((entree) => entree.nom).join(", "))
+            }.</p>`
+          : ""
+      }
+      ${
+        immobiles.length
+          ? `<p class="variante-tableau__reste">${
+              immobiles.length
+            } ${accorde(immobiles.length, "ligne n'a pas bougé", "lignes n'ont pas bougé")} : ${
+              escapeHtml(immobiles.map((entree) => entree.nom).join(", "))
+            }.</p>`
+          : ""
+      }
     </details>
   `;
 }
 
+/**
+ * Une valeur recalculée : ce qu'elle disait, ce qu'elle dirait.
+ *
+ * Une valeur identique dont la réserve apparaît n'est pas une valeur inchangée :
+ * un doute vient de naître, et le taire ferait passer pour acquis ce qui ne
+ * l'est plus.
+ */
 function renderRecalculee(ligne) {
   const bouge = ligne.valeurABouge;
   const nees = ligne.reservesApres.filter((code) => !ligne.reservesAvant.includes(code));
@@ -412,18 +465,25 @@ function renderResultat(etat) {
           }
         </section>
 
-        <section class="variante-rang variante-rang--suspect">
-          <h5>${svgIcon("alert", { className: "octicon" })} À revérifier</h5>
-          <p>
-            Ces valeurs reposent sur ce qui vient de bouger, et nous ne savons pas les rejouer ici.
-            Elles sont <b>nommées</b>, jamais devinées.
-          </p>
-          ${
-            rendu.aRevoir.length
-              ? `<ul class="variante-lignes">${rendu.aRevoir.map(renderARevoir).join("")}</ul>`
-              : `<p class="variante-rang__vide">Rien de ce que le projet tient ne repose sur ce qui vient de bouger.</p>`
-          }
-        </section>
+        ${
+          // L'alerte quand il y a de quoi alerter, et pas avant. Le rang portait
+          // son ambre et son triangle même vide, au-dessus d'une phrase qui dit
+          // que tout va bien : une alarme qui rassure apprend à ne plus la
+          // regarder, et c'est celle-là qu'il faudra croire un jour.
+          rendu.aRevoir.length
+            ? `<section class="variante-rang variante-rang--suspect">
+                <h5>${svgIcon("alert", { className: "octicon" })} À revérifier</h5>
+                <p>
+                  Ces valeurs reposent sur ce qui vient de bouger, et nous ne savons pas les rejouer ici.
+                  Elles sont <b>nommées</b>, jamais devinées.
+                </p>
+                <ul class="variante-lignes">${rendu.aRevoir.map(renderARevoir).join("")}</ul>
+              </section>`
+            : `<section class="variante-rang variante-rang--inchange">
+                <h5>${svgIcon("check", { className: "octicon" })} Rien à revérifier</h5>
+                <p>Tout ce qui dépend de cette valeur a pu être rejoué : rien n'est resté en suspens.</p>
+              </section>`
+        }
 
         <section class="variante-rang variante-rang--inchange">
           <h5>${svgIcon("dot-fill-pending", { className: "octicon" })} Inchangé</h5>

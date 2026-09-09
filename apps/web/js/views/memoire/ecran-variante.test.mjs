@@ -57,34 +57,79 @@ test("tant qu'on n'a pas calculé, le tableau dit ce qu'il attend", () => {
   assert.match(attend, /Calcul en cours/);
 });
 
-test("le tableau d'une fonction native se relit ligne à ligne, depuis l'écran", () => {
-  // Le défaut vécu : « 12 vérifiées » avant et après, et douze arases qui ont
-  // toutes bougé. Depuis cet écran on ne pouvait pas en juger — il fallait
-  // sortir dans la mémoire, et l'on ne savait donc pas si la variante avait
-  // vraiment fait quelque chose.
-  const rendu = {
-    ok: true, rejouees: [], cycles: [], inchangees: 12, confirmees: 0, aRevoir: [], depart: [],
-    recalculees: [{
-      sujet: "Résultat du calcul des fondations superficielles",
-      utilitaire: "dimensionnement_fondations_superficielles_V1",
-      avant: "12 massifs — 12 vérifiées", apres: "12 massifs — 12 vérifiées",
-      valeurABouge: true, reservesAvant: [], reservesApres: [],
-      assertion: { payload: { tableau: [{ "désignation": "Semelle 1", "arase supérieure": "-0,10 m" }] } },
-      tableau: [{ "désignation": "Semelle 1", "arase supérieure": "-3,00 m" }]
-    }]
-  };
+const massif = (nom, arase, ratio, verdict = "vérifiée") => ({
+  "désignation": nom, "arase supérieure": arase, "ratio déterminant": ratio, "vérification": verdict,
+  // Les quarante champs qui ont servi au calcul voyagent avec la ligne ; ils
+  // n'ont pas à se lire ici.
+  "entrées": { araseSuperieure: arase }
+});
 
-  const html = renderEcranDeVariante({
-    valeurs: VALEURS, etape: ETAPE.RESULTAT, choisie: VALEURS[0], saisie: "4 m", rendu
-  });
+const fondations = (avant, apres) => ({
+  ok: true, rejouees: [], cycles: [], inchangees: 12, confirmees: 0, aRevoir: [], depart: [],
+  recalculees: [{
+    sujet: "Résultat du calcul des fondations superficielles",
+    utilitaire: "dimensionnement_fondations_superficielles_V1",
+    avant: "12 massifs — 12 vérifiées", apres: "12 massifs — 12 vérifiées",
+    valeurABouge: true, reservesAvant: [], reservesApres: [],
+    assertion: { payload: { tableau: avant } },
+    tableau: apres
+  }]
+});
 
-  assert.match(html, /1 ligne du tableau a bougé sur 1/);
-  assert.match(html, /arase supérieure/);
-  assert.match(html, /-0,10 m/);
-  assert.match(html, /-3,00 m/);
-  // Replié : douze lignes de cotes ne recouvrent pas les valeurs qui bougent
-  // ailleurs.
-  assert.match(html, /<details class="variante-tableau">/);
+const ecran = (rendu) => renderEcranDeVariante({
+  valeurs: VALEURS, etape: ETAPE.RESULTAT, choisie: VALEURS[0], saisie: "800 m", rendu
+});
+
+test("le tableau d'une fonction native est ouvert, pas replié", () => {
+  // Le défaut vécu : « 12 vérifiées » avant comme après, dix arases qui ont
+  // bougé, et un détail replié qui se lisait comme une option. C'est ce qu'on
+  // est venu voir.
+  const html = ecran(fondations(
+    [massif("Semelle 1", "-0,10 m", "0,667")],
+    [massif("Semelle 1", "-0,16 m", "0,640")]
+  ));
+
+  assert.match(html, /<details class="variante-tableau" open>/);
+  assert.match(html, /1<\/b> ligne du tableau a bougé sur 1/);
+});
+
+test("ce qui change à l'identique partout se dit une fois", () => {
+  // Dix massifs qui descendent tous de six centimètres, ce n'est pas dix
+  // informations : c'en est une, et l'écrire dix fois noie la ligne qui fait
+  // autre chose.
+  const html = ecran(fondations(
+    [massif("A", "-0,10 m", "0,888"), massif("B", "-0,10 m", "0,929"), massif("C", "-0,10 m", "0,667")],
+    [massif("A", "-0,16 m", "0,846"), massif("B", "-0,16 m", "0,890"), massif("C", "-0,16 m", "0,667")]
+  ));
+
+  // L'arase, en tête, une fois, avec le nombre de lignes qu'elle emporte.
+  assert.match(html, /variante-tableau__partout/);
+  assert.match(html, /-0,10 m[\s\S]*?-0,16 m[\s\S]*?sur 3 lignes/);
+  // Le ratio varie : il se lit ligne à ligne, et seulement lui.
+  assert.match(html, /variante-tableau__nom">A<[\s\S]*?ratio déterminant/);
+  assert.doesNotMatch(html, /variante-tableau__nom">C</, "C ne change que par l'arase, déjà dite");
+  assert.match(html, /1 ligne ne change que par ce qui précède : C\./);
+});
+
+test("les lignes qui n'ont pas bougé sont nommées, jamais escamotées", () => {
+  // Deux massifs assez profonds pour que la nouvelle cote hors gel ne les
+  // concerne pas : c'est une information, pas un silence.
+  const html = ecran(fondations(
+    [massif("Semelle 1", "-0,10 m", "0,667"), massif("Portique A", "-0,10 m", "0,888")],
+    [massif("Semelle 1", "-0,10 m", "0,667"), massif("Portique A", "-0,16 m", "0,846")]
+  ));
+
+  assert.match(html, /1 ligne n'a pas bougé : Semelle 1\./);
+});
+
+test("un tableau qui ne bouge pas reste replié et le dit", () => {
+  const html = ecran(fondations(
+    [massif("Semelle 1", "-0,10 m", "0,667")],
+    [massif("Semelle 1", "-0,10 m", "0,667")]
+  ));
+
+  assert.doesNotMatch(html, /<details class="variante-tableau" open>/);
+  assert.match(html, /1 ligne — aucune n'a bougé/);
 });
 
 test("le résultat porte ses deux gestes, et le second se refuse s'il ne dit rien", () => {
