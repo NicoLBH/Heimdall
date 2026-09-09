@@ -328,6 +328,64 @@ export function consequencesDeLaVariante({
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * Ce qu'un tableau devient
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** La colonne qui nomme une ligne de tableau. C'est elle qui l'identifie. */
+const NOM_DE_LIGNE = "désignation";
+
+/**
+ * Les cellules d'une ligne qui se lisent — pas les entrées qu'elle transporte.
+ *
+ * Une ligne de massif porte, sous `entrées`, les quarante champs qui ont servi
+ * au calcul. Les comparer noierait les six cotes qui comptent sous un mur de
+ * différences qu'on ne regarde jamais.
+ */
+function cellulesLisibles(ligne) {
+  return Object.entries(ligne ?? {}).filter(([, valeur]) => valeur === null || typeof valeur !== "object");
+}
+
+/**
+ * Ce qu'une variante change dans un tableau, ligne à ligne.
+ *
+ * Une fonction native ne rend pas une valeur mais **un tableau** — douze massifs,
+ * leurs cotes, leur verdict. La phrase qui le résume ne suffit pas à juger : « 12
+ * vérifiées » avant et après peut recouvrir douze arases qui ont toutes bougé.
+ * C'est précisément ce qu'on n'arrivait pas à voir, et donc pas à croire.
+ *
+ * L'appariement se fait par la **désignation** quand elle existe : un massif
+ * ajouté ou retiré décalerait tout le reste si l'on comparait par rang. Le rang
+ * ne sert que de recours, quand une ligne n'a pas de nom.
+ *
+ * @returns {{nom: string, cellules: {colonne: string, avant: string, apres: string}[], connue: boolean}[]}
+ */
+export function differencesDuTableau(avant = [], apres = []) {
+  const anciennes = new Map();
+  const passees = Array.isArray(avant) ? avant : [];
+  passees.forEach((ligne, rang) => anciennes.set(texte(ligne?.[NOM_DE_LIGNE]) || `#${rang}`, ligne));
+
+  return (Array.isArray(apres) ? apres : []).map((ligne, rang) => {
+    const nomme = texte(ligne?.[NOM_DE_LIGNE]);
+    const nom = nomme || `#${rang}`;
+    // Le rang ne sert de recours que pour une ligne **sans nom**. Une ligne
+    // nommée qu'on ne retrouve pas est une ligne nouvelle : l'apparier au rang
+    // la comparerait à un autre massif, et rendrait douze différences fausses.
+    const ancienne = anciennes.get(nom) ?? (nomme ? null : passees[rang]) ?? null;
+
+    return {
+      nom,
+      // Une ligne sans passé n'a pas de différence à montrer : elle est neuve, et
+      // la dire « changée » ferait chercher un avant qui n'existe pas.
+      connue: Boolean(ancienne),
+      cellules: cellulesLisibles(ligne)
+        .filter(([colonne]) => colonne !== NOM_DE_LIGNE)
+        .filter(([colonne, valeur]) => Boolean(ancienne) && texte(ancienne[colonne]) !== texte(valeur))
+        .map(([colonne, valeur]) => ({ colonne, avant: texte(ancienne[colonne]), apres: texte(valeur) }))
+    };
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * La mémoire vue sous la variante
  * ────────────────────────────────────────────────────────────────────────── */
 

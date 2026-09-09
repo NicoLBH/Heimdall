@@ -21582,6 +21582,31 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .variante-ligne__reserve--levee{ color:var(--success); }
 .variante-ligne--suspecte .variante-ligne__valeurs .variante-ligne__egal{ color:#d29922; font-style:normal; }
 
+/* Le tableau d'une fonction native, replié sous la ligne qui le résume.
+
+   Douze massifs et leurs cotes n'ont pas à recouvrir les trois valeurs qui
+   bougent ailleurs. Mais « 12 vérifiées » avant et après peut recouvrir douze
+   arases qui ont toutes changé, et il faut pouvoir le regarder sans quitter
+   l'écran. */
+.variante-tableau{ grid-column:1 / -1; margin-top:4px; }
+.variante-tableau > summary{
+  cursor:pointer; color:var(--muted); font-size:12px; list-style:revert;
+}
+.variante-tableau > summary:hover{ color:var(--text); }
+.variante-tableau__lignes{
+  list-style:none; display:flex; flex-direction:column; gap:4px;
+  margin:6px 0 0; padding:0 0 0 14px;
+}
+.variante-tableau__ligne{
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px;
+  font-size:12px;
+}
+.variante-tableau__nom{ color:var(--text); font-weight:500; }
+.variante-tableau__cellules{ display:flex; flex-wrap:wrap; gap:4px 12px; min-width:0; }
+.variante-tableau__cellule{ display:inline-flex; align-items:center; gap:4px; }
+.variante-tableau__cellule i{ color:var(--muted); font-style:normal; }
+.variante-tableau__ligne .variante-ligne__avant{ text-decoration:line-through; }
+
 .variante-suite{ margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
 
 /* Le bandeau : on ne peut pas ne pas le voir, et la sortie y est toujours.

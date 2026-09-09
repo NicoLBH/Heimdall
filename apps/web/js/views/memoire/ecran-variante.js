@@ -39,6 +39,8 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { phraseDeReserve } from "../../utilitaires/reserves.js";
 import { TOUTES_ZONES } from "../../services/memoire-en-texte.js";
+import { uniteImposee } from "../../services/saisie-unite.js";
+import { differencesDuTableau } from "../../services/memoire-variante.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -107,6 +109,57 @@ function renderReserves(codes = []) {
  * un doute vient de naître, et le taire ferait passer pour acquis ce qui ne
  * l'est plus.
  */
+/**
+ * Le détail d'un tableau recalculé, replié.
+ *
+ * Une fonction native ne rend pas une valeur mais douze massifs. Sa phrase —
+ * « 12 vérifiées » — peut être identique avant et après alors que les douze
+ * arases ont bougé : c'est ce qu'on n'arrivait pas à voir depuis cet écran, et
+ * donc pas à croire. Il fallait sortir dans la mémoire pour en juger.
+ *
+ * Replié parce que douze lignes de cotes n'ont pas à recouvrir les trois valeurs
+ * qui bougent ailleurs ; ouvrable parce que, le jour où l'on doute, c'est
+ * exactement là qu'il faut regarder.
+ */
+function renderTableauRecalcule(ligne) {
+  const apres = Array.isArray(ligne?.tableau) ? ligne.tableau : null;
+  if (!apres?.length) return "";
+
+  const differences = differencesDuTableau(ligne?.assertion?.payload?.tableau ?? [], apres);
+  const bougees = differences.filter((entree) => entree.cellules.length);
+
+  return `
+    <details class="variante-tableau">
+      <summary>${
+        bougees.length
+          ? `${bougees.length} ${accorde(bougees.length, "ligne du tableau a bougé", "lignes du tableau ont bougé")} sur ${apres.length}`
+          : `${apres.length} ${accorde(apres.length, "ligne", "lignes")} — aucune n'a bougé`
+      }</summary>
+      <ul class="variante-tableau__lignes">${
+        differences.map((entree) => `
+          <li class="variante-tableau__ligne${entree.cellules.length ? " variante-tableau__ligne--bouge" : ""}">
+            <span class="variante-tableau__nom">${escapeHtml(entree.nom)}</span>
+            ${
+              entree.cellules.length
+                ? `<span class="variante-tableau__cellules">${
+                    entree.cellules.map((cellule) => `
+                      <span class="variante-tableau__cellule">
+                        <i>${escapeHtml(cellule.colonne)}</i>
+                        <b class="variante-ligne__avant">${escapeHtml(cellule.avant || "—")}</b>
+                        ${svgIcon("arrow-right", { className: "octicon" })}
+                        <b class="variante-ligne__apres">${escapeHtml(cellule.apres || "—")}</b>
+                      </span>
+                    `).join("")
+                  }</span>`
+                : `<span class="variante-ligne__egal">${entree.connue ? "inchangée" : "nouvelle"}</span>`
+            }
+          </li>
+        `).join("")
+      }</ul>
+    </details>
+  `;
+}
+
 function renderRecalculee(ligne) {
   const bouge = ligne.valeurABouge;
   const nees = ligne.reservesApres.filter((code) => !ligne.reservesAvant.includes(code));
@@ -136,6 +189,7 @@ function renderRecalculee(ligne) {
           ? `<span class="variante-ligne__pourquoi">recalculée par ${escapeHtml(ligne.utilitaire)}, au serveur</span>`
           : ""
       }
+      ${renderTableauRecalcule(ligne)}
     </li>
   `;
 }
@@ -240,6 +294,10 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
   }
 
   const calcule = etape === ETAPE.ATTENTE;
+  // L'unité de la valeur d'aujourd'hui s'impose à celle qu'on essaie. Convertir
+  // serait un autre métier — kN et tonnes, mètres et centimètres —, et une table
+  // de conversion est une seconde vérité qui divergera.
+  const unite = uniteImposee(choisie.valeur);
 
   return `
     <section class="variante-colonne">
@@ -259,9 +317,17 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
         <label class="fichiers-saisie__champ variante-saisie__champ">
           <span>dans la variante</span>
           <input type="text" class="gh-input" data-variante-valeur value="${escapeHtml(saisie)}"
+            data-variante-unite="${escapeHtml(unite)}"
             placeholder="${escapeHtml(choisie.valeur || "la valeur essayée")}" autocomplete="off"
             ${calcule ? "disabled" : ""}>
-          <small>Écrite comme le projet l'écrit : c'est ainsi que les règles la reliront.</small>
+          <small>${
+            // L'unité ne se tape pas, elle s'écrit toute seule : on la voit
+            // pendant qu'on frappe, seul moment où elle peut encore corriger
+            // une intention. Voir `services/saisie-unite.js`.
+            unite
+              ? `Seul le nombre se tape : l'unité du projet, <b>${escapeHtml(unite)}</b>, s'écrit avec.`
+              : "Écrite comme le projet l'écrit : c'est ainsi que les règles la reliront."
+          }</small>
         </label>
       </div>
 
