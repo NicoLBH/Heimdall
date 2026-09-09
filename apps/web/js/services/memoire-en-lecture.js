@@ -47,7 +47,7 @@ import {
   OPERATEUR, PROVENANCES, STATUTS, RETRAIT, JETON,
   ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
   ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote, ligneDeLocale,
-  ligneDImport, ligneDeDecision, jetonsDeValeur
+  ligneDImport, ligneDeDecision, ligneDeCalculNatif, ligneDeFonctionNative, jetonsDeValeur
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -143,6 +143,14 @@ const CHAMP_DENREGISTREMENT = /^([^:]+)\s*:\s*(.*?),?$/;
 const TABLEAU_OUVRANT = /^(.*?)\s*=\s*\[$/;
 /** `]` ou `];` — la fin du tableau. */
 const TABLEAU_FERMANT = /^\]\s*;?$/;
+/**
+ * `résultat = calcul natif (utilitaire: …, version: V1);`
+ *
+ * Le corps entier d'une fonction native. Il se lit — l'utilitaire et sa version
+ * sont ce qui permet de refaire le calcul — mais il ne se **déplie** pas : la
+ * loi n'est pas là, et la ligne le dit.
+ */
+const CALCUL_NATIF = /^résultat\s*=\s*calcul natif\s*\((.*)\)\s*;?$/i;
 
 /**
  * Un `importe (variable: X, depuis: fichier);`
@@ -164,6 +172,30 @@ export function lireUnImport(ligne = "") {
 
   const variable = champs.get("variable") ?? "";
   return variable ? { variable, depuis: champs.get("depuis") ?? "" } : null;
+}
+
+/**
+ * Un `résultat = calcul natif (utilitaire: X, version: V1);`
+ *
+ * Ce qu'il rend est ce qui permet de refaire le calcul plus tard : le nom de
+ * l'utilitaire et sa version. Rien d'autre n'est là — c'est tout le propos
+ * d'une fonction native, et la lecture ne va pas inventer un corps qui n'a
+ * jamais été écrit.
+ */
+export function lireUnCalculNatif(ligne = "") {
+  const trouve = texte(ligne).match(CALCUL_NATIF);
+  if (!trouve) return null;
+
+  const champs = new Map(
+    trouve[1].split(",").map((morceau) => {
+      const coupe = texte(morceau).match(/^([^:]+)\s*:\s*(.*)$/);
+      return coupe ? [texte(coupe[1]).toLowerCase(), texte(coupe[2])] : ["", ""];
+    })
+  );
+
+  const utilitaire = champs.get("utilitaire") ?? "";
+  if (!utilitaire) return null;
+  return { utilitaire, version: champs.get("version") ?? "" };
 }
 
 /**
@@ -332,18 +364,26 @@ export function lireUneTete(ligne = "") {
 
   // `fonction` ouvre une règle. Le mot ne se conserve pas — il **est** le fait
   // d'être une règle, et le garder à côté le laisserait diverger de lui.
+  //
+  // `native` derrière lui dit que la loi ne s'écrit pas. Celui-là se conserve :
+  // il n'est pas déductible du corps, puisque le corps est précisément ce qui
+  // manque. Sans lui, une fonction sans conditions se lirait comme une règle
+  // dont quelqu'un aurait oublié d'écrire les `si`.
   const regle = /^fonction\s+/i.test(brut);
-  const dit = regle ? texte(brut.replace(/^fonction\s+/i, "")) : brut;
+  const native = /^fonction\s+native\s+/i.test(brut);
+  const dit = native
+    ? texte(brut.replace(/^fonction\s+native\s+/i, ""))
+    : (regle ? texte(brut.replace(/^fonction\s+/i, "")) : brut);
 
   const egal = dit.match(/^(.*?)\s*=\s*(.*)$/);
   // Pas de `=` : c'est la tête d'une règle, avec sa signature éventuelle.
   if (!egal) {
     const { sujet, entrees } = lireUneSignature(dit);
-    return { sujet, valeur: "", unite: "", entrees, regle: regle || entrees.length > 0 };
+    return { sujet, valeur: "", unite: "", entrees, regle: regle || entrees.length > 0, native };
   }
 
   const lue = lireUneValeur(egal[2]);
-  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [], regle };
+  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [], regle, native };
 }
 
 /**
@@ -369,14 +409,23 @@ export function lireUnFichier(contenu = "") {
   // Le sujet d'un tableau de valeurs par zone, tant qu'il est ouvert. Les
   // entrées qui suivent portent une zone, et empruntent ce nom-là.
   let tableau = "";
+  // Un `enregistre (` ouvert **hors** d'un `alors`. C'est la forme d'une
+  // fonction native : elle n'a pas de branche à prendre, elle a un résultat à
+  // ranger, et ses sorties se lisent donc là plutôt que sous une conclusion.
+  let enregistrement = false;
 
   const fermer = () => {
     if (courant) {
       // `accolade` sert à la lecture, pas au sens : elle ne ressort pas.
-      const { accolade, ...bloc } = courant;
-      blocs.push(bloc);
+      const { accolade, native, utilitaire, version, enregistre, ...bloc } = courant;
+      // Ce qui n'est pas natif ne porte pas les champs d'une fonction native.
+      // Les laisser vides sur tous les blocs ferait croire qu'une règle a un
+      // utilitaire, et il faudrait aller lire sa valeur pour savoir que non.
+      blocs.push(native ? { ...bloc, native, utilitaire, version, enregistre } : bloc);
     }
     courant = null;
+    conclusion = "";
+    enregistrement = false;
   };
 
   lignes.forEach((brute, rang) => {
@@ -408,11 +457,32 @@ export function lireUnFichier(contenu = "") {
     // date vivent sur la ligne de la mémoire, pas dans son écriture.
     const decision = lireUneDecision(corps);
     if (decision && courant) { courant.provenance = { type: "décision", quoi: decision.quoi }; return; }
-    if (FERMETURE.test(corps)) { conclusion = ""; return; }
-    if (ENREGISTRE_OUVRANT.test(corps)) return;
+    if (FERMETURE.test(corps)) { conclusion = ""; enregistrement = false; return; }
+    // Sous un `alors (`, l'`enregistre` ne fait que redire ce que la branche
+    // pose : il s'ignore. Seul, il **est** la sortie, et ce qu'il porte est la
+    // seule trace de ce qu'un calcul natif a décidé.
+    if (ENREGISTRE_OUVRANT.test(corps)) { enregistrement = !conclusion; return; }
+
+    // Le corps d'une fonction native, tout entier. On garde de quoi le refaire
+    // — l'utilitaire, sa version — et rien de plus : il n'y a rien de plus.
+    const natif = lireUnCalculNatif(corps);
+    if (natif && courant) { courant.utilitaire = natif.utilitaire; courant.version = natif.version; return; }
 
     const ouvreUneConclusion = corps.match(CONCLUSION_OUVRANTE);
     if (ouvreUneConclusion && courant) { conclusion = ouvreUneConclusion[1].toLowerCase(); return; }
+
+    // Les sorties d'une fonction native. `dans` et `zones` se déduisent — le
+    // fichier est celui qu'on écrit, la portée celle de la fonction — et ne se
+    // conservent donc pas ; tout le reste est un sujet que le calcul a posé.
+    if (enregistrement && courant) {
+      const champ = corps.match(CHAMP_DENREGISTREMENT);
+      const cle = texte(champ?.[1]).toLowerCase();
+      if (champ && cle !== "dans" && cle !== "zones") {
+        const lue = lireUneValeur(texte(champ[2]));
+        courant.enregistre.push({ sujet: texte(champ[1]), valeur: lue.valeur, unite: lue.unite });
+      }
+      return;
+    }
 
     if (conclusion && courant) {
       const champ = corps.match(CHAMP_DENREGISTREMENT);
@@ -468,7 +538,10 @@ export function lireUnFichier(contenu = "") {
         zone: dansLeTableau ? texte(dansLeTableau[1]) : zone,
         accolade: ouvre,
         conditions: [], alors: "", sinon: "", sauf: [],
-        provenance: null, preuve: "", statut: "", le: ""
+        provenance: null, preuve: "", statut: "", le: "",
+        // Ce qu'une fonction native porte, et qu'une règle n'a pas : le fait
+        // que sa loi ne s'écrive pas, de quoi la refaire, et ce qu'elle a posé.
+        native: Boolean(tete.native), utilitaire: "", version: "", enregistre: []
       };
       return;
     }
@@ -667,6 +740,12 @@ export function jetonsDeLaLigne(ligne = "") {
   const decision = lireUneDecision(nu);
   if (decision) return [...marge, ...(ligneDeDecision(decision, 0) ?? []).slice(1)];
 
+  // Le corps d'une fonction native. Il passe **avant** la lecture d'un champ :
+  // la ligne porte des deux-points, et sans cette priorité elle se lirait comme
+  // « le sujet "résultat = calcul natif (utilitaire" vaut … ».
+  const natif = lireUnCalculNatif(nu);
+  if (natif) return [...marge, ...(ligneDeCalculNatif(natif, 0) ?? []).slice(1)];
+
   const ouvreUneConclusion = nu.match(CONCLUSION_OUVRANTE);
   if (ouvreUneConclusion) {
     return [...marge,
@@ -732,12 +811,24 @@ export function jetonsDeLaLigne(ligne = "") {
     if (condition) return [...marge, ...ligneDeCondition(mot, condition, 0, { regle: borne }).slice(1)];
   }
 
-  // Une tête de bloc : une affirmation, ou une règle avec sa signature.
-  const tete = lireUneTete(nu);
-  if (tete?.regle) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees, { regle: /^fonction\s/i.test(nu) })];
-  if (tete?.entrees?.length) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees)];
-  if (tete?.valeur) return [...marge, ...ligneDAffirmation({ sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite })];
-  if (tete?.sujet) return [...marge, ...ligneDeDonnee(tete.sujet)];
+  // Une tête de bloc : une affirmation, ou une fonction avec sa signature.
+  //
+  // L'accolade se retire avant de lire et se remet après. La garder faisait
+  // avaler la signature entière par le sujet — « Classement du bâtiment(zones,
+  // Hauteur) { » en un seul jeton —, et une règle apparaissait dans un diff
+  // sans aucune de ses entrées colorées.
+  const ouvrante = /\s*\{$/.test(nu);
+  const sansAccolade = ouvrante ? texte(nu.replace(/\s*\{$/, "")) : nu;
+  const borne = ouvrante ? [{ type: JETON.NEUTRE, texte: " " }, { type: JETON.ACCOLADE, texte: "{" }] : [];
+
+  const tete = lireUneTete(sansAccolade);
+  if (tete?.native) {
+    return [...marge, ...ligneDeFonctionNative(tete.sujet, tete.entrees), ...borne];
+  }
+  if (tete?.regle) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees, { regle: /^fonction\s/i.test(nu) }), ...borne];
+  if (tete?.entrees?.length) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees), ...borne];
+  if (tete?.valeur) return [...marge, ...ligneDAffirmation({ sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite }), ...borne];
+  if (tete?.sujet) return [...marge, ...ligneDeDonnee(tete.sujet), ...borne];
 
   // Ce qu'on ne sait pas lire s'affiche tel quel, sans couleur. Le taire serait
   // pire : la ligne existe, et elle doit rester lisible.

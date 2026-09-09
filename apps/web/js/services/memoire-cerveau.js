@@ -450,9 +450,16 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
      * une faute — la valeur est là, dans le bloc —, mais elle n'est ni auditable,
      * ni rattachable à un document, ni comparable d'une version à l'autre. On le
      * compte plutôt que de laisser croire que la mémoire porte tout.
+     *
+     * Une **fonction native** n'entre pas dans ce compte : elle ne conclut pas
+     * sur son propre nom — ses conclusions sont les sujets qu'elle a écrits, et
+     * ceux-là sont versés. La compter ici annoncerait une lacune à chaque
+     * étude de fondations, et un chiffre qui monte sans qu'il manque rien
+     * apprend à ne plus le regarder.
      */
     conclusionsSansValeur: new Set(
       enVigueur.filter(estUneRegle)
+        .filter((regle) => !regle?.payload?.native)
         .map((regle) => cleDuSujet(texte(regle?.payload?.subject)))
         .filter((cle) => cle && !sujetsDesValeurs.has(cle))
     ).size,

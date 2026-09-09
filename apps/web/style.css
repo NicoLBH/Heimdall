@@ -18364,6 +18364,14 @@ strong.est-verifie{ color:#3fb950; }
   color:var(--attention, #d29922); font-size:12px;
 }
 
+/* Le geste qui lève l'alerte, sur la ligne qui la dit : chercher ailleurs le
+   bouton qui corrige ce qu'on vient de lire, c'est ne pas le trouver. */
+.fondations-alerte__geste{
+  margin-left:6px; vertical-align:baseline;
+  border-color:var(--attention, #d29922); color:var(--attention, #d29922);
+}
+.fondations-alerte__geste:hover{ background:rgba(210,153,34,.14); }
+
 .fondations-schema__terres{ opacity:.5; }
 .fondations-schema__hachure{ stroke:var(--muted); stroke-width:.6; opacity:.55; }
 .fondations-schema__terrain{ stroke:var(--fg); stroke-width:1.2; }

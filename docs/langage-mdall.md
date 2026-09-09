@@ -269,7 +269,8 @@ seule chose.
 | verbe | ce qu'il fait |
 | --- | --- |
 | `importe (variable: X, depuis: f)` | dit d'où vient une entrée, et où aller la lire |
-| `enregistre (X: v, dans: f, zones: z)` | écrit une valeur dans un fichier, sur une portée |
+| `enregistre (X: v, …, dans: f, zones: z)` | écrit une ou plusieurs valeurs dans un fichier, sur une portée |
+| `calcul natif (utilitaire: X, version: V)` | le corps d'une fonction dont la loi ne s'écrit pas |
 | `décision humaine assumée (quoi, par: X, le: d)` | quelqu'un a tranché, et il signe |
 
 `décision humaine assumée` remplace la ligne `décision:` dès qu'on sait qui a
@@ -288,6 +289,66 @@ fil de l'eau ne se relirait nulle part. Ceux que le besoin nommera ensuite :
   deux phrases différentes ;
 - `à vérifier (question, pour: qui)` — la machine s'arrête et appelle quelqu'un,
   plutôt que de conclure à sa place.
+
+---
+
+## Une fonction native : la loi est ailleurs, et c'est écrit
+
+Une règle porte sa loi : `si (Hauteur ≤ 28 m) alors ("3e famille B")`. C'est
+possible parce que cette loi est un arrêté — publique, opposable, citable.
+
+Certains utilitaires n'ont pas cette loi-là : un pré-dimensionnement de
+fondations superficielles **est** sa loi, et l'écrire dans un projet reviendrait
+à la donner. On ne peut pas non plus le taire, puisqu'il a décidé de cotes. Le
+langage a donc un second genre de fonction :
+
+```
+fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel) {
+   // Dimensionne les massifs superficiels d'une zone : descente de charge,
+   // combinaisons, portance du sol, glissement, renversement et ferraillage.
+   // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
+
+   importe (variable: Profondeur hors gel, depuis: Sol/climat.ctr, zones: Bâtiment A);
+
+   résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);
+
+   enregistre (
+      Section Lx de la semelle File A: 1,20 m,
+      Section Ly de la semelle File A: 1,20 m,
+      Hauteur de la semelle File A: 0,90 m,
+      Arase supérieure de la semelle File A: -0,10 m,
+      Nombre de massifs de la semelle File A: 9,
+      Volume de béton de la semelle File A: 11,66 m3,
+      Vérification de la semelle File A: "vérifiée",
+      dans: Structure/fondations.ctr,
+      zones: Bâtiment A
+   )
+}
+```
+
+Trois choses la distinguent d'une règle, et pas une de plus.
+
+**`native` sur la première ligne.** Il annonce qu'il n'y a pas de corps à
+chercher. Un fichier où les `si` manqueraient sans explication se lirait comme
+un fichier tronqué ; celui-ci se lit comme une décision.
+
+**`calcul natif` à la place des conditions.** L'utilitaire est nommé, sa version
+aussi : c'est ce qui permet de refaire le calcul en le **redemandant**, et de
+savoir six mois plus tard avec quoi ces cotes ont été trouvées.
+
+**Un `enregistre` qui porte plusieurs sujets.** Une règle conclut sur une
+valeur ; un calcul qui dimensionne rend un tableau. Les éclater en sept
+`enregistre` répéterait sept fois le fichier et la zone pour un seul geste, et
+noierait le tableau dans ce qui ne change pas.
+
+Le nom de chaque sortie porte l'appui — « Section Lx **de la semelle File A** » —
+parce que la mémoire s'adresse par sujet : vingt sujets du même nom seraient un
+seul sujet qui change vingt fois de valeur.
+
+Tout le reste est commun : le commentaire dans la fonction, `importe`, la portée
+en premier paramètre. Une fonction native compte dans les fonctions, ses
+variables dans les variables, et le cerveau la dessine comme une étape du
+raisonnement — parce qu'elle en est une. Voir `docs/fondamentaux.md`, règle 9.
 
 ---
 
@@ -751,6 +812,8 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/memoire-en-lecture.js` | lit — texte → graphe, et colore |
 | `apps/web/js/services/memoire-rangement.js` | où un fichier vit, et sous quelle extension |
 | `apps/web/js/services/incendie-en-texte.js` | branche l'utilitaire incendie sur le tout |
+| `apps/web/js/utilitaires/dimensionnement_fondations_superficielles_V1.js` | déclare la fonction native des fondations — ce qu'elle lit, jamais comment |
+| `apps/web/js/services/fondations-versement.js` | ce qu'une étude de fondations propose : l'appel, et les cotes qu'il a posées |
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |

@@ -94,14 +94,17 @@ export function natureDuNoeud(assertion, { produites = new Set() } = {}) {
 function planDeLaZone(assertions, zone) {
   const ici = assertions.filter((assertion) => vautDans(assertion, zone));
 
-  // Les règles qui servent ici, par le sujet qu'elles produisent.
+  // Les règles qui servent ici, par le sujet qu'elles produisent. Une fonction
+  // native en produit plusieurs, et se range donc sous chacun : c'est le seul
+  // moyen que les cotes qu'elle pose se sachent dérivées.
   const regles = new Map();
   for (const assertion of ici) {
     if (!estUneRegle(assertion)) continue;
     const portees = porteesDe(assertion);
     if (portees.length ? !portees.includes(zone) : zone !== "") continue;
-    const cle = cleDuSujet(sujetDe(assertion));
-    if (cle && !regles.has(cle)) regles.set(cle, assertion);
+    for (const cle of sujetsProduits(assertion)) {
+      if (cle && !regles.has(cle)) regles.set(cle, assertion);
+    }
   }
 
   // Les valeurs, par sujet. Une seule par sujet dans une zone : la plus
@@ -126,6 +129,10 @@ function planDeLaZone(assertions, zone) {
       lecturesDeLaRegle(regle)
         .map((nom) => texte(valeurs.get(cleDuSujet(nom))?.id))
         .filter(Boolean)
+        // Une fonction native lit un sujet qu'elle pose aussi — l'arase, par
+        // exemple, entre et ressort. Se déclarer sa propre entrée ferait un
+        // cycle d'un pas, et la strate ne se placerait jamais.
+        .filter((entree) => entree !== texte(sortie.id))
     )]);
   }
 
@@ -236,6 +243,27 @@ export function planDeRecalcul(assertions = []) {
 
 /** Les affirmations qu'une règle du projet produit, toutes zones confondues. */
 /**
+ * Les sujets qu'une fonction pose.
+ *
+ * Une règle en pose un — le sien : « Classement du bâtiment » conclut le
+ * classement. Une **fonction native** en pose autant qu'elle en a écrit, et
+ * aucun ne porte son nom : un calcul qui dimensionne vingt massifs rend cent
+ * quarante cotes et s'appelle « Prédimensionnement des fondations ».
+ *
+ * Sans cette distinction, les cent quarante cotes passaient pour du socle — ce
+ * que le projet pose lui-même — alors qu'elles sont ce qu'il a **dérivé**. Une
+ * variante ne les aurait jamais marquées à refaire.
+ */
+export function sujetsProduits(regle = {}) {
+  const native = regle?.payload?.native;
+  if (!native) return [cleDuSujet(sujetDe(regle))];
+
+  return (Array.isArray(native.ecrit) ? native.ecrit : [])
+    .map((sortie) => cleDuSujet(texte(sortie?.sujet)))
+    .filter(Boolean);
+}
+
+/**
  * Les affirmations qu'une règle du projet produit, toutes zones confondues.
  *
  * Exportée parce que trois écrans en ont besoin pour la même raison — savoir ce
@@ -244,7 +272,7 @@ export function planDeRecalcul(assertions = []) {
  */
 export function sortiesDesRegles(assertions) {
   const sujets = new Set(
-    assertions.filter(estUneRegle).map((regle) => cleDuSujet(sujetDe(regle))).filter(Boolean)
+    assertions.filter(estUneRegle).flatMap(sujetsProduits).filter(Boolean)
   );
 
   return new Set(

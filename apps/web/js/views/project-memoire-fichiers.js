@@ -29,7 +29,7 @@ import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
 import { renderBoutonHaut } from "./ui/bouton-haut.js";
 import {
-  blocDAffirmation, blocDeRegle, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
+  blocDAffirmation, blocDeRegle, blocDeFonctionNative, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
   ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire,
   JETON, OPERATEUR, TOUTES_ZONES, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
@@ -1516,6 +1516,21 @@ function fichierOuEcrire(sujet, ouEcrit) {
 }
 
 /**
+ * Une valeur écrite, séparée de son unité.
+ *
+ * `« 1,20 m »` s'écrit `1,20` puis `m`, en deux jetons de couleurs différentes ;
+ * `« vérifiée »` reste une seule chaîne, citée. C'est la troisième loi de
+ * lecture — une valeur mesurée ne porte pas de guillemets, une valeur textuelle
+ * en porte — appliquée à ce qu'une fonction a posé.
+ */
+function valeurEtUnite(brute) {
+  const dit = texte(brute);
+  return dit && estMesuree(dit)
+    ? { valeur: couperLUnite(dit).nombre, unite: couperLUnite(dit).unite }
+    : { valeur: dit, unite: "" };
+}
+
+/**
  * Ce qu'une fonction fait, quand personne ne l'a écrit.
  *
  * ## Pourquoi on ne se tait pas
@@ -1566,6 +1581,46 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
   //
   // `alors` n'est pas stocké : c'est `payload.value`, et une valeur écrite à
   // deux endroits finit par diverger. On la remet ici.
+  // Une **fonction native** s'écrit comme une fonction, sans son corps : ce
+  // qu'elle importe, l'appel, ce qu'elle enregistre. Sa loi n'est pas là, et
+  // c'est écrit noir sur blanc plutôt que d'être un blanc dans le fichier —
+  // voir `docs/fondamentaux.md`, règle 9.
+  if (payload.native) {
+    const sujet = texte(payload.subject) || texte(assertion.subject_key);
+    const portee = zone || (zonesLisibles(assertion)[0] ?? "");
+    const lues = (payload.native.lit ?? []).map(texte).filter(Boolean);
+    const ecrites = (payload.native.ecrit ?? [])
+      .map((sortie) => ({ sujet: texte(sortie?.sujet), ...valeurEtUnite(texte(sortie?.valeur)) }))
+      .filter((sortie) => sortie.sujet);
+
+    // Les sorties se groupent par fichier d'arrivée. Vingt massifs qui
+    // atterrissent tous dans le même `.ctr` font un `enregistre`, pas cent
+    // quarante : répéter le fichier et la zone à chaque cote noierait le tableau
+    // dans ce qui ne change pas.
+    const parFichier = new Map();
+    for (const sortie of ecrites) {
+      const dans = fichierOuEcrire(sortie.sujet, ouEcrit)?.dans ?? "";
+      if (!parFichier.has(dans)) parFichier.set(dans, []);
+      parFichier.get(dans).push(sortie);
+    }
+
+    const bloc = blocDeFonctionNative({
+      nom: sujet,
+      quoi: texte(payload.quoi) || quoiParDefaut(sujet),
+      portee: portee,
+      parametres: lues,
+      // La zone de l'emprunt est celle de la fonction : une variable n'a pas une
+      // valeur, elle en a une par partie d'ouvrage, et importer sans dire
+      // laquelle reviendrait à en prendre une au hasard.
+      importe: lues.map((nom) => ({ variable: nom, depuis: fichierQuiDeclare(nom, ouEcrit), zones: portee })),
+      utilitaire: texte(payload.native.utilitaire),
+      version: texte(payload.native.version),
+      enregistre: [...parFichier.entries()].map(([dans, valeurs]) => ({ valeurs, dans }))
+    }, profondeur);
+
+    return bloc.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
+  }
+
   if (payload.regle) {
     const sujet = texte(payload.subject) || texte(assertion.subject_key);
     const conditions = payload.regle.conditions ?? [];

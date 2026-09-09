@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  blocDeRegle, blocDAffirmation, enTeteDeFichier, corpsDuFichier, texteDesLignes,
-  PROVENANCE, STATUT, OPERATEUR, TOUTES_ZONES
+  blocDeRegle, blocDAffirmation, blocDeFonctionNative, enTeteDeFichier, corpsDuFichier,
+  texteDesLignes, enClair, PROVENANCE, STATUT, OPERATEUR, TOUTES_ZONES
 } from "./memoire-en-texte.js";
 import {
   lireUnFichier, lireUneCondition, lireUneValeur, lireUneTete,
@@ -457,4 +457,82 @@ test("un import se lit, une décision aussi", () => {
   );
   // Sans provenance, la ligne ne dit rien : on ne fabrique pas une décision vide.
   assert.equal(lireUneDecision("décision humaine assumée (par: Nicolas L.);"), null);
+});
+
+test("lire(écrire(G)) = G — une fonction native traverse le texte sans rien perdre", () => {
+  // Ce qui se conserve d'une fonction native est ce qui n'est pas déductible :
+  // le fait que sa loi ne s'écrive pas, de quoi la refaire, et ce qu'elle a
+  // posé. Les `importe` et le fichier d'arrivée se déduisent, comme pour une
+  // règle, et ne reviennent donc pas.
+  const fonction = {
+    nom: "Prédimensionnement des fondations superficielles",
+    quoi: "Dimensionne les massifs superficiels d'une zone.",
+    portee: "Bâtiment A",
+    parametres: ["Profondeur hors gel"],
+    importe: [{ variable: "Profondeur hors gel", depuis: "Sol/climat.ctr", zones: "Bâtiment A" }],
+    utilitaire: "dimensionnement_fondations_superficielles",
+    version: "V1",
+    enregistre: [{
+      valeurs: [
+        { sujet: "Section Lx de la semelle File A", valeur: "1,20", unite: "m" },
+        { sujet: "Vérification de la semelle File A", valeur: "vérifiée" }
+      ],
+      dans: "Structure/fondations.ctr",
+      zones: "Bâtiment A"
+    }]
+  };
+
+  const { blocs, refus } = lireUnFichier(texteDesLignes(blocDeFonctionNative(fonction)));
+  assert.deepEqual(refus, [], "rien ne doit être refusé");
+  assert.equal(blocs.length, 1);
+
+  const [bloc] = blocs;
+  assert.equal(bloc.sujet, fonction.nom);
+  assert.equal(bloc.native, true);
+  assert.equal(bloc.utilitaire, "dimensionnement_fondations_superficielles");
+  assert.equal(bloc.version, "V1");
+  assert.deepEqual(bloc.enregistre, [
+    { sujet: "Section Lx de la semelle File A", valeur: "1,20", unite: "m" },
+    { sujet: "Vérification de la semelle File A", valeur: "vérifiée", unite: "" }
+  ]);
+});
+
+test("une règle ordinaire ne porte pas les champs d'une fonction native", () => {
+  // Les laisser vides sur tous les blocs ferait croire qu'une règle a un
+  // utilitaire, et il faudrait lire sa valeur pour savoir que non.
+  const { blocs } = lireUnFichier(texteDesLignes(REGLES.flatMap((regle) => blocDeRegle(regle))));
+  for (const bloc of blocs) {
+    assert.equal("native" in bloc, false);
+    assert.equal("utilitaire" in bloc, false);
+  }
+});
+
+test("une ligne de fonction se recolore avec sa signature, accolade comprise", () => {
+  // L'accolade avalait la signature entière : « Classement du bâtiment(zones,
+  // Hauteur) { » sortait en un seul jeton, et une règle apparaissait dans un
+  // diff sans aucune de ses entrées colorées.
+  const ligne = "fonction Classement du bâtiment(zones, Hauteur) {";
+  const jetons = jetonsDeLaLigne(ligne);
+  assert.equal(enClair(jetons), ligne, "la ligne se réécrit à l'identique");
+  assert.deepEqual(jetons.filter((j) => j.type === "parametre").map((j) => j.texte), ["zones", "Hauteur"]);
+  assert.ok(jetons.some((j) => j.type === "accolade" && j.texte === "{"));
+});
+
+test("`native` se colore comme `fonction` : les deux mots ouvrent la même chose", () => {
+  const ligne = "fonction native Prédimensionnement(Bâtiment A, Profondeur hors gel) {";
+  const jetons = jetonsDeLaLigne(ligne);
+  assert.equal(enClair(jetons), ligne);
+  assert.deepEqual(
+    jetons.filter((j) => j.type === "mot-fonction").map((j) => j.texte),
+    ["fonction", "native"]
+  );
+});
+
+test("le corps d'une fonction native se recolore, il ne se lit pas comme un champ", () => {
+  // La ligne porte des deux-points : sans priorité sur la lecture d'un champ,
+  // elle se lisait comme « le sujet "résultat = calcul natif (utilitaire" vaut … ».
+  const ligne = "   résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);";
+  const jetons = jetonsDeLaLigne(ligne);
+  assert.equal(enClair(jetons), ligne);
+  assert.ok(jetons.some((j) => j.type === "mot-natif" && j.texte === "calcul natif"));
 });

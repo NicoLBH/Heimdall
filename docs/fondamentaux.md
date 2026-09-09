@@ -254,3 +254,90 @@ Deux conséquences pour le code :
    déplace pas à la main un fichier que l'application écrit.
 2. **Aucun écran de la mémoire n'a d'état à lui.** Un pliage de bloc, un
    chemin, un mode de lecture sont des vues ; les effacer ne perd rien.
+
+---
+
+## 9. Une règle se lit, une fonction native ne se lit pas — et le dit
+
+Mdall écrit le raisonnement d'un projet en clair. Une règle d'incendie s'écrit
+`si (Hauteur ≤ 28 m) alors ("3e famille B")`, avec son article et sa citation :
+sa loi est publique — c'est un arrêté —, et l'écrire est ce qui permet de la
+rejouer, de la contester et de la voir vieillir quand le texte change.
+
+Certains utilitaires n'ont pas cette loi-là. Un pré-dimensionnement de
+fondations superficielles parcourt trois cent quatre-vingt-huit combinaisons,
+pondère, compare des portances, choisit un ferraillage : **sa loi est le
+produit**. L'écrire dans le fichier d'un projet reviendrait à la donner, et un
+projet exporté la donnerait à qui l'ouvre.
+
+On ne peut pas non plus le cacher. Une fois employé, il a décidé de cotes que le
+client paiera en béton. Les taire ferait de la moitié du raisonnement un trou —
+et « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien » (règle 5).
+
+**Un tel utilitaire est donc une fonction native du langage.**
+
+```
+fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel) {
+   // Dimensionne les massifs superficiels d'une zone : descente de charge,
+   // combinaisons, portance du sol, glissement, renversement et ferraillage.
+   // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
+
+   importe (variable: Profondeur hors gel, depuis: Sol/climat.ctr, zones: Bâtiment A);
+
+   résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);
+
+   enregistre (
+      Section Lx de la semelle File A: 1,20 m,
+      Section Ly de la semelle File A: 1,20 m,
+      Hauteur de la semelle File A: 0,90 m,
+      Vérification de la semelle File A: "vérifiée",
+      dans: Structure/fondations.ctr,
+      zones: Bâtiment A
+   )
+}
+```
+
+### Ce qui ne change pas, et c'est l'essentiel
+
+Le commentaire dans la fonction, les `importe`, l'`enregistre`, la portée en
+premier paramètre : tout ce que Mdall lit d'une fonction se lit de celle-ci
+exactement pareil. Elle compte dans les fonctions, ses variables comptent dans
+les variables, le cerveau la dessine comme un nœud de raisonnement — parce
+qu'elle en est un —, et l'onde de choc la traverse.
+
+### Ce qui change, et c'est une ligne
+
+Là où une règle enchaîne ses `si … alors`, celle-ci dit `résultat = calcul natif
+(…)`. Le mot `native` sur la première ligne l'annonce : **on ne cherchera pas un
+corps qui manque, on saura qu'il n'y en a pas à lire.** Un blanc dans un fichier
+se lit comme un oubli ; une ligne qui dit « la loi est ailleurs, la voici
+nommée » se lit comme une décision.
+
+L'utilitaire et sa version sont écrits, et c'est ce qui permet de refaire le
+calcul — en le **redemandant**, jamais en le recopiant. Six mois plus tard, on
+saura avec quoi ces cotes ont été trouvées.
+
+### Une fonction native pose plusieurs sujets
+
+Une règle conclut sur son propre nom : « Classement du bâtiment » conclut le
+classement. Un calcul qui dimensionne vingt massifs pose cent quarante cotes, et
+aucune ne porte le nom de la fonction. Trois endroits du code en dépendent, et
+le manquer coupait la chaîne en silence :
+
+| où | ce qu'il faut lire |
+| --- | --- |
+| `memoire-applications.js` | les lectures se rattachent à **chaque** sortie |
+| `memoire-plan.js` | une valeur produite par la fonction est **dérivée**, pas du socle |
+| `memoire-evaluateur.js` | elle est **indécidable** au navigateur : sa loi n'est pas dans le texte |
+
+Ce dernier point est le garde-fou. Sans lui, une fonction sans conditions
+s'évaluait sur zéro condition, donc « vraie », et le rejeu annonçait qu'elle
+tient — sans avoir rien calculé. Une confirmation qu'on n'a pas obtenue est pire
+qu'un silence : elle apprend à croire l'écran.
+
+### Ce que cela n'autorise pas
+
+Le mot `native` n'est pas une porte de sortie pour ce qu'on n'a pas eu le
+courage d'écrire. Il se justifie par **une** raison, et elle se dit en une
+phrase : la loi est le produit. Une règle qu'on trouve fastidieuse à transcrire
+reste une règle, et s'écrit.

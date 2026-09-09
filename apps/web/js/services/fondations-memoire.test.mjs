@@ -5,7 +5,9 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RAPPELS, rappelsDeLaMemoire, preremplir, alertesDeLaMemoire } from "./fondations-memoire.js";
+import {
+  RAPPELS, rappelsDeLaMemoire, preremplir, alertesDeLaMemoire, descendreHorsGel
+} from "./fondations-memoire.js";
 
 const dire = (sujet, valeur, extra = {}) => ({
   subject_key: sujet, payload: { value: valeur },
@@ -153,4 +155,32 @@ test("chaque rappel déclaré vise au moins un sujet de la mémoire", () => {
     assert.ok(rappel.libelle, `${rappel.cle} doit se lire`);
     assert.equal(typeof rappel.lire, "function", `${rappel.cle} doit savoir lire une phrase`);
   }
+});
+
+test("l'alerte du hors gel porte le geste qui la lève, avec son chiffre", () => {
+  const rappels = { profondeurHorsGel: { valeur: "0.99" } };
+  const [alerte] = alertesDeLaMemoire({ araseSuperieure: -0.1, hauteurLz: 0.5 }, rappels);
+
+  assert.equal(alerte.cle, "horsGel");
+  // Le chiffre est sur le bouton : « Corriger » tout seul demanderait de cliquer
+  // pour savoir ce qu'on accepte, et ce n'est pas ainsi qu'on change une cote.
+  assert.equal(alerte.corrigerDit, "Descendre l'arase à -0,49 m");
+  assert.equal(alerte.corriger.araseSuperieure, -0.49);
+  assert.equal(alerte.corriger.hauteurLz, 0.5, "on enterre le massif, on ne l'épaissit pas");
+});
+
+test("descendre l'assise : on enterre le massif, on ne remonte jamais celui qui est déjà bas", () => {
+  const rappels = { profondeurHorsGel: { valeur: "0.99" } };
+  assert.equal(descendreHorsGel({ araseSuperieure: -2, hauteurLz: 0.5 }, rappels), null);
+  assert.equal(descendreHorsGel({ araseSuperieure: -0.1, hauteurLz: 0.5 }, {}), null,
+    "sans profondeur hors gel en mémoire, il n'y a rien à corriger");
+});
+
+test("l'assise corrigée atteint exactement la profondeur hors gel", () => {
+  const rappels = { profondeurHorsGel: { valeur: "1.2" } };
+  const corrigees = descendreHorsGel({ araseSuperieure: -0.1, hauteurLz: 0.9 }, rappels);
+  const assise = Math.abs(corrigees.araseSuperieure) + 0.9;
+  assert.ok(Math.abs(assise - 1.2) < 1e-9);
+  // Et la corriger une seconde fois ne fait plus rien : l'alerte est levée.
+  assert.equal(descendreHorsGel(corrigees, rappels), null);
 });
