@@ -31,10 +31,18 @@ export function renderLightTabs({
 } = {}) {
   const resolvedTone = normalizeTone(tone);
   const suite = String(trailingHtml || '').trim();
+  // Une rangée dès qu'il y a de quoi la remplir à droite **ou** une classe que
+  // l'appelant lui a donnée — la pleine largeur des Changements, par exemple.
+  const enRangee = Boolean(suite) || Boolean(String(rowClassName || '').trim());
+
   const navClasses = [
     'light-tabs',
     resolvedTone ? `light-tabs--${resolvedTone}` : '',
-    suite ? 'light-tabs--en-rangee' : '',
+    // Le filet appartient à la **rangée** dès qu'il y en a une, et le nav éteint
+    // le sien. La classe suivait le compteur : sans compteur mais dans une
+    // rangée, les deux filets se dessinaient — celui du nav sur sa largeur, celui
+    // de la rangée sur la sienne, décalés l'un de l'autre.
+    enRangee ? 'light-tabs--en-rangee' : '',
     className,
     navClassName
   ].filter(Boolean).join(' ');
@@ -68,7 +76,7 @@ export function renderLightTabs({
   // d'ajouts est vide, et la barre d'onglets perdait sa pleine largeur au-dessus
   // d'un diff qui la gardait. Une décision de mise en page ne se défait pas
   // parce qu'un compteur n'a rien à dire.
-  if (!suite && !String(rowClassName || '').trim()) return nav;
+  if (!enRangee) return nav;
 
   // Le filet passe sur la rangée entière, compteur compris ; l'onglet actif le
   // masque comme il masquait celui du `nav`. Porté par les onglets seuls, il
