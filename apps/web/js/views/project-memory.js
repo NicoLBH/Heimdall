@@ -111,6 +111,7 @@ import { renderLightTabs, bindLightTabs } from "./ui/light-tabs.js";
 import { renderSharedDetailsTitleWrap } from "./ui/detail-header.js";
 import { renderOverlayChromeHead, bindOverlayChromeCompact } from "./ui/overlay-chrome.js";
 import { enClair } from "../services/memoire-en-texte.js";
+import { frappeAvecUnite } from "../services/saisie-unite.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
 import { fichiersDeLaMemoire, zonesLisibles } from "../services/memoire-blame.js";
 import { chaineDuRaisonnement, traceDesLignes, grapheDuRaisonnement } from "../services/memoire-raisonnement.js";
@@ -3380,6 +3381,22 @@ function brancherLEcranDeVariante(root) {
   root.querySelector("[data-variante-valeur]")?.addEventListener("keydown", (evenement) => {
     if (evenement.key === "Enter") { evenement.preventDefault(); void calculerLaVariante(root); }
   });
+
+  // L'unité du projet s'écrit à mesure qu'on tape le nombre : « 8 » devient
+  // « 8 m », « 80 » devient « 80 m ». Le champ ne peut donc jamais porter une
+  // valeur dans une autre unité que celle qu'il remplace — ce qui vaut mieux que
+  // de convertir, et bien mieux que de deviner. Voir `services/saisie-unite.js`.
+  const champ = root.querySelector("[data-variante-valeur]");
+  if (champ) {
+    champ.addEventListener("input", () => {
+      const { texte: ecrit, caret } = frappeAvecUnite(champ.value, champ.getAttribute("data-variante-unite") || "");
+      if (ecrit === champ.value) return;
+      champ.value = ecrit;
+      // Le curseur revient devant l'unité : sans cela la frappe suivante
+      // s'écrirait derrière le « m », et le champ se remplirait à l'envers.
+      champ.setSelectionRange(caret, caret);
+    });
+  }
   root.querySelector("[data-variante-abandonner]")?.addEventListener("click", () => fermerLaVariante(root));
   root.querySelector("[data-variante-exporter]")?.addEventListener("click", () => emporterLaVariante());
 

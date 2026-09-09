@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  consequencesDeLaVariante, laMemoireABouge, memoireAvecLaVariante, valeursSubstituables,
-  variantePourLEcran
+  consequencesDeLaVariante, differencesDuTableau, laMemoireABouge, memoireAvecLaVariante,
+  valeursSubstituables, variantePourLEcran
 } from "./memoire-variante.js";
 
 /** L'altitude du site, telle que le projet la pose. Aucun nom réel nulle part. */
@@ -528,4 +528,42 @@ test("on ne propose pas de faire varier une valeur qu'un versement a refaite", (
   ]);
 
   assert.deepEqual(choix.map((entree) => entree.id), ["neuf"]);
+});
+
+test("un tableau recalculé dit ligne à ligne ce qui a bougé", () => {
+  // La phrase peut être identique — « 12 vérifiées » avant et après — alors que
+  // les douze arases ont changé. Sans ce détail, on ne peut pas en juger, et
+  // c'est ce qu'on n'arrivait pas à voir depuis l'écran de la variante.
+  const avant = [
+    { "désignation": "Semelle 1", "arase supérieure": "-0,10 m", "vérification": "vérifiée", "entrées": { araseSuperieure: "-0,1" } },
+    { "désignation": "Pignon", "arase supérieure": "-0,10 m", "vérification": "vérifiée", "entrées": { araseSuperieure: "-0,1" } }
+  ];
+  const apres = [
+    { "désignation": "Semelle 1", "arase supérieure": "-3,00 m", "vérification": "vérifiée", "entrées": { araseSuperieure: "-3" } },
+    { "désignation": "Pignon", "arase supérieure": "-0,10 m", "vérification": "vérifiée", "entrées": { araseSuperieure: "-0,1" } }
+  ];
+
+  const differences = differencesDuTableau(avant, apres);
+  assert.deepEqual(differences[0].cellules, [
+    { colonne: "arase supérieure", avant: "-0,10 m", apres: "-3,00 m" }
+  ]);
+  // Les quarante entrées du calcul ne sont pas comparées : elles noieraient les
+  // six cotes qui comptent.
+  assert.equal(differences[0].cellules.some((cellule) => cellule.colonne === "entrées"), false);
+  assert.deepEqual(differences[1].cellules, []);
+});
+
+test("un tableau se compare par désignation, pas par rang", () => {
+  // Un massif ajouté en tête décalerait tout le reste, et l'on lirait douze
+  // lignes changées là où une seule l'est.
+  const avant = [{ "désignation": "Pignon", "hauteur": "0,50 m" }];
+  const apres = [
+    { "désignation": "Semelle 1", "hauteur": "1,00 m" },
+    { "désignation": "Pignon", "hauteur": "0,50 m" }
+  ];
+
+  const differences = differencesDuTableau(avant, apres);
+  assert.equal(differences[0].connue, false, "la nouvelle ligne n'a pas de passé");
+  assert.deepEqual(differences[0].cellules, []);
+  assert.deepEqual(differences[1], { nom: "Pignon", connue: true, cellules: [] });
 });

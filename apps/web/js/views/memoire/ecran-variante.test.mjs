@@ -31,6 +31,22 @@ test("la portée s'affiche sur la valeur choisie", () => {
   assert.match(html, /0,47 m/);
 });
 
+test("le champ porte l'unité du projet, et le dit", () => {
+  // On tapait « 8 » là où la mémoire porte « 0,47 m », et l'écran affichait
+  // `0,47 m → 8`. L'unité s'impose désormais, et le champ l'annonce avant la
+  // première frappe.
+  const mesure = renderEcranDeVariante({ valeurs: VALEURS, etape: ETAPE.SAISIE, choisie: VALEURS[0] });
+  assert.match(mesure, /data-variante-unite="m"/);
+  assert.match(mesure, /Seul le nombre se tape/);
+
+  // Une valeur qui n'est pas une mesure n'impose rien : coller « m » derrière
+  // une catégorie serait absurde.
+  const categorie = { id: "cl", sujet: "Classement", valeur: "3e famille B", zones: [], lectures: 1 };
+  const texte = renderEcranDeVariante({ valeurs: [categorie], etape: ETAPE.SAISIE, choisie: categorie });
+  assert.match(texte, /data-variante-unite=""/);
+  assert.doesNotMatch(texte, /Seul le nombre se tape/);
+});
+
 test("tant qu'on n'a pas calculé, le tableau dit ce qu'il attend", () => {
   // Un cadre vide se lit comme un écran cassé.
   const vide = renderEcranDeVariante({ valeurs: VALEURS, etape: ETAPE.CHOIX });
@@ -39,6 +55,36 @@ test("tant qu'on n'a pas calculé, le tableau dit ce qu'il attend", () => {
   const attend = renderEcranDeVariante({ valeurs: VALEURS, etape: ETAPE.ATTENTE, choisie: VALEURS[0], saisie: "8 m" });
   assert.match(attend, /Rien n'y est écrit/);
   assert.match(attend, /Calcul en cours/);
+});
+
+test("le tableau d'une fonction native se relit ligne à ligne, depuis l'écran", () => {
+  // Le défaut vécu : « 12 vérifiées » avant et après, et douze arases qui ont
+  // toutes bougé. Depuis cet écran on ne pouvait pas en juger — il fallait
+  // sortir dans la mémoire, et l'on ne savait donc pas si la variante avait
+  // vraiment fait quelque chose.
+  const rendu = {
+    ok: true, rejouees: [], cycles: [], inchangees: 12, confirmees: 0, aRevoir: [], depart: [],
+    recalculees: [{
+      sujet: "Résultat du calcul des fondations superficielles",
+      utilitaire: "dimensionnement_fondations_superficielles_V1",
+      avant: "12 massifs — 12 vérifiées", apres: "12 massifs — 12 vérifiées",
+      valeurABouge: true, reservesAvant: [], reservesApres: [],
+      assertion: { payload: { tableau: [{ "désignation": "Semelle 1", "arase supérieure": "-0,10 m" }] } },
+      tableau: [{ "désignation": "Semelle 1", "arase supérieure": "-3,00 m" }]
+    }]
+  };
+
+  const html = renderEcranDeVariante({
+    valeurs: VALEURS, etape: ETAPE.RESULTAT, choisie: VALEURS[0], saisie: "4 m", rendu
+  });
+
+  assert.match(html, /1 ligne du tableau a bougé sur 1/);
+  assert.match(html, /arase supérieure/);
+  assert.match(html, /-0,10 m/);
+  assert.match(html, /-3,00 m/);
+  // Replié : douze lignes de cotes ne recouvrent pas les valeurs qui bougent
+  // ailleurs.
+  assert.match(html, /<details class="variante-tableau">/);
 });
 
 test("le résultat porte ses deux gestes, et le second se refuse s'il ne dit rien", () => {
