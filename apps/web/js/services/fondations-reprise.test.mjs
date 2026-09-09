@@ -92,7 +92,7 @@ test("un massif qui échoue reste dans le tableau repris", async () => {
   });
 
   assert.equal(refaite.tableau.length, 1);
-  assert.equal(refaite.tableau[0].verification, "non calculée");
+  assert.equal(refaite.tableau[0]["vérification"], "non calculée");
   assert.equal(typeof calculer, "function");
 });
 
@@ -175,7 +175,7 @@ test("l'altitude change, et les fondations se refont — toute la chaîne", asyn
   assert.equal(fondations.valeurABouge, true);
   assert.match(fondations.avant, /assise mini 1,00 m/);
   assert.match(fondations.apres, /assise mini 1,50 m/);
-  assert.equal(fondations.tableau[0].arase, -0.6, "le tableau d'après voyage avec");
+  assert.equal(fondations.tableau[0]["arase supérieure"], "-0,60 m", "le tableau d'après voyage avec");
 });
 
 test("les fonctions natives se reprennent en dernier, sur ce que les utilitaires ont établi", async () => {

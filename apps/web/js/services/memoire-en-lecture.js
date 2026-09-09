@@ -140,6 +140,16 @@ const IMPORT_LIGNE = /^importe\s*\((.*)\)\s*;?$/i;
 const DECISION_LIGNE = /^décision humaine assumée\s*\((.*)\)\s*;?$/i;
 const FERMETURE = /^\)+\s*;?$/;
 const CHAMP_DENREGISTREMENT = /^([^:]+)\s*:\s*(.*?),?$/;
+/** `tableau: [` — les valeurs d'un tableau, dans le fichier qui le range. */
+const TABLEAU_DE_VALEURS = /^(tableau|entrées|entrees)\s*:\s*\[$/i;
+/** `{` ou `},` — un objet du tableau qui s'ouvre ou se ferme. */
+const OBJET_OUVRANT = /^\{$/;
+const OBJET_FERMANT = /^\}\s*,?$/;
+/** `clé: [` et `clé: {` — un champ qui contient autre chose qu'une valeur. */
+const CHAMP_OUVRANT = /^(.+?)\s*:\s*([[{])$/;
+/** `]` ou `],` — la fin d'une liste. */
+const LISTE_FERMANTE = /^\]\s*,?$/;
+
 /** `Sujet = [` — une variable qui ouvre ses valeurs, une par zone. */
 const TABLEAU_OUVRANT = /^(.*?)\s*=\s*\[$/;
 /** `]` ou `];` — la fin du tableau. */
@@ -190,6 +200,71 @@ export function lireUnImport(ligne = "") {
   return variable
     ? { variable, depuis: champs.get("depuis") ?? "", zones: champs.get("zones") ?? "" }
     : null;
+}
+
+/**
+ * Une ligne d'un tableau de valeurs, ajoutée à ce qu'on lit.
+ *
+ * Une grammaire bornée, et c'est ce qui la rend sûre : une accolade ouvre un
+ * objet, un crochet une liste, `clé: valeur` pose un champ, et la fermeture du
+ * dernier niveau clôt le tableau. Rien d'autre n'y est admis — un tableau qui
+ * accepterait n'importe quoi ne se relirait pas.
+ *
+ * Les valeurs reviennent **telles qu'elles sont écrites** : « 1,20 m » et non
+ * `1.2`. La mémoire compare des phrases, et reconvertir en nombre ici ferait
+ * deux écritures de la même cote.
+ *
+ * @returns {boolean} `true` tant que le tableau continue
+ */
+export function lireLeTableau(lecture, ligne = "") {
+  const dit = texte(ligne);
+  const dessus = lecture.pile.at(-1) ?? null;
+
+  if (OBJET_OUVRANT.test(dit)) {
+    const objet = {};
+    if (dessus?.liste) dessus.liste.push(objet);
+    else lecture.lignes.push(objet);
+    lecture.pile.push({ objet });
+    return true;
+  }
+
+  if (OBJET_FERMANT.test(dit)) { lecture.pile.pop(); return true; }
+
+  if (LISTE_FERMANTE.test(dit)) {
+    // Le crochet du dernier niveau ferme le tableau lui-même.
+    if (!lecture.pile.length) return false;
+    lecture.pile.pop();
+    return true;
+  }
+
+  const ouvrant = dit.match(CHAMP_OUVRANT);
+  if (ouvrant && dessus?.objet) {
+    const cle = texte(ouvrant[1]);
+    if (ouvrant[2] === "[") {
+      const liste = [];
+      dessus.objet[cle] = liste;
+      lecture.pile.push({ liste });
+    } else {
+      const objet = {};
+      dessus.objet[cle] = objet;
+      lecture.pile.push({ objet });
+    }
+    return true;
+  }
+
+  const champ = dit.match(CHAMP_DENREGISTREMENT);
+  if (champ && dessus?.objet) {
+    const brut = texte(champ[2]).replace(/,$/, "");
+    const lue = lireUneValeur(brut);
+    // `—` est ce qu'on écrit pour une valeur qu'on n'a pas : elle revient vide,
+    // et non comme un tiret que personne n'a posé.
+    dessus.objet[texte(champ[1])] = brut === "—" ? "" : (lue.unite ? `${lue.valeur} ${lue.unite}` : lue.valeur);
+    return true;
+  }
+
+  // Une ligne qu'on ne sait pas placer ferme le tableau plutôt que de l'avaler :
+  // mieux vaut la refuser plus bas, avec son numéro, que la perdre ici.
+  return false;
 }
 
 /**
@@ -438,11 +513,22 @@ export function lireUnFichier(contenu = "") {
   // déduit de la signature — sauf l'utilitaire et sa version, qui sont ce qui
   // permet de refaire le calcul.
   let calcul = false;
+  /**
+   * Le tableau de valeurs en cours de lecture, avec la pile de ce qu'il ouvre.
+   *
+   * Un tableau **ne se déduit de rien** : c'est ce que l'appel a rendu, ligne à
+   * ligne. Le sauter reviendrait à perdre la moitié de ce que le fichier dit —
+   * et la lecture le refuserait ligne après ligne, ce qui est pire.
+   */
+  let tableauLu = null;
 
   const fermer = () => {
     if (courant) {
       // `accolade` sert à la lecture, pas au sens : elle ne ressort pas.
-      const { accolade, native, utilitaire, version, enregistre, ...bloc } = courant;
+      const { accolade, native, utilitaire, version, enregistre, tableau, ...bloc } = courant;
+      // Un tableau ne ressort que s'il y en a un : le champ vide sur toutes les
+      // affirmations ferait croire que chacune en porte un.
+      if (Array.isArray(tableau) && tableau.length) bloc.tableau = tableau;
       // Ce qui n'est pas natif ne porte pas les champs d'une fonction native.
       // Les laisser vides sur tous les blocs ferait croire qu'une règle a un
       // utilitaire, et il faudrait aller lire sa valeur pour savoir que non.
@@ -452,10 +538,31 @@ export function lireUnFichier(contenu = "") {
     conclusion = "";
     enregistrement = false;
     calcul = false;
+    tableauLu = null;
   };
 
   lignes.forEach((brute, rang) => {
     const numero = rang + 1;
+
+    // Un tableau de valeurs, tant qu'il est ouvert. Il passe **avant les
+    // bornes** : ses accolades ouvrent et ferment des objets, et la lecture des
+    // bornes les prendrait pour celles d'un bloc — la première `}` du tableau
+    // fermait l'affirmation, et tout le reste du fichier était refusé ligne à
+    // ligne.
+    const nu = texte(brute);
+    if (tableauLu) {
+      if (lireLeTableau(tableauLu, nu)) return;
+      if (courant) courant.tableau = tableauLu.lignes;
+      tableauLu = null;
+      return;
+    }
+
+    const ouvreUnTableauDeValeurs = nu.match(TABLEAU_DE_VALEURS);
+    if (ouvreUnTableauDeValeurs && courant) {
+      tableauLu = { nom: texte(ouvreUnTableauDeValeurs[1]), lignes: [], pile: [] };
+      return;
+    }
+
     const { ferme, ouvre, corps } = bornesDe(brute);
     if (!corps && !ferme) return;
 
@@ -584,7 +691,9 @@ export function lireUnFichier(contenu = "") {
         provenance: null, preuve: "", statut: "", le: "",
         // Ce qu'une fonction native porte, et qu'une règle n'a pas : le fait
         // que sa loi ne s'écrive pas, de quoi la refaire, et ce qu'elle a posé.
-        native: Boolean(tete.native), utilitaire: "", version: "", enregistre: []
+        native: Boolean(tete.native), utilitaire: "", version: "", enregistre: [],
+        // Et ce qu'une affirmation porte quand sa valeur est un tableau.
+        tableau: null
       };
       return;
     }
@@ -793,7 +902,7 @@ export function jetonsDeLaLigne(ligne = "") {
   // lirait comme le sujet « résultat » valant « calcul natif ( ».
   if (CALCUL_NATIF_OUVRANT.test(nu)) {
     return [...marge,
-      { type: JETON.LOCALE, texte: "résultat" },
+      { type: JETON.NOM_LOCAL, texte: "résultat" },
       { type: JETON.NEUTRE, texte: " " },
       { type: JETON.OPERATEUR, texte: "=" },
       { type: JETON.NEUTRE, texte: " " },
@@ -852,6 +961,7 @@ export function jetonsDeLaLigne(ligne = "") {
     // utilitaire, une version. Les trois dernières ne se citent pas — ce sont
     // des noms, pas des textes du projet.
     const COULEURS = { dans: JETON.CHEMIN, zones: JETON.PORTEE, utilitaire: JETON.SOURCE, version: JETON.SOURCE };
+
     if (COULEURS[nomEnCle]) {
       return [...marge,
         { type: JETON.LOCALE, texte: cle },
@@ -872,7 +982,7 @@ export function jetonsDeLaLigne(ligne = "") {
       { type: JETON.SUJET, texte: cle },
       { type: JETON.PONCTUATION, texte: ":" },
       { type: JETON.NEUTRE, texte: " " },
-      ...(reference ? [{ type: JETON.LOCALE, texte: dit }] : jetonsDeValeur(lue.valeur, lue.unite)),
+      ...(reference ? [{ type: JETON.NOM_LOCAL, texte: dit }] : jetonsDeValeur(lue.valeur, lue.unite)),
       ...virgule];
   }
 

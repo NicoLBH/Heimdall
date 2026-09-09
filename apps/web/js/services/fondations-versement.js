@@ -96,9 +96,39 @@ export function verdictDe(verifiee) {
 export function tableauDesEntrees(semelles = []) {
   return (Array.isArray(semelles) ? semelles : []).map((semelle, rang) => ({
     designation: texte(semelle?.designation) || `Semelle ${rang + 1}`,
-    nombre: Math.max(0, Math.trunc(Number(semelle?.nombre) || 0)),
-    entrees: semelle?.entrees ?? {}
+    nombre: String(Math.max(0, Math.trunc(Number(semelle?.nombre) || 0))),
+    entrees: enPhrases(semelle?.entrees ?? {})
   }));
+}
+
+/**
+ * Un objet d'entrées, écrit comme la mémoire écrit ses valeurs.
+ *
+ * ## Pourquoi tout devient du texte
+ *
+ * Parce que la mémoire est un texte, et qu'elle doit se relire à l'identique.
+ * `1.2` écrit dans un fichier français se lit « 1,2 » ; relu, il redevient
+ * `"1,2"` et non `1.2`. Un aller-retour qui change la forme d'une valeur fait
+ * mentir le diff : le fichier annonce une modification là où personne n'a
+ * touché à rien.
+ *
+ * Le calcul, lui, n'y perd rien : tout ce qui reçoit ces entrées les lit avec
+ * une virgule comme avec un point.
+ */
+export function enPhrases(valeur) {
+  if (valeur === null || valeur === undefined) return "";
+  if (Array.isArray(valeur)) return valeur.map(enPhrases);
+  if (typeof valeur === "object") {
+    return Object.fromEntries(Object.entries(valeur).map(([cle, dedans]) => [cle, enPhrases(dedans)]));
+  }
+  if (typeof valeur === "number") {
+    // Au plus trois décimales : au-delà, c'est du bruit de virgule flottante, et
+    // une cote de fondation au dixième de millimètre ne veut rien dire.
+    return Number.isFinite(valeur)
+      ? valeur.toLocaleString("fr-FR", { maximumFractionDigits: 3, useGrouping: false })
+      : "";
+  }
+  return texte(valeur);
 }
 
 /**
@@ -110,17 +140,31 @@ export function tableauDesEntrees(semelles = []) {
  */
 export function tableauDuResultat(semelles = [], resultats = []) {
   const { lignes } = synthese(semelles, resultats);
+  const cote = (valeur) => {
+    const n = nombre(valeur);
+    return n === null ? "" : `${ecrire(n, 2)} m`;
+  };
 
   return lignes.map((ligne) => ({
-    designation: ligne.designation,
-    nombre: ligne.nombre,
-    sectionLx: nombre(ligne.entrees?.sectionLx),
-    sectionLy: nombre(ligne.entrees?.sectionLy),
-    hauteur: nombre(ligne.entrees?.hauteurLz),
-    arase: nombre(ligne.entrees?.araseSuperieure),
-    volume: ligne.volume?.total ?? 0,
-    verification: verdictDe(ligne.verifiee),
-    ratio: ligne.ratio
+    "désignation": ligne.designation,
+    "nombre de massifs": String(ligne.nombre),
+    "section Lx": cote(ligne.entrees?.sectionLx),
+    "section Ly": cote(ligne.entrees?.sectionLy),
+    "hauteur": cote(ligne.entrees?.hauteurLz),
+    "arase supérieure": cote(ligne.entrees?.araseSuperieure),
+    "volume de béton": `${ecrire(ligne.volume?.total ?? 0, 2)} m3`,
+    "vérification": verdictDe(ligne.verifiee),
+    "ratio déterminant": ligne.ratio === null || ligne.ratio === undefined ? "" : ecrire(ligne.ratio, 3),
+    /**
+     * Ce que le calcul a **reçu** pour cette ligne-là.
+     *
+     * Ce n'est pas le tableau d'entrée redit une seconde fois : c'est ce qui a
+     * été envoyé, après les corrections que l'appel applique — l'arase descendue
+     * à la profondeur hors gel, par exemple. L'écart entre les deux est
+     * précisément ce qu'on veut voir, et sans lui on ne peut ni vérifier ce
+     * résultat ni le refaire.
+     */
+    "entrées": enPhrases(ligne.entrees ?? {})
   }));
 }
 
@@ -274,8 +318,8 @@ export function resultatVersable(semelles = [], resultats = [], zone = "") {
   const table = tableauDuResultat(semelles, resultats);
   if (!table.length) return null;
 
-  const enDefaut = table.some((ligne) => ligne.verification === "en défaut");
-  const inconnues = table.some((ligne) => ligne.verification === "non calculée");
+  const enDefaut = table.some((ligne) => ligne["vérification"] === "en défaut");
+  const inconnues = table.some((ligne) => ligne["vérification"] === "non calculée");
 
   return {
     sujet: SUJET_RESULTAT,

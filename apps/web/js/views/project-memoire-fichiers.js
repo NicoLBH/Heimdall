@@ -27,9 +27,13 @@ import { escapeHtml } from "../utils/escape-html.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
+import {
+  morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe
+} from "../services/memoire-recherche-texte.js";
 import { renderBoutonHaut } from "./ui/bouton-haut.js";
 import {
-  blocDAffirmation, blocDeRegle, blocDeFonctionNative, cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
+  blocDAffirmation, blocDeRegle, blocDeFonctionNative, lignesDeTableau,
+  cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
   ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire,
   JETON, OPERATEUR, TOUTES_ZONES, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
@@ -1101,6 +1105,44 @@ export function ligneCachee(ligne, plies) {
  * ferait croire à quatre décisions.
  */
 /**
+ * Le bandeau de recherche d'un fichier : ce qu'on tape, et où l'on en est.
+ *
+ * ## Pourquoi il dit le compte
+ *
+ * « 3 sur 17 » est ce qui manque le plus à une recherche : sans lui, on ne sait
+ * ni s'il reste des occurrences ni si l'on vient de reboucler. C'est aussi ce
+ * qui rend les flèches compréhensibles — deux boutons sans compte se cliquent
+ * au hasard.
+ *
+ * Il ne s'affiche que si on l'a ouvert : un champ de recherche permanent au-
+ * dessus de chaque fichier prend la place de deux lignes de code sur tous les
+ * fichiers pour servir sur un.
+ */
+function renderBandeauDeRecherche(recherche, trouves, courant) {
+  if (!recherche?.ouverte) return "";
+
+  const mot = texte(recherche.mot);
+  const place = courant === null ? 0 : trouves.indexOf(courant) + 1;
+
+  return `
+    <div class="memoire-cherche">
+      <span class="memoire-cherche__icone">${svgIcon("search", { className: "octicon" })}</span>
+      <input type="search" class="memoire-cherche__champ" data-memoire-cherche-champ
+        value="${escapeHtml(mot)}" placeholder="Chercher dans ce fichier" aria-label="Chercher dans ce fichier">
+      <span class="memoire-cherche__compte">${
+        !mot ? "" : trouves.length ? `${place} sur ${trouves.length}` : "aucune"
+      }</span>
+      <button type="button" class="gh-btn gh-btn--sm" data-memoire-cherche-pas="-1"
+        ${trouves.length ? "" : "disabled"} title="Précédent">${svgIcon("chevron-up", { className: "octicon" })}</button>
+      <button type="button" class="gh-btn gh-btn--sm" data-memoire-cherche-pas="1"
+        ${trouves.length ? "" : "disabled"} title="Suivant">${svgIcon("chevron-down", { className: "octicon" })}</button>
+      <button type="button" class="gh-btn gh-btn--sm" data-memoire-cherche-fermer
+        title="Fermer la recherche">${svgIcon("x", { className: "octicon" })}</button>
+    </div>
+  `;
+}
+
+/**
  * À quoi sert cette ligne, dans la gouttière.
  *
  * Seule la **première ligne d'un bloc** porte l'annotation : les suivantes
@@ -1158,6 +1200,14 @@ export function renderFichier(fichier, {
   lecture = LECTURE.CODE, auteurs = new Map(), avatars = new Map(),
   propositions = new Map(), plies = new Set(), declares = null, variables = null, ouEcrit = null,
   /**
+   * Ce qu'on cherche dans ce fichier — `{ouverte, mot, rang}`.
+   *
+   * `variables-du-projet.ref` fait dix-sept cents lignes, et la seule façon d'y
+   * chercher un nom était de lire. Un fichier qu'on ne peut pas parcourir n'est
+   * pas consultable, quelle que soit la qualité de ce qu'il contient.
+   */
+  recherche = null,
+  /**
    * Ce qui emploie chaque affirmation — `emploisParAffirmation()`.
    *
    * `null` : les lectures n'ont pas pu être lues. « Personne ne s'en sert » et
@@ -1172,6 +1222,14 @@ export function renderFichier(fichier, {
   const clair = fichierEnClair(fichier, { enClair: enClairDesJetons });
   const lignes = grouperParVersement(lignesAffichables(fichier, { ouEcrit, auteurs }));
   const pliable = lecture === LECTURE.CODE;
+
+  // Ce que la recherche du fichier a trouvé, et où elle en est. Calculé avant
+  // les lignes : c'est ce qui décide de la marque que chacune porte.
+  const cherche = texte(recherche?.mot);
+  const trouves = cherche
+    ? lignesQuiPortent(lignes.map((ligne) => ({ rang: ligne.rang, clair: enClairDesJetons(ligne.jetons) })), cherche)
+    : [];
+  const courant = trouves.includes(Number(recherche?.rang)) ? Number(recherche.rang) : (trouves[0] ?? null);
 
   const corps = lignes.map((ligne) => {
     const porteuse = ligne.assertion ?? ligneDuVersement(lignes, ligne.versement);
@@ -1190,7 +1248,9 @@ export function renderFichier(fichier, {
         style="--memoire-profondeur:${ligne.profondeur ?? 0}"
         data-memoire-ancetres="${escapeHtml((ligne.ancetres ?? []).join(" "))}"${
         ligne.ferme ? ` data-memoire-ferme="${escapeHtml(ligne.ferme)}"` : ""
-      }${cachee ? " hidden" : ""}>
+      }${trouves.includes(ligne.rang) ? " memoire-ligne--trouvee" : ""}${
+        courant === ligne.rang ? " is-courante" : ""
+      }${cachee ? " hidden" : ""} data-memoire-rang="${ligne.rang}">
         ${
           // L'ancienneté colore **chaque** ligne, la première d'un bloc comme
           // les suivantes : c'est une bande continue qu'on lit sans y penser,
@@ -1224,7 +1284,7 @@ export function renderFichier(fichier, {
               : `<span class="memoire-ligne__caret" aria-hidden="true"></span>`
             : ""
         }
-        <span class="memoire-ligne__code">${renderJetons(ligne.jetons, { declares, variables })}${
+        <span class="memoire-ligne__code">${renderJetons(ligne.jetons, { declares, variables, mot: cherche })}${
           ligne.ouvre
             ? `<span class="memoire-ligne__replie" aria-hidden="true">${svgIcon("fold", { className: "octicon" })}</span>`
             : ""
@@ -1255,7 +1315,11 @@ export function renderFichier(fichier, {
           titre: "Copier le fichier dans le presse-papiers",
           titreCopie: "Fichier copié"
         })}
+        <button type="button" class="memoire-fichier__copier${recherche?.ouverte ? " is-active" : ""}"
+          data-memoire-chercher-ici aria-pressed="${Boolean(recherche?.ouverte)}"
+          title="Chercher dans ce fichier">${svgIcon("search", { className: "octicon" })}</button>
       </header>
+      ${renderBandeauDeRecherche(recherche, trouves, courant)}
       ${lecture === LECTURE.BLAME ? renderEchelleDAnciennete(fichier.lignes, { auteurs, avatars }) : ""}
       ${
         // `.mdall` n'est pas une nature, c'est l'absence de nature. Un fichier
@@ -1408,28 +1472,44 @@ export function renderRecherche(memoire, query = "", { pieces = [] } = {}) {
         ${trouvailles.length} fichier${trouvailles.length > 1 ? "s" : ""} de la mémoire
       </p>`}
       ${trouvailles
-        .map(({ fichier, lignes: trouvees }) => `
+        .map(({ fichier, lignes: trouvees }) => {
+          const adresse = adresseDuFichier(fichier);
+          const toutes = lignesAffichables(fichier);
+          // Une ligne seule ne se comprend pas : `si (Hauteur ≤ 28 m)` ne dit
+          // pas de quelle règle il s'agit. L'indentation du langage met la tête
+          // du bloc juste au-dessus, et deux lignes suffisent presque toujours.
+          const passages = passagesAutourDe(toutes, trouvees.map((ligne) => ligne.rang), 2);
+
+          return `
           <section class="memoire-fichier memoire-fichier--trouvaille">
             <header class="memoire-fichier__tete">
               <button type="button" class="memoire-recherche-resultats__fichier"
-                data-memoire-aller="${escapeHtml(adresseDuFichier(fichier))}">
+                data-memoire-aller="${escapeHtml(adresse)}">
                 ${svgIcon("file", { className: "octicon" })}
                 ${escapeHtml(nomDuFichier(fichier))}
               </button>
               <span class="memoire-fichier__mesure">${trouvees.length} ligne${trouvees.length > 1 ? "s" : ""}</span>
             </header>
             <div class="memoire-fichier__corps">
-              ${trouvees
-                .map((ligne) => `
-                  <div class="memoire-ligne">
-                    <span class="memoire-ligne__num">${ligne.rang}</span>
-                    <span class="memoire-ligne__code">${renderJetons(ligne.jetons)}</span>
-                  </div>
+              ${passages
+                .map((passage, rang) => `
+                  ${rang ? `<div class="memoire-recherche-resultats__coupure" aria-hidden="true">⋯</div>` : ""}
+                  ${passage.map((ligne) => `
+                    <button type="button" class="memoire-ligne memoire-ligne--resultat${
+                      ligne.trouve ? " memoire-ligne--trouvee" : ""
+                    }" data-memoire-trouver="${escapeHtml(adresse)}"
+                      data-memoire-trouver-rang="${ligne.rang}"
+                      data-memoire-trouver-mot="${escapeHtml(query)}">
+                      <span class="memoire-ligne__num">${ligne.rang}</span>
+                      <span class="memoire-ligne__code">${renderJetons(ligne.jetons, { mot: ligne.trouve ? query : "" })}</span>
+                    </button>
+                  `).join("")}
                 `)
                 .join("")}
             </div>
           </section>
-        `)
+        `;
+        })
         .join("")}
     </div>
   `;
@@ -1537,6 +1617,10 @@ export function quoiParDefaut(sujet) {
   return nom ? `À DÉCRIRE — à quoi sert « ${nom} » ? Ce que la fonction établit, et dans quel cas on l'applique.` : "";
 }
 
+/** Une espace simple, et un retrait — les seuls blancs qu'on pose à la main. */
+const espaceSimple = () => ({ type: "neutre", texte: " " });
+const espaceRetrait = (profondeur) => ({ type: "neutre", texte: "   ".repeat(Math.max(0, profondeur)) });
+
 /**
  * Une affirmation de la mémoire, en un bloc.
  *
@@ -1628,6 +1712,12 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
     return regle.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
   }
 
+  // Une affirmation dont la valeur est un **tableau** l'écrit sous elle. Sans
+  // cela, le fichier n'en portait que le résumé : le diff ne disait plus rien
+  // quand une cote bougeait sans changer le total, et l'on ne pouvait ni
+  // vérifier ni refaire ce que l'appel avait rendu.
+  const tableau = Array.isArray(payload.tableau) && payload.tableau.length ? payload.tableau : null;
+
   const lignes = blocDAffirmation({
     sujet: texte(payload.subject) || texte(assertion.subject_key),
     valeur: coupe.nombre,
@@ -1644,7 +1734,21 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
     virgule
   }, profondeur);
 
-  return lignes.map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
+  if (!tableau) return lignes.map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
+
+  // Le tableau entre **dans** le bloc, avant sa fermeture : c'est ce que
+  // l'affirmation porte, pas ce qui la suit. Une affirmation sans accolades en
+  // gagne, parce qu'elle a maintenant quelque chose à border.
+  const borne = lignes.length > 1;
+  const corps = borne ? lignes.slice(1, -1) : [];
+  const tete = borne ? lignes[0] : [...lignes[0], espaceSimple(), { type: "accolade", texte: "{" }];
+
+  return [
+    tete,
+    ...corps,
+    ...lignesDeTableau(tableau, profondeur + 1),
+    borne ? lignes.at(-1) : [...(profondeur ? [espaceRetrait(profondeur)] : []), { type: "accolade", texte: "}" }]
+  ].map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
 }
 
 /** Une date, en clair. Un constat sans date ne vaut rien. */
@@ -1745,7 +1849,7 @@ export function jetonsDeLAssertion(assertion = {}) {
  * transforme la mémoire en quelque chose qui se vérifie en la lisant — une
  * condition qui porte sur une donnée jamais versée se voit sans la chercher.
  */
-function renderJetons(jetons = [], { declares = null, variables = null } = {}) {
+function renderJetons(jetons = [], { declares = null, variables = null, mot = "" } = {}) {
   return jetons
     .map((entree) => {
       const resolution = entree.type === "sujet"
@@ -1753,8 +1857,22 @@ function renderJetons(jetons = [], { declares = null, variables = null } = {}) {
         : "";
       const classes = `mdall-${escapeHtml(entree.type)}${resolution ? ` mdall-sujet--${resolution}` : ""}`;
       const dit = entree.type === "sujet" ? contexteDuSujet(entree.texte, { resolution, variables }) : "";
-      return `<span class="${classes}"${dit ? ` title="${escapeHtml(dit)}"` : ""}>${escapeHtml(entree.texte)}</span>`;
+      // Le mot cherché se surligne **dans** son jeton : la coloration reste
+      // celle du langage, et le surlignage se pose par-dessus. Surligner la
+      // ligne entière aurait effacé la grammaire au moment où l'on en a le plus
+      // besoin — celui où l'on cherche quelque chose.
+      const corps = mot ? renderSurligne(entree.texte, mot) : escapeHtml(entree.texte);
+      return `<span class="${classes}"${dit ? ` title="${escapeHtml(dit)}"` : ""}>${corps}</span>`;
     })
+    .join("");
+}
+
+/** Un texte, avec le mot cherché entouré d'une marque. */
+function renderSurligne(chaine, mot) {
+  return morceauxSurlignes(chaine, mot)
+    .map((morceau) => (morceau.trouve
+      ? `<mark class="memoire-trouve">${escapeHtml(morceau.texte)}</mark>`
+      : escapeHtml(morceau.texte)))
     .join("");
 }
 

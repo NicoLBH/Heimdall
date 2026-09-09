@@ -19,7 +19,7 @@
 import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
-import { lecturesDeclarees, reservesConservees, entreesDe } from "./lecture-fait.js";
+import { lecturesDeclarees, reservesConservees, entreesDe, mesureEcrite } from "./lecture-fait.js";
 
 export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   nom: "deduction_profondeur_hors_gel_altitude",
@@ -87,7 +87,10 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
     if (entrees && !Number.isFinite(altitude)) reserves.add(RESERVE.ALTITUDE_ABSENTE);
 
     return {
-      valeur: `${metres.toFixed(2)} m`,
+      // La virgule décimale, comme partout ailleurs dans la mémoire : « 2.59 m »
+      // ne se rapproche pas de « 2,59 m », et la même cote s'écrivait de deux
+      // façons selon qui l'avait posée.
+      valeur: mesureEcrite(metres, 2, "m"),
       entrees,
       lectures: lecturesDeclarees(DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1, fait),
       reserves: [...reserves].filter((code) => RESERVES.includes(code)).sort()

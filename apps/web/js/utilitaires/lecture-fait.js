@@ -13,6 +13,29 @@ import { RESERVE } from "./reserves.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
+/**
+ * Une mesure, écrite comme la mémoire écrit ses mesures.
+ *
+ * ## Pourquoi cette fonction existe
+ *
+ * `toFixed(2)` rend « 2.59 ». Tout le reste de la mémoire écrit « 2,59 » — la
+ * virgule décimale française, parce que les phrases se lisent en français. La
+ * même profondeur hors gel s'écrivait donc de deux façons selon qu'un humain
+ * l'avait tranchée ou qu'un utilitaire l'avait déduite, et une valeur écrite de
+ * deux façons ne se compare plus : deux lignes du même sujet passaient pour
+ * différentes, et une variante montrait des conséquences qui n'en étaient pas.
+ *
+ * C'est la règle 4 des fondamentaux appliquée à la forme : une valeur écrite à
+ * deux endroits finit par diverger, et une valeur écrite de deux **façons**
+ * diverge tout de suite.
+ */
+export function mesureEcrite(valeur, decimales = 2, unite = "") {
+  const n = Number(valeur);
+  if (!Number.isFinite(n)) return "";
+  const dit = n.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+  return unite ? `${dit} ${unite}` : dit;
+}
+
 /** Les entrées conservées par le producteur du fait, ou `null` si aucune. */
 export function entreesDe(fait = {}) {
   const entrees = fait?.fact_value?.inputs;

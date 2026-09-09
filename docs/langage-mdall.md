@@ -418,6 +418,79 @@ lit pas du tout. Un champ à choix fermé dit ses **valeurs** plutôt que son ty
 **forme** : ce qu'un projet met dedans vit dans le fichier où le tableau est
 rangé.
 
+### Un tableau s'écrit, il ne se résume pas
+
+Une affirmation dont la valeur est un tableau écrit ses lignes sous elle :
+
+```
+Résultat du calcul des fondations superficielles = "11 massifs, 8,74 m3 de béton, assise mini 0,60 m — 11 vérifiées" {
+   calcul: Prédimensionnement des fondations superficielles — dimensionnement_fondations_superficielles_V1
+   statut: retenu
+   tableau: [
+      {
+         désignation: "Semelle 1",
+         nombre de massifs: 1,
+         section Lx: 1,20 m,
+         vérification: "vérifiée",
+         entrées: {
+            araseSuperieure: -0,1,
+            hauteurLz: 1
+         }
+      }
+   ]
+}
+```
+
+Sans lui, le fichier ne portait que la phrase de résumé, et deux choses en
+découlaient — chacune suffit :
+
+- **le diff ne disait plus rien.** Une semelle dont la section passe de 1,20 à
+  1,60 m ne change pas la phrase si le volume total tombe juste : le fichier
+  était identique et le projet avait bougé ;
+- **on ne pouvait plus refaire le calcul.** Ce qui est entré dans l'appel
+  n'était nulle part lisible, donc pas vérifiable.
+
+Chaque ligne porte les **entrées que le calcul a reçues** — ce n'est pas le
+tableau d'entrée redit une seconde fois : c'est ce qui a été envoyé, après les
+corrections que l'appel applique. L'écart entre les deux est précisément ce
+qu'on veut voir.
+
+Les valeurs s'écrivent comme partout ailleurs — un texte porte des guillemets,
+une mesure n'en porte pas, une valeur qu'on n'a pas s'écrit `—` — et se relisent
+telles quelles. La **forme attendue** du tableau, elle, se déclare une fois dans
+`variables-du-projet.ref`, sous `structure attendue`.
+
+---
+
+## Les couleurs disent la grammaire
+
+Un `.ref` s'exécute : il se colore donc comme du code, et chaque couleur dit un
+rôle. Ce n'est pas une décoration — c'est ce qui permet de voir, sans lire, si
+un nom appartient au projet ou à la fonction qu'on regarde.
+
+| couleur | ce que c'est | exemples |
+| --- | --- | --- |
+| corail | un **mot-clé** | `fonction`, `native`, `const`, `si`, `alors`, `sinon`, `renseigné`, `importe` |
+| violet | un **appel** | `calcul natif`, `enregistre`, `décision humaine assumée` |
+| bleu | une **variable du projet** | `Profondeur hors gel`, `Résultat du calcul…` |
+| blanc | un **nom local** | `résultat`, `Profondeur hors gel à retenir` |
+| jaune | un **champ du langage** | `utilitaire:`, `version:`, `dans:`, `zones:`, `statut:`, `le:` |
+| orange | un **paramètre**, une portée, un chemin | `batiment-a`, `structure.ctr` |
+| gris italique | une **source** | le nom d'un utilitaire, sa version |
+
+Deux distinctions comptent plus que les autres.
+
+**Une locale n'est pas un sujet.** `Profondeur hors gel à retenir` ne vit que
+dans sa fonction ; `Profondeur hors gel` est un nom du projet, qu'on cherche,
+qui a une déclaration quelque part et dont l'absence est une lacune. Les
+confondre faisait souligner la locale comme un renvoi sans déclaration — à la
+ligne même où elle est déclarée.
+
+**`renseigné` est un mot, pas un signe.** En gris d'opérateur il se lisait comme
+la fin du nom qui le précède.
+
+---
+
 ### Ce qui reste commun
 
 Le commentaire dans la fonction, `importe`, la portée en premier paramètre. Une
@@ -890,6 +963,7 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/utilitaires/dimensionnement_fondations_superficielles_V1.js` | déclare la fonction native des fondations — ce qu'elle lit, jamais comment |
 | `apps/web/js/services/fondations-versement.js` | ce qu'une étude de fondations propose : ses entrées, l'appel, son résultat |
 | `apps/web/js/services/fondations-reprise.js` | refait l'étude quand la profondeur hors gel change — pur, le calcul lui est passé |
+| `apps/web/js/services/memoire-recherche-texte.js` | chercher un mot et le montrer où il est — surlignage, voisinage, va-et-vient |
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |

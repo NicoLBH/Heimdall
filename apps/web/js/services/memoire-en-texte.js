@@ -252,8 +252,24 @@ export const JETON = {
   CHEMIN: "chemin",
   /** `zones` — le paramètre de portée, cité comme tel. */
   PORTEE: "portee",
-  /** Le nom d'une locale : `texte`, `document`, `parce que`. */
+  /**
+   * Le nom d'un **champ du langage** : `utilitaire`, `version`, `dans`, `zones`,
+   * `variable`, `depuis`, `texte`, `parce que`. La liste est fermée, et c'est ce
+   * qui en fait un langage — ils se colorent donc comme `statut:` et `le:`, qui
+   * sont les mêmes.
+   */
   LOCALE: "locale",
+  /**
+   * Le nom d'une **locale d'une fonction** : `résultat`, `Profondeur hors gel à
+   * retenir`.
+   *
+   * Distinct d'un sujet, et c'est tout l'intérêt : un sujet est un nom du
+   * **projet**, qu'on peut chercher, qui a une déclaration quelque part et dont
+   * l'absence est une lacune. Une locale ne vit que dans sa fonction. Les
+   * confondre faisait souligner « Profondeur hors gel à retenir » comme un
+   * renvoi sans déclaration, à la ligne même où elle est déclarée.
+   */
+  NOM_LOCAL: "nom-local",
   /** `// …` ou `/* … *\/` — ce qu'on écrit pour soi, jamais interprété. */
   COMMENTAIRE: "commentaire",
   /** Un paramètre de la règle : une entrée, nommée. */
@@ -548,8 +564,12 @@ export function ligneDeCondition(mot, condition = {}, profondeur = 1, { regle = 
 
   const operateur = texte(condition.operateur) || OPERATEUR.EGAL;
   // « renseigné » se suffit : il ne compare rien, il constate qu'on a répondu.
+  //
+  // C'est un **mot** de la langue, pas un signe : il se colore donc comme `si`
+  // et `alors`, et non comme `=`. En gris d'opérateur il se lisait comme une
+  // partie du nom qui le précède.
   if (operateur === OPERATEUR.RENSEIGNE || operateur === OPERATEUR.NON_RENSEIGNE) {
-    jetons.push(espace(), jeton(JETON.OPERATEUR, operateur));
+    jetons.push(espace(), jeton(JETON.MOT_CONDITION, operateur));
     fermer();
     return jetons;
   }
@@ -762,7 +782,7 @@ export function blocDEnregistrement({
       // Les guillemets font la différence à la lecture : sans eux, « résultat »
       // serait un texte que le projet affirme, au lieu de ce que l'appel a rendu.
       ...(ligne.reference === true
-        ? [jeton(JETON.LOCALE, texte(ligne.valeur))]
+        ? [jeton(JETON.NOM_LOCAL, texte(ligne.valeur))]
         : jetonsDeValeur(ligne.valeur, ligne.unite)),
       jeton(JETON.PONCTUATION, ",")
     ]);
@@ -814,6 +834,138 @@ export function ligneDeLocale(nom = "", valeur = "", profondeur = 1) {
     jeton(JETON.VALEUR, `"${quoi.replace(/^["\u00ab]\s*/, "").replace(/\s*["\u00bb]$/, "")}"`),
     jeton(JETON.PONCTUATION, ";")
   ];
+}
+
+/**
+ * ```
+ * tableau: [
+ *    {
+ *       désignation: "Semelle 1",
+ *       section Lx: 1,20 m,
+ *       vérification: "vérifiée",
+ *       entrées: {
+ *          arase supérieure: -0,10 m
+ *       }
+ *    },
+ *    { … }
+ * ]
+ * ```
+ *
+ * Les **valeurs** d'un tableau, écrites dans le fichier qui le range.
+ *
+ * ## Pourquoi elles s'écrivent, et pas seulement leur résumé
+ *
+ * Une affirmation dont la valeur est un tableau n'affichait que sa phrase :
+ * « 11 massifs, 8,74 m³ de béton — 11 vérifiées ». Deux choses en découlaient,
+ * et les deux sont graves :
+ *
+ * - **le diff ne disait plus rien.** Une semelle dont la section passe de 1,20 à
+ *   1,60 m ne changeait pas la phrase si le volume total tombait juste : le
+ *   fichier était identique, et le projet avait bougé ;
+ * - **on ne pouvait plus refaire le calcul.** Ce qui est entré dans l'appel
+ *   n'était nulle part lisible, donc pas vérifiable — et « ne pas savoir
+ *   n'autorise pas à prétendre qu'il n'y a rien ».
+ *
+ * ## Ce que la forme dit, et ce qu'elle ne dit pas
+ *
+ * Elle rend l'objet tel qu'il est, imbrication comprise. Elle ne l'interprète
+ * pas : les valeurs se lisent comme partout ailleurs — un texte porte des
+ * guillemets, une mesure n'en porte pas — et la **forme attendue** de ce tableau
+ * se déclare, elle, une fois pour toutes dans `variables-du-projet.ref`.
+ *
+ * Un tableau vide ne s'écrit pas : `tableau: []` n'apprend rien qu'une ligne
+ * absente ne dise déjà.
+ *
+ * @param {object[]} lignes les lignes du tableau, telles que la mémoire les porte
+ * @param {string} [nom] le mot qui l'ouvre — `tableau` par défaut
+ * @returns {object[][]} les lignes du bloc
+ */
+export function lignesDeTableau(lignes = null, profondeur = 1, nom = "tableau") {
+  const dites = Array.isArray(lignes) ? lignes.filter((ligne) => ligne && typeof ligne === "object") : [];
+  if (!dites.length) return [];
+
+  const rendues = [[
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.LOCALE, texte(nom) || "tableau"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.PONCTUATION, "[")
+  ]];
+
+  const virgule = (dernier) => (dernier ? [] : [jeton(JETON.PONCTUATION, ",")]);
+
+  /** Un champ scalaire : `section Lx: 1,20 m,`. */
+  const champ = (cle, valeur, niveau, dernier) => {
+    const dit = texte(valeur);
+    return [
+      espace(RETRAIT.repeat(niveau)),
+      jeton(JETON.SUJET, texte(cle)),
+      jeton(JETON.PONCTUATION, ":"),
+      espace(),
+      // Une valeur vide s'écrit `—` : une clé sans rien derrière se lirait comme
+      // une ligne tronquée, alors que c'est une valeur qu'on n'a pas.
+      ...(dit ? jetonsDeValeur(...separerLUnite(dit)) : [jeton(JETON.VALEUR, "—")]),
+      ...virgule(dernier)
+    ];
+  };
+
+  /**
+   * Un objet, et ce qu'il contient — **récursivement**.
+   *
+   * Les charges d'un massif sont un objet de cas de charge, dont chacun est un
+   * objet de composantes : deux niveaux, et il y en aura d'autres. Une descente
+   * limitée à un niveau écrivait « [object Object] », ce qui est exactement le
+   * genre de trou qu'un fichier de mémoire ne doit pas avoir.
+   */
+  const objet = (contenu, niveau, dernier, cle = "") => {
+    const tete = [espace(RETRAIT.repeat(niveau))];
+    if (texte(cle)) tete.push(jeton(JETON.SUJET, texte(cle)), jeton(JETON.PONCTUATION, ":"), espace());
+    tete.push(jeton(JETON.PONCTUATION, "{"));
+    rendues.push(tete);
+
+    const cles = Object.keys(contenu ?? {});
+    cles.forEach((nomDuChamp, rang) => {
+      const valeur = contenu[nomDuChamp];
+      const fin = rang === cles.length - 1;
+
+      if (Array.isArray(valeur)) {
+        rendues.push([
+          espace(RETRAIT.repeat(niveau + 1)),
+          jeton(JETON.SUJET, nomDuChamp), jeton(JETON.PONCTUATION, ":"), espace(), jeton(JETON.PONCTUATION, "[")
+        ]);
+        valeur.forEach((entree, place) => objet(entree, niveau + 2, place === valeur.length - 1));
+        rendues.push([espace(RETRAIT.repeat(niveau + 1)), jeton(JETON.PONCTUATION, "]"), ...virgule(fin)]);
+        return;
+      }
+
+      if (valeur && typeof valeur === "object") {
+        objet(valeur, niveau + 1, fin, nomDuChamp);
+        return;
+      }
+
+      rendues.push(champ(nomDuChamp, valeur, niveau + 1, fin));
+    });
+
+    rendues.push([espace(RETRAIT.repeat(niveau)), jeton(JETON.PONCTUATION, "}"), ...virgule(dernier)]);
+  };
+
+  dites.forEach((ligne, rang) => objet(ligne, profondeur + 1, rang === dites.length - 1));
+  rendues.push([espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.PONCTUATION, "]")]);
+  return rendues;
+}
+
+/**
+ * Une valeur écrite, séparée de son unité — pour la réécrire telle quelle.
+ *
+ * `« 1,20 m »` s'écrit `1,20` puis `m`, en deux jetons de couleurs différentes ;
+ * `« vérifiée »` reste une chaîne, citée. C'est la troisième loi de lecture
+ * appliquée à ce qu'un tableau porte.
+ */
+function separerLUnite(brute) {
+  const dit = texte(brute);
+  if (!dit || !estMesuree(dit)) return [dit, ""];
+  const coupe = couperLUnite(dit);
+  return [coupe.nombre, coupe.unite];
 }
 
 /**
@@ -1323,7 +1475,7 @@ export function ligneDeLocaleVide(nom = "", profondeur = 1) {
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
     jeton(JETON.MOT_CONST, "const"),
     espace(),
-    jeton(JETON.SUJET, dit),
+    jeton(JETON.NOM_LOCAL, dit),
     jeton(JETON.PONCTUATION, ";")
   ];
 }
@@ -1358,7 +1510,9 @@ export function ligneDAffectation(mot, { nom = "", valeur = "", importe = null, 
     jeton(JETON.MOT_CONDITION, texte(mot)),
     espace(),
     jeton(JETON.PONCTUATION, "("),
-    jeton(JETON.SUJET, pose),
+    // À gauche une locale, à droite le sujet du projet qu'on lui donne : deux
+    // couleurs, parce que ce sont deux choses.
+    jeton(JETON.NOM_LOCAL, pose),
     espace(),
     jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
     espace()
@@ -1426,21 +1580,28 @@ export function blocDeCalculNatif({ utilitaire = "", version = "", arguments: ar
 
   const dedans = profondeur + 1;
   const champs = [
-    { nom: "utilitaire", valeur: nom, type: JETON.SOURCE },
+    { nom: "utilitaire", valeur: nom, type: JETON.SOURCE, duLangage: true },
     // La version est ce qui distingue « la cote a changé » de « notre façon de
     // la trouver a changé ». Sans elle, une reprise six mois plus tard passerait
     // pour un projet qui a bougé.
-    ...(texte(version) ? [{ nom: "version", valeur: texte(version), type: JETON.SOURCE }] : []),
+    ...(texte(version) ? [{ nom: "version", valeur: texte(version), type: JETON.SOURCE, duLangage: true }] : []),
     ...(Array.isArray(args) ? args : [])
       .filter((argument) => texte(argument?.nom))
-      // Un argument passe un **nom**, pas une valeur : il porte donc le jeton
-      // d'une locale, comme la référence que `enregistre` range.
-      .map((argument) => ({ nom: texte(argument.nom), valeur: texte(argument.valeur), type: JETON.LOCALE }))
+      .map((argument) => ({
+        nom: texte(argument.nom),
+        valeur: texte(argument.valeur),
+        // `zones` est un mot du langage et sa valeur une portée ; les autres
+        // arguments nomment des variables du projet et reçoivent des locales.
+        // Tout écrire en « sujet » faisait souligner `zones` comme un renvoi
+        // sans déclaration — un nom que personne n'aurait versé.
+        duLangage: texte(argument.nom) === "zones",
+        type: texte(argument.nom) === "zones" ? JETON.PORTEE : JETON.NOM_LOCAL
+      }))
   ];
 
   const lignes = [[
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
-    jeton(JETON.LOCALE, "résultat"),
+    jeton(JETON.NOM_LOCAL, "résultat"),
     espace(),
     jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
     espace(),
@@ -1450,10 +1611,9 @@ export function blocDeCalculNatif({ utilitaire = "", version = "", arguments: ar
   ]];
 
   champs.forEach((champ, rang) => {
-    const duLangage = champ.nom === "utilitaire" || champ.nom === "version";
     lignes.push([
       espace(RETRAIT.repeat(dedans)),
-      jeton(duLangage ? JETON.LOCALE : JETON.SUJET, champ.nom),
+      jeton(champ.duLangage ? JETON.LOCALE : JETON.SUJET, champ.nom),
       jeton(JETON.PONCTUATION, ":"),
       espace(),
       jeton(champ.type, champ.valeur),

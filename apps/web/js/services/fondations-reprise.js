@@ -35,6 +35,12 @@ import { SUJET_DONNEES, SUJET_RESULTAT } from "../utilitaires/dimensionnement_fo
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
+/** Une cote lue comme un nombre. « -0,1 » et « -0.1 » disent la même chose. */
+function cote(valeur) {
+  const n = Number.parseFloat(texte(valeur).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Le sujet dont la reprise lit le tableau, et celui qu'elle réécrit. */
 export { SUJET_DONNEES, SUJET_RESULTAT };
 
@@ -53,12 +59,19 @@ export { SUJET_DONNEES, SUJET_RESULTAT };
 export function semellesReprises(tableau = [], profondeurHorsGel = "") {
   const rappels = { profondeurHorsGel: { valeur: texte(profondeurHorsGel) } };
 
-  return (Array.isArray(tableau) ? tableau : []).map((ligne, rang) => ({
-    id: null,
-    designation: texte(ligne?.designation) || `Semelle ${rang + 1}`,
-    nombre: Math.max(0, Math.trunc(Number(ligne?.nombre) || 0)),
-    entrees: descendreHorsGel(ligne?.entrees ?? {}, rappels) ?? (ligne?.entrees ?? {})
-  }));
+  return (Array.isArray(tableau) ? tableau : []).map((ligne, rang) => {
+    const entrees = ligne?.entrees ?? {};
+    return {
+      id: null,
+      designation: texte(ligne?.designation) || `Semelle ${rang + 1}`,
+      nombre: Math.max(0, Math.trunc(Number(ligne?.nombre) || 0)),
+      // La mémoire porte ses cotes en phrases — « -0,1 » —, le calcul les veut
+      // en nombres. On normalise **toutes** les lignes, pas seulement celles
+      // qu'on corrige : un tableau où la moitié des arases sont des textes et
+      // l'autre des nombres se compare mal, et se relit encore moins bien.
+      entrees: descendreHorsGel(entrees, rappels) ?? { ...entrees, araseSuperieure: cote(entrees.araseSuperieure) }
+    };
+  });
 }
 
 /**

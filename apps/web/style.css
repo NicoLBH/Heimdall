@@ -20104,6 +20104,65 @@ body.proposition-merge-open{ overflow:hidden; }
    est le nôtre : le sujet, la valeur, son unité, et ce qui la fonde derrière la
    flèche. L'écran ne décide de rien : `memoire-en-texte.js` dit de quelle
    nature est chaque morceau, ces règles lui donnent sa couleur. */
+/* ------------------------------------------------------------------ *
+ * Chercher — dans un fichier, et dans le projet
+ *
+ * Le surlignage se pose **par-dessus** la coloration du langage : on garde la
+ * grammaire au moment où l'on en a le plus besoin, celui où l'on cherche
+ * quelque chose. Un fond jaune qui remplacerait la couleur du jeton effacerait
+ * l'information qu'on est venu lire.
+ * ------------------------------------------------------------------ */
+.memoire-trouve{
+  background:rgba(210,153,34,.32); color:inherit;
+  border-radius:2px; padding:0 1px;
+}
+/* La trouvaille courante se distingue des autres : sans cela, « 3 sur 17 » ne
+   dit pas laquelle est la troisième. */
+.memoire-ligne.is-courante .memoire-trouve{ background:rgba(210,153,34,.62); }
+
+.memoire-ligne--trouvee{ background:rgba(210,153,34,.08); }
+.memoire-ligne.is-courante{
+  background:rgba(210,153,34,.16);
+  box-shadow:inset 2px 0 0 var(--attention, #d29922);
+}
+
+/* Le bandeau : un champ, un compte, deux flèches, une croix. Il ne s'affiche
+   que si on l'a ouvert — un champ permanent au-dessus de chaque fichier prend
+   la place de deux lignes de code sur tous pour servir sur un. */
+.memoire-cherche{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px; border-bottom:1px solid var(--border);
+  background:var(--bg-subtle, rgba(255,255,255,.02));
+}
+.memoire-cherche__icone{ display:inline-flex; color:var(--muted); }
+.memoire-cherche__champ{
+  flex:1; min-width:0; padding:4px 8px;
+  border:1px solid var(--border); border-radius:6px;
+  background:var(--bg); color:var(--text); font-size:13px;
+}
+.memoire-cherche__champ:focus{ outline:none; border-color:var(--accent, #58a6ff); }
+/* Le compte est ce qui manque le plus à une recherche : sans lui on ne sait ni
+   s'il reste des occurrences, ni si l'on vient de reboucler. */
+.memoire-cherche__compte{
+  min-width:72px; text-align:right;
+  color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums;
+}
+
+/* Un résultat de recherche du projet est **cliquable** : on va sur la ligne. */
+.memoire-ligne--resultat{
+  display:flex; width:100%; text-align:left;
+  background:none; border:0; cursor:pointer; font:inherit; color:inherit;
+}
+.memoire-ligne--resultat:hover{ background:rgba(255,255,255,.05); }
+/* Le contexte se lit plus discrètement que la trouvaille : c'est ce qui
+   l'entoure, pas ce qu'on cherchait. */
+.memoire-ligne--resultat:not(.memoire-ligne--trouvee){ opacity:.62; }
+/* Deux extraits séparés par vingt lignes ne sont pas un extrait de vingt-cinq :
+   la coupure le dit. */
+.memoire-recherche-resultats__coupure{
+  padding:2px 0 2px 44px; color:var(--muted); font-size:12px; letter-spacing:2px;
+}
+
 .mdall-sujet{ color:rgb(121,192,255); }
 .mdall-valeur{ color:var(--text); font-weight:600; }
 .mdall-unite{ color:rgb(210,168,255); }
@@ -20301,13 +20360,26 @@ body.proposition-merge-open{ overflow:hidden; }
    `mdall-chemin` et non `mdall-fichier` — cette classe-là encadre déjà les
    cartes de fichiers de l'Atelier, et sa bordure entourait le chemin. */
 .mdall-chemin{ color:rgb(255,166,87); }
-/* La portée passée à une fonction : c'est son paramètre, pas une valeur. */
-.mdall-portee{ color:var(--text); }
-.mdall-locale{ color:var(--text); }
+/* La portée passée à une fonction : c'est son paramètre, pas une valeur. Elle
+   prend la couleur des paramètres, comme un chemin prend celle d'un fichier. */
+.mdall-portee{ color:rgb(255,166,87); }
+/* Un **champ du langage** — `utilitaire:`, `version:`, `dans:`, `zones:`,
+   `variable:`, `depuis:`. La liste est fermée, et c'est ce qui en fait un
+   langage : ils se colorent donc comme `statut:` et `le:`, qui sont les mêmes.
+   En blanc, on ne distinguait plus un mot de la langue d'un nom du projet. */
+.mdall-locale{ color:rgb(210,153,34); }
+/* Un **nom local** — `résultat`, `Profondeur hors gel à retenir`. Il ne vit que
+   dans sa fonction : il reste blanc, là où un nom du projet est bleu. La
+   différence n'est pas décorative — l'un se cherche dans la mémoire, l'autre
+   n'existe qu'ici. */
+.mdall-nom-local{ color:var(--text); }
 /* Ce qu'on écrit pour soi s'efface derrière ce qui décide. Un commentaire aussi
    visible que le code se lit comme du code. */
 .mdall-commentaire{ color:rgb(139,148,158); font-style:italic; }
-.mdall-parametre{ color:var(--text); }
+/* Les paramètres d'une signature : la couleur des paramètres d'un éditeur. Ce
+   ne sont ni des mots-clés ni des valeurs — ce sont les noms que l'appel
+   remplit. */
+.mdall-parametre{ color:rgb(255,166,87); }
 /* Les bornes et les séparateurs : blancs. Ils structurent la ligne, ils n'y
    ajoutent rien — une parenthèse colorée se lirait comme un mot. */
 .mdall-ponctuation{ color:var(--text); }

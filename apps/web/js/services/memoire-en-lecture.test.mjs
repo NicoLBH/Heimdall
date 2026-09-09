@@ -10,6 +10,7 @@ import {
   dependancesDuBloc, grapheDesBlocs, aRevoirSi, jetonsDeLaLigne, lireUneLocale, estUnCommentaire,
   lireUnImport, lireUneDecision
 } from "./memoire-en-lecture.js";
+import { renvoisSansDeclaration } from "./memoire-identifiants.js";
 
 /** Ce que le référentiel incendie porte, en petit. */
 const REGLES = [
@@ -521,6 +522,28 @@ test("l'entrée à retenir dit qu'un paramètre l'emporte sur la mémoire", () =
   assert.match(texte, /^ {3}sinon \(Profondeur hors gel à retenir = importe \(variable: Profondeur hors gel, depuis: structure\.ctr, zones: Bâtiment A\)\);$/m);
 });
 
+test("une locale ne se lit pas comme un renvoi sans déclaration", () => {
+  // « Profondeur hors gel à retenir » était souligné en rouge à la ligne même
+  // où elle est déclarée : les locales portaient le jeton d'un sujet, et un
+  // sujet que la mémoire ne déclare pas est une lacune.
+  const lignes = texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE)).split("\n").map(jetonsDeLaLigne);
+  // Ce que le projet déclare : les entrées de la fonction, et le sujet qu'elle
+  // range. Les locales, elles, n'ont rien à y faire.
+  const declares = new Set([
+    "profondeur hors gel",
+    "donnees d'entree des fondations superficielles",
+    "resultat du calcul des fondations superficielles"
+  ]);
+
+  assert.deepEqual(renvoisSansDeclaration(lignes.map((jetons) => ({ jetons })), declares), []);
+});
+
+test("« renseigné » est un mot de la langue, pas un signe", () => {
+  // En gris d'opérateur, il se lisait comme une partie du nom qui le précède.
+  const jetons = jetonsDeLaLigne("   si (Profondeur hors gel renseigné)");
+  assert.ok(jetons.some((j) => j.type === "mot-condition" && j.texte === "renseigné"));
+});
+
 test("une entrée sans adresse en mémoire ne fabrique pas d'emprunt", () => {
   // Inventer un `importe` vers un fichier qu'on ne connaît pas ferait lire
   // « va chercher là » là où il n'y a rien.
@@ -578,6 +601,10 @@ test("un nom passé en argument n'est pas un texte cité", () => {
   // Troisième loi de lecture, prolongée : un texte porte des guillemets, une
   // mesure n'en porte pas, et ce qui n'est ni l'un ni l'autre est un **nom**.
   const jetons = jetonsDeLaLigne("      Profondeur hors gel: Profondeur hors gel à retenir,");
-  assert.ok(jetons.some((j) => j.type === "locale" && j.texte === "Profondeur hors gel à retenir"));
+  // Le nom du champ est une variable du **projet** ; ce qu'on lui passe est une
+  // locale de la fonction. Deux couleurs, parce que ce sont deux choses : l'une
+  // se cherche dans la mémoire, l'autre n'existe que dans cette fonction.
+  assert.ok(jetons.some((j) => j.type === "sujet" && j.texte === "Profondeur hors gel"));
+  assert.ok(jetons.some((j) => j.type === "nom-local" && j.texte === "Profondeur hors gel à retenir"));
   assert.ok(!jetons.some((j) => j.type === "valeur"));
 });
