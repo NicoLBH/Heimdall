@@ -2759,7 +2759,7 @@ function renderDiffTree(groupes, ouverte) {
                       <span class="documents-tree__caret-spacer"></span>
                       <button type="button" class="documents-tree__item" data-diff-goto="${escapeHtml(groupe.cle)}">
                         <span class="documents-tree__icon-slot">${svgIcon("file", { className: "octicon" })}</span>
-                        <span class="documents-tree__label">${escapeHtml(nomDeFichier(groupe.chemin))}</span>
+                        <span class="documents-tree__label">${escapeHtml(nomDeFichier(groupe.chemin, groupe.extension))}</span>
                         ${groupe.compte > 0 ? `<span class="diff-tree__compte">${groupe.compte}</span>` : ""}
                       </button>
                     </div>
@@ -2789,7 +2789,10 @@ function renderDiffTree(groupes, ouverte) {
  */
 function renderDiffGroupe(groupe) {
   const replie = view.diffGroupesReplies?.has(groupe.cle) === true;
-  const fichier = cheminDeFichier(groupe.chemin);
+  // L'extension **se donne** : sans elle, `cheminDeFichier` retombe sur
+  // `.mdall` — « personne ne s'est prononcé » — et le diff annonçait
+  // `donnees-de-base.mdall` d'un fichier que la mémoire nomme `.ddb`.
+  const fichier = cheminDeFichier(groupe.chemin, groupe.extension);
   const numerotees = lignesNumerotees(groupe);
 
   return `
@@ -3011,7 +3014,7 @@ export function extraitDeLaLigne(cible) {
 
   return [
     "```mdall " + ancreDeLigne(visee),
-    `§ ${cheminDeFichier(groupe.chemin)}`,
+    `§ ${cheminDeFichier(groupe.chemin, groupe.extension)}`,
     ...avant.map(ecrire),
     ecrire(visee),
     "```",
@@ -3064,7 +3067,7 @@ export function diffEnClair(groupe) {
     return `${numeros}  ${entree.signe} ${enClair(jetonsDeLaLigne(entree))}`;
   });
 
-  return [`§ ${cheminDeFichier(groupe.chemin)}`, ...lignes].join("\n");
+  return [`§ ${cheminDeFichier(groupe.chemin, groupe.extension)}`, ...lignes].join("\n");
 }
 
 /** Une clé de chemin, utilisable comme identifiant HTML. */

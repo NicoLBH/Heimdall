@@ -2104,14 +2104,31 @@ export function corpsDuFichier(sections = []) {
  * angles. Et chaque extension annonce une **forme** — une règle ne se présente
  * pas comme un constat.
  */
-export function nomDeFichier(chemin = [], extension = "mdall") {
+/**
+ * L'extension de ce dont personne n'a déclaré la nature.
+ *
+ * Elle vit ici, avec les fonctions qui nomment les fichiers : c'est leur défaut,
+ * et un défaut qui se déclare ailleurs finit par ne plus être le même.
+ * `memoire-rangement.js` la reprend.
+ */
+export const SANS_NATURE = "mdall";
+
+export function nomDeFichier(chemin = [], extension = SANS_NATURE) {
   const morceaux = (Array.isArray(chemin) ? chemin : [chemin]).map(texte).filter(Boolean);
   const dernier = morceaux[morceaux.length - 1] ?? "memoire";
-  return `${normaliser(dernier)}.${texte(extension) || "mdall"}`;
+  return `${normaliser(dernier)}.${texte(extension) || SANS_NATURE}`;
 }
 
-/** « escalier-b/incendie.ctr » — le chemin entier. */
-export function cheminDeFichier(chemin = [], extension = "mdall") {
+/**
+ * « escalier-b/incendie.ctr » — le chemin entier.
+ *
+ * L'extension **se donne**. Le défaut est `.mdall`, qui veut dire « personne ne
+ * s'est prononcé sur la nature » : c'est une alerte, pas un repli commode. Le
+ * diff d'une proposition l'appelait sans extension, et affichait donc
+ * `memoire/donnees-de-base.mdall` pour un fichier que la mémoire nomme
+ * `donnees-de-base.ddb` — un défaut invisible, parce qu'un défaut plausible.
+ */
+export function cheminDeFichier(chemin = [], extension = SANS_NATURE) {
   const morceaux = (Array.isArray(chemin) ? chemin : [chemin]).map(texte).filter(Boolean);
   if (morceaux.length < 2) return nomDeFichier(morceaux, extension);
   return `${morceaux.slice(0, -1).map(normaliser).join("/")}/${nomDeFichier(morceaux, extension)}`;

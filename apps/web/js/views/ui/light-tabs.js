@@ -62,7 +62,13 @@ export function renderLightTabs({
     </div>
   `;
 
-  if (!suite) return nav;
+  // La rangée porte la classe que l'appelant lui donne — la pleine largeur des
+  // Changements, par exemple. La supprimer faute de contenu à droite emportait
+  // cette classe avec elle : sur une proposition où rien n'a bougé, le compteur
+  // d'ajouts est vide, et la barre d'onglets perdait sa pleine largeur au-dessus
+  // d'un diff qui la gardait. Une décision de mise en page ne se défait pas
+  // parce qu'un compteur n'a rien à dire.
+  if (!suite && !String(rowClassName || '').trim()) return nav;
 
   // Le filet passe sur la rangée entière, compteur compris ; l'onglet actif le
   // masque comme il masquait celui du `nav`. Porté par les onglets seuls, il
@@ -70,7 +76,7 @@ export function renderLightTabs({
   return `
     <div class="light-tabs-row ${escapeHtml(rowClassName)}">
       ${nav}
-      <div class="light-tabs__trailing">${suite}</div>
+      ${suite ? `<div class="light-tabs__trailing">${suite}</div>` : ""}
     </div>
   `;
 }
