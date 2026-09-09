@@ -101,6 +101,27 @@ function vautDans(assertion, zone) {
 }
 
 /**
+ * L'agent qu'une fonction appelle, quand elle en appelle un.
+ *
+ * ## Pourquoi cette fonction plutôt qu'un champ lu partout
+ *
+ * Le champ a changé de nom : `payload.native` est devenu `payload.agent` quand
+ * le langage a cessé de confondre « une fonction opaque » et « une fonction qui
+ * appelle un agent ». Les projets versés avant portent l'ancien nom, et ce qui
+ * a été décidé se conserve : on lit donc les deux, ici et nulle part ailleurs.
+ *
+ * Une migration qui réécrirait les anciennes lignes changerait ce que le projet
+ * a signé. Une lecture qui accepte les deux formes ne change rien et suffit.
+ */
+export function agentDeLaFonction(assertion = {}) {
+  const dit = assertion?.payload?.agent ?? assertion?.payload?.native ?? null;
+  if (!dit || typeof dit !== "object") return null;
+  // Les lignes d'avant ne nommaient pas leur agent : elles appelaient toutes un
+  // utilitaire déterministe, et c'est ce qu'on écrit à leur place.
+  return { genre: texte(dit.genre) || "agent-D", ...dit };
+}
+
+/**
  * Les noms qu'une règle a lus, dans l'ordre où elle les lit.
  *
  * Les conditions d'abord, les exceptions ensuite : c'est l'ordre du texte, et
@@ -112,7 +133,7 @@ export function lecturesDeLaRegle(regle = {}) {
   // qu'elle lit est déclaré, et c'est la seule chose qui en tient lieu — sans
   // cette branche, la fonction n'aurait aucune entrée et la chaîne se couperait
   // juste avant elle, exactement là où on veut la voir passer.
-  const native = regle?.payload?.native;
+  const native = agentDeLaFonction(regle);
   if (native) {
     const dites = (Array.isArray(native.lit) ? native.lit : []).map(texte).filter(Boolean);
     if (dites.length) return dites;
@@ -147,7 +168,7 @@ export function lecturesDeLaRegle(regle = {}) {
  * manquait. C'est la seule raison d'être de cette fonction-ci.
  */
 export function sortiesDeLaFonction(regle = {}) {
-  const native = regle?.payload?.native;
+  const native = agentDeLaFonction(regle);
   if (!native) return [texte(sujetDe(regle))].filter(Boolean);
 
   return (Array.isArray(native.ecrit) ? native.ecrit : [])

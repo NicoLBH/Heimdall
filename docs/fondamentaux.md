@@ -257,27 +257,31 @@ Deux conséquences pour le code :
 
 ---
 
-## 9. Une règle se lit, une fonction native ne se lit pas — et le dit
+## 9. Une fonction s'écrit toujours en entier ; un agent s'appelle
 
 Mdall écrit le raisonnement d'un projet en clair. Une règle d'incendie s'écrit
 `si (Hauteur ≤ 28 m) alors ("3e famille B")`, avec son article et sa citation :
 sa loi est publique — c'est un arrêté —, et l'écrire est ce qui permet de la
 rejouer, de la contester et de la voir vieillir quand le texte change.
 
-Certains utilitaires n'ont pas cette loi-là. Un pré-dimensionnement de
-fondations superficielles parcourt trois cent quatre-vingt-huit combinaisons,
-pondère, compare des portances, choisit un ferraillage : **sa loi est le
-produit**. L'écrire dans le fichier d'un projet reviendrait à la donner, et un
-projet exporté la donnerait à qui l'ouvre.
+Certains utilitaires n'ont pas cette loi-là. Un pré-dimensionnement de fondations
+superficielles parcourt trois cent quatre-vingt-huit combinaisons : **sa loi est
+le produit**, et l'écrire dans le fichier d'un projet reviendrait à la donner. On
+ne peut pas non plus la cacher — il a décidé de cotes que le client paiera en
+béton, et « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien ».
 
-On ne peut pas non plus le cacher. Une fois employé, il a décidé de cotes que le
-client paiera en béton. Les taire ferait de la moitié du raisonnement un trou —
-et « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien » (règle 5).
+### L'amalgame qu'il fallait défaire
 
-**Un tel utilitaire est donc une fonction native du langage.**
+Une première version avait écrit `fonction native Prédimensionnement des
+fondations superficielles(…) { … }`, comme si **la fonction** était opaque. Elle
+ne l'est pas, et c'est la règle :
+
+> Une fonction s'écrit **toujours** en entier. Son commentaire, ses entrées, ses
+> branches, ce qu'elle enregistre : tout se lit. Ce qui ne se lit pas, c'est
+> l'**agent** qu'elle appelle — et c'est la ligne d'appel qui le porte.
 
 ```
-fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
+fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
    // Dimensionne les massifs superficiels d'une zone : descente de charge,
    // combinaisons, portance du sol, glissement, renversement et ferraillage.
    // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
@@ -285,9 +289,9 @@ fonction native Prédimensionnement des fondations superficielles(Bâtiment A, P
    const Profondeur hors gel à retenir;
    si (Profondeur hors gel renseigné)
    alors (Profondeur hors gel à retenir = Profondeur hors gel)
-   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: Bâtiment A));
+   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
 
-   résultat = calcul natif (
+   résultat = agent-D (
       utilitaire: dimensionnement_fondations_superficielles,
       version: V1,
       zones: Bâtiment A,
@@ -303,98 +307,119 @@ fonction native Prédimensionnement des fondations superficielles(Bâtiment A, P
 }
 ```
 
+Tout est lisible sauf une ligne. C'est la différence entre « le corps de cette
+fonction est secret » — faux, et décourageant — et « cette fonction appelle un
+tiers, le voici nommé » — vrai, et vérifiable.
+
+### Deux agents, et la différence n'est pas technique
+
+« Calcul » était trop étroit : un utilitaire calcule, un autre cherche dans une
+table, un troisième lit un document et n'en extrait qu'une date. Le point commun
+n'est pas le calcul, c'est qu'**un tiers fait le travail et rend un résultat**
+sans que sa loi descende dans le projet.
+
+Ce qui les sépare est la **reproductibilité**, et une mémoire de projet ne peut
+pas l'ignorer :
+
+| | mêmes entrées | ce qu'on peut en dire |
+| --- | --- | --- |
+| `agent-D` | **même sortie, toujours** | le rejouer suffit à vérifier |
+| `agent-IA` | sortie qui peut varier | il faut conserver ce qu'il a rendu |
+
+Un `agent-D` se rejoue et l'on compare. Un `agent-IA` ne se rejoue **pas** pour
+vérifier : le rejouer donnerait peut-être autre chose sans que le projet ait
+bougé, et l'écran annoncerait un changement qui n'en est pas. Ce qu'il a répondu
+**ce jour-là**, avec quel modèle et quelle version, est donc la seule vérité, et
+se conserve.
+
+Les deux s'appellent de la même façon et pourront travailler côte à côte dans
+une même fonction — orchestrés, en parallèle. C'est ce que le mot rend possible,
+et c'est aussi ce qui rendra un jour lisible une fonction écrite par quelqu'un
+d'autre : `agent-D` et `agent-IA` sont deux mots du langage, pas deux détails
+d'implémentation.
+
 ### Quatre questions, et le bloc y répond dans l'ordre
 
-1. **Que consomme-t-elle ?** La signature les nomme toutes — la portée d'abord,
-   puis chaque entrée.
+1. **Que consomme-t-elle ?** La signature les nomme toutes.
 2. **Comment l'appeler ?** L'appel montre ses arguments, un par ligne.
-3. **Sous quelle forme sort le résultat ?** Il porte un nom, et ce nom se déclare
-   dans `variables-du-projet.ref` avec sa `structure attendue`.
+3. **Sous quelle forme sort le résultat ?** Il porte un nom, déclaré dans
+   `variables-du-projet.ref` avec sa `structure attendue`.
 4. **Où est-il rangé ?** L'`enregistre` le dit — le fichier, et la portée.
 
-### Un appel s'écrit, un résultat se range
+### Ce que cela n'autorise pas
 
-La première version dépliait les sorties : sept sujets par massif,
-quatre-vingts lignes de cotes **dans le fichier de code**. On n'y lisait plus ni
-les entrées ni l'appel, et le `.ref` portait les données du projet — ce qu'un
-`.ctr` existe pour porter.
+Appeler un agent n'est pas une porte de sortie pour ce qu'on n'a pas eu le
+courage d'écrire. Cela se justifie par **une** raison, et elle se dit en une
+phrase : la loi est le produit. Une règle qu'on trouve fastidieuse à transcrire
+reste une règle, et s'écrit.
 
-Une fonction écrit donc **un** résultat, nommé. Ce qu'il contient se lit là où
-il est rangé, et sa forme se déclare une fois :
+### Une fonction pose ce qu'elle range, pas son propre nom
 
-```
-const Données d'entrée des fondations superficielles = {
-   type: "tableau",
-   description: "L'ensemble des données d'entrée nécessaires au calcul de plusieurs massifs…",
-   utilisation: "Entrée du prédimensionnement. C'est ce que le projet conserve pour pouvoir refaire le calcul…",
-   structure attendue: [
-      désignation: "texte",
-      nombre de massifs: "nombre",
-      hypothèses réglementaires: [
-         règlement: "Fascicule 62" ou "DTU 13.12" ou "EC - NF P94-261" ou "EC8-5 Annexe F",
-         répartition des contraintes: "Meyerhoff" ou "Constante"
-      ],
-      …
-   ],
-   déjà utilisé dans: [
-      Prédimensionnement des fondations superficielles (structure.ref)
-   ]
-};
-```
-
-« type: tableau » ne dit rien. Une fonction qui attend « les données d'entrée
-des fondations » ne s'appelle pas tant qu'on ignore ce qu'il faut mettre dans
-une ligne — et personne n'ira lire le code du serveur pour le savoir.
-
-### L'entrée à retenir : la variante, écrite dans le langage
-
-`const X à retenir; si (X renseigné) alors … sinon (X = importe (…))` dit qu'un
-**paramètre passé à l'appel l'emporte sur ce que la mémoire porte**. C'est
-exactement ce qu'une variante fait, et un lecteur doit le comprendre pour savoir
-comment se servir de la fonction. Sans ces lignes, l'écran ferait au moment
-d'une variante quelque chose que le code ne dit pas.
-
-### Les entrées entrent dans la mémoire, et c'est ce qui permet de refaire
-
-C'est la conséquence la plus importante de cette forme. Tant que les massifs
-vivaient dans l'étude privée de l'Atelier, changer l'altitude ne pouvait que
-**marquer** les fondations à refaire : le calcul est au serveur, et rien de ce
-qu'il fallait pour le refaire n'était accessible.
-
-Le tableau d'entrée étant une donnée de base du projet, la chaîne se referme :
-
-```
-altitude  →  profondeur hors gel  →  Résultat du calcul des fondations
-   ↑ on l'essaie      ↑ l'utilitaire climat        ↑ le calcul natif, redemandé
-```
-
-`fondations-reprise.js` relit le tableau, y applique la nouvelle profondeur — on
-**enterre** le massif, on ne l'épaissit pas —, redemande le calcul et compare.
-Les fonctions natives se reprennent **en dernier**, sur ce que les utilitaires
-viennent d'établir : les reprendre sur les seules valeurs essayées ne les aurait
-jamais atteintes.
-
-### Une fonction native pose son résultat, pas ses lignes
-
-Une règle conclut sur son propre nom : « Classement du bâtiment » conclut le
-classement. Une fonction native conclut sur le nom qu'elle range, qui n'est pas
-le sien. Trois endroits du code en dépendent, et le manquer coupait la chaîne
+Une règle conclut sur son nom : « Classement du bâtiment » conclut le classement.
+Une fonction qui appelle un agent conclut sur le nom qu'elle **range**, qui n'est
+pas le sien. Trois endroits du code en dépendent, et le manquer coupait la chaîne
 en silence :
 
 | où | ce qu'il faut lire |
 | --- | --- |
 | `memoire-applications.js` | les lectures se rattachent à **chaque** sortie |
 | `memoire-plan.js` | ce qu'elle pose est **dérivé**, pas du socle |
-| `memoire-evaluateur.js` | elle est **indécidable** au navigateur : sa loi n'est pas dans le texte |
+| `memoire-evaluateur.js` | elle est **indécidable** au navigateur : la loi de l'agent n'est pas dans le texte |
 
 Ce dernier point est le garde-fou. Sans lui, une fonction sans conditions
-s'évaluait sur zéro condition, donc « vraie », et le rejeu annonçait qu'elle
-tient — sans avoir rien calculé. Une confirmation qu'on n'a pas obtenue est pire
-qu'un silence : elle apprend à croire l'écran.
+s'évaluait sur zéro condition, donc « vraie », et le rejeu annonçait qu'elle tient
+— sans avoir rien calculé. Une confirmation qu'on n'a pas obtenue est pire qu'un
+silence : elle apprend à croire l'écran.
 
-### Ce que cela n'autorise pas
+---
 
-Le mot `native` n'est pas une porte de sortie pour ce qu'on n'a pas eu le
-courage d'écrire. Il se justifie par **une** raison, et elle se dit en une
-phrase : la loi est le produit. Une règle qu'on trouve fastidieuse à transcrire
-reste une règle, et s'écrit.
+## 10. Un nom vit à un seul endroit
+
+Deux fichiers déclarent « Profondeur hors gel » : l'utilitaire climat écrit dans
+`sol.ctr`, celui des fondations dans `structure.ctr`. Les deux lignes vivent,
+chacune a ses héritiers, et rien ne dit qu'elles parlent de la même chose.
+
+C'est le défaut le plus coûteux qu'une mémoire puisse porter, et il grandit tout
+seul : chaque nouvel utilitaire, chaque nouvel utilisateur peut en créer un.
+Trois conséquences, et la troisième est la pire :
+
+- **les valeurs divergent** — 0,466 m d'un côté, 0,47 m de l'autre ;
+- **le raisonnement se coupe** — une règle lit l'une, une autre lit l'autre, et
+  la chaîne qu'on croit suivre n'existe pas ;
+- **une variante ment.** On change la valeur qu'on voit, l'autre ne bouge pas, et
+  l'écran annonce des conséquences qui n'en sont pas — ou n'en annonce aucune.
+
+### La règle
+
+> Un nom du projet est déclaré **dans un seul fichier**. Le fichier est une
+> propriété du **nom**, pas de celui qui l'écrit.
+
+Aujourd'hui le fichier se déduit de `{nature, domaine}`, et le domaine est choisi
+par l'utilitaire qui verse. Deux utilitaires donnent donc deux domaines au même
+sujet, et le même nom atterrit à deux endroits sans que personne l'ait voulu.
+
+### Comment on s'y prend — en trois temps
+
+**1. Le voir.** C'est fait : un fichier qui déclare un nom déclaré ailleurs
+l'affiche en tête, en rouge, avec l'autre fichier. Un défaut invisible ne se
+corrige jamais ; un défaut nommé se corrige à la première relecture.
+
+**2. Le registre fait autorité.** `variables-du-projet.ref` liste déjà tous les
+noms. Il devient le **registre** : le premier versement qui déclare un nom fixe
+son domicile, et tout versement ultérieur du même nom écrit là. Un nom ne
+« choisit » plus son fichier à chaque écriture — il en a un, une fois pour
+toutes.
+
+**3. Verser ailleurs ouvre un conflit, jamais une seconde ligne.** Mdall sait
+déjà arbitrer deux valeurs contradictoires du même sujet. Un versement qui
+déclarerait un nom hors de son domicile est exactement cela : une contradiction,
+et elle se règle comme les autres — devant quelqu'un, par une proposition. Ce
+qui est interdit, c'est le **silence**.
+
+C'est la même réponse que partout ailleurs en informatique — *une seule source de
+vérité par nom*, une clé unique, une résolution qui ne devine pas —, appliquée à
+une mémoire de projet plutôt qu'à une base.
+
+### Ce qui reste à écrire
+
+Les temps 2 et 3. Le temps 1 est livré, et il suffit à ne plus être surpris.

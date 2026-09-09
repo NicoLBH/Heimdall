@@ -48,7 +48,7 @@
 
 import { NOEUD, natureDuNoeud, sortiesDesRegles } from "./memoire-plan.js";
 import { currentAssertions, titreDeLAffirmation } from "./project-memory.js";
-import { emploisParAffirmation, impactDe, lecturesDeLaRegle } from "./memoire-applications.js";
+import { emploisParAffirmation, impactDe, lecturesDeLaRegle, agentDeLaFonction } from "./memoire-applications.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
 import { utilitaireByReference } from "../utilitaires/catalogue.js";
 import { DOMAINS, domainLabel } from "./assertion-taxonomy.js";
@@ -459,7 +459,7 @@ export function cerveauDuProjet(assertions = [], applications = null, { avecLesF
      */
     conclusionsSansValeur: new Set(
       enVigueur.filter(estUneRegle)
-        .filter((regle) => !regle?.payload?.native)
+        .filter((regle) => !agentDeLaFonction(regle))
         .map((regle) => cleDuSujet(texte(regle?.payload?.subject)))
         .filter((cle) => cle && !sujetsDesValeurs.has(cle))
     ).size,

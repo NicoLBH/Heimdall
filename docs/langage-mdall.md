@@ -270,7 +270,8 @@ seule chose.
 | --- | --- |
 | `importe (variable: X, depuis: f)` | dit d'où vient une entrée, et où aller la lire |
 | `enregistre (X: v, …, dans: f, zones: z)` | écrit une ou plusieurs valeurs dans un fichier, sur une portée |
-| `calcul natif (utilitaire: X, version: V)` | le corps d'une fonction dont la loi ne s'écrit pas |
+| `agent-D (utilitaire: X, version: V)` | un agent déterministe fait le travail — mêmes entrées, même sortie |
+| `agent-IA (utilitaire: X, version: V)` | un agent qui juge ou rédige — sa sortie peut varier à entrées égales |
 | `décision humaine assumée (quoi, par: X, le: d)` | quelqu'un a tranché, et il signe |
 
 `décision humaine assumée` remplace la ligne `décision:` dès qu'on sait qui a
@@ -292,18 +293,17 @@ fil de l'eau ne se relirait nulle part. Ceux que le besoin nommera ensuite :
 
 ---
 
-## Une fonction native : la loi est ailleurs, et c'est écrit
+## Une fonction s'écrit en entier ; un agent s'appelle
 
 Une règle porte sa loi : `si (Hauteur ≤ 28 m) alors ("3e famille B")`. C'est
 possible parce que cette loi est un arrêté — publique, opposable, citable.
 
 Certains utilitaires n'ont pas cette loi-là : un pré-dimensionnement de
-fondations superficielles **est** sa loi, et l'écrire dans un projet reviendrait
-à la donner. On ne peut pas non plus le taire, puisqu'il a décidé de cotes. Le
-langage a donc un second genre de fonction :
+fondations **est** sa loi. On ne peut ni la donner, ni la taire. Le langage a
+donc un verbe pour cela — mais **pas** un second genre de fonction :
 
 ```
-fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
+fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
    // Dimensionne les massifs superficiels d'une zone : descente de charge,
    // combinaisons, portance du sol, glissement, renversement et ferraillage.
    // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
@@ -311,9 +311,9 @@ fonction native Prédimensionnement des fondations superficielles(Bâtiment A, P
    const Profondeur hors gel à retenir;
    si (Profondeur hors gel renseigné)
    alors (Profondeur hors gel à retenir = Profondeur hors gel)
-   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: Bâtiment A));
+   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
 
-   résultat = calcul natif (
+   résultat = agent-D (
       utilitaire: dimensionnement_fondations_superficielles,
       version: V1,
       zones: Bâtiment A,
@@ -329,24 +329,34 @@ fonction native Prédimensionnement des fondations superficielles(Bâtiment A, P
 }
 ```
 
-Un lecteur y trouve les quatre réponses qu'il cherche, et dans cet ordre : **que
-consomme-t-elle** (la signature), **comment l'appeler** (les arguments), **sous
-quelle forme sort le résultat** (son nom, déclaré ailleurs avec sa forme), et
-**où il est rangé** (l'`enregistre`).
+**Une fonction s'écrit toujours en entier.** Tout est lisible sauf une ligne :
+l'appel. C'est la différence entre « le corps de cette fonction est secret » —
+faux, et décourageant — et « cette fonction appelle un tiers, le voici nommé » —
+vrai, et vérifiable.
 
-### `native` sur la première ligne
+Une version antérieure écrivait `fonction native NOM(…)`, ce qui confondait les
+deux. Le mot a disparu de la tête.
 
-Il annonce qu'il n'y a pas de corps à chercher. Un fichier où les `si`
-manqueraient sans explication se lirait comme un fichier tronqué ; celui-ci se
-lit comme une décision.
+### Deux agents, une seule façon de les appeler
 
-### `calcul natif` à la place des conditions
+| verbe | ce qui répond | ce qu'on peut en faire |
+| --- | --- | --- |
+| `agent-D` | un enchaînement déterministe | le rejouer suffit à vérifier |
+| `agent-IA` | un modèle qui juge, rédige, interprète | conserver ce qu'il a rendu, et quand |
 
-L'utilitaire est nommé, sa version aussi : c'est ce qui permet de refaire le
-calcul en le **redemandant**, et de savoir six mois plus tard avec quoi ces
-cotes ont été trouvées. Le bloc porte ses arguments, un par ligne — à trois
-entrées, une seule ligne dépasse l'écran, et le diff bougerait tout l'appel dès
-qu'une entrée change.
+La différence n'est pas technique, c'est la **reproductibilité**. Un `agent-D` se
+rejoue et l'on compare ; un `agent-IA` ne se rejoue pas pour vérifier — le
+rejouer donnerait peut-être autre chose sans que le projet ait bougé, et l'écran
+annoncerait un changement qui n'en est pas.
+
+Les deux s'appellent de la même façon, et pourront travailler côte à côte dans
+une même fonction. C'est ce que le mot rend possible.
+
+### `calcul natif` n'existe plus
+
+« Calcul » était trop étroit : un utilitaire calcule, un autre cherche dans une
+table, un troisième lit un document et n'en extrait qu'une date. Le point commun
+n'est pas le calcul, c'est qu'un tiers fait le travail et rend un résultat.
 
 ### `const X à retenir` : la variante, écrite dans le langage
 
@@ -354,15 +364,12 @@ qu'une entrée change.
 const Profondeur hors gel à retenir;
 si (Profondeur hors gel renseigné)
 alors (Profondeur hors gel à retenir = Profondeur hors gel)
-sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: Bâtiment A));
+sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
 ```
 
 Un **paramètre passé à l'appel l'emporte sur ce que la mémoire porte**. C'est
 exactement ce qu'une variante fait, et c'est ce qu'un lecteur doit comprendre
-pour savoir comment se servir de la fonction. Sans ces lignes, la fonction
-aurait un `importe` en tête sans dire qu'un paramètre peut le remplacer — et le
-jour où l'on teste une altitude, l'écran ferait quelque chose que le code ne dit
-pas.
+pour savoir comment se servir de la fonction.
 
 `renseigné` est le mot que le langage a déjà pour « n'est pas vide » : la liste
 des opérateurs est fermée, et en ajouter un synonyme aurait donné deux façons
@@ -370,16 +377,11 @@ d'écrire la même chose.
 
 ### Un `enregistre`, un résultat
 
-Une règle conclut sur une valeur ; un calcul qui dimensionne rend un **tableau**.
+Une règle conclut sur une valeur ; un agent qui dimensionne rend un **tableau**.
 Il porte donc **un** nom, et ce que ce nom contient se lit là où il est rangé.
 
-La première version dépliait les sorties dans le `.ref` — sept sujets par massif,
-quatre-vingts lignes de cotes dans un fichier de code. On n'y lisait plus ni les
-entrées ni l'appel, et la mémoire comptait quatre-vingts sujets là où le métier
-en voit un.
-
 Sur la ligne, `résultat` est une **référence**, pas une valeur : c'est ce que
-l'appel vient de rendre. Les guillemets font la différence — sans eux
+l'agent vient de rendre. Les guillemets font la différence — sans eux
 « résultat » serait un texte que le projet affirme.
 
 ### `structure attendue` : ce qu'il y a dans une ligne
@@ -397,12 +399,7 @@ const Données d'entrée des fondations superficielles = {
       nombre de massifs: "nombre",
       hypothèses réglementaires: [
          règlement: "Fascicule 62" ou "DTU 13.12" ou "EC - NF P94-261" ou "EC8-5 Annexe F",
-         répartition des contraintes: "Meyerhoff" ou "Constante",
-         drainage: "Sol drainé" ou "Sol non drainé"
-      ],
-      géométrie: [
-         arase supérieure: "nombre, en m",
-         hauteur Lz: "nombre, en m"
+         répartition des contraintes: "Meyerhoff" ou "Constante"
       ]
    ],
    déjà utilisé dans: [
@@ -411,12 +408,10 @@ const Données d'entrée des fondations superficielles = {
 };
 ```
 
-Elle s'imbrique, parce qu'un champ peut être un groupe : `règlement` et
-`hypothèses réglementaires.règlement` ne se lisent pas pareil, et le second ne se
-lit pas du tout. Un champ à choix fermé dit ses **valeurs** plutôt que son type —
-« texte » n'apprend rien quand seuls deux mots sont admis. Et elle ne dit que la
-**forme** : ce qu'un projet met dedans vit dans le fichier où le tableau est
-rangé.
+Elle s'imbrique, parce qu'un champ peut être un groupe. Un champ à choix fermé
+dit ses **valeurs** plutôt que son type — « texte » n'apprend rien quand seuls
+deux mots sont admis. Et elle ne dit que la **forme** : ce qu'un projet met
+dedans vit dans le fichier où le tableau est rangé.
 
 ### Un tableau s'écrit, il ne se résume pas
 
@@ -471,7 +466,7 @@ un nom appartient au projet ou à la fonction qu'on regarde.
 | couleur | ce que c'est | exemples |
 | --- | --- | --- |
 | corail | un **mot-clé** | `fonction`, `native`, `const`, `si`, `alors`, `sinon`, `renseigné`, `importe` |
-| violet | un **appel** | `calcul natif`, `enregistre`, `décision humaine assumée` |
+| violet | un **appel** | `agent-D`, `agent-IA`, `enregistre`, `décision humaine assumée` |
 | bleu | une **variable du projet** | `Profondeur hors gel`, `Résultat du calcul…` |
 | blanc | un **nom local** | `résultat`, `Profondeur hors gel à retenir` |
 | jaune | un **champ du langage** | `utilitaire:`, `version:`, `dans:`, `zones:`, `statut:`, `le:` |
@@ -964,6 +959,7 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/fondations-versement.js` | ce qu'une étude de fondations propose : ses entrées, l'appel, son résultat |
 | `apps/web/js/services/fondations-reprise.js` | refait l'étude quand la profondeur hors gel change — pur, le calcul lui est passé |
 | `apps/web/js/services/memoire-recherche-texte.js` | chercher un mot et le montrer où il est — surlignage, voisinage, va-et-vient |
+| `apps/web/js/services/zip.js` | emporter la mémoire en un fichier, sans dépendance |
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |

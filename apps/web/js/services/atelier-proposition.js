@@ -29,7 +29,7 @@
 import { normalizeSubjectKey } from "./project-memory.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { BASE_DATUM_KIND } from "./assertion-taxonomy.js";
-import { OPERATEURS, PROVENANCES, STATUTS } from "./memoire-en-texte.js";
+import { OPERATEURS, PROVENANCES, STATUTS, AGENT, AGENTS } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -70,7 +70,7 @@ export function provenanceRetenue(provenance) {
 }
 
 /**
- * Ce qu'on garde d'une fonction native.
+ * Ce qu'on garde de l'agent qu'une fonction appelle.
  *
  * Son nom, sa version, ce qu'elle a lu et ce qu'elle a posé — et rien d'autre,
  * parce qu'il n'y a rien d'autre : son corps ne s'écrit pas, c'est tout le
@@ -82,13 +82,17 @@ export function provenanceRetenue(provenance) {
  * que **cet appel-là** a rendu. Le jour où l'une des cotes est corrigée à la
  * main, l'écart entre les deux est précisément ce qu'on veut voir.
  */
-export function nativeRetenue(native) {
-  if (!native || typeof native !== "object") return null;
+export function agentRetenu(agent) {
+  if (!agent || typeof agent !== "object") return null;
 
-  const utilitaire = texte(native.utilitaire);
+  const utilitaire = texte(agent.utilitaire);
   if (!utilitaire) return null;
+  const native = agent;
 
   return {
+    // Déterministe par défaut : c'est ce qu'étaient tous les appels avant qu'un
+    // second genre existe, et le supposer ne change rien pour eux.
+    genre: AGENTS.includes(texte(agent.genre)) ? texte(agent.genre) : AGENT.D,
     utilitaire,
     version: texte(native.version) || null,
     lit: (Array.isArray(native.lit) ? native.lit : []).map(texte).filter(Boolean),
@@ -280,11 +284,12 @@ export function itemsDeProposition(affirmations = []) {
           // six mois plus tard réécrirait l'histoire en silence.
           referentiel: affirmation.referentiel === true ? true : null,
           regle: regleRetenue(affirmation.regle),
-          // Une **fonction native**, quand c'en est une : un utilitaire dont la
-          // loi ne s'écrit pas. Ce qui se conserve est ce qui permet de la
-          // relire et de la refaire — son nom, sa version, ce qu'elle a lu et ce
-          // qu'elle a posé. Voir `docs/fondamentaux.md`, règle 9.
-          native: nativeRetenue(affirmation.native),
+          // L'**agent** qu'une fonction appelle, quand elle en appelle un : un
+          // tiers dont la loi ne s'écrit pas. Ce qui se conserve est ce qui
+          // permet de la relire et de la refaire — quel agent, quel utilitaire,
+          // quelle version, ce qu'il a lu et ce qu'il a rangé. Voir
+          // `docs/fondamentaux.md`, règle 9.
+          agent: agentRetenu(affirmation.agent ?? affirmation.native),
           // La référence complète de l'utilitaire, version comprise, et ce qu'il
           // a lu au moment de l'appel. C'est ce qui reconstruit les liens du
           // raisonnement, et ce qui dit six mois plus tard avec quelle version

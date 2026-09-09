@@ -84,11 +84,14 @@ test("le tableau d'entrée se verse comme une donnée de base, avec sa forme", (
 test("l'appel se verse comme une fonction, et nomme ses deux entrées", () => {
   const fonction = fonctionVersable(SEMELLES, "Bâtiment A");
   assert.equal(fonction.referentiel, true, "une fonction se range dans un .ref");
-  assert.equal(fonction.native.utilitaire, "dimensionnement_fondations_superficielles");
-  assert.equal(fonction.native.version, "V1");
-  assert.deepEqual(fonction.native.lit, [SUJET_HORS_GEL, SUJET_DONNEES]);
+  // Un enchaînement déterministe : mêmes entrées, même sortie. C'est ce qui
+  // permet de le rejouer pour vérifier.
+  assert.equal(fonction.agent.genre, "agent-D");
+  assert.equal(fonction.agent.utilitaire, "dimensionnement_fondations_superficielles");
+  assert.equal(fonction.agent.version, "V1");
+  assert.deepEqual(fonction.agent.lit, [SUJET_HORS_GEL, SUJET_DONNEES]);
   // Un seul résultat, nommé. Ce qu'il contient se lit là où il est rangé.
-  assert.deepEqual(fonction.native.ecrit, [{ sujet: SUJET_RESULTAT }]);
+  assert.deepEqual(fonction.agent.ecrit, [{ sujet: SUJET_RESULTAT }]);
   assert.equal(fonction.valeur, "2 massifs");
 });
 
@@ -163,7 +166,7 @@ function memoireDuProjet() {
     payload: {
       subject: ligne.sujet, value: ligne.valeur, zones: ligne.zones,
       referentiel: ligne.referentiel === true ? true : null,
-      native: ligne.native ?? null, utilitaire: ligne.utilitaire ?? null,
+      agent: ligne.agent ?? null, utilitaire: ligne.utilitaire ?? null,
       lectures: ligne.lectures ?? null, domain: ligne.domaine ?? null,
       tableau: ligne.tableau ?? null, structure: ligne.structure ?? null
     },
@@ -227,7 +230,7 @@ test("le cerveau la compte comme une fonction, et ne l'annonce pas comme une lac
 });
 
 test("le navigateur ne prétend pas rejouer ce dont il n'a pas la loi", () => {
-  const fonction = memoireDuProjet().find((a) => a.payload?.native);
+  const fonction = memoireDuProjet().find((a) => a.payload?.agent);
 
   const evaluation = evaluerLaRegle(fonction);
   assert.equal(evaluation.decidable, false);

@@ -105,7 +105,7 @@ function projetVerse() {
     payload: {
       subject: ligne.sujet, value: ligne.valeur, zones: ligne.zones,
       referentiel: ligne.referentiel === true ? true : null,
-      native: ligne.native ?? null, utilitaire: ligne.utilitaire ?? null,
+      agent: ligne.agent ?? null, utilitaire: ligne.utilitaire ?? null,
       tableau: ligne.tableau ?? null
     },
     nature: ligne.nature ?? null

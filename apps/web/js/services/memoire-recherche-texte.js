@@ -40,25 +40,61 @@ export function pourChercher(valeur) {
 }
 
 /**
- * Les endroits d'une chaîne où le mot cherché apparaît.
+ * Les mots d'une recherche, pliés et sans doublon.
+ *
+ * Une recherche porte souvent plusieurs mots — « Résultat du calcul des
+ * fondations superficielles ». Les traiter comme **une seule chaîne** revient à
+ * n'accepter que la phrase exacte, dans cet ordre, sur une seule ligne : c'est
+ * ce que faisait la recherche d'un fichier, et c'est pourquoi elle ne trouvait
+ * rien alors que la recherche du projet trouvait.
+ *
+ * Les deux emploient maintenant la même découpe.
+ */
+export function motsDeLaRecherche(quoi) {
+  return [...new Set(pourChercher(quoi).split(/\s+/).filter(Boolean))];
+}
+
+/**
+ * Les endroits d'une chaîne où les mots cherchés apparaissent.
  *
  * Rendus sur la chaîne **d'origine** : on compare sur la forme pliée, on
  * découpe sur la vraie. Sans cela, un texte accentué se recomposerait sans ses
  * accents, et l'écran montrerait autre chose que le fichier.
  *
- * @returns {{debut: number, fin: number}[]}
+ * Les places se **fusionnent** quand elles se touchent : « calcul » et « des »
+ * cherchés ensemble dans « calcul des fondations » donnent un seul surlignage,
+ * pas deux marques séparées par un blanc surligné à moitié.
+ *
+ * @returns {{debut: number, fin: number}[]} triées, sans chevauchement
  */
 export function placesDuMot(chaine, mot) {
-  const cherche = pourChercher(mot);
-  if (!cherche) return [];
+  const mots = motsDeLaRecherche(mot);
+  if (!mots.length) return [];
 
   const dans = pourChercher(chaine);
-  const places = [];
-  let depuis = dans.indexOf(cherche);
+  const brutes = [];
 
-  while (depuis !== -1) {
-    places.push({ debut: depuis, fin: depuis + cherche.length });
-    depuis = dans.indexOf(cherche, depuis + Math.max(1, cherche.length));
+  for (const cherche of mots) {
+    let depuis = dans.indexOf(cherche);
+    while (depuis !== -1) {
+      brutes.push({ debut: depuis, fin: depuis + cherche.length });
+      depuis = dans.indexOf(cherche, depuis + Math.max(1, cherche.length));
+    }
+  }
+
+  brutes.sort((gauche, droite) => gauche.debut - droite.debut || gauche.fin - droite.fin);
+
+  const places = [];
+  for (const place of brutes) {
+    const dernier = places.at(-1);
+    // Deux places se rejoignent quand elles se touchent, ou quand il n'y a
+    // qu'un blanc entre elles : chercher « calcul des » doit marquer
+    // « calcul des » d'un trait, et non deux mots autour d'un espace nu.
+    const colle = dernier
+      && (place.debut <= dernier.fin || !dans.slice(dernier.fin, place.debut).trim());
+
+    if (colle) dernier.fin = Math.max(dernier.fin, place.fin);
+    else places.push({ ...place });
   }
   return places;
 }
@@ -101,11 +137,18 @@ export function morceauxSurlignes(chaine, mot) {
  * @returns {number[]} les rangs, sans doublon
  */
 export function lignesQuiPortent(lignes = [], mot) {
-  const cherche = pourChercher(mot);
-  if (!cherche) return [];
+  const mots = motsDeLaRecherche(mot);
+  if (!mots.length) return [];
 
+  // **Tous** les mots, dans n'importe quel ordre — la même règle que la
+  // recherche du projet. Exiger la phrase exacte ferait trouver dans la liste
+  // des résultats ce qu'on ne retrouverait pas en ouvrant le fichier, et le
+  // clic depuis un résultat ne menait alors nulle part.
   return (Array.isArray(lignes) ? lignes : [])
-    .filter((ligne) => pourChercher(ligne?.clair).includes(cherche))
+    .filter((ligne) => {
+      const clair = pourChercher(ligne?.clair);
+      return mots.every((cherche) => clair.includes(cherche));
+    })
     .map((ligne) => Number(ligne.rang))
     .filter((rang) => Number.isFinite(rang));
 }

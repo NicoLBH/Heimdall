@@ -27,12 +27,13 @@ import { escapeHtml } from "../utils/escape-html.js";
 import { svgIcon } from "../ui/icons.js";
 import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
+import { agentDeLaFonction } from "../services/memoire-applications.js";
 import {
   morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe
 } from "../services/memoire-recherche-texte.js";
 import { renderBoutonHaut } from "./ui/bouton-haut.js";
 import {
-  blocDAffirmation, blocDeRegle, blocDeFonctionNative, lignesDeTableau,
+  blocDAffirmation, blocDeRegle, blocDeFonction, lignesDeTableau,
   cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
   ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire,
   JETON, OPERATEUR, TOUTES_ZONES, PROVENANCE, STATUT
@@ -46,7 +47,7 @@ import {
   dernierVersementDe, contributeursDuFichier, zonesLisibles, PARTS_DANCIENNETE
 } from "../services/memoire-blame.js";
 import {
-  resolutionDuSujet, renvoisSansDeclaration, variablesDeLaMemoire, definitionsDesVariables,
+  resolutionDuSujet, renvoisSansDeclaration, nomsDeclaresDeuxFois, variablesDeLaMemoire, definitionsDesVariables,
   cleDuSujet, typeDeLaValeur
 } from "../services/memoire-identifiants.js";
 
@@ -556,6 +557,29 @@ export function renderTeteDuContenu({ fil = "", droite = "", replie = false } = 
   `;
 }
 
+/**
+ * Emporter toute la mémoire, en un fichier.
+ *
+ * ## Pourquoi il n'est qu'à la racine
+ *
+ * Ce qu'on emporte est **la mémoire entière** : proposer le même bouton dans un
+ * dossier laisserait croire qu'on n'emporte que lui. Un geste dont la portée
+ * change avec l'endroit où on le clique se fait une fois de travers, et l'on
+ * n'ose plus s'en servir.
+ *
+ * C'est aussi ce qu'on donne à qui doit comprendre un projet sans l'ouvrir —
+ * un collègue, un contrôleur, un correspondant. Un ZIP se lit partout, et les
+ * extensions du langage n'y changent rien : une archive porte des chemins, pas
+ * des types.
+ */
+export function renderTelechargerLaMemoire() {
+  return `
+    <button type="button" class="bouton-leger memoire-corps__zip" data-memoire-zip
+      title="Télécharger la mémoire (ZIP)" aria-label="Télécharger la mémoire (ZIP)"
+    >${svgIcon("archive-zip", { className: "octicon" })}</button>
+  `;
+}
+
 /** Le champ de recherche. Il change de place, jamais de forme. */
 export function renderRechercheDuProjet(query = "") {
   return `
@@ -924,13 +948,19 @@ export function lignesAffichables(fichier, { ouEcrit = null, auteurs = null } = 
           // cache la ligne : c'est ce qui rend le pliage **récursif**. Sans
           // cela, replier une variable ne cachait que les têtes de ses zones et
           // laissait leurs détails orphelins à l'écran.
-          ancetres: tete ? dansLeGroupe : [...dansLeGroupe, cle],
+          // Les ancêtres du fichier, puis ceux que la ligne porte elle-même —
+          // un tableau se replie objet par objet, et son pliage vit **dans**
+          // celui de l'affirmation qui le contient.
+          ancetres: [
+            ...(tete ? dansLeGroupe : [...dansLeGroupe, cle]),
+            ...(ligne.ancetres ?? []).map((sous) => `${cle}-${sous}`)
+          ],
           // Seule la tête porte le caret, et seulement si le bloc a un corps.
-          ouvre: tete && aUnCorps ? cle : null,
+          ouvre: tete && aUnCorps ? cle : (ligne.ouvre ? `${cle}-${ligne.ouvre}` : null),
           // L'accolade fermante reste visible quand le bloc est replié : deux
           // lignes — la tête et sa fermeture — se lisent d'un coup d'œil, là où
           // une seule ligne « { … } » demande de reconstruire la paire.
-          ferme: fermante ? cle : null,
+          ferme: fermante ? cle : (ligne.ferme ? `${cle}-${ligne.ferme}` : null),
           assertion, position
         });
       });
@@ -1295,6 +1325,13 @@ export function renderFichier(fichier, {
 
   const manquants = renvoisSansDeclaration(lignes, declares);
 
+  // Les noms de ce fichier que la mémoire déclare aussi ailleurs. `variables`
+  // porte déjà la liste des fichiers qui déclarent chaque nom : on ne la
+  // recalcule pas, on garde ceux qui touchent ce fichier-ci.
+  const adresseComplete = `${fichier.chemin.join("/").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9/]+/g, "-")}/${nomDuFichier(fichier)}`;
+  const doubles = nomsDeclaresDeuxFois([...(variables?.values?.() ?? [])])
+    .filter((double) => double.fichiers.some((ou) => ou === adresseComplete));
+
   return `
     ${renderDernierVersement(fichier.lignes, { auteurs, avatars, propositions })}
     <section class="memoire-fichier memoire-fichier--${escapeHtml(langageDeLExtension(fichier.extension))}">
@@ -1315,9 +1352,11 @@ export function renderFichier(fichier, {
           titre: "Copier le fichier dans le presse-papiers",
           titreCopie: "Fichier copié"
         })}
-        <button type="button" class="memoire-fichier__copier${recherche?.ouverte ? " is-active" : ""}"
-          data-memoire-chercher-ici aria-pressed="${Boolean(recherche?.ouverte)}"
-          title="Chercher dans ce fichier">${svgIcon("search", { className: "octicon" })}</button>
+        <button type="button" class="bouton-leger memoire-fichier__copier${
+          recherche?.ouverte ? " is-active" : ""
+        }" data-memoire-chercher-ici aria-pressed="${Boolean(recherche?.ouverte)}"
+          title="Chercher dans ce fichier" aria-label="Chercher dans ce fichier"
+        >${svgIcon("search", { className: "octicon" })}</button>
       </header>
       ${renderBandeauDeRecherche(recherche, trouves, courant)}
       ${lecture === LECTURE.BLAME ? renderEchelleDAnciennete(fichier.lignes, { auteurs, avatars }) : ""}
@@ -1333,6 +1372,24 @@ export function renderFichier(fichier, {
                <b>Sans nature.</b> Ce que ce fichier contient n'a pas été déclaré :
                ni règle, ni donnée de base, ni contrainte. Il ne devrait pas exister —
                l'utilitaire qui a versé ces lignes ne s'est pas prononcé.
+             </p>`
+          : ""
+      }
+      ${
+        // Un nom qui vit à deux endroits est le défaut le plus coûteux qu'une
+        // mémoire puisse porter : les deux lignes vivent, chacune a ses
+        // héritiers, et une variante qui change l'une laisse l'autre intacte.
+        // Voir `docs/fondamentaux.md`, règle 10.
+        doubles.length
+          ? `<p class="memoire-fichier__manquants memoire-fichier__manquants--double">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>${doubles.length}</b> nom${doubles.length > 1 ? "s" : ""} déclaré${
+                 doubles.length > 1 ? "s" : ""} ailleurs aussi —
+               ${doubles.slice(0, 3).map((double) => `${escapeHtml(double.nom)} (${
+                 escapeHtml(double.fichiers.filter((ou) => ou !== adresseComplete).join(", "))})`).join(", ")}${
+                 doubles.length > 3 ? "…" : ""}.
+               Deux lignes du même nom vivent chacune de leur côté : ce qui change l'une
+               ne touche pas l'autre.
              </p>`
           : ""
       }
@@ -1622,6 +1679,40 @@ const espaceSimple = () => ({ type: "neutre", texte: " " });
 const espaceRetrait = (profondeur) => ({ type: "neutre", texte: "   ".repeat(Math.max(0, profondeur)) });
 
 /**
+ * Les marques de pliage d'une suite de lignes, d'après ses accolades.
+ *
+ * ## Pourquoi on les calcule, et qu'on ne les déclare pas
+ *
+ * Ce sont les **bornes qui bornent** : une ligne qui finit par `{` ou `[` ouvre,
+ * une ligne qui commence par `}` ou `]` ferme. Le déclarer à côté ferait deux
+ * vérités — celle du texte et celle de la marque —, et la seconde divergerait à
+ * la première ligne ajoutée.
+ *
+ * Le préfixe évite que deux blocs de deux affirmations différentes portent la
+ * même clé : le pliage se souvient d'une clé, pas d'un endroit.
+ *
+ * @param {object[][]} lignes des lignes de jetons
+ * @returns {{jetons: object[], ouvre: string|null, ferme: string|null, ancetres: string[]}[]}
+ */
+export function plierLesAccolades(lignes = [], prefixe = "t") {
+  const pile = [];
+  let numero = 0;
+
+  return (Array.isArray(lignes) ? lignes : []).map((jetons) => {
+    const clair = jetons.map((jeton) => texte(jeton?.texte)).join("").trim();
+    const ferme = /^[}\]]/.test(clair) ? pile.pop() ?? null : null;
+    // Les ancêtres se lisent **après** la fermeture et **avant** l'ouverture :
+    // une accolade fermante appartient au bloc qu'elle ferme, une ouvrante à
+    // celui qui la contient.
+    const ancetres = [...pile];
+    const ouvre = /[{[]$/.test(clair) ? `${prefixe}${(numero += 1)}` : null;
+    if (ouvre) pile.push(ouvre);
+
+    return { jetons, ouvre, ferme, ancetres: ferme ? [...ancetres] : ancetres };
+  });
+}
+
+/**
  * Une affirmation de la mémoire, en un bloc.
  *
  * ## Ce qu'un bloc porte, et ce qu'il ne porte plus
@@ -1654,26 +1745,28 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
   //
   // `alors` n'est pas stocké : c'est `payload.value`, et une valeur écrite à
   // deux endroits finit par diverger. On la remet ici.
-  // Une **fonction native** s'écrit comme une fonction, sans son corps : sa
-  // signature, ce qu'elle retient de ses entrées, l'appel, et où va le
-  // résultat. Sa loi n'est pas là, et c'est écrit noir sur blanc plutôt que
-  // d'être un blanc dans le fichier — voir `docs/fondamentaux.md`, règle 9.
-  if (payload.native) {
+  // Une fonction qui **appelle un agent** s'écrit en entier : sa signature, ce
+  // qu'elle retient de ses entrées, l'appel, et où va le résultat. Une seule
+  // ligne ne se lit pas — l'appel —, et c'est écrit noir sur blanc plutôt que
+  // d'être un blanc dans le fichier. Voir `docs/fondamentaux.md`, règle 9.
+  const agent = agentDeLaFonction(assertion);
+  if (agent) {
     const sujet = texte(payload.subject) || texte(assertion.subject_key);
     const portee = zone || (zonesLisibles(assertion)[0] ?? "");
 
-    const bloc = blocDeFonctionNative({
+    const bloc = blocDeFonction({
       nom: sujet,
       quoi: texte(payload.quoi) || quoiParDefaut(sujet),
       portee,
       // Chaque entrée, et **où le projet la porte**. C'est cette adresse qui
       // permet d'écrire la branche « sinon, va la lire là » — et donc de dire
       // qu'un paramètre passé à l'appel l'emporte sur ce que la mémoire tient.
-      entrees: (payload.native.lit ?? []).map(texte).filter(Boolean)
+      entrees: (agent.lit ?? []).map(texte).filter(Boolean)
         .map((nom) => ({ nom, depuis: fichierQuiDeclare(nom, ouEcrit) })),
-      utilitaire: texte(payload.native.utilitaire),
-      version: texte(payload.native.version),
-      enregistre: (payload.native.ecrit ?? [])
+      agent: texte(agent.genre),
+      utilitaire: texte(agent.utilitaire),
+      version: texte(agent.version),
+      enregistre: (agent.ecrit ?? [])
         .map((sortie) => texte(sortie?.sujet))
         .filter(Boolean)
         .map((nom) => ({ sujet: nom, dans: fichierOuEcrire(nom, ouEcrit)?.dans ?? "" }))
@@ -1743,12 +1836,28 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
   const corps = borne ? lignes.slice(1, -1) : [];
   const tete = borne ? lignes[0] : [...lignes[0], espaceSimple(), { type: "accolade", texte: "{" }];
 
+  // Chaque objet du tableau se replie : sur onze massifs et huit champs chacun,
+  // un tableau déplié fait cent lignes qu'on parcourt pour en lire trois. Les
+  // marques de pliage se calculent sur les accolades elles-mêmes — ce sont
+  // elles qui bornent, et rien d'autre n'a à le savoir.
+  const table = plierLesAccolades(lignesDeTableau(tableau, profondeur + 1), "t");
+  const dedansLaTable = corps.length + 1;
+
   return [
-    tete,
-    ...corps,
-    ...lignesDeTableau(tableau, profondeur + 1),
-    borne ? lignes.at(-1) : [...(profondeur ? [espaceRetrait(profondeur)] : []), { type: "accolade", texte: "}" }]
-  ].map((jetons, rang) => ({ nature: rang === 0 ? "affirmation" : "detail", jetons }));
+    { jetons: tete },
+    ...corps.map((jetons) => ({ jetons })),
+    ...table,
+    { jetons: borne ? lignes.at(-1) : [...(profondeur ? [espaceRetrait(profondeur)] : []), { type: "accolade", texte: "}" }] }
+  ].map((ligne, rang) => ({
+    nature: rang === 0 ? "affirmation" : "detail",
+    jetons: ligne.jetons,
+    ouvre: ligne.ouvre ?? null,
+    ferme: ligne.ferme ?? null,
+    ancetres: ligne.ancetres ?? [],
+    // Sans effet ici, mais le champ existe pour que la composition plus haut
+    // n'ait pas à distinguer deux formes de ligne.
+    position: rang >= dedansLaTable ? rang : rang
+  }));
 }
 
 /** Une date, en clair. Un constat sans date ne vaut rien. */

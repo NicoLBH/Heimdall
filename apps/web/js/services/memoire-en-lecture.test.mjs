@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  blocDeRegle, blocDAffirmation, blocDeFonctionNative, enTeteDeFichier, corpsDuFichier,
+  blocDeRegle, blocDAffirmation, blocDeFonction, enTeteDeFichier, corpsDuFichier,
   texteDesLignes, enClair, PROVENANCE, STATUT, OPERATEUR, TOUTES_ZONES
 } from "./memoire-en-texte.js";
 import {
@@ -462,7 +462,7 @@ test("un import se lit, une décision aussi", () => {
   assert.equal(lireUneDecision("décision humaine assumée (par: Nicolas L.);"), null);
 });
 
-const FONCTION_NATIVE = {
+const FONCTION_AVEC_AGENT = {
   nom: "Prédimensionnement des fondations superficielles",
   quoi: "Dimensionne les massifs superficiels d'une zone.",
   portee: "Bâtiment A",
@@ -475,19 +475,18 @@ const FONCTION_NATIVE = {
   enregistre: [{ sujet: "Résultat du calcul des fondations superficielles", dans: "structure.ctr" }]
 };
 
-test("lire(écrire(G)) = G — une fonction native traverse le texte sans rien perdre", () => {
-  // Ce qui se conserve d'une fonction native est ce qui n'est pas déductible :
-  // le fait que sa loi ne s'écrive pas, de quoi la refaire, et le nom de ce
-  // qu'elle range. Sa signature, les entrées qu'elle retient, les arguments de
+test("lire(écrire(G)) = G — une fonction qui appelle un agent traverse le texte sans rien perdre", () => {
+  // Ce qui se conserve est ce qui n'est pas déductible : quel agent, de quoi le
+  // refaire, et le nom de ce qu'elle range. Sa signature, les entrées qu'elle retient, les arguments de
   // l'appel et le fichier d'arrivée se déduisent tous — et une signature
   // recopiée diverge.
-  const { blocs, refus } = lireUnFichier(texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE)));
+  const { blocs, refus } = lireUnFichier(texteDesLignes(blocDeFonction(FONCTION_AVEC_AGENT)));
   assert.deepEqual(refus, [], "rien ne doit être refusé");
   assert.equal(blocs.length, 1);
 
   const [bloc] = blocs;
-  assert.equal(bloc.sujet, FONCTION_NATIVE.nom);
-  assert.equal(bloc.native, true);
+  assert.equal(bloc.sujet, FONCTION_AVEC_AGENT.nom);
+  assert.equal(bloc.agent, "agent-D");
   assert.equal(bloc.utilitaire, "dimensionnement_fondations_superficielles");
   assert.equal(bloc.version, "V1");
   assert.deepEqual(bloc.enregistre, [
@@ -498,12 +497,16 @@ test("lire(écrire(G)) = G — une fonction native traverse le texte sans rien p
   assert.deepEqual(bloc.conditions, []);
 });
 
-test("une fonction native écrit son appel, jamais ses résultats", () => {
+test("une fonction écrit son appel, jamais ses résultats", () => {
   // La première version dépliait quatre-vingts cotes dans le fichier de code :
   // on n'y lisait plus ni ce que la fonction consommait, ni comment l'appeler.
-  const texte = texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE));
+  const texte = texteDesLignes(blocDeFonction(FONCTION_AVEC_AGENT));
 
-  assert.match(texte, /^fonction native Prédimensionnement des fondations superficielles\(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles\) \{$/m);
+  // Il n'y a qu'un genre de fonction : `native` n'est plus dans la tête, et ce
+  // qui est opaque est l'appel qu'elle contient.
+  assert.match(texte, /^fonction Prédimensionnement des fondations superficielles\(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles\) \{$/m);
+  assert.doesNotMatch(texte, /fonction native/);
+  assert.match(texte, /^ {3}résultat = agent-D \($/m);
   assert.match(texte, /^ {6}zones: Bâtiment A,$/m, "l'appel montre ses arguments");
   assert.match(texte, /^ {6}Profondeur hors gel: Profondeur hors gel à retenir,$/m);
   assert.equal((texte.match(/enregistre \(/g) ?? []).length, 1, "un seul enregistre, un seul résultat");
@@ -514,7 +517,7 @@ test("l'entrée à retenir dit qu'un paramètre l'emporte sur la mémoire", () =
   // C'est la variante écrite dans le langage : le même appel, avec ou sans
   // valeur essayée. Sans ces lignes, l'écran ferait au moment d'une variante
   // quelque chose que le code ne dit pas.
-  const texte = texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE));
+  const texte = texteDesLignes(blocDeFonction(FONCTION_AVEC_AGENT));
 
   assert.match(texte, /^ {3}const Profondeur hors gel à retenir;$/m);
   assert.match(texte, /^ {3}si \(Profondeur hors gel renseigné\)$/m);
@@ -526,7 +529,7 @@ test("une locale ne se lit pas comme un renvoi sans déclaration", () => {
   // « Profondeur hors gel à retenir » était souligné en rouge à la ligne même
   // où elle est déclarée : les locales portaient le jeton d'un sujet, et un
   // sujet que la mémoire ne déclare pas est une lacune.
-  const lignes = texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE)).split("\n").map(jetonsDeLaLigne);
+  const lignes = texteDesLignes(blocDeFonction(FONCTION_AVEC_AGENT)).split("\n").map(jetonsDeLaLigne);
   // Ce que le projet déclare : les entrées de la fonction, et le sujet qu'elle
   // range. Les locales, elles, n'ont rien à y faire.
   const declares = new Set([
@@ -547,8 +550,8 @@ test("« renseigné » est un mot de la langue, pas un signe", () => {
 test("une entrée sans adresse en mémoire ne fabrique pas d'emprunt", () => {
   // Inventer un `importe` vers un fichier qu'on ne connaît pas ferait lire
   // « va chercher là » là où il n'y a rien.
-  const texte = texteDesLignes(blocDeFonctionNative({
-    ...FONCTION_NATIVE,
+  const texte = texteDesLignes(blocDeFonction({
+    ...FONCTION_AVEC_AGENT,
     entrees: [{ nom: "Profondeur hors gel" }]
   }));
 
@@ -557,12 +560,12 @@ test("une entrée sans adresse en mémoire ne fabrique pas d'emprunt", () => {
   assert.match(texte, /^ {6}Profondeur hors gel: Profondeur hors gel$/m, "l'appel passe l'entrée telle quelle");
 });
 
-test("une règle ordinaire ne porte pas les champs d'une fonction native", () => {
+test("une règle ordinaire ne porte pas les champs d'un appel d'agent", () => {
   // Les laisser vides sur tous les blocs ferait croire qu'une règle a un
   // utilitaire, et il faudrait lire sa valeur pour savoir que non.
   const { blocs } = lireUnFichier(texteDesLignes(REGLES.flatMap((regle) => blocDeRegle(regle))));
   for (const bloc of blocs) {
-    assert.equal("native" in bloc, false);
+    assert.equal("agent" in bloc, false);
     assert.equal("utilitaire" in bloc, false);
   }
 });
@@ -578,21 +581,19 @@ test("une ligne de fonction se recolore avec sa signature, accolade comprise", (
   assert.ok(jetons.some((j) => j.type === "accolade" && j.texte === "{"));
 });
 
-test("`native` se colore comme `fonction` : les deux mots ouvrent la même chose", () => {
-  const ligne = "fonction native Prédimensionnement(Bâtiment A, Profondeur hors gel) {";
+test("un appel d'agent se colore comme un appel, pas comme une valeur", () => {
+  const ligne = "   résultat = agent-IA (";
   const jetons = jetonsDeLaLigne(ligne);
   assert.equal(enClair(jetons), ligne);
-  assert.deepEqual(
-    jetons.filter((j) => j.type === "mot-fonction").map((j) => j.texte),
-    ["fonction", "native"]
-  );
+  assert.ok(jetons.some((j) => j.type === "mot-natif" && j.texte === "agent-IA"));
+  assert.ok(jetons.some((j) => j.type === "nom-local" && j.texte === "résultat"));
 });
 
-test("chaque ligne d'une fonction native se recolore à l'identique", () => {
+test("chaque ligne d'une fonction se recolore à l'identique", () => {
   // Le diff garde ses lignes en texte et les recolore en les relisant. Une
   // ligne qui ne se réécrit pas à l'identique s'affiche autrement qu'elle n'est
   // écrite — et c'est le diff entier qu'on cesse alors de croire.
-  for (const ligne of texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE)).split("\n")) {
+  for (const ligne of texteDesLignes(blocDeFonction(FONCTION_AVEC_AGENT)).split("\n")) {
     assert.equal(enClair(jetonsDeLaLigne(ligne)), ligne, ligne);
   }
 });

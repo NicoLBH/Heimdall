@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   cleDuSujet, sujetsDeclares, roleDesJetons, resolutionDuSujet,
-  renvoisSansDeclaration, variablesDeLaMemoire, ROLE, RESOLUTION
+  renvoisSansDeclaration, variablesDeLaMemoire, ROLE, RESOLUTION, nomsDeclaresDeuxFois
 } from "./memoire-identifiants.js";
 import { blocDeRegle, blocDAffirmation, OPERATEUR, PROVENANCE } from "./memoire-en-texte.js";
 
@@ -121,4 +121,37 @@ test("les variables du projet se voient toutes, et avec elles qui s'en sert", ()
   const manquante = parNom.get("Logements superposés");
   assert.equal(manquante.declaree, false);
   assert.deepEqual(manquante.citeePar, ["memoire/incendie.ref"]);
+});
+
+test("un nom déclaré dans deux fichiers se compte, il ne se choisit pas en silence", () => {
+  // Deux lignes du même nom vivent chacune de leur côté : une variante qui
+  // change l'une laisse l'autre intacte, et l'écran annonce des conséquences
+  // qui n'en sont pas. C'est ce qui a été observé sur « Profondeur hors gel ».
+  const ligne = (nom) => ({
+    jetons: [
+      { type: "sujet", texte: nom },
+      { type: "operateur", texte: "=" },
+      { type: "valeur", texte: "0,47" },
+      { type: "unite", texte: "m" }
+    ]
+  });
+
+  const variables = variablesDeLaMemoire(
+    [{ fichier: "memoire/sol.ctr" }, { fichier: "memoire/structure.ctr" }],
+    (fichier) => (fichier.fichier === "memoire/sol.ctr"
+      ? [ligne("Profondeur hors gel")]
+      : [ligne("Profondeur hors gel"), ligne("Résultat du calcul")])
+  );
+
+  assert.deepEqual(nomsDeclaresDeuxFois(variables), [
+    { nom: "Profondeur hors gel", fichiers: ["memoire/sol.ctr", "memoire/structure.ctr"] }
+  ]);
+});
+
+test("un nom déclaré une seule fois ne se signale pas", () => {
+  const variables = variablesDeLaMemoire(
+    [{ fichier: "memoire/sol.ctr" }],
+    () => [{ jetons: [{ type: "sujet", texte: "Altitude du site" }, { type: "valeur", texte: "13" }] }]
+  );
+  assert.deepEqual(nomsDeclaresDeuxFois(variables), []);
 });
