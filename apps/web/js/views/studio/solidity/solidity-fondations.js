@@ -34,6 +34,7 @@ import {
 } from "../../../services/fondations-etude-supabase.js";
 import { dessinerSchema } from "./fondations-schema.js";
 import { rappelsDeLaMemoire, preremplir, alertesDeLaMemoire } from "../../../services/fondations-memoire.js";
+import { affirmationsDeLEtude } from "../../../services/fondations-versement.js";
 import { listProjectAssertions } from "../../../services/project-memory-supabase.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 import { store } from "../../../store.js";
@@ -544,6 +545,27 @@ function brancher(root) {
       return;
     }
 
+    // Descendre l'assise à la profondeur hors gel du projet. C'est une entrée
+    // qui change comme une autre : la semelle s'enregistre, son résultat périme,
+    // et l'on recalcule — sans quoi le tableau montrerait les cotes d'avant sous
+    // une géométrie d'après.
+    const corriger = evenement.target.closest("[data-fondations-corriger]");
+    if (corriger) {
+      const alerte = alertesDeLaMemoire(etat.entrees, etat.rappels)
+        .find((ligne) => ligne.cle === corriger.dataset.fondationsCorriger);
+      if (!alerte?.corriger) return;
+
+      etat.entrees = alerte.corriger;
+      etat.resultat = null;
+      etat.empreinteDuResultat = "";
+      if (etat.ouverte !== null) etat.resultats[etat.ouverte] = null;
+      marquerVenuesDeLaMemoire();
+      await enregistrerLaSemelleOuverte(root);
+      dessiner(root);
+      await calculer(root);
+      return;
+    }
+
     if (evenement.target.closest('[data-action-id="fondationsCalculer"]')) {
       await calculer(root);
       return;
@@ -630,38 +652,34 @@ function sceller(rang, marque, resultat, erreurDite) {
  * ligne, et l'on passe de l'une à l'autre sans repasser par ici.
  */
 /**
- * Ce que l'étude de fondations affirme du projet.
+ * Ce que l'étude de fondations propose au projet.
  *
- * Les cotes retenues, semelle par semelle. Ce sont des **données de base** : le
- * projet les pose lui-même — personne d'extérieur ne les impose, aucune mesure
- * ne les établit —, et elles sont en amont de tout ce qu'on en déduira.
+ * ## Ce qui a changé, et pourquoi
  *
- * Une semelle qui ne vérifie pas n'entre pas : proposer une cote dont le calcul
- * vient de dire qu'elle ne tient pas serait proposer une erreur. Une semelle
- * qu'on n'a pas su calculer non plus — « je ne sais pas » n'est pas « ça passe ».
+ * L'écran versait une ligne par semelle vérifiée — « Semelle « File A » :
+ * 1,20 × 1,20 × 0,90 m » — et rien d'autre. Trois choses manquaient, et elles
+ * manquaient ensemble :
+ *
+ * - **l'appel**. Rien ne disait qu'un calcul avait eu lieu, ni lequel, ni dans
+ *   quelle version. La cote arrivait en mémoire comme si le projet l'avait
+ *   posée lui-même ;
+ * - **ce qu'il avait lu**. La profondeur hors gel entrait dans l'étude — l'écran
+ *   la rappelait et alertait quand l'assise remontait au-dessus — mais aucun
+ *   lien n'en restait. Changer l'altitude du projet ne marquait donc **aucune**
+ *   fondation à refaire ;
+ * - **les massifs qui ne vérifient pas**. Les taire faisait croire que le projet
+ *   comptait un massif de moins, et c'est le contraire qui est vrai : c'est
+ *   celui-là qu'il faut voir.
+ *
+ * Ce qui part maintenant est une **fonction native** — l'appel, ses entrées, ses
+ * sorties, sa loi non écrite — et les cotes qu'elle a posées, chacune avec son
+ * verdict. Voir `docs/fondamentaux.md`, règle 9, et `fondations-versement.js`.
+ *
+ * La zone ne se met pas ici : elle se demande avant de proposer, et la
+ * proposition l'impose à ce qui n'en porte pas.
  */
 function affirmationsDesSemelles() {
-  const table = synthese(etat.semelles, resultatsAJour());
-
-  return table.lignes
-    .filter((ligne) => ligne.verifiee === true)
-    .map((ligne) => {
-      const cote = (valeur) => nombreLisible(valeur, 2);
-      const dimensions = `${cote(ligne.entrees?.sectionLx)} × ${cote(ligne.entrees?.sectionLy)} × ${
-        cote(ligne.entrees?.hauteurLz)} m`;
-      const combien = ligne.nombre > 1 ? ` — ${ligne.nombre} massifs` : "";
-
-      return {
-        sujet: `Semelle « ${ligne.designation} »`,
-        valeur: `${dimensions}${combien}`,
-        nature: NATURE.DONNEE_BASE,
-        domaine: DOMAIN.STRUCTURE,
-        source: "Fondations superficielles — calcul (NF DTU 13.1)",
-        article: ligne.ratio !== null ? `ratio déterminant ${nombreLisible(ligne.ratio, 3)}` : "",
-        reference: ligne.id,
-        atelier: "Fondations superficielles — calcul"
-      };
-    });
+  return affirmationsDeLEtude(etat.semelles, resultatsAJour(), "", { rappels: etat.rappels });
 }
 
 /**
@@ -679,9 +697,14 @@ function ouvrirUnSujetDeFondations() {
   const table = synthese(etat.semelles, resultatsAJour());
   ouvrir({
     origin: "studio-fondations",
-    title: "Fondations superficielles — cotes retenues",
+    title: "Fondations superficielles — dimensionnement",
     description: [
-      `${affirmations.length} semelle${affirmations.length > 1 ? "s vérifient" : " vérifie"}, `
+      // Le compte dit les trois états, jamais deux : « je ne sais pas » n'est
+      // pas « ça ne passe pas », et les additionner ferait passer un calcul qui
+      // n'a pas eu lieu pour un défaut.
+      `${table.totaux.verifiees} vérifiée${table.totaux.verifiees > 1 ? "s" : ""}, `
+        + `${table.totaux.enDefaut} en défaut, ${table.totaux.inconnues} non calculée${
+          table.totaux.inconnues > 1 ? "s" : ""} — `
         + `${table.totaux.massifs} massif${table.totaux.massifs > 1 ? "s" : ""}, `
         + `${nombreLisible(table.totaux.volume, 2)} m³ de béton.`,
       "",
@@ -704,7 +727,7 @@ async function proposerLesFondations(root) {
 
   const affirmations = affirmationsDesSemelles();
   if (!affirmations.length) {
-    etat.etudeErreur = "Rien à proposer : aucune semelle vérifiée.";
+    etat.etudeErreur = "Rien à proposer : l'étude ne compte aucun massif.";
     dessiner(root);
     return;
   }
@@ -721,9 +744,9 @@ async function proposerLesFondations(root) {
   const { preparerUneProposition } = await import("../../../services/atelier-proposition.js");
   const rendu = await preparerUneProposition({
     projectId: projetCourant,
-    titre: "Fondations superficielles — cotes retenues",
-    intro: "Cotes des semelles retenues par le pré-dimensionnement, celles qui vérifient.",
-    source: "Fondations superficielles — calcul (NF DTU 13.1)",
+    titre: "Fondations superficielles — dimensionnement",
+    intro: "L'appel du calcul, ses entrées, et les cotes qu'il a posées — chacune avec son verdict.",
+    source: "Fondations superficielles — NF P94-261, EN 1997-1, EN 1992-1-1",
     affirmations,
     zones
   });
@@ -1287,14 +1310,37 @@ function dessinerAlertes(classe) {
   const alertes = alertesDeLaMemoire(etat.entrees, etat.rappels);
   if (alertes.length === 0) return "";
   return `<ul class="fondations-schema__alertes ${classe}" data-fondations-alertes="${escapeHtml(classe)}">
-    ${alertes.map((alerte) => `<li>${escapeHtml(alerte.texte)}</li>`).join("")}
+    ${alertes.map(ligneDAlerte).join("")}
   </ul>`;
+}
+
+/**
+ * Une alerte, et le geste qui la lève.
+ *
+ * ## Pourquoi un bouton, et pas seulement une phrase
+ *
+ * C'est le maillon qui manquait à la chaîne : l'altitude du projet change, la
+ * profondeur hors gel se recalcule, l'écran disait « l'assise est trop haute »
+ * — et attendait qu'on retape une cote. Une correction qu'on retape est une
+ * correction qu'on rate un jour sur dix, et celle-ci se rate en silence : rien
+ * dans les calculs de cet écran ne voit le gel.
+ *
+ * Le bouton porte le chiffre. « Corriger » tout seul demanderait de cliquer pour
+ * savoir ce qu'on accepte, et ce n'est pas ainsi qu'on change une cote de
+ * fondation.
+ */
+function ligneDAlerte(alerte) {
+  const geste = alerte.corriger && alerte.corrigerDit
+    ? ` <button type="button" class="gh-btn gh-btn--sm fondations-alerte__geste"
+        data-fondations-corriger="${escapeHtml(alerte.cle)}">${escapeHtml(alerte.corrigerDit)}</button>`
+    : "";
+  return `<li>${escapeHtml(alerte.texte)}${geste}</li>`;
 }
 
 /** Les reproches de la mémoire, remis à jour sans tout redessiner. */
 function rafraichirAlertes(root) {
   const alertes = alertesDeLaMemoire(etat.entrees, etat.rappels);
-  const html = alertes.map((alerte) => `<li>${escapeHtml(alerte.texte)}</li>`).join("");
+  const html = alertes.map(ligneDAlerte).join("");
 
   for (const [classe, hote] of [
     ["fondations-alertes--memoire", root.querySelector(".fondations-rappels")?.closest(".fondations-zone")],

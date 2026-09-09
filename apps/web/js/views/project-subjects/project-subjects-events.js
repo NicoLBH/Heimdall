@@ -5967,7 +5967,12 @@ export function createProjectSubjectsEvents(config) {
       const subjectsStatusFilterButton = event.target.closest("[data-subjects-status-filter]");
       if (subjectsStatusFilterButton) {
         event.preventDefault();
-        store.situationsView.subjectsStatusFilter = String(subjectsStatusFilterButton.dataset.subjectsStatusFilter || "open").toLowerCase() === "closed" ? "closed" : "open";
+        const demande = String(subjectsStatusFilterButton.dataset.subjectsStatusFilter || "open").toLowerCase() === "closed" ? "closed" : "open";
+        store.situationsView.subjectsStatusFilter = demande;
+        // La copie suit tout de suite : sans elle, tout ce qui lit encore
+        // `filters.status` — la pagination, un compteur — décrirait l'autre moitié
+        // de la liste jusqu'à la prochaine normalisation.
+        if (store.situationsView.filters) store.situationsView.filters.status = demande;
         resetSubjectsPaginationPage();
         rerenderPanels();
         return;

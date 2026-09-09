@@ -68,14 +68,30 @@ export const DOUTE = {
   /** Deux unités différentes de part et d'autre du signe. */
   UNITES_INCOMPARABLES: "unites-incomparables",
   /** Un opérateur que ce module ne connaît pas. */
-  OPERATEUR_INCONNU: "operateur-inconnu"
+  OPERATEUR_INCONNU: "operateur-inconnu",
+  /**
+   * Une fonction native : sa loi n'est pas dans le texte, et ne peut pas y être.
+   *
+   * Ce n'est pas un défaut du fichier ni une entrée qui manque : c'est la forme
+   * même de la fonction (voir `docs/fondamentaux.md`, règle 9). Ce module lit
+   * des conditions ; une fonction native n'en a pas, et il n'y a rien à lire.
+   * Le seul rejeu possible est de **redemander le calcul** — c'est ce que fait
+   * `utilitaires-rejeu.js`, avec la version qui l'a produit.
+   *
+   * Sans ce doute, une fonction native se serait évaluée sur zéro condition,
+   * donc « vraie », et le rejeu aurait annoncé qu'elle tient — sans avoir rien
+   * calculé. Une confirmation qu'on n'a pas obtenue est pire qu'un silence :
+   * elle apprend à croire l'écran.
+   */
+  LOI_NON_ECRITE: "loi-non-ecrite"
 };
 
 const PHRASES = {
   [DOUTE.ENTREE_ABSENTE]: "personne n'a versé de valeur pour ce sujet",
   [DOUTE.PAS_UN_NOMBRE]: "cette comparaison attend des nombres",
   [DOUTE.UNITES_INCOMPARABLES]: "les deux côtés ne sont pas dans la même unité",
-  [DOUTE.OPERATEUR_INCONNU]: "cet opérateur n'est pas du langage"
+  [DOUTE.OPERATEUR_INCONNU]: "cet opérateur n'est pas du langage",
+  [DOUTE.LOI_NON_ECRITE]: "la loi de cette fonction n'est pas écrite : elle se refait au serveur"
 };
 
 /** Un doute dit en français. Une clause indécidable sans raison est une panne. */
@@ -223,6 +239,23 @@ function combiner(traces) {
  *   melange: boolean, doutes: string[]}}
  */
 export function evaluerLaRegle(regle = {}, lire = () => ({ connu: false, valeur: "" })) {
+  // Une fonction native n'a pas de conditions à évaluer : sa loi est au serveur.
+  // Sans cette sortie, `combiner([])` la déclarait vraie et le rejeu annonçait
+  // qu'elle tient sans avoir rien calculé.
+  if (regle?.payload?.native) {
+    return {
+      decidable: false,
+      tient: null,
+      applique: null,
+      valeur: "",
+      conditions: [],
+      exceptions: [],
+      manquants: [],
+      melange: false,
+      doutes: [DOUTE.LOI_NON_ECRITE]
+    };
+  }
+
   const bloc = regle?.payload?.regle ?? {};
   const alors = texte(regle?.payload?.value);
   const sinon = texte(bloc?.sinon);

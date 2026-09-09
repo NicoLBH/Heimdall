@@ -33,8 +33,13 @@ test("deux utilitaires ne partagent pas une référence", () => {
 
 test("le nom dit ce que fait l'utilitaire, pas seulement d'où il vient", () => {
   // « socotec_V1 » ne dit rien. « extraction_avis_rapports_socotec_V1 » si.
+  //
+  // Trois verbes, parce qu'il y a trois choses qu'un utilitaire fait : il
+  // **déduit** une règle du site, il **extrait** un constat d'un document, ou
+  // il **dimensionne** un ouvrage. Un quatrième verbe s'ajoutera le jour où
+  // quelque chose de vraiment autre arrivera — pas pour ranger une variante.
   for (const outil of UTILITAIRES) {
-    assert.match(outil.nom, /^(deduction|extraction)_/, `nom peu parlant : ${outil.nom}`);
+    assert.match(outil.nom, /^(deduction|extraction|dimensionnement)_/, `nom peu parlant : ${outil.nom}`);
     assert.ok(outil.nom.split("_").length >= 3, `nom trop court pour être clair : ${outil.nom}`);
   }
 });

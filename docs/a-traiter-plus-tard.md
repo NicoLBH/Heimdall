@@ -683,3 +683,52 @@ sorte que l'échelle apparente au centre est inchangée à tous les zooms.
 
 Ce défaut ne s'était jamais vu : il fallait zoomer fort en volume, ce que rien
 n'invitait à faire tant qu'il n'y avait pas de quoi se déplacer ensuite.
+
+---
+
+## 10. Rejouer un tableau de fondations au serveur
+
+L'utilitaire de fondations est maintenant une **fonction native du langage**
+(`docs/fondamentaux.md`, règle 9) : l'appel s'écrit dans le `.ref`, ses cotes
+deviennent des affirmations, et la chaîne
+`altitude → profondeur hors gel → chacune des cotes` est enregistrée dans
+`assertion_applications`. Une variante d'altitude marque donc bien tout le
+tableau de fondations comme à refaire, et le cerveau dessine la fonction avec son
+amont et son aval.
+
+**Ce qui manque : refaire le calcul tout seul.** Changer l'altitude marque, mais
+ne recalcule pas. Deux raisons, et la seconde est la vraie :
+
+1. `utilitaires-rejeu.js` ne reprend que des contraintes déduites d'un fait
+   unique (`kind = derived_constraint`, un `deduire(fait)` qui rend une valeur).
+   Une fonction native rend un tableau, et n'a pas de `deduire` — sa loi est au
+   serveur, c'est tout le propos.
+2. **Les massifs ne sont pas dans la mémoire.** Charges, sol, butée, ferraillage
+   vivent dans l'étude de l'Atelier, qui est privée. Rejouer sans elles est
+   impossible ; les verser serait remplir la mémoire de trois cents lignes qui ne
+   décident de rien.
+
+La forme qui tient debout, quand on y viendra : une **reprise d'étude** — le
+rejeu demande à l'Atelier de refaire ses semelles avec la nouvelle profondeur
+hors gel, et rend un tableau qui se compare à l'ancien ligne à ligne. Ce n'est
+pas une variante « à blanc » de plus : c'est un aller-retour au serveur, et il
+doit donc rester un geste, pas un effet de bord d'un curseur.
+
+En attendant, le geste existe et il est court : l'alerte du hors gel porte un
+bouton « Descendre l'arase à … » qui applique la cote et relance le calcul.
+C'est le maillon qui manquait — avant, l'écran disait que l'assise était trop
+haute et attendait qu'on retape le chiffre.
+
+### Ce qui reste ouvert sur la forme
+
+- **Le nom des sorties.** « Section Lx de la semelle File A » est une phrase, et
+  c'est voulu — la mémoire s'adresse par sujet. Sur un projet de quarante
+  massifs cela fait deux cent quatre-vingts sujets, tous corrects et tous
+  semblables. La question à trancher n'est pas le nom mais l'**écran** : la liste
+  de la mémoire ne sait pas encore replier une famille de sujets sous son appui.
+- **Le volume total.** Il est versé une fois pour la zone
+  (« Volume de béton des fondations superficielles »). C'est la somme des lignes,
+  donc dérivable — la règle 4 s'en méfierait. Il est gardé parce que c'est le
+  chiffre qu'on cherche en premier et que le recomposer de tête sur vingt lignes
+  est exactement l'addition qu'on rate. À revoir si la mémoire apprend un jour à
+  sommer une famille.

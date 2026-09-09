@@ -11873,7 +11873,7 @@ circle.situation-trajectory__hierarchy-link--blocked,
   min-width:0;
   text-align:left;
   font:inherit;
-  font-size:14px;
+  font-size:15px;
   font-weight:600;
   color:var(--text);
   cursor:pointer;
@@ -15482,6 +15482,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .propositions-row__body{ display:flex; flex-direction:column; gap:2px; min-width:0; }
 .propositions-row__title{
   color:var(--text);
+  font-size:15px;
   font-weight:600;
   text-decoration:none;
   align-self:flex-start;
@@ -16540,10 +16541,15 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 }
 /* Le contenu s'écarte du rail au lieu de passer dessous. Il se recentre dans ce
    qui reste, et retrouve donc sa largeur habituelle.
-   La Mémoire fait exception : dès qu'on entre dans un dossier, elle prend la
-   largeur de l'écran, et une marge de deux cent trente-deux pixels décalait
-   tout le fichier vers la droite. */
-.project-simple-page--studio{ margin-left:var(--project-rail-width, 232px); }
+
+   **Une seule règle pour toutes les pages qui portent un rail.** Les nommer une
+   par une a laissé la Mémoire dehors : son contenu passait sous le rail dès que
+   la fenêtre n'était plus assez large pour que le centrage l'en écarte — et le
+   rail n'a pas de fond, si bien que les deux se lisaient l'un à travers l'autre.
+   Un écran de plus se réglera avec sa classe ajoutée ici, pas avec une seconde
+   marge écrite ailleurs. */
+.project-simple-page--studio,
+.project-simple-page--memory{ margin-left:var(--project-rail-width, 232px); }
 /* La coque de l'Atelier est un élément flex : sans largeur, elle se dimensionne
    sur son contenu, et un panneau vide la réduisait à trois cents pixels. On la
    fait tenir la colonne — sur cette page seulement, les Paramètres ayant leur
@@ -17394,12 +17400,22 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
     position:static; width:auto; flex-direction:row; align-items:center; flex-wrap:wrap;
     border-right:0; border-bottom:1px solid var(--border); padding:0 0 8px;
   }
-  .project-simple-page--studio{ margin-left:0; }
+  .project-simple-page--studio,
+  .project-simple-page--memory{ margin-left:0; }
   .project-rail__scroll{ flex-direction:row; flex-wrap:wrap; gap:4px; overflow:visible; }
   .project-rail__group{ flex-direction:row; }
   .project-rail .side-nav-layout__separator{ display:none; }
   .project-rail__collapse{ display:none; }
-}
+
+  /* Le repli **n'existe plus** ici : la barre tient sur une ligne, et son bouton
+     est caché. Laisser l'état replié actif enfermait l'écran étroit dans une
+     rangée d'icônes sans intitulé, sans aucun moyen d'en sortir — le pire des
+     deux mondes, puisque la place gagnée ne servait à rien. */
+  .project-rail.is-collapsed{ width:auto; }
+  .project-rail.is-collapsed .nav-list__label,
+  .project-rail.is-collapsed .nav-list__trailing,
+  .project-rail.is-collapsed .nav-list__group-label{ display:revert; }
+  .project-rail.is-collapsed .nav-list__content{ width:auto; }
 }
 
 /* Les écarts. Ils ne se lisent pas comme une connaissance de plus : ils
@@ -17681,6 +17697,9 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .memory-table{
   border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
 }
+/* Sortie du tableau, la pagination a besoin de son propre espace : dedans, elle
+   se lisait comme une dernière ligne encadrée. */
+.memory-table + .project-pagination{ margin-top:12px; }
 .memory-table__head{
   display:flex; align-items:center; gap:16px;
   padding:8px 16px; background:var(--panel2); border-bottom:1px solid var(--border);
@@ -17764,7 +17783,9 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   color:var(--text);
   font-family:inherit;
   font-weight:600;
-  font-size:14px;
+  /* La taille des intitulés de ligne, partout dans l'application : c'est celle
+     de `.row-title-trigger`, et une seule taille pour une seule fonction. */
+  font-size:15px;
   text-decoration:none;
   min-width:0;
 }
@@ -18342,6 +18363,14 @@ strong.est-verifie{ color:#3fb950; }
   border:1px solid var(--attention, #d29922); border-radius:6px;
   color:var(--attention, #d29922); font-size:12px;
 }
+
+/* Le geste qui lève l'alerte, sur la ligne qui la dit : chercher ailleurs le
+   bouton qui corrige ce qu'on vient de lire, c'est ne pas le trouver. */
+.fondations-alerte__geste{
+  margin-left:6px; vertical-align:baseline;
+  border-color:var(--attention, #d29922); color:var(--attention, #d29922);
+}
+.fondations-alerte__geste:hover{ background:rgba(210,153,34,.14); }
 
 .fondations-schema__terres{ opacity:.5; }
 .fondations-schema__hachure{ stroke:var(--muted); stroke-width:.6; opacity:.55; }
@@ -21006,7 +21035,7 @@ body.route--project.project-shell-compact.documents-local-chrome-compact #global
 .memoire-entree:hover{ background:rgba(110,118,129,.08); }
 .memoire-entree__icone{ flex:0 0 auto; color:var(--muted); display:inline-flex; }
 .memoire-entree__corps{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 auto; }
-.memoire-entree__nom{ color:var(--text); font-size:14px; font-weight:600; }
+.memoire-entree__nom{ color:var(--text); font-size:15px; font-weight:600; }
 /* Ce que l'extension contient, à côté du nom : `.ctr` et `.ddb` se ressemblent
    assez pour qu'on ouvre l'un en croyant l'autre. */
 .memoire-entree__quoi{ color:var(--muted); font-size:12px; font-weight:400; }
@@ -21588,8 +21617,20 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 /* ── Le plan de recalcul : la forme du raisonnement, et sa frontière ───────
    Le compte des pas se lit à côté du volume : « 3 pas » dit ce qu'aucun autre
    compteur ne dit — jusqu'où le projet enchaîne. */
-.memory-counts__item--plan{ color:var(--variante, #39c5cf); }
+/* Le plan de raisonnement est un **bouton** : rien ne le disait, et l'on ne
+   devine pas qu'un compteur s'ouvre. Il prend donc les manières des boutons
+   légers de l'application — un fond au survol, un curseur, et le texte qui
+   s'éclaircit. */
+.memory-counts__item--plan{
+  appearance:none; border:0; padding:4px 8px; margin:-4px -8px;
+  border-radius:var(--radius); background:transparent; cursor:pointer;
+  font:inherit; font-size:13px; color:var(--variante, #39c5cf);
+}
 .memory-counts__item--plan b{ color:var(--variante, #39c5cf); }
+.memory-counts__item--plan:hover,
+.memory-counts__item--plan:focus-visible{ background:rgba(139,148,158,.14); color:#fff; }
+.memory-counts__item--plan:hover b,
+.memory-counts__item--plan:focus-visible b{ color:#fff; }
 .memory-counts__part{ margin-left:6px; color:var(--muted); font-size:12px; }
 
 .plan-boite{ width:min(720px, 100%); gap:12px; }
@@ -21743,9 +21784,11 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 /* Le seul élément poussé à droite : tout ce qui suit s'aligne sur lui. */
 .cerveau__tete .cerveau__navigation{ margin-left:auto; }
 
-/* Le corps : le rail debout à gauche, le dessin partout ailleurs. C'est la
-   hauteur qui manque à un graphe, et c'est la dimension que le rail rend. */
-.cerveau__corps{ display:flex; flex:1; min-height:0; }
+/* Le rail court **du haut de l'écran au bas**, comme celui de l'application :
+   la ligne de titre appartient au dessin, pas à l'écran entier. C'est la hauteur
+   qui manque à un graphe, et c'est la dimension que le rail rend. */
+.cerveau--rail{ flex-direction:row; }
+.cerveau__colonne{ display:flex; flex-direction:column; flex:1; min-width:0; }
 .cerveau__rail{
   flex:0 0 300px; display:flex; flex-direction:column; gap:12px;
   padding:14px 16px; overflow-y:auto; overscroll-behavior:contain;

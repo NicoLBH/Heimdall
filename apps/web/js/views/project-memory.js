@@ -68,7 +68,7 @@ import {
   summarizeMemory,
   titreDeLAffirmation
 } from "../services/project-memory.js";
-import { normalizePaginationState, paginateItems, renderPaginationControls } from "./ui/pagination.js";
+import { paginateItems, renderPaginationControls } from "./ui/pagination.js";
 import {
   READER,
   describeEmptyReader,
@@ -694,7 +694,7 @@ function renderAssertion(assertion) {
             data-memory-open="${escapeHtml(assertion.subject_key ?? "")}"
           >${escapeHtml(titreDeLAffirmation(assertion))}</button>
           <span class="memory-pill memory-pill--${ecartee ? "rejected" : "assumed"}">
-            ${svgIcon(ecartee ? "x-circle-fill" : "check-circle-fill", { className: "octicon" })}
+            ${svgIcon(ecartee ? "x-circle-fill" : "attestation", { className: "octicon" })}
             ${escapeHtml(ecartee ? "Écartée" : "Assumée")}
           </span>
         </div>
@@ -837,16 +837,23 @@ function renderTaxonomy(assertion) {
  * une page d'essai qui recopierait son HTML finirait par mentir sur ce qu'elle
  * montre.
  */
-export function renderMemoryList(lignes, page = 1, { grouped = false, reader = READER.ALL } = {}) {
+export function renderMemoryList(lignes, page = 1, {
+  grouped = false, reader = READER.ALL, enteteHtml = ""
+} = {}) {
   if (lignes.length === 0) {
+    // L'en-tête reste : ses filtres sont ce par quoi on sort d'une recherche
+    // vide, et les retirer là où ils servent le plus serait une farce.
     return `
-      <div class="propositions-empty">
-        <b>${escapeHtml(grouped ? readerLabel(reader) : "Rien ne correspond")}</b>
-        <p>${escapeHtml(
-          grouped
-            ? describeEmptyReader(reader)
-            : "Aucune affirmation ne répond à cette recherche. Ce qui a été remplacé est masqué par défaut."
-        )}</p>
+      <div class="memory-table">
+        ${enteteHtml}
+        <div class="propositions-empty">
+          <b>${escapeHtml(grouped ? readerLabel(reader) : "Rien ne correspond")}</b>
+          <p>${escapeHtml(
+            grouped
+              ? describeEmptyReader(reader)
+              : "Aucune affirmation ne répond à cette recherche. Ce qui a été remplacé est masqué par défaut."
+          )}</p>
+        </div>
       </div>
     `;
   }
@@ -874,17 +881,30 @@ export function renderMemoryList(lignes, page = 1, { grouped = false, reader = R
         .join("")
     : `<ul class="memory-list">${pagination.items.map(renderAssertion).join("")}</ul>`;
 
+  // La pagination sort du tableau : elle n'est pas une ligne de plus, c'est ce
+  // qui dit où l'on en est dans la liste. Dedans, elle se lisait comme une
+  // dernière ligne encadrée par la bordure du tableau.
   return `
-    <div class="memory-results">
-      ${corps}
-      ${renderPaginationControls(pagination, { entity: "memory" })}
+    <div class="memory-table">
+      ${enteteHtml}
+      <div class="memory-results">${corps}</div>
     </div>
+    ${renderPaginationControls(pagination, { entity: "memory" })}
   `;
 }
 
-/** La liste telle que cet écran la veut : groupée dès qu'on lit par lecture. */
+/**
+ * La liste telle que cet écran la veut : groupée dès qu'on lit par lecture.
+ *
+ * Le tableau porte sa bordure, la pagination se pose **dessous** : elle dit où
+ * l'on en est dans la liste, elle n'en fait pas partie.
+ */
 function renderList(lignes, page = 1) {
-  return renderMemoryList(lignes, page, { grouped: lectureDe(view.query) !== READER.ALL, reader: lectureDe(view.query) });
+  return renderMemoryList(lignes, page, {
+    grouped: lectureDe(view.query) !== READER.ALL,
+    reader: lectureDe(view.query),
+    enteteHtml: renderTableHead()
+  });
 }
 
 /**
@@ -951,7 +971,7 @@ function zonesDuDetail(assertion) {
 /** La pastille d'état : haute, ronde, la même que « Fusionnée » sur une proposition. */
 function renderPastilleDEtat(ecartee) {
   return `<span class="gh-state ${ecartee ? "gh-state--rejected" : "gh-state--closed"}">
-    <span class="gh-state-dot" aria-hidden="true">${svgIcon(ecartee ? "x-circle-fill" : "shield", { style: "color: #fff" })}</span>
+    <span class="gh-state-dot" aria-hidden="true">${svgIcon(ecartee ? "x-circle-fill" : "attestation", { style: "color: #fff" })}</span>
     ${ecartee ? "Écarté" : "Assumé"}</span>`;
 }
 
@@ -1065,7 +1085,7 @@ export function renderMemoryDetail(assertions, cible = {}) {
     return `
       <li class="memory-step${perimee ? " memory-step--past" : ""}">
         <span class="memory-step__mark">${svgIcon(
-          assertion.status === MEMORY.REJECTED ? "x-circle-fill" : "check-circle-fill",
+          assertion.status === MEMORY.REJECTED ? "x-circle-fill" : "attestation",
           { className: "octicon" }
         )}</span>
         <div class="memory-step__body">
@@ -2127,10 +2147,7 @@ function renderContent(root) {
 
             ${renderCounts(resume, vocabulaire, enAttente, plan)}
             ${renderSearch()}
-            <div class="memory-table">
-              ${renderTableHead()}
-              ${renderList(lignes, view.page)}
-            </div>
+            ${renderList(lignes, view.page)}
           </div>
         </div>
       </div>

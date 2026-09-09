@@ -517,8 +517,54 @@ function renderLacunes(cerveau) {
 function renderCadre(cerveau, isoles, signales) {
   const { cycles } = cerveau;
 
+  // Le rail est le **frère** de la colonne du dessin, pas son voisin sous la
+  // tête : il court du haut de l'écran au bas, comme le rail de l'application,
+  // et la ligne de titre appartient au dessin.
   return `
-    <div class="cerveau" role="dialog" aria-modal="true" aria-label="Le cerveau du projet">
+    <div class="cerveau cerveau--rail" role="dialog" aria-modal="true" aria-label="Le cerveau du projet">
+      <aside class="cerveau__rail" data-cerveau-panneau>
+        <span class="cerveau__compte" data-cerveau-resume>${renderResume(cerveau)}</span>
+
+        ${renderBarre(isoles)}
+
+        <hr class="cerveau__filet">
+
+        ${
+          // D'où viennent les liens. Le taire ferait passer un rapprochement de
+          // noms pour ce que les règles ont réellement lu.
+          cerveau.enregistres
+            ? ""
+            : `<p class="cerveau__provenance">
+                ${svgIcon("alert", { className: "octicon" })}
+                Aucune lecture n'est enregistrée pour ce projet : ces liens sont déduits des noms
+                que les règles citent. C'est vrai, en moins sûr.
+                Lancez « Verser › Reconstruire les liens du raisonnement » pour les établir.
+              </p>`
+        }
+
+        <div data-cerveau-lacunes>${cerveau.enregistres ? renderLacunes(cerveau) : ""}</div>
+
+        <div data-cerveau-legendes>${renderLegende(cerveau, signales)}</div>
+
+        <p class="cerveau__onde" data-cerveau-onde>
+          Le projet bat tout seul, et s'arrête dès que vous le survolez.
+          Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
+          Cliquez un secteur : il reste seul allumé.
+        </p>
+
+        ${
+          cycles.length
+            ? `<p class="cerveau__cycle">
+                ${svgIcon("alert", { className: "octicon" })}
+                ${cycles.length} ${accorde(cycles.length, "affirmation se lit", "affirmations se lisent")}
+                en rond : ${accorde(cycles.length, "elle est placée", "elles sont placées")} à part.
+                Rien n'en sort — un état de passage n'est pas un résultat.
+              </p>`
+            : ""
+        }
+      </aside>
+
+      <div class="cerveau__colonne">
       <header class="cerveau__tete">
         <button type="button" class="cerveau__outil" data-cerveau-rail
           aria-label="Replier les réglages" aria-expanded="true"
@@ -533,49 +579,6 @@ function renderCadre(cerveau, isoles, signales) {
         <button type="button" class="cerveau__fermer" data-cerveau-fermer
           aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
       </header>
-
-      <div class="cerveau__corps">
-        <aside class="cerveau__rail" data-cerveau-panneau>
-          <span class="cerveau__compte" data-cerveau-resume>${renderResume(cerveau)}</span>
-
-          ${renderBarre(isoles)}
-
-          <hr class="cerveau__filet">
-
-          ${
-            // D'où viennent les liens. Le taire ferait passer un rapprochement de
-            // noms pour ce que les règles ont réellement lu.
-            cerveau.enregistres
-              ? ""
-              : `<p class="cerveau__provenance">
-                  ${svgIcon("alert", { className: "octicon" })}
-                  Aucune lecture n'est enregistrée pour ce projet : ces liens sont déduits des noms
-                  que les règles citent. C'est vrai, en moins sûr.
-                  Lancez « Verser › Reconstruire les liens du raisonnement » pour les établir.
-                </p>`
-          }
-
-          <div data-cerveau-lacunes>${cerveau.enregistres ? renderLacunes(cerveau) : ""}</div>
-
-          <div data-cerveau-legendes>${renderLegende(cerveau, signales)}</div>
-
-          <p class="cerveau__onde" data-cerveau-onde>
-            Le projet bat tout seul, et s'arrête dès que vous le survolez.
-            Cliquez une valeur : l'onde remonte ce qui en découle, une strate à la fois.
-            Cliquez un secteur : il reste seul allumé.
-          </p>
-
-          ${
-            cycles.length
-              ? `<p class="cerveau__cycle">
-                  ${svgIcon("alert", { className: "octicon" })}
-                  ${cycles.length} ${accorde(cycles.length, "affirmation se lit", "affirmations se lisent")}
-                  en rond : ${accorde(cycles.length, "elle est placée", "elles sont placées")} à part.
-                  Rien n'en sort — un état de passage n'est pas un résultat.
-                </p>`
-              : ""
-          }
-        </aside>
 
         <div class="cerveau__scene">
           <canvas data-cerveau-toile></canvas>

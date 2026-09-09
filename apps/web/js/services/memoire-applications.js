@@ -108,6 +108,18 @@ function vautDans(assertion, zone) {
  * deux lectures — c'est précisément ce qu'on ne savait pas dire.
  */
 export function lecturesDeLaRegle(regle = {}) {
+  // Une fonction native n'a pas de conditions : son corps ne s'écrit pas. Ce
+  // qu'elle lit est déclaré, et c'est la seule chose qui en tient lieu — sans
+  // cette branche, la fonction n'aurait aucune entrée et la chaîne se couperait
+  // juste avant elle, exactement là où on veut la voir passer.
+  const native = regle?.payload?.native;
+  if (native) {
+    const dites = (Array.isArray(native.lit) ? native.lit : []).map(texte).filter(Boolean);
+    if (dites.length) return dites;
+    // Rien de déclaré sur la ligne : le catalogue dit ce que cette version lit.
+    return lecturesDeLUtilitaire(regle);
+  }
+
   const bloc = regle?.payload?.regle ?? {};
   const toutes = [
     ...(Array.isArray(bloc.conditions) ? bloc.conditions : []),
@@ -116,6 +128,30 @@ export function lecturesDeLaRegle(regle = {}) {
 
   return toutes
     .map((condition) => texte(condition?.sujet))
+    .filter(Boolean);
+}
+
+/**
+ * Ce qu'une fonction produit : les sujets qu'elle pose, dans l'ordre.
+ *
+ * ## Pourquoi une règle en a un et une fonction native plusieurs
+ *
+ * Une règle conclut sur **son** sujet : « Classement du bâtiment » conclut le
+ * classement, et c'est pour cela que la sortie se cherche sous le nom de la
+ * règle. Un calcul qui dimensionne un tableau de vingt massifs en pose cent
+ * quarante — sept par appui —, et aucun ne porte le nom de la fonction.
+ *
+ * Chercher la sortie sous le nom de la fonction ne rendait donc rien, et les
+ * cent quarante cotes se retrouvaient sans producteur : une fonction sans aval,
+ * un tableau de valeurs sans amont, et rien à l'écran pour dire qu'un lien
+ * manquait. C'est la seule raison d'être de cette fonction-ci.
+ */
+export function sortiesDeLaFonction(regle = {}) {
+  const native = regle?.payload?.native;
+  if (!native) return [texte(sujetDe(regle))].filter(Boolean);
+
+  return (Array.isArray(native.ecrit) ? native.ecrit : [])
+    .map((sortie) => texte(sortie?.sujet))
     .filter(Boolean);
 }
 
@@ -266,42 +302,47 @@ export function applicationsDeLaMemoire(assertions = [], {
     const zones = porteesDe(regle);
     const appels = zones.length ? zones : [""];
 
+    // Une règle pose un sujet, une fonction native en pose autant qu'elle en a
+    // écrit. Les lectures se rattachent à **chacun** : sans cela, cent quarante
+    // cotes sortiraient d'un calcul dont rien ne dirait ce qu'il a lu.
     for (const zone of appels) {
-      const sortie = resoudre(sujetDe(regle), {
-        parSujet, parRegle, zone, propositionId: texte(regle.proposition_id)
-      });
-      // Une règle qui n'a rien produit dans cette zone n'y a pas servi. On ne
-      // rattache pas ses lectures à la valeur d'une autre zone.
-      if (!sortie?.id) continue;
-      produitesParUneRegle.add(texte(sortie.id));
-      if (retenues && !retenues.has(texte(sortie.id))) continue;
-
-      noms.forEach((nom, index) => {
-        const entree = resoudre(nom, {
+      for (const nomDeLaSortie of sortiesDeLaFonction(regle)) {
+        const sortie = resoudre(nomDeLaSortie, {
           parSujet, parRegle, zone, propositionId: texte(regle.proposition_id)
         });
+        // Une règle qui n'a rien produit dans cette zone n'y a pas servi. On ne
+        // rattache pas ses lectures à la valeur d'une autre zone.
+        if (!sortie?.id) continue;
+        produitesParUneRegle.add(texte(sortie.id));
+        if (retenues && !retenues.has(texte(sortie.id))) continue;
 
-        lignes.push({
-          project_id: projet || texte(sortie.project_id),
-          rule_assertion_id: texte(regle.id) || null,
-          output_assertion_id: texte(sortie.id),
-          // `null` n'est pas un oubli : le nom ne désignait rien que le projet
-          // ait versé. C'est le trou du raisonnement, et il se compte.
-          //
-          // Une règle qui **est** sa propre conclusion ne se lit pas elle-même :
-          // le lien tournerait en rond et l'onde y ferait un cycle qui n'existe
-          // pas dans le raisonnement.
-          input_assertion_id: texte(entree?.id) === texte(sortie.id)
-            ? null
-            : texte(entree?.id) || null,
-          input_subject: nom,
-          input_rank: index + 1,
-          zone,
-          utility: texte(regle.payload?.utilitaire) || null,
-          proposition_id: texte(propositionId) || texte(regle.proposition_id) || null,
-          resolution
+        noms.forEach((nom, index) => {
+          const entree = resoudre(nom, {
+            parSujet, parRegle, zone, propositionId: texte(regle.proposition_id)
+          });
+
+          lignes.push({
+            project_id: projet || texte(sortie.project_id),
+            rule_assertion_id: texte(regle.id) || null,
+            output_assertion_id: texte(sortie.id),
+            // `null` n'est pas un oubli : le nom ne désignait rien que le projet
+            // ait versé. C'est le trou du raisonnement, et il se compte.
+            //
+            // Une règle qui **est** sa propre conclusion ne se lit pas elle-même :
+            // le lien tournerait en rond et l'onde y ferait un cycle qui n'existe
+            // pas dans le raisonnement.
+            input_assertion_id: texte(entree?.id) === texte(sortie.id)
+              ? null
+              : texte(entree?.id) || null,
+            input_subject: nom,
+            input_rank: index + 1,
+            zone,
+            utility: texte(regle.payload?.utilitaire) || null,
+            proposition_id: texte(propositionId) || texte(regle.proposition_id) || null,
+            resolution
+          });
         });
-      });
+      }
     }
   }
 

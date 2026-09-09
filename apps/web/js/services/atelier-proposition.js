@@ -70,6 +70,50 @@ export function provenanceRetenue(provenance) {
 }
 
 /**
+ * Ce qu'on garde d'une fonction native.
+ *
+ * Son nom, sa version, ce qu'elle a lu et ce qu'elle a posé — et rien d'autre,
+ * parce qu'il n'y a rien d'autre : son corps ne s'écrit pas, c'est tout le
+ * propos. Voir `docs/fondamentaux.md`, règle 9.
+ *
+ * Ce qu'elle a **posé** se conserve alors que la mémoire portera aussi chaque
+ * cote comme une affirmation. Ce n'est pas la même chose deux fois : les
+ * affirmations disent ce que le projet retient aujourd'hui, cette liste dit ce
+ * que **cet appel-là** a rendu. Le jour où l'une des cotes est corrigée à la
+ * main, l'écart entre les deux est précisément ce qu'on veut voir.
+ */
+export function nativeRetenue(native) {
+  if (!native || typeof native !== "object") return null;
+
+  const utilitaire = texte(native.utilitaire);
+  if (!utilitaire) return null;
+
+  return {
+    utilitaire,
+    version: texte(native.version) || null,
+    lit: (Array.isArray(native.lit) ? native.lit : []).map(texte).filter(Boolean),
+    ecrit: (Array.isArray(native.ecrit) ? native.ecrit : [])
+      .map((sortie) => ({ sujet: texte(sortie?.sujet), valeur: texte(sortie?.valeur) }))
+      .filter((sortie) => sortie.sujet)
+  };
+}
+
+/**
+ * Ce qu'un utilitaire déclare avoir lu, avec la valeur lue.
+ *
+ * On l'enregistre à la date de l'appel plutôt que de renvoyer au catalogue : le
+ * jour où une V2 lira autre chose, cette ligne-ci doit continuer de dire ce que
+ * la V1 a lu. Une lecture reconstruite depuis le catalogue décrirait l'outil
+ * d'aujourd'hui, pas le calcul d'hier.
+ */
+export function lecturesRetenues(lectures) {
+  const dites = (Array.isArray(lectures) ? lectures : [])
+    .map((lecture) => ({ sujet: texte(lecture?.sujet), valeur: texte(lecture?.valeur) }))
+    .filter((lecture) => lecture.sujet);
+  return dites.length ? dites : null;
+}
+
+/**
  * Ce qu'on garde d'une règle : ses conditions, ce qu'elle pose, ce qui la borne.
  *
  * On ne stocke que ce que l'écriture Mdall rend. Le reste dormirait dans la
@@ -232,7 +276,18 @@ export function itemsDeProposition(affirmations = []) {
           // vers rien, le graphe ne se reconstruirait pas, et un arrêté modifié
           // six mois plus tard réécrirait l'histoire en silence.
           referentiel: affirmation.referentiel === true ? true : null,
-          regle: regleRetenue(affirmation.regle)
+          regle: regleRetenue(affirmation.regle),
+          // Une **fonction native**, quand c'en est une : un utilitaire dont la
+          // loi ne s'écrit pas. Ce qui se conserve est ce qui permet de la
+          // relire et de la refaire — son nom, sa version, ce qu'elle a lu et ce
+          // qu'elle a posé. Voir `docs/fondamentaux.md`, règle 9.
+          native: nativeRetenue(affirmation.native),
+          // La référence complète de l'utilitaire, version comprise, et ce qu'il
+          // a lu au moment de l'appel. C'est ce qui reconstruit les liens du
+          // raisonnement, et ce qui dit six mois plus tard avec quelle version
+          // ces cotes ont été trouvées.
+          utilitaire: texte(affirmation.utilitaire) || null,
+          lectures: lecturesRetenues(affirmation.lectures)
         }
       };
     }));

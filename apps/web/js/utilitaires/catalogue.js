@@ -35,6 +35,7 @@ import { DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 } from "./deduction_profondeu
 import { DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1 } from "./deduction_zone_sismique_georisques_V1.js";
 import { DEDUCTION_RETRAIT_GONFLEMENT_ARGILES_GEORISQUES_V1 } from "./deduction_retrait_gonflement_argiles_georisques_V1.js";
 import { EXTRACTION_AVIS_RAPPORTS_SOCOTEC_V1 } from "./extraction_avis_rapports_socotec_V1.js";
+import { DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 } from "./dimensionnement_fondations_superficielles_V1.js";
 import { PRODUIT } from "./vocabulaire.js";
 
 export { PRODUIT };
@@ -51,7 +52,10 @@ export const UTILITAIRES = [
   DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1,
   DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1,
   DEDUCTION_RETRAIT_GONFLEMENT_ARGILES_GEORISQUES_V1,
-  EXTRACTION_AVIS_RAPPORTS_SOCOTEC_V1
+  EXTRACTION_AVIS_RAPPORTS_SOCOTEC_V1,
+  // En dernier, et à part : sa loi ne s'écrit pas. Voir `LOI.SECRETE` et
+  // `docs/fondamentaux.md`, règle 9.
+  DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1
 ];
 
 function texte(value) {

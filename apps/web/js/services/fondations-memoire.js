@@ -154,6 +154,46 @@ export function preremplir(entrees, rappels, choixConnus = {}) {
 }
 
 /**
+ * Ce qu'il faut changer pour que l'assise descende à la profondeur hors gel.
+ *
+ * ## Pourquoi l'arase, et pas la hauteur
+ *
+ * L'assise vaut `|arase| + hauteur du massif`. Deux façons de la faire
+ * descendre, et elles ne veulent pas dire la même chose : **enterrer** le massif
+ * (l'arase descend, le massif ne change pas) ou l'**épaissir** (la hauteur
+ * monte, donc le volume de béton, donc le ferraillage). La première est le
+ * geste du métier — on descend le fond de fouille —, la seconde redimensionne un
+ * ouvrage qui vérifiait peut-être déjà.
+ *
+ * ## Pourquoi c'est ici, et pas dans l'écran
+ *
+ * C'est la moitié qui manquait à la chaîne. L'altitude du projet change, la
+ * profondeur hors gel se recalcule, et jusqu'ici l'écran se contentait de dire
+ * « l'assise est trop haute » — puis attendait qu'on retape une cote. Une
+ * correction qu'on retape est une correction qu'on rate un jour sur dix.
+ *
+ * Rendue en entrées, pas appliquée : l'Atelier propose, et c'est le geste de
+ * quelqu'un qui change l'étude.
+ *
+ * @returns {object|null} les entrées corrigées, ou `null` si rien à corriger
+ */
+export function descendreHorsGel(entrees = {}, rappels = null) {
+  const horsGel = nombre(rappels?.profondeurHorsGel?.valeur);
+  if (horsGel === null) return null;
+
+  const arase = nombre(entrees?.araseSuperieure) ?? 0;
+  const hauteur = nombre(entrees?.hauteurLz) ?? 0;
+  if (Math.abs(arase) + hauteur + 1e-9 >= horsGel) return null;
+
+  // L'arase est comptée depuis le niveau fini et négative vers le bas : ce qu'il
+  // reste à descendre s'y ajoute avec ce signe-là.
+  const voulue = -(horsGel - hauteur);
+  // On ne remonte jamais un massif déjà plus bas que nécessaire : la cote de
+  // quelqu'un se conserve, et l'alerte ne portait que sur le manque.
+  return { ...entrees, araseSuperieure: Math.min(arase, voulue) };
+}
+
+/**
  * Ce que la mémoire reproche à cette géométrie.
  *
  * Une seule règle pour l'instant, et elle est dure : l'assise doit descendre
@@ -170,6 +210,7 @@ export function alertesDeLaMemoire(entrees, rappels) {
   const assise = Math.abs(arase) + hauteur;
 
   if (assise + 1e-9 < horsGel) {
+    const descente = descendreHorsGel(entrees, rappels);
     // Les nombres se lisent comme partout ailleurs dans l'écran : une virgule
     // décimale au milieu d'un texte français, pas un point.
     const ecrire = (valeur, decimales) =>
@@ -177,7 +218,16 @@ export function alertesDeLaMemoire(entrees, rappels) {
     alertes.push({
       cle: "horsGel",
       texte: `L'assise est à ${ecrire(assise, 2)} m sous le niveau fini, au-dessus de la profondeur hors gel du projet (${ecrire(horsGel, 3)} m). Le sol gèlerait sous la semelle.`,
-      rappel: rappels.profondeurHorsGel
+      rappel: rappels.profondeurHorsGel,
+      // Ce qu'il faudrait faire, et non seulement ce qui ne va pas. Une alerte
+      // qui décrit un défaut sans dire le geste laisse recalculer la cote à la
+      // main — et c'est là qu'on la rate.
+      corriger: descente,
+      // La phrase du bouton se construit ici : elle porte le chiffre, et le
+      // recomposer à l'écran ferait deux endroits où l'arrondi peut différer.
+      corrigerDit: descente
+        ? `Descendre l'arase à ${ecrire(descente.araseSuperieure, 2)} m`
+        : ""
     });
   }
   return alertes;
