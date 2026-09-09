@@ -6,7 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  placesDuMot, morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, pourChercher
+  placesDuMot, morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, pourChercher,
+  motsDeLaRecherche
 } from "./memoire-recherche-texte.js";
 
 test("on cherche sans accents et sans casse, on découpe sur le vrai texte", () => {
@@ -83,4 +84,35 @@ test("le contexte ne déborde pas du fichier", () => {
 
 test("chercher se plie, la casse et les accents ne comptent pas", () => {
   assert.equal(pourChercher("Bâtiment A"), "batiment a");
+});
+
+test("plusieurs mots se cherchent tous, dans n'importe quel ordre", () => {
+  // « Résultat du calcul des fondations superficielles » ne se trouvait pas
+  // dans un fichier alors que la recherche du projet le trouvait : l'une
+  // cherchait la phrase exacte, l'autre les mots. Le clic depuis un résultat ne
+  // menait donc nulle part.
+  const lignes = [
+    { rang: 1, clair: "      Résultat du calcul des fondations superficielles: résultat," },
+    { rang: 2, clair: "      utilitaire: dimensionnement," }
+  ];
+  assert.deepEqual(lignesQuiPortent(lignes, "Résultat du calcul des fondations superficielles"), [1]);
+  assert.deepEqual(lignesQuiPortent(lignes, "fondations résultat"), [1], "l'ordre ne compte pas");
+  assert.deepEqual(lignesQuiPortent(lignes, "fondations absent"), [], "il les faut tous");
+});
+
+test("deux mots voisins font un seul surlignage", () => {
+  // « calcul » et « des » cherchés ensemble donnent une marque continue, pas
+  // deux marques séparées par un blanc surligné à moitié.
+  assert.deepEqual(morceauxSurlignes("calcul des fondations", "calcul des"), [
+    { texte: "calcul des", trouve: true },
+    { texte: " fondations", trouve: false }
+  ]);
+});
+
+test("chaque mot se surligne là où il est", () => {
+  assert.deepEqual(morceauxSurlignes("hors gel du site", "site hors"), [
+    { texte: "hors", trouve: true },
+    { texte: " gel du ", trouve: false },
+    { texte: "site", trouve: true }
+  ]);
 });

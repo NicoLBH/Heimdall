@@ -151,6 +151,40 @@ export function resolutionDuSujet(sujet, { jetons = [], declares = null } = {}) 
 }
 
 /**
+ * Les noms que la mémoire déclare à **plus d'un endroit**.
+ *
+ * ## Le défaut le plus coûteux qu'une mémoire puisse porter
+ *
+ * Deux fichiers déclarent « Profondeur hors gel » : l'utilitaire climat écrit
+ * dans `sol.ctr`, celui des fondations dans `structure.ctr`. Les deux lignes
+ * vivent, chacune a ses héritiers, et rien ne dit qu'elles parlent de la même
+ * chose. Trois conséquences, et la troisième est la pire :
+ *
+ * - **les valeurs divergent** — 0,466 m d'un côté, 0,47 m de l'autre ;
+ * - **le raisonnement se coupe** — une règle lit l'une, une autre lit l'autre,
+ *   et la chaîne qu'on croit suivre n'existe pas ;
+ * - **une variante ment.** On change la valeur qu'on voit, l'autre ne bouge
+ *   pas, et l'écran annonce des conséquences qui n'en sont pas — ou n'en annonce
+ *   aucune. C'est ce qui a été observé, et c'est ce que ce compte existe pour
+ *   rendre visible.
+ *
+ * ## Pourquoi on le montre plutôt que de le corriger
+ *
+ * Parce que choisir laquelle garde la main est une **décision du projet**, pas
+ * un arbitrage d'écran : les deux ont été versées par quelqu'un, chacune avec sa
+ * provenance. La mémoire le dit, et un humain tranche — c'est la même règle que
+ * partout ailleurs (`docs/fondamentaux.md`, règle 1).
+ *
+ * @returns {{nom: string, fichiers: string[]}[]} par ordre alphabétique
+ */
+export function nomsDeclaresDeuxFois(variables = []) {
+  return (Array.isArray(variables) ? variables : [])
+    .filter((variable) => (variable?.declarations ?? []).length > 1)
+    .map((variable) => ({ nom: texte(variable.nom), fichiers: [...variable.declarations] }))
+    .filter((double) => double.nom);
+}
+
+/**
  * Les renvois d'un fichier qui ne mènent nulle part.
  *
  * De quoi dire, en tête d'un fichier : « trois de ses conditions portent sur
@@ -227,6 +261,16 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
     if (!variables.has(cle)) {
       variables.set(cle, {
         cle, nom: texte(nom), valeur: "", declarePar: "", declaree: false,
+        /**
+         * **Tous** les fichiers qui déclarent ce nom, et non le premier.
+         *
+         * Un nom déclaré à deux endroits est le défaut le plus coûteux qu'une
+         * mémoire puisse porter : les deux lignes vivent, chacune a ses
+         * héritiers, et une variante qui change l'une laisse l'autre intacte.
+         * Ne garder que le premier fichier faisait exactement ce qu'il ne faut
+         * pas — choisir en silence.
+         */
+        declarations: [],
         citeePar: [],
         // Où elle sert déjà, nommément : la fonction et son fichier. C'est cette
         // liste qui empêche d'en recréer une voisine — on voit que celle-ci
@@ -269,6 +313,11 @@ export function variablesDeLaMemoire(fichiers = [], lireLesLignes = () => []) {
         if (!sujet || !cleDuSujet(sujet.texte)) continue;
 
         const variable = entree(sujet.texte);
+        // Chaque fichier qui la déclare, sans doublon : c'est ce qui permet de
+        // dire « ce nom vit à deux endroits » plutôt que de choisir en silence.
+        if (nomDuFichier && !variable.declarations.includes(nomDuFichier)) {
+          variable.declarations.push(nomDuFichier);
+        }
         // Une variable déclarée deux fois garde la première : les fichiers
         // arrivent dans l'ordre de lecture, et c'est celui-là qu'on montre.
         if (!variable.declaree) {

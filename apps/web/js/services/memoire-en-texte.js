@@ -176,6 +176,14 @@
  * fonction. Un `enregistre` peut porter plusieurs sujets, parce qu'un calcul
  * qui rend un tableau ne rend pas une valeur.
  *
+ * v4.7 — **une fonction s'écrit toujours en entier ; un agent s'appelle.** La
+ * v4.5 avait fait un amalgame : `fonction native NOM(…)` laissait croire que
+ * la fonction était opaque, alors que seul l'appel l'est. Le mot `native`
+ * disparaît de la tête, et le corps porte `agent-D (…)` — ou `agent-IA (…)`
+ * quand ce qui répond est un modèle, dont la sortie peut varier à entrées
+ * égales. « Calcul » était trop étroit : un utilitaire cherche, lit ou rédige
+ * aussi bien qu'il calcule.
+ *
  * v4.6 — **un appel s'écrit, un résultat se range.** La v4.5 dépliait les
  * quatre-vingts sorties d'un calcul de fondations dans le `.ref` : le fichier
  * de code portait les données, on ne voyait plus ni ce que la fonction
@@ -185,7 +193,7 @@
  * résultat entier. Les données vont dans le `.ctr`, et la forme du tableau se
  * déclare une fois dans `variables-du-projet.ref`, sous `structure attendue`.
  */
-export const ECRITURE = "4.6";
+export const ECRITURE = "4.7";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
@@ -636,12 +644,56 @@ export function ligneDeConsequence(mot, valeur = "", unite = "", profondeur = 1,
 export const VERBES = {
   IMPORTE: "importe",
   ENREGISTRE: "enregistre",
-  CALCUL: "calcul natif",
   DECISION: "décision humaine assumée"
 };
 
-/** `native` — le mot qui dit qu'une fonction n'a pas de corps à lire. */
-export const NATIVE = "native";
+/**
+ * Les **agents** : ce que le langage appelle sans pouvoir le lire.
+ *
+ * ## Une fonction s'écrit toujours en entier
+ *
+ * C'est la règle, et l'amalgame précédent la contredisait : on écrivait
+ * `fonction native NOM(…) { … }`, comme si la fonction elle-même était opaque.
+ * Elle ne l'est pas. Son commentaire, ses entrées, ses branches, ce qu'elle
+ * enregistre : tout cela s'écrit, se lit et se rejoue. Une seule ligne de son
+ * corps ne se lit pas — **l'appel d'agent** — et c'est celle-là qui porte le
+ * mot.
+ *
+ * ## Pourquoi « agent » et non « calcul »
+ *
+ * Parce que « calcul » est trop étroit. Un utilitaire de fondations calcule ; un
+ * autre cherche dans une table ; un troisième lit un document et n'en extrait
+ * qu'une date. Le point commun n'est pas le calcul : c'est qu'**un tiers fait le
+ * travail et rend un résultat**, sans que sa loi descende dans le projet.
+ *
+ * ## Pourquoi deux agents, et pas un
+ *
+ * La différence n'est pas la technique, c'est la **reproductibilité** — et une
+ * mémoire de projet ne peut pas l'ignorer :
+ *
+ * | | mêmes entrées | ce qu'on peut en dire |
+ * | --- | --- | --- |
+ * | `agent-D` | **même sortie, toujours** | rejouer suffit à vérifier |
+ * | `agent-IA` | sortie qui peut varier | il faut conserver ce qu'il a rendu |
+ *
+ * Un `agent-D` se rejoue et l'on compare ; un `agent-IA` ne se rejoue pas pour
+ * vérifier — le rejouer donnerait peut-être autre chose, sans que le projet ait
+ * bougé. Ce qu'il a répondu **ce jour-là** est donc la seule vérité, et se
+ * conserve. Confondre les deux ferait passer une variation du modèle pour un
+ * changement du projet, ce qui est le pire des faux signaux.
+ *
+ * Les deux s'appellent de la même façon, et pourront travailler côte à côte
+ * dans une même fonction : c'est ce que le mot rend possible.
+ */
+export const AGENT = {
+  /** Un enchaînement déterministe : mêmes entrées, même sortie. */
+  D: "agent-D",
+  /** Un agent qui juge, rédige ou interprète : sa sortie peut varier. */
+  IA: "agent-IA"
+};
+
+/** Les deux, pour ce qui doit les reconnaître sans les distinguer. */
+export const AGENTS = Object.values(AGENT);
 
 /**
  * `décision humaine assumée (réunion de chantier du 3 mars, par: Nicolas L., le: 12 mars 2026);`
@@ -1535,55 +1587,54 @@ export function ligneDAffectation(mot, { nom = "", valeur = "", importe = null, 
 
 /**
  * ```
- * résultat = calcul natif (
+ * résultat = agent-D (
  *    utilitaire: dimensionnement_fondations_superficielles,
  *    version: V1,
  *    zones: Bâtiment A,
- *    Profondeur hors gel: Profondeur hors gel à retenir,
- *    Données d'entrée du calcul des fondations superficielles: …
+ *    Profondeur hors gel: Profondeur hors gel à retenir
  * );
  * ```
  *
- * Le corps d'une fonction native — et c'est tout ce qu'il y aura jamais.
+ * **L'appel d'un agent : la seule ligne d'une fonction qui ne se lit pas.**
  *
- * ## Pourquoi la loi n'y est pas
+ * ## Ce qui est opaque, et ce qui ne l'est pas
  *
- * Une règle se lit : `si (Hauteur ≤ 28 m) alors ("3e famille B")`. Sa loi est
- * publique — c'est un arrêté — et l'écrire permet de la rejouer, de la contester,
- * de la voir vieillir quand le texte change.
+ * La fonction qui contient cette ligne s'écrit en entier : son commentaire, ses
+ * entrées, ses branches, ce qu'elle enregistre. Ce qui ne s'écrit pas est ce que
+ * l'agent fait — et c'est **cette ligne-ci** qui le dit, en le nommant.
  *
- * Certains utilitaires n'ont pas cette loi-là. Un pré-dimensionnement de
- * fondations parcourt trois cent quatre-vingt-huit combinaisons et rend des
- * cotes ; sa loi **est** le produit, et l'écrire dans un fichier de projet
- * reviendrait à la donner.
+ * Un pré-dimensionnement de fondations parcourt trois cent quatre-vingt-huit
+ * combinaisons ; sa loi **est** le produit, et l'écrire dans un projet
+ * reviendrait à la donner. On ne peut pas non plus la taire : il a décidé de
+ * cotes, et « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien ».
  *
- * On ne peut pas non plus le cacher : une fois employé, il a décidé de cotes, et
- * « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien ».
+ * ## Ce que la ligne garde, et pourquoi
  *
- * D'où ce bloc : il **dit qu'il y a un corps et qu'il ne se lit pas**, nomme
- * l'utilitaire et sa version — de quoi refaire le calcul en le redemandant —, et
- * montre **avec quoi** on l'appelle.
+ * L'agent, l'utilitaire, sa **version**, et ce qu'on lui passe. La version est
+ * ce qui distingue « la cote a changé » de « notre façon de la trouver a
+ * changé » : sans elle, une reprise six mois plus tard passerait pour un projet
+ * qui a bougé.
  *
  * ## Pourquoi un bloc, et non une ligne
  *
  * Parce qu'un appel porte ses arguments. À trois entrées la ligne dépasse la
- * largeur d'un écran, et surtout le diff bougerait tout l'appel dès qu'une seule
- * entrée change — la même raison qui a mis `enregistre` sur plusieurs lignes.
+ * largeur d'un écran, et surtout le diff bougerait tout l'appel dès qu'une
+ * seule entrée change — la même raison qui a mis `enregistre` sur plusieurs
+ * lignes.
  *
- * @param {{utilitaire: string, version?: string,
+ * @param {{agent?: string, utilitaire: string, version?: string,
  *          arguments?: {nom: string, valeur: string}[]}} appel
  * @returns {object[][]} les lignes du bloc
  */
-export function blocDeCalculNatif({ utilitaire = "", version = "", arguments: args = [] } = {}, profondeur = 1) {
+export function blocDAppelDAgent({
+  agent = AGENT.D, utilitaire = "", version = "", arguments: args = []
+} = {}, profondeur = 1) {
   const nom = texte(utilitaire);
   if (!nom) return [];
 
   const dedans = profondeur + 1;
   const champs = [
     { nom: "utilitaire", valeur: nom, type: JETON.SOURCE, duLangage: true },
-    // La version est ce qui distingue « la cote a changé » de « notre façon de
-    // la trouver a changé ». Sans elle, une reprise six mois plus tard passerait
-    // pour un projet qui a bougé.
     ...(texte(version) ? [{ nom: "version", valeur: texte(version), type: JETON.SOURCE, duLangage: true }] : []),
     ...(Array.isArray(args) ? args : [])
       .filter((argument) => texte(argument?.nom))
@@ -1592,26 +1643,24 @@ export function blocDeCalculNatif({ utilitaire = "", version = "", arguments: ar
         valeur: texte(argument.valeur),
         // `zones` est un mot du langage et sa valeur une portée ; les autres
         // arguments nomment des variables du projet et reçoivent des locales.
-        // Tout écrire en « sujet » faisait souligner `zones` comme un renvoi
-        // sans déclaration — un nom que personne n'aurait versé.
         duLangage: texte(argument.nom) === "zones",
         type: texte(argument.nom) === "zones" ? JETON.PORTEE : JETON.NOM_LOCAL
       }))
   ];
 
-  const lignes = [[
+  const rendues = [[
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
     jeton(JETON.NOM_LOCAL, "résultat"),
     espace(),
     jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
     espace(),
-    jeton(JETON.MOT_NATIF, VERBES.CALCUL),
+    jeton(JETON.MOT_NATIF, AGENTS.includes(texte(agent)) ? texte(agent) : AGENT.D),
     espace(),
     jeton(JETON.PONCTUATION, "(")
   ]];
 
   champs.forEach((champ, rang) => {
-    lignes.push([
+    rendues.push([
       espace(RETRAIT.repeat(dedans)),
       jeton(champ.duLangage ? JETON.LOCALE : JETON.SUJET, champ.nom),
       jeton(JETON.PONCTUATION, ":"),
@@ -1621,28 +1670,30 @@ export function blocDeCalculNatif({ utilitaire = "", version = "", arguments: ar
     ]);
   });
 
-  lignes.push([
+  rendues.push([
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
     jeton(JETON.PONCTUATION, ")"),
     jeton(JETON.PONCTUATION, ";")
   ]);
-  return lignes;
+  return rendues;
 }
 
+
 /**
- * `fonction native Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, Données d'entrée…)`
+ * `fonction Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, …)`
  *
- * La tête d'une fonction native, sans son accolade. Elle sert deux fois : au
- * bloc qu'on écrit, et à la ligne qu'on recolore dans un diff. Une seconde
- * version pour le diff finirait par colorer autrement ce qu'on a écrit.
+ * La tête d'une fonction, sans son accolade. Elle sert deux fois : au bloc qu'on
+ * écrit, et à la ligne qu'on recolore dans un diff. Une seconde version pour le
+ * diff finirait par colorer autrement ce qu'on a écrit.
+ *
+ * **Il n'y a qu'un genre de fonction.** La v4.5 en avait inventé un second —
+ * `fonction native …` —, ce qui laissait croire qu'une fonction pouvait être
+ * opaque. Elle ne l'est jamais : ce qui l'est, c'est l'agent qu'elle appelle, et
+ * c'est la ligne d'appel qui le porte.
  */
-export function ligneDeFonctionNative(nom = "", entrees = []) {
+export function ligneDeFonction(nom = "", entrees = []) {
   return [
     jeton(JETON.MOT_FONCTION, "fonction"),
-    espace(),
-    // `native` colore comme `fonction` : les deux mots ouvrent la même chose, et
-    // les séparer visuellement ferait passer le second pour un nom.
-    jeton(JETON.MOT_FONCTION, NATIVE),
     espace(),
     jeton(JETON.SUJET, texte(nom)),
     jeton(JETON.PONCTUATION, "("),
@@ -1654,6 +1705,7 @@ export function ligneDeFonctionNative(nom = "", entrees = []) {
   ];
 }
 
+
 /** Le nom de la locale qui porte l'entrée retenue pour un appel. */
 export function nomARetenir(entree = "") {
   const dit = texte(entree);
@@ -1662,35 +1714,40 @@ export function nomARetenir(entree = "") {
 
 /**
  * ```
- * fonction native Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, Données d'entrée…) {
+ * fonction Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée…) {
  *    // Dimensionne les massifs superficiels d'une zone. La loi de calcul
  *    // appartient à l'utilitaire — elle ne s'écrit pas ici.
  *
  *    const Profondeur hors gel à retenir;
  *    si (Profondeur hors gel renseigné)
  *    alors (Profondeur hors gel à retenir = Profondeur hors gel)
- *    sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: zones));
+ *    sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: sol.ctr, zones: Bâtiment A));
  *
- *    résultat = calcul natif (
+ *    résultat = agent-D (
  *       utilitaire: dimensionnement_fondations_superficielles,
  *       version: V1,
- *       zones: zones,
- *       Profondeur hors gel: Profondeur hors gel à retenir,
- *       Données d'entrée du calcul des fondations superficielles: Données d'entrée…
+ *       zones: Bâtiment A,
+ *       Profondeur hors gel: Profondeur hors gel à retenir
  *    );
  *
  *    enregistre (
  *       Résultat du calcul des fondations superficielles: résultat,
  *       dans: structure.ctr,
- *       zones: zones
+ *       zones: Bâtiment A
  *    )
  * }
  * ```
  *
- * Une fonction dont la loi ne s'écrit pas — et qui, à cela près, s'écrit comme
- * les autres.
+ * Une fonction du projet qui **appelle un agent**.
  *
- * ## Ce que le lecteur doit pouvoir en tirer, et qui commande la forme
+ * ## Une fonction s'écrit toujours en entier
+ *
+ * C'est la règle, et c'est ce qui a été corrigé. Tout ce que cette fonction
+ * fait est lisible : son commentaire, ses entrées, la branche qui décide quelle
+ * profondeur retenir, ce qu'elle range et où. Une seule ligne ne se lit pas —
+ * l'appel — et c'est elle qui porte le mot.
+ *
+ * ## Ce que le lecteur doit pouvoir en tirer
  *
  * Quatre questions, et le bloc y répond dans cet ordre :
  *
@@ -1701,23 +1758,15 @@ export function nomARetenir(entree = "") {
  *    déclare dans `variables-du-projet.ref` avec sa `structure attendue`.
  * 4. **Où est-il rangé ?** L'`enregistre` le dit — le fichier, et la portée.
  *
- * ## Ce qu'elle n'écrit plus, et pourquoi
- *
- * La première version dépliait les sorties : quatre-vingts lignes de cotes dans
- * le fichier de **code**. On n'y lisait plus ni les entrées ni l'appel, et le
- * `.ref` portait les données du projet — exactement ce qu'un `.ctr` existe pour
- * porter. Une fonction écrit maintenant **un** résultat, nommé ; ce qu'il
- * contient se lit là où il est rangé.
- *
  * @param {{nom: string, quoi?: string, portee?: string,
  *          entrees?: {nom: string, depuis?: string}[],
- *          utilitaire?: string, version?: string,
+ *          agent?: string, utilitaire?: string, version?: string,
  *          enregistre?: {sujet: string, dans?: string}[]}} fonction
  * @returns {object[][]} les lignes du bloc
  */
-export function blocDeFonctionNative({
+export function blocDeFonction({
   nom = "", quoi = "", portee = "zones", entrees = [],
-  utilitaire = "", version = "", enregistre = []
+  agent = AGENT.D, utilitaire = "", version = "", enregistre = []
 } = {}, profondeur = 0) {
   const dit = texte(nom);
   if (!dit) return [];
@@ -1752,7 +1801,8 @@ export function blocDeFonctionNative({
     corps.push(ligneVide());
   }
 
-  corps.push(...blocDeCalculNatif({
+  corps.push(...blocDAppelDAgent({
+    agent,
     utilitaire,
     version,
     arguments: [
@@ -1770,7 +1820,7 @@ export function blocDeFonctionNative({
 
   for (const sortie of sorties) {
     corps.push(...blocDEnregistrement({
-      // Ce que la fonction range est **ce qu'elle vient de calculer** : la
+      // Ce que la fonction range est **ce que l'agent vient de rendre** : la
       // ligne cite la locale, elle ne recopie pas sa valeur. Une valeur écrite
       // à deux endroits finit par diverger, et celle-ci en a quatre-vingts.
       valeurs: [{ sujet: texte(sortie.sujet), valeur: "résultat", reference: true }],
@@ -1781,7 +1831,7 @@ export function blocDeFonctionNative({
 
   const tete = [
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
-    ...ligneDeFonctionNative(dit, [zones, ...prises.map((entree) => texte(entree.nom))]),
+    ...ligneDeFonction(dit, [zones, ...prises.map((entree) => texte(entree.nom))]),
     espace(),
     jeton(JETON.ACCOLADE, "{")
   ];
@@ -1795,6 +1845,7 @@ export function blocDeFonctionNative({
     ligneFermante(profondeur)
   ];
 }
+
 
 /**
  * `alors ( enregistre ( … ) );` — la conclusion, et ce qu'elle écrit.

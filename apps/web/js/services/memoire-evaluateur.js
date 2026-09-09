@@ -242,7 +242,7 @@ export function evaluerLaRegle(regle = {}, lire = () => ({ connu: false, valeur:
   // Une fonction native n'a pas de conditions à évaluer : sa loi est au serveur.
   // Sans cette sortie, `combiner([])` la déclarait vraie et le rejeu annonçait
   // qu'elle tient sans avoir rien calculé.
-  if (regle?.payload?.native) {
+  if (regle?.payload?.agent ?? regle?.payload?.native) {
     return {
       decidable: false,
       tient: null,

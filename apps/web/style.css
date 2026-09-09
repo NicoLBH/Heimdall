@@ -6438,6 +6438,11 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
    comportements : deux montraient une coche, un une classe `is-done`, quatre ne
    montraient rien. Or c'est le retour qui compte — le presse-papiers est le
    seul endroit de l'interface qu'on ne peut pas regarder. */
+/* Le **bouton léger** : rien qu'une icône, qui s'assombrit au survol. C'est la
+   forme de tous les gestes d'une barre d'outils — copier, chercher, replier —,
+   et l'avoir écrite une fois évite qu'un nouveau bouton reparte du style par
+   défaut du navigateur : un fond blanc au milieu d'une barre sombre. */
+.bouton-leger,
 .bouton-copier{
   display:inline-flex;
   align-items:center;
@@ -6451,7 +6456,16 @@ body.route--project.project-shell-compact .documents-report-table__header--pdf-p
   cursor:pointer;
   transition:opacity .12s ease, color .12s ease, background .12s ease;
 }
+.bouton-leger:hover,
 .bouton-copier:hover{ background:rgba(110,118,129,.16); color:var(--text); }
+/* Enfoncé : le geste est en cours, et le bouton reste allumé le temps qu'il
+   dure. Sans cela, on ne sait pas d'où vient le bandeau qui vient d'apparaître. */
+.bouton-leger.is-active{ background:rgba(110,118,129,.24); color:var(--text); }
+/* Emporter la mémoire : un geste de barre d'outils, pas une action de page. */
+.memoire-corps__zip{ padding:4px; }
+/* Un nom déclaré à deux endroits n'est pas un manque, c'est une contradiction :
+   elle se lit en rouge, là où une lacune se lit en jaune. */
+.memoire-fichier__manquants--double{ border-color:var(--danger, #f85149); color:var(--danger, #f85149); }
 /* Copié : la coche est verte le temps qu'on la voie, sans message à fermer. */
 .bouton-copier.is-copied{ color:rgb(63,185,80); opacity:1; background:transparent; }
 
@@ -20131,8 +20145,11 @@ body.proposition-merge-open{ overflow:hidden; }
    la place de deux lignes de code sur tous pour servir sur un. */
 .memoire-cherche{
   display:flex; align-items:center; gap:8px;
-  padding:8px 12px; border-bottom:1px solid var(--border);
-  background:var(--bg-subtle, rgba(255,255,255,.02));
+  padding:8px 12px;
+  /* Le même fond que l'en-tête au-dessus : le bandeau en fait partie, il ne
+     s'en détache pas. Un filet entre les deux coupait une barre d'outils en
+     deux barres. */
+  background:var(--panel2);
 }
 .memoire-cherche__icone{ display:inline-flex; color:var(--muted); }
 .memoire-cherche__champ{

@@ -46,7 +46,7 @@
  */
 
 import { NATURE, DOMAIN } from "./assertion-taxonomy.js";
-import { PROVENANCE, STATUT } from "./memoire-en-texte.js";
+import { PROVENANCE, STATUT, AGENT } from "./memoire-en-texte.js";
 import { synthese } from "./fondations-etude.js";
 import {
   DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 as OUTIL,
@@ -283,7 +283,13 @@ export function fonctionVersable(semelles = [], zone = "", { rappels = null } = 
     // du projet. C'est aussi ce qui en fait une **fonction** pour le cerveau et
     // pour les compteurs — une fonction native reste une fonction.
     referentiel: true,
-    native: {
+    // L'agent qu'elle appelle. `agent-D` : un enchaînement déterministe — mêmes
+    // entrées, même sortie —, ce qui permet de le rejouer pour vérifier. Un
+    // `agent-IA` ne se rejouerait pas pour ça : sa sortie peut varier à entrées
+    // égales, et le rejeu ferait passer une variation du modèle pour un
+    // changement du projet.
+    agent: {
+      genre: AGENT.D,
       utilitaire: OUTIL.nom,
       version: OUTIL.version,
       lit: [SUJET_HORS_GEL, SUJET_DONNEES],
@@ -296,7 +302,7 @@ export function fonctionVersable(semelles = [], zone = "", { rappels = null } = 
     domaine: OUTIL.domaine,
     provenance: { type: PROVENANCE.CALCUL, quoi: `${OUTIL.libelle} — ${referenceOf(OUTIL)}` },
     source: OUTIL.source,
-    reference: `native:${referenceOf(OUTIL)}`,
+    reference: `agent:${referenceOf(OUTIL)}`,
     zones: texte(zone) ? [texte(zone)] : [],
     atelier: ATELIER
   };

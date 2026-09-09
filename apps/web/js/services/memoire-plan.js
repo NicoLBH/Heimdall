@@ -44,7 +44,7 @@ import { cleDuSujet } from "./memoire-identifiants.js";
 import { zonesLisibles } from "./memoire-blame.js";
 import { normalizeZoneKey } from "./project-zones.js";
 import { sujetDe } from "./memoire-raisonnement.js";
-import { lecturesDeLaRegle } from "./memoire-applications.js";
+import { lecturesDeLaRegle, agentDeLaFonction } from "./memoire-applications.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -255,7 +255,7 @@ export function planDeRecalcul(assertions = []) {
  * variante ne les aurait jamais marquées à refaire.
  */
 export function sujetsProduits(regle = {}) {
-  const native = regle?.payload?.native;
+  const native = agentDeLaFonction(regle);
   if (!native) return [cleDuSujet(sujetDe(regle))];
 
   return (Array.isArray(native.ecrit) ? native.ecrit : [])

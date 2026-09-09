@@ -55,7 +55,7 @@ import { RESERVES } from "../utilitaires/reserves.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
 import { lireUnNombre } from "./memoire-en-texte.js";
 import { utilitaireByReference } from "../utilitaires/catalogue.js";
-import { lecturesDeLUtilitaire } from "./memoire-applications.js";
+import { lecturesDeLUtilitaire, agentDeLaFonction } from "./memoire-applications.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -231,7 +231,7 @@ export function fonctionsAReprendre({ enVigueur = [], substitutions = new Map() 
   const reprises = [];
 
   for (const fonction of toutes) {
-    const native = fonction?.payload?.native;
+    const native = agentDeLaFonction(fonction);
     if (!native) continue;
 
     const lues = (Array.isArray(native.lit) ? native.lit : []).map(cleDuSujet);

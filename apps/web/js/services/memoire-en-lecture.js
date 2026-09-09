@@ -47,8 +47,8 @@ import {
   OPERATEUR, PROVENANCES, STATUTS, RETRAIT, JETON,
   ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
   ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote, ligneDeLocale,
-  ligneDImport, ligneDeDecision, ligneDeFonctionNative, ligneDeLocaleVide, ligneDAffectation,
-  jetonsDeValeur, VERBES
+  ligneDImport, ligneDeDecision, ligneDeFonction, ligneDeLocaleVide, ligneDAffectation,
+  jetonsDeValeur, AGENT, AGENTS
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -155,15 +155,15 @@ const TABLEAU_OUVRANT = /^(.*?)\s*=\s*\[$/;
 /** `]` ou `];` — la fin du tableau. */
 const TABLEAU_FERMANT = /^\]\s*;?$/;
 /**
- * `résultat = calcul natif (utilitaire: …, version: V1);`
+ * `résultat = agent-D (utilitaire: …, version: V1);`
  *
- * Le corps entier d'une fonction native. Il se lit — l'utilitaire et sa version
- * sont ce qui permet de refaire le calcul — mais il ne se **déplie** pas : la
- * loi n'est pas là, et la ligne le dit.
+ * La seule ligne d'une fonction qui ne se lit pas. Elle se **lit** — l'agent,
+ * l'utilitaire et sa version sont ce qui permet de refaire le travail — mais
+ * elle ne se **déplie** pas : la loi n'est pas là, et la ligne le dit.
  */
-const CALCUL_NATIF = /^résultat\s*=\s*calcul natif\s*\((.*)\)\s*;?$/i;
-/** `résultat = calcul natif (` — l'appel qui s'ouvre, ses arguments dessous. */
-const CALCUL_NATIF_OUVRANT = /^résultat\s*=\s*calcul natif\s*\($/i;
+const APPEL_DAGENT = /^résultat\s*=\s*(agent-D|agent-IA)\s*\((.*)\)\s*;?$/i;
+/** `résultat = agent-D (` — l'appel qui s'ouvre, ses arguments dessous. */
+const APPEL_DAGENT_OUVRANT = /^résultat\s*=\s*(agent-D|agent-IA)\s*\($/i;
 /** `const Profondeur hors gel à retenir;` — une locale déclarée, pas encore posée. */
 const LOCALE_VIDE = /^const\s+(.+?)\s*;$/i;
 /**
@@ -275,15 +275,15 @@ export function lireLeTableau(lecture, ligne = "") {
  * d'une fonction native, et la lecture ne va pas inventer un corps qui n'a
  * jamais été écrit.
  */
-export function lireUnCalculNatif(ligne = "") {
-  const trouve = texte(ligne).match(CALCUL_NATIF);
+export function lireUnAppelDAgent(ligne = "") {
+  const trouve = texte(ligne).match(APPEL_DAGENT);
   if (!trouve) return null;
-  // `résultat = calcul natif (` ouvre un bloc : ses champs sont sur les lignes
+  // `résultat = agent-D (` ouvre un bloc : ses champs sont sur les lignes
   // suivantes, et cette fonction-ci ne lit que la forme en une ligne.
-  if (!texte(trouve[1])) return null;
+  if (!texte(trouve[2])) return null;
 
   const champs = new Map(
-    trouve[1].split(",").map((morceau) => {
+    trouve[2].split(",").map((morceau) => {
       const coupe = texte(morceau).match(/^([^:]+)\s*:\s*(.*)$/);
       return coupe ? [texte(coupe[1]).toLowerCase(), texte(coupe[2])] : ["", ""];
     })
@@ -291,7 +291,7 @@ export function lireUnCalculNatif(ligne = "") {
 
   const utilitaire = champs.get("utilitaire") ?? "";
   if (!utilitaire) return null;
-  return { utilitaire, version: champs.get("version") ?? "" };
+  return { agent: texte(trouve[1]), utilitaire, version: champs.get("version") ?? "" };
 }
 
 /**
@@ -461,25 +461,23 @@ export function lireUneTete(ligne = "") {
   // `fonction` ouvre une règle. Le mot ne se conserve pas — il **est** le fait
   // d'être une règle, et le garder à côté le laisserait diverger de lui.
   //
-  // `native` derrière lui dit que la loi ne s'écrit pas. Celui-là se conserve :
-  // il n'est pas déductible du corps, puisque le corps est précisément ce qui
-  // manque. Sans lui, une fonction sans conditions se lirait comme une règle
-  // dont quelqu'un aurait oublié d'écrire les `si`.
+  // Il n'y a **qu'un genre de fonction**. La v4.5 en avait inventé un second —
+  // `fonction native …` —, ce qui laissait croire qu'une fonction pouvait être
+  // opaque. Ce qui l'est, c'est l'agent qu'elle appelle, et c'est la ligne
+  // d'appel qui le porte. Le mot est encore lu pour ne pas refuser un fichier
+  // écrit avant, et il ne se conserve pas.
   const regle = /^fonction\s+/i.test(brut);
-  const native = /^fonction\s+native\s+/i.test(brut);
-  const dit = native
-    ? texte(brut.replace(/^fonction\s+native\s+/i, ""))
-    : (regle ? texte(brut.replace(/^fonction\s+/i, "")) : brut);
+  const dit = regle ? texte(brut.replace(/^fonction\s+(?:native\s+)?/i, "")) : brut;
 
   const egal = dit.match(/^(.*?)\s*=\s*(.*)$/);
   // Pas de `=` : c'est la tête d'une règle, avec sa signature éventuelle.
   if (!egal) {
     const { sujet, entrees } = lireUneSignature(dit);
-    return { sujet, valeur: "", unite: "", entrees, regle: regle || entrees.length > 0, native };
+    return { sujet, valeur: "", unite: "", entrees, regle: regle || entrees.length > 0 };
   }
 
   const lue = lireUneValeur(egal[2]);
-  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [], regle, native };
+  return { sujet: texte(egal[1]), valeur: lue.valeur, unite: lue.unite, entrees: [], regle };
 }
 
 /**
@@ -525,14 +523,21 @@ export function lireUnFichier(contenu = "") {
   const fermer = () => {
     if (courant) {
       // `accolade` sert à la lecture, pas au sens : elle ne ressort pas.
-      const { accolade, native, utilitaire, version, enregistre, tableau, ...bloc } = courant;
+      const { accolade, agent, utilitaire, version, enregistre, tableau, ...bloc } = courant;
       // Un tableau ne ressort que s'il y en a un : le champ vide sur toutes les
       // affirmations ferait croire que chacune en porte un.
       if (Array.isArray(tableau) && tableau.length) bloc.tableau = tableau;
       // Ce qui n'est pas natif ne porte pas les champs d'une fonction native.
       // Les laisser vides sur tous les blocs ferait croire qu'une règle a un
       // utilitaire, et il faudrait aller lire sa valeur pour savoir que non.
-      blocs.push(native ? { ...bloc, native, utilitaire, version, enregistre } : bloc);
+      // Une fonction qui appelle un agent ne porte **pas** les branches qu'on
+      // vient de lire : elles disent seulement quelle entrée retenir, et elles
+      // se déduisent de la signature. Les garder ferait une règle là où il n'y
+      // a qu'un appel — et l'appel n'apparaît qu'après elles dans le fichier,
+      // d'où ce tri à la fermeture plutôt qu'à la lecture.
+      blocs.push(agent
+        ? { ...bloc, conditions: [], alors: "", sinon: "", sauf: [], agent, utilitaire, version, enregistre }
+        : bloc);
     }
     courant = null;
     conclusion = "";
@@ -596,10 +601,15 @@ export function lireUnFichier(contenu = "") {
     // seule trace de ce qu'un calcul natif a décidé.
     if (ENREGISTRE_OUVRANT.test(corps)) { enregistrement = !conclusion; return; }
 
-    // Le corps d'une fonction native. On garde de quoi le refaire — l'utilitaire,
+    // L'appel d'un agent. On garde de quoi le refaire — l'agent, l'utilitaire,
     // sa version — et rien de plus : il n'y a rien de plus. Ses arguments se
     // déduisent de la signature, et une signature recopiée diverge.
-    if (CALCUL_NATIF_OUVRANT.test(corps) && courant) { calcul = true; return; }
+    const ouvreUnAppel = corps.match(APPEL_DAGENT_OUVRANT);
+    if (ouvreUnAppel && courant) {
+      calcul = true;
+      courant.agent = texte(ouvreUnAppel[1]);
+      return;
+    }
     if (calcul && courant) {
       const champ = corps.match(CHAMP_DENREGISTREMENT);
       const cle = texte(champ?.[1]).toLowerCase();
@@ -608,15 +618,25 @@ export function lireUnFichier(contenu = "") {
       return;
     }
 
-    const natif = lireUnCalculNatif(corps);
-    if (natif && courant) { courant.utilitaire = natif.utilitaire; courant.version = natif.version; return; }
+    const appel = lireUnAppelDAgent(corps);
+    if (appel && courant) {
+      courant.agent = appel.agent;
+      courant.utilitaire = appel.utilitaire;
+      courant.version = appel.version;
+      return;
+    }
 
-    // Ce qu'une fonction native retient de ses entrées : une locale déclarée,
-    // puis deux branches qui disent laquelle prendre. Tout s'en déduit — le nom
-    // vient de l'entrée, l'adresse du fichier qui la déclare —, et l'écrire une
-    // seconde fois dans le graphe le laisserait diverger de la signature.
-    if (courant?.native && LOCALE_VIDE.test(corps)) return;
-    if (courant?.native && AFFECTATION.test(corps)) return;
+    // Ce qu'une fonction retient de ses entrées : une locale déclarée, puis deux
+    // branches qui disent laquelle prendre. Tout s'en déduit — le nom vient de
+    // l'entrée, l'adresse du fichier qui la déclare —, et l'écrire une seconde
+    // fois dans le graphe le laisserait diverger de la signature.
+    //
+    // Ces deux formes ne se rencontrent nulle part ailleurs : une règle conclut
+    // sur une **valeur** (`alors ("3e famille B")`), jamais sur une affectation.
+    // On peut donc les reconnaître sans savoir encore qu'un agent sera appelé
+    // plus bas.
+    if (courant && LOCALE_VIDE.test(corps)) return;
+    if (courant && AFFECTATION.test(corps)) return;
 
     const ouvreUneConclusion = corps.match(CONCLUSION_OUVRANTE);
     if (ouvreUneConclusion && courant) { conclusion = ouvreUneConclusion[1].toLowerCase(); return; }
@@ -689,9 +709,9 @@ export function lireUnFichier(contenu = "") {
         accolade: ouvre,
         conditions: [], alors: "", sinon: "", sauf: [],
         provenance: null, preuve: "", statut: "", le: "",
-        // Ce qu'une fonction native porte, et qu'une règle n'a pas : le fait
-        // que sa loi ne s'écrive pas, de quoi la refaire, et ce qu'elle a posé.
-        native: Boolean(tete.native), utilitaire: "", version: "", enregistre: [],
+        // Ce qu'une fonction qui appelle un agent porte, et qu'une règle n'a
+        // pas : quel agent, de quoi le refaire, et ce qu'elle a rangé.
+        agent: "", utilitaire: "", version: "", enregistre: [],
         // Et ce qu'une affirmation porte quand sa valeur est un tableau.
         tableau: null
       };
@@ -738,11 +758,6 @@ export function lireUnFichier(contenu = "") {
       courant[mot] = lue.unite ? `${lue.valeur} ${lue.unite}` : lue.valeur;
       return;
     }
-
-    // Une fonction native n'a pas de conditions : celle-ci borne l'entrée à
-    // retenir, et elle se déduit de la signature. La garder ferait une règle
-    // là où il n'y a qu'un appel.
-    if (courant?.native && mot === "si") return;
 
     if (mot === "si" || mot === "et" || mot === "ou" || mot === "non" || mot === "sauf si") {
       const condition = lireUneCondition(sansBornes(reste).corps);
@@ -900,13 +915,14 @@ export function jetonsDeLaLigne(ligne = "") {
   // L'appel d'une fonction native, qui ouvre son bloc. Il passe **avant** la
   // lecture d'un champ : sans cette priorité, `résultat = calcul natif (` se
   // lirait comme le sujet « résultat » valant « calcul natif ( ».
-  if (CALCUL_NATIF_OUVRANT.test(nu)) {
+  const ouvreUnAppelDAgent = nu.match(APPEL_DAGENT_OUVRANT);
+  if (ouvreUnAppelDAgent) {
     return [...marge,
       { type: JETON.NOM_LOCAL, texte: "résultat" },
       { type: JETON.NEUTRE, texte: " " },
       { type: JETON.OPERATEUR, texte: "=" },
       { type: JETON.NEUTRE, texte: " " },
-      { type: JETON.MOT_NATIF, texte: VERBES.CALCUL },
+      { type: JETON.MOT_NATIF, texte: ouvreUnAppelDAgent[1] },
       { type: JETON.NEUTRE, texte: " " },
       { type: JETON.PONCTUATION, texte: "(" }];
   }
@@ -1018,10 +1034,8 @@ export function jetonsDeLaLigne(ligne = "") {
   const borne = ouvrante ? [{ type: JETON.NEUTRE, texte: " " }, { type: JETON.ACCOLADE, texte: "{" }] : [];
 
   const tete = lireUneTete(sansAccolade);
-  if (tete?.native) {
-    return [...marge, ...ligneDeFonctionNative(tete.sujet, tete.entrees), ...borne];
-  }
-  if (tete?.regle) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees, { regle: /^fonction\s/i.test(nu) }), ...borne];
+  if (tete?.regle && /^fonction\s/i.test(nu)) return [...marge, ...ligneDeFonction(tete.sujet, tete.entrees), ...borne];
+  if (tete?.regle) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees, { regle: false }), ...borne];
   if (tete?.entrees?.length) return [...marge, ...ligneDeDonnee(tete.sujet, tete.entrees), ...borne];
   if (tete?.valeur) return [...marge, ...ligneDAffirmation({ sujet: tete.sujet, valeur: tete.valeur, unite: tete.unite }), ...borne];
   if (tete?.sujet) return [...marge, ...ligneDeDonnee(tete.sujet), ...borne];

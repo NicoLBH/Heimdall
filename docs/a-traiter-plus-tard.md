@@ -721,28 +721,47 @@ l'Atelier, il n'y avait rien à renvoyer.
 
 ---
 
-## 11. La variante : deux façons de changer la même valeur
+## 11. La variante : deux façons de changer la même valeur — expliqué
 
-**Ce qui a été trouvé et corrigé.** Un utilitaire écrivait ses mesures avec un
-point — `2.59 m` — quand tout le reste de la mémoire écrit `2,59 m`. La même
-profondeur hors gel s'écrivait donc de deux façons selon qu'un humain l'avait
-tranchée ou qu'un calcul l'avait déduite, et une valeur écrite de deux façons ne
-se compare plus. C'est la règle 4 appliquée à la forme, et c'est corrigé :
-`mesureEcrite()` dans `lecture-fait.js`.
+**C'était bien deux lignes.** Le projet porte deux « Profondeur hors gel » :
 
-**Ce qui n'est pas expliqué.** Changer la profondeur hors gel à la main et
-changer l'altitude — donc la profondeur hors gel — ne donnent pas la même liste
-« à revérifier ». La reproduction ne le reproduit pas : elle **refuse** la
-première, parce qu'une contrainte déduite n'est pas substituable (seul le socle
-se change, `valeursSubstituables`). Or elle a bien été substituée sur le projet
-réel.
+```
+memoire/sol.ctr          Profondeur hors gel = 0.47 m { texte: NF DTU 13.1 }
+memoire/structure.ctr    Profondeur hors gel = [ Toutes zones: 0.466 m {…}, batiment-a: 0.466 m {…} ]
+```
 
-La piste la plus probable, et la première à vérifier sur un export : **le projet
-porte deux lignes « Profondeur hors gel »** — l'une posée à la main, du socle et
-donc substituable, l'autre déduite par l'utilitaire climat. Chacune a ses
-héritiers, et le calcul lit celle que la résolution choisit. C'est une famille
-au sens du cerveau — un sujet qui vaut plusieurs choses à la fois —, et c'est
-exactement le défaut que le compte des familles existe pour montrer.
+L'une est du socle — posée à la main, donc substituable —, l'autre est déduite
+par l'utilitaire climat. Chacune a ses héritiers, et le calcul lit celle que la
+résolution choisit. Changer l'une ne touche pas l'autre : d'où deux résultats
+pour ce qui ressemble au même geste.
 
-Tant que ce n'est pas établi, on ne touche pas au moteur de la variante : une
-correction posée sur une hypothèse non vérifiée en casserait une autre.
+Ce n'est pas un défaut du moteur de variante : c'est le défaut que la **règle
+10** décrit — un nom qui vit à deux endroits. Le premier temps de la réponse est
+livré : un fichier qui déclare un nom déclaré ailleurs l'affiche en tête, en
+rouge, avec l'autre fichier. Les temps 2 et 3 — le registre qui fait autorité,
+et le versement qui ouvre un conflit plutôt qu'une seconde ligne — restent à
+écrire.
+
+**Corrigé au passage.** Un utilitaire écrivait ses mesures avec un point —
+`2.59 m` — quand tout le reste de la mémoire écrit `2,59 m`. La même valeur
+s'écrivait de deux façons selon qui l'avait posée, et deux écritures ne se
+comparent pas.
+
+---
+
+## 12. Ce qui reste sur les agents et la recherche
+
+- **`agent-IA` n'a pas d'appelant.** Le verbe existe, se lit, s'écrit et se
+  colore ; aucun utilitaire ne l'emploie encore. Le jour où l'un le fera, ce qu'il
+  a rendu devra se conserver ligne à ligne — un `agent-IA` ne se rejoue pas pour
+  vérifier.
+- **L'orchestration n'existe pas.** Deux agents dans une même fonction, en
+  parallèle, avec une reprise si l'un échoue : le langage le rendra lisible, le
+  moteur ne le fait pas.
+- **Le marché de fonctions** suppose deux choses qui manquent : une signature
+  qu'on puisse vérifier avant d'exécuter, et une façon de dire d'où une fonction
+  vient. Le second point est déjà à moitié là — `utilitaire` et `version` sont
+  écrits sur chaque appel.
+- **La recherche ne cherche que ce que l'écran montre.** Un fichier replié, une
+  ligne écartée : ni l'un ni l'autre n'est parcouru. C'est cohérent — on cherche
+  ce qu'on lit — mais cela se dira mieux le jour où un compte le rappellera.

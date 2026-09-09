@@ -29,8 +29,9 @@ import { addProjectDocument, decorateDocumentWithPhase, getEnabledProjectPhasesC
 import { listDocumentDirectory, listDocumentFolders, createDocumentFolder, renameDocumentFolder, moveDocumentFile, resolveCurrentBackendProjectId, syncProjectDocumentsFromSupabase } from "../services/project-supabase-sync.js";
 import { getEffectiveSituationStatus, getEffectiveSujetStatus } from "./project-situations.js";
 import {
-  preparerLaMemoire, fichierDuChemin, adresseDuFichier, noeudsDeLaMemoire, renderLigneDArbre, renderPanneauDArbre,
-  renderFilDAriane, renderRechercheDuProjet, renderTeteDuContenu, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE,
+  preparerLaMemoire, fichierDuChemin, adresseDuFichier, nomDuFichier as nomDuFichierDeLaMemoire,
+  noeudsDeLaMemoire, renderLigneDArbre, renderPanneauDArbre,
+  renderFilDAriane, renderRechercheDuProjet, renderTelechargerLaMemoire, renderTeteDuContenu, renderRecherche, renderDossiers, renderFichiers, renderFichier, fichierEnClair, ilYA, LECTURE,
   COLONNES_DU_TABLEAU, GABARIT_DU_TABLEAU, lignesAffichables
 } from "./project-memoire-fichiers.js";
 import { enClair } from "../services/memoire-en-texte.js";
@@ -2171,6 +2172,39 @@ function descendreJusquALaLigne(root) {
 }
 
 /**
+ * Emporter la mémoire entière, en un ZIP.
+ *
+ * On écrit **ce que l'écran montre** : les mêmes fichiers, aux mêmes chemins,
+ * avec le même texte que le bouton « copier » met dans le presse-papiers.
+ * Reconstruire autre chose ici ferait deux vérités — celle qu'on lit et celle
+ * qu'on emporte —, et c'est la seconde qu'on enverrait à un tiers.
+ */
+async function emporterLaMemoire() {
+  const memoire = preparerLaMemoire(docsViewState.memoireAssertions ?? []);
+  const fichiers = (memoire?.dossiers ?? []).flatMap((dossier) => dossier.fichiers ?? []);
+  if (!fichiers.length) return;
+
+  const { ecrireUnZip } = await import("../services/zip.js");
+  const { enClair } = await import("../services/memoire-en-texte.js");
+
+  const octets = ecrireUnZip(fichiers.map((fichier) => ({
+    // Le chemin du dépôt, tel que l'arborescence le montre.
+    chemin: `${fichier.chemin.join("/")}/${nomDuFichierDeLaMemoire(fichier)}`,
+    contenu: fichierEnClair(fichier, { enClair })
+  })));
+
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(new Blob([octets], { type: "application/zip" }));
+  lien.download = `memoire-${new Date().toISOString().slice(0, 10)}.zip`;
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+  // L'URL d'un objet vit jusqu'à ce qu'on la relâche : ne pas le faire garde
+  // toute l'archive en mémoire du navigateur jusqu'au rechargement.
+  setTimeout(() => URL.revokeObjectURL(lien.href), 0);
+}
+
+/**
  * Les gestes de la branche Mémoire.
  *
  * Le même vocabulaire que la branche Documents — un chemin, un fil d'Ariane,
@@ -2237,6 +2271,10 @@ function bindLaMemoire(root) {
       void allerDansLArbre(root, `trouver:${adresse}\u0000${rang}\u0000${mot}`);
     });
   }
+
+  root.querySelector("[data-memoire-zip]")?.addEventListener("click", () => {
+    void emporterLaMemoire();
+  });
 
   for (const bouton of root.querySelectorAll("[data-memoire-aller]")) {
     bouton.addEventListener("click", () => {
@@ -2905,7 +2943,10 @@ function renderBrancheMemoire() {
               ${renderTeteDuContenu({
                 replie: !ouverte,
                 fil: renderFilDAriane({ chemin }),
-                droite: ouverte ? "" : renderRechercheDuProjet(docsViewState.memoireQuery ?? "")
+                droite: `
+                  ${ouverte ? "" : renderRechercheDuProjet(docsViewState.memoireQuery ?? "")}
+                  ${racine ? renderTelechargerLaMemoire() : ""}
+                `
               })}
               ${vue}
             </div>
