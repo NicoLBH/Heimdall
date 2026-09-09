@@ -444,3 +444,58 @@ Rien du mécanisme. Reste l'usage : un domicile mal choisi au premier versement 
 corrige aujourd'hui en versant une proposition, comme toute contradiction. Un
 geste dédié — « déménager ce nom » — se justifiera le jour où l'on en fera assez
 souvent pour que le détour se remarque.
+
+
+## 11. On ne corrige pas la mémoire, on verse par-dessus
+
+La question s'est posée devant un projet d'essai : *une donnée est mal écrite —
+un utilitaire s'est trompé, ou quelqu'un a versé à la main. Je recommence un
+projet ?*
+
+Non. Recommencer serait avouer que la mémoire ne sait pas se corriger, et un
+projet réel dure trois ans. La réponse tient en une phrase :
+
+> Une affirmation ne se réécrit pas et ne s'efface pas. On **verse par-dessus**,
+> et la précédente devient de l'histoire.
+
+C'est la même réponse que le contrôle de version donne depuis quarante ans : on
+ne récrit pas un commit, on en fait un autre. Ce qui a été cru compte — c'est
+même la raison d'être de cette mémoire.
+
+### Trois cas, et ce que chacun demande
+
+**1. Une valeur fausse.** On reverse le même nom, pour la même portée. Le dernier
+versement est ce que le projet tient pour vrai ; les précédents restent lisibles
+dans l'origine de la ligne. Rien à faire de plus, et surtout rien à effacer.
+
+Sans cette règle, deux versements du même nom et de la même zone vivaient côte à
+côte, tous deux « retenu » — une pile où l'on ne savait plus ce qui valait. Et
+quand la valeur a changé, le fichier le dit : passer de 0,47 m à 0,50 m sans un
+mot ferait relire une valeur en croyant que c'est celle d'hier.
+
+**2. Un nom rangé au mauvais endroit.** C'est la règle 10 : le domicile est fixé
+par le premier versement, et verser ailleurs ouvre un conflit plutôt qu'une
+seconde ligne. Se règle par une proposition, comme toute contradiction.
+
+**3. Des noms qui ne devraient plus exister du tout.** Une version d'un
+utilitaire versait quatre-vingts cotes une par une — `Section Lx de la semelle
+Portique courant file A`, et ainsi de suite ; la suivante range tout dans un seul
+tableau. Les quatre-vingts noms restent, sans producteur et sans lecteur.
+
+Ce troisième cas n'a **pas** de réponse aujourd'hui, et c'est le seul qui
+justifie de repartir d'un projet neuf — en essai, jamais en production. Ce qu'il
+demande : qu'un versement puisse déclarer *ce qu'il remplace*, non pas ligne à
+ligne mais par son origine — « cette version de cet utilitaire remplace tout ce
+que la précédente a versé ». L'information existe déjà sur chaque ligne : elle
+porte l'utilitaire et la version qui l'ont produite.
+
+### Ce qui ne sera jamais offert
+
+Un bouton « supprimer cette ligne ». Une mémoire dont on peut retirer une
+décision n'est plus une mémoire : c'est un tableau qu'on arrange, et personne ne
+peut plus répondre à « depuis quand ne croit-on plus cela ? ».
+
+### Où c'est écrit
+
+`apps/web/js/services/memoire-valeurs.js` — la dernière valeur, et ce qu'elle a
+remplacé.

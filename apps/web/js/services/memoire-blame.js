@@ -30,6 +30,7 @@
 
 import { zonesDeRangement, rangDeLaZone } from "./memoire-rangement.js";
 import { domicilesDesNoms, rangementDuVersement } from "./memoire-domiciles.js";
+import { versementsEclipses } from "./memoire-valeurs.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -56,11 +57,16 @@ const VAUT = { ASSUMED: "assumed", REJECTED: "rejected" };
 export function fichiersDeLaMemoire(assertions = []) {
   const parFichier = new Map();
   const domiciles = domicilesDesNoms(assertions);
+  // Ce qu'un versement plus récent a remplacé sans le déclarer. Deux lignes
+  // « batiment-a: 0,5 m » l'une sous l'autre, toutes deux « retenu », ne
+  // disent pas deux choses : elles disent la même, deux fois.
+  const eclipses = versementsEclipses(assertions);
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
     // Ce qui a été remplacé n'est plus l'état. Il reste dans l'histoire de sa
     // ligne, qui est l'endroit où on le cherche.
     if (texte(assertion?.superseded_by)) continue;
+    if (eclipses.has(texte(assertion?.id))) continue;
 
     const { chemin, extension } = rangementDuVersement(assertion, domiciles);
 

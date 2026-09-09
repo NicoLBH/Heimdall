@@ -7,7 +7,7 @@ import {
   ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate,
   blocDeRegle, blocDAffirmation, blocDeVariable,
   enTeteDeFichier, nomDeFichier, cheminDeFichier, enClair, texteDesLignes,
-  natureDeLaLigne, couperLUnite, estMesuree
+  natureDeLaLigne, couperLUnite, estMesuree, mesureEnFrancais
 } from "./memoire-en-texte.js";
 
 const clair = (jetons) => enClair(jetons);
@@ -314,4 +314,25 @@ test("ce qui manque à une déclaration s'appelle par son nom", () => {
   assert.ok(lignes.some((ligne) => ligne.includes('description: "À DÉCRIRE')));
   assert.ok(lignes.some((ligne) => ligne.includes('utilisation: "À DÉCRIRE')));
   assert.ok(lignes.some((ligne) => ligne.includes("déjà utilisé dans: []")));
+});
+
+
+test("une mesure s'écrit avec la virgule, et rien d'autre n'est touché", () => {
+  // Un utilitaire versait « 0.5 m », un autre « 0,50 m », et les deux se
+  // lisaient l'un sous l'autre dans le même fichier.
+  assert.equal(mesureEnFrancais("0.5 m"), "0,5 m");
+  assert.equal(mesureEnFrancais("13.22 m"), "13,22 m");
+  assert.equal(mesureEnFrancais("0.466"), "0,466");
+  assert.equal(mesureEnFrancais("0,47 m"), "0,47 m", "ce qui est déjà bon ne bouge pas");
+
+  // Un point qui appartient à un nom reste un point : « NF DTU 13,1 »
+  // inventerait une cote, et `structure,ctr` n'existe pas.
+  assert.equal(mesureEnFrancais("NF DTU 13.1"), "NF DTU 13.1");
+  assert.equal(mesureEnFrancais("structure.ctr"), "structure.ctr");
+  assert.equal(mesureEnFrancais("V1"), "V1");
+  assert.equal(mesureEnFrancais("3e famille B"), "3e famille B");
+
+  // Deux points : séparateur de milliers ou décimale ? On ne devine pas.
+  assert.equal(mesureEnFrancais("1.234.567"), "1.234.567");
+  assert.equal(mesureEnFrancais(""), "");
 });

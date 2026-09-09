@@ -50,7 +50,9 @@ test("la mémoire ne dessine plus qu'un fichier pour ce nom", () => {
     (fichier.lignes ?? []).some((ligne) => ligne.subject_key === "profondeur-hors-gel"));
 
   assert.equal(portent.length, 1, "un nom, un fichier");
-  assert.equal(portent[0].lignes.length, 2, "les deux versements y sont, ensemble");
+  // Et une seule ligne : les deux versements ont la même portée, donc le plus
+  // récent est ce que le projet tient pour vrai. Voir `memoire-valeurs.js`.
+  assert.deepEqual(portent[0].lignes.map((ligne) => ligne.id), ["b2"]);
 });
 
 test("verser ailleurs se dit, une fois par nom", () => {

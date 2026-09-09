@@ -52,6 +52,9 @@
  */
 
 import { classifyAssertion } from "./assertion-taxonomy.js";
+import { zonesLisibles } from "./memoire-blame.js";
+import { versementsEclipses } from "./memoire-valeurs.js";
+import { mesureEnFrancais } from "./memoire-en-texte.js";
 import { currentAssertions } from "./project-memory.js";
 import { describeReserves, inputsStateOf } from "./derived-constraints.js";
 import { describeProvenance, utilitaireByReference } from "../utilitaires/catalogue.js";
@@ -76,7 +79,13 @@ const estUneRegle = (assertion) => assertion?.payload?.referentiel === true;
  * l'audit cherche.
  */
 export function valeursSubstituables(assertions = []) {
-  const enVigueur = currentAssertions(Array.isArray(assertions) ? assertions : []);
+  // Ce qu'un versement plus récent a refait ne se propose pas : on choisissait
+  // deux fois « H0 retenu pour le département, batiment-a » sans savoir laquelle
+  // des deux le projet tient pour vraie — et faire varier la morte n'aurait rien
+  // changé nulle part.
+  const eclipses = versementsEclipses(Array.isArray(assertions) ? assertions : []);
+  const enVigueur = currentAssertions(Array.isArray(assertions) ? assertions : [])
+    .filter((assertion) => !eclipses.has(String(idDe(assertion) ?? "")));
   const produites = new Set(
     enVigueur
       .filter((assertion) => natureDuNoeud(assertion, { produites: sortiesDesRegles(enVigueur) }) === NOEUD.REJOUABLE)
@@ -92,7 +101,13 @@ export function valeursSubstituables(assertions = []) {
       id: idDe(assertion),
       assertion,
       sujet: texte(assertion.payload.subject),
-      valeur: texte(assertion.payload.value),
+      // La même écriture que la mémoire : « 0.5 m » ici et « 0,5 m » dans le
+      // fichier feraient douter qu'il s'agisse de la même valeur.
+      valeur: mesureEnFrancais(assertion.payload.value),
+      // La portée, sans quoi quatre « Altitude du site » se ressemblent trait
+      // pour trait dans la liste : on en choisissait une au hasard sans savoir
+      // sur quelle partie de l'ouvrage on était en train de varier.
+      zones: zonesLisibles(assertion),
       nature: classifyAssertion(assertion).nature
     }));
 }

@@ -532,6 +532,40 @@ test("le champ de recherche garde l'espace qu'on vient de taper", () => {
   assert.match(html, /value="profondeur hors "/);
 });
 
+test("la ligne trouvée porte bien sa marque", () => {
+  // Le défaut : `memoire-ligne--trouvee` s'écrivait **après** la fermeture de
+  // `class`, donc comme un attribut nu — `<div memoire-ligne--trouvee>`. Le
+  // compte disait « 1 sur 6 » et pas une ligne n'était marquée ; les flèches,
+  // qui cherchent `.memoire-ligne--trouvee`, ne menaient nulle part.
+  const html = renderFichier(premierFichier([donnee("altitude", "Altitude du site", "13 m")]), {
+    recherche: { ouverte: true, mot: "Altitude", rang: null }
+  });
+
+  assert.match(html, /class="[^"]*memoire-ligne--trouvee/);
+  assert.match(html, /class="[^"]*is-courante/);
+  assert.doesNotMatch(html, /"\s+memoire-ligne--trouvee/, "jamais hors de l'attribut class");
+});
+
+test("la provenance d'un calcul écrit ses mesures à la française", () => {
+  // « calcul: hors gel (H0 du département = 0.5 m) » se lisait sous une valeur
+  // écrite « 0,47 m » : deux façons pour la même cote.
+  const lignes = lignesDeLAssertion({
+    nature: "contrainte",
+    payload: {
+      subject: "Profondeur hors gel", value: "0.466 m",
+      deduitDe: { calcul: "hors gel", entrees: [
+        { sujet: "H0 du département", valeur: "0.5 m" },
+        { sujet: "altitude du site", valeur: "13.22 m" }
+      ] }
+    }
+  });
+
+  const texte = lignes.map(clair).join("\n");
+  assert.match(texte, /Profondeur hors gel = 0,466 m/);
+  assert.match(texte, /H0 du département = 0,5 m ; altitude du site = 13,22 m/);
+  assert.doesNotMatch(texte, /\d\.\d/, "plus un seul point décimal");
+});
+
 test("un nom versé hors de son domicile se dit des deux côtés", () => {
   // Règle 10, temps 3. Le taire ferait chercher longtemps pourquoi une valeur
   // n'est pas là où l'utilitaire a cru l'écrire.

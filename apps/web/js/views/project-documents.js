@@ -2956,7 +2956,10 @@ function renderBrancheMemoire() {
     ouEcrit: memoire.ouEcrit ?? null,
     // Les noms qu'un versement a voulu écrire ailleurs que chez eux. Règle 10,
     // temps 3 : ils ont rejoint leur domicile, et le fichier le dit.
-    conflits: memoire.conflits ?? []
+    conflits: memoire.conflits ?? [],
+    // Et ce qu'un versement plus récent a refait : le fichier n'en montre que
+    // la dernière valeur, et le dire évite de la relire pour celle d'hier.
+    corrections: memoire.corrections ?? []
   };
 
   // Un fichier se cherche **avant** de conclure qu'on est dans un dossier : la

@@ -463,6 +463,41 @@ export function estMesuree(valeur) {
 }
 
 /**
+ * Une mesure, écrite avec la virgule décimale — la seule que la mémoire écrive.
+ *
+ * ## Le défaut
+ *
+ * Un utilitaire versait « 0.5 m », un autre « 0,50 m », et les deux se lisaient
+ * dans le même fichier, l'un sous l'autre. C'est la règle 4 appliquée à la
+ * forme : une valeur écrite de deux **façons** diverge tout de suite — deux
+ * lignes du même sujet passent pour différentes, et une variante annonce des
+ * conséquences qui n'en sont pas.
+ *
+ * On corrige donc **à l'écriture**, ici, et non chez chaque producteur : un
+ * versement qui arriverait demain d'un utilitaire tiers, ou d'un utilisateur,
+ * passe par le même chemin.
+ *
+ * ## Ce qu'on ne touche pas
+ *
+ * Seul un nombre suivi — ou non — d'une unité est une mesure. « NF DTU 13.1 »
+ * n'en est pas une, ni « V1 », ni `structure.ctr` : le point y appartient au
+ * nom, et le changer en virgule inventerait une cote. Un nombre qui porte déjà
+ * une virgule, ou plusieurs points, se laisse tel quel : deviner s'il s'agit
+ * d'un séparateur de milliers ou d'une décimale ferait dire au texte autre
+ * chose que ce qu'on a versé.
+ */
+export function mesureEnFrancais(valeur) {
+  const brut = texte(valeur);
+  if (!estMesuree(brut)) return brut;
+
+  const { nombre, unite } = couperLUnite(brut);
+  if (nombre.includes(",") || (nombre.match(/\./g) ?? []).length !== 1) return brut;
+
+  const dit = nombre.replace(".", ",");
+  return unite ? `${dit} ${unite}` : dit;
+}
+
+/**
  * Une valeur, écrite selon qu'elle se mesure ou se cite.
  *
  * Exportée parce que la lecture en a besoin pour recolorer une valeur trouvée
