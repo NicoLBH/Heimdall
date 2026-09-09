@@ -765,3 +765,35 @@ comparent pas.
 - **La recherche ne cherche que ce que l'écran montre.** Un fichier replié, une
   ligne écartée : ni l'un ni l'autre n'est parcouru. C'est cohérent — on cherche
   ce qu'on lit — mais cela se dira mieux le jour où un compte le rappellera.
+
+
+---
+
+## 13. Retirer ce qu'une ancienne version d'utilitaire a versé
+
+Une version de l'utilitaire fondations versait quatre-vingts cotes une par une —
+`Section Lx de la semelle Portique courant file A`, et ainsi de suite. La suivante
+range tout dans un seul tableau, `Résultat du calcul des fondations
+superficielles`. Les quatre-vingts noms restent en mémoire : plus rien ne les
+produit, plus rien ne les lit, et ils se lisent pourtant comme l'état du projet.
+
+Les deux premiers cas de la **règle 11** se règlent tout seuls — une valeur
+fausse se reverse, un nom mal rangé ouvre un conflit. Celui-ci, non : il ne s'agit
+pas de corriger une valeur mais de **retirer un nom**, et rien ne permet de le
+faire sans effacer, ce qu'on refuse.
+
+Ce qu'il faudrait : qu'un versement déclare ce qu'il remplace **par son origine**
+plutôt que ligne à ligne — « `dimensionnement_fondations_superficielles` V2
+remplace tout ce que V1 a versé sur ces zones ». Chaque ligne porte déjà
+l'utilitaire et la version qui l'ont produite ; l'information est là, il manque
+le verbe et l'écran qui le montre.
+
+Deux précautions le jour où on l'écrira :
+
+- **cela reste de l'histoire.** Les lignes retirées ne s'effacent pas ; elles
+  cessent d'être l'état, comme une affirmation remplacée ;
+- **cela se voit.** Un versement qui retire quatre-vingts lignes est un acte
+  considérable : il se lit dans le fil du projet, avec son auteur et sa date, et
+  il se refuse.
+
+En attendant, un projet d'**essai** encombré se recommence ; un projet réel, non.

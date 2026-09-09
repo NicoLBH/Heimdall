@@ -37,6 +37,7 @@
  */
 
 import { escapeHtml } from "../../utils/escape-html.js";
+import { TOUTES_ZONES } from "../../services/memoire-en-texte.js";
 import { svgIcon } from "../../ui/icons.js";
 import {
   consequencesDeLaVariante, valeursSubstituables, variantePourLEcran
@@ -70,11 +71,26 @@ function valeursAuChoix(assertions, emplois) {
       droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr"));
 }
 
-/** Une valeur qu'on peut essayer, avec ce qu'elle vaut et ce qu'elle sert. */
+/**
+ * Une valeur qu'on peut essayer, avec ce qu'elle vaut, **où** elle vaut, et ce
+ * qu'elle sert.
+ *
+ * La portée n'est pas un détail : un projet de quatre bâtiments pose quatre
+ * « Altitude du site », qui ne diffèrent que par elle. Sans la lire, on en
+ * choisissait une au hasard — et l'on faisait varier autre chose que ce qu'on
+ * croyait.
+ */
 function renderChoixDUneValeur(valeur) {
+  const zones = (valeur.zones ?? []).filter(Boolean);
+
   return `
     <button type="button" class="impact-choix" data-variante-choisir="${escapeHtml(valeur.id)}">
       <span class="impact-choix__titre">${escapeHtml(valeur.sujet)} : ${escapeHtml(valeur.valeur || "—")}</span>
+      <span class="impact-choix__portee">${
+        // « Toutes zones » se dit : une valeur sans portée vaut partout, et
+        // laisser la ligne muette la ferait passer pour une portée oubliée.
+        escapeHtml(zones.length ? zones.join(", ") : TOUTES_ZONES)
+      }</span>
       <span class="impact-choix__compte${valeur.lectures ? "" : " impact-choix__compte--vide"}">${
         valeur.lectures
           ? `${valeur.lectures} ${accorde(valeur.lectures, "emploi", "emplois")}`

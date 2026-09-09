@@ -430,3 +430,40 @@ test("plusieurs valeurs se font varier ensemble", () => {
     ["Degré CF", "CF 1 h"], ["Écran sous toiture", "non exigé"]
   ]);
 });
+
+
+test("la fenêtre de variante distingue deux valeurs du même nom", () => {
+  // Quatre « Altitude du site » se ressemblaient trait pour trait : on en
+  // choisissait une au hasard sans savoir sur quelle partie de l'ouvrage on
+  // était en train de varier.
+  const altitude = (id, zone, valeur) => ({
+    id, project_id: "p1", subject_key: "altitude-du-site", nature: "donnee-de-base", domain: "sol",
+    status: "assumed", superseded_by: null, created_at: "2026-09-01T09:00:00Z", decided_at: "2026-09-01T09:00:00Z",
+    payload: { subject: "Altitude du site", value: valeur, zones: zone ? [zone] : [], declared: true }
+  });
+
+  const choix = valeursSubstituables([
+    altitude("a", "", "13.22 m"), altitude("b", "Bâtiment A", "14,22 m")
+  ]);
+
+  assert.deepEqual(choix.map((entree) => entree.zones), [[], ["Bâtiment A"]]);
+  // Et la même écriture que la mémoire : « 0.5 m » ici et « 0,5 m » dans le
+  // fichier feraient douter qu'il s'agisse de la même valeur.
+  assert.deepEqual(choix.map((entree) => entree.valeur), ["13,22 m", "14,22 m"]);
+});
+
+test("on ne propose pas de faire varier une valeur qu'un versement a refaite", () => {
+  // Faire varier la morte n'aurait rien changé nulle part.
+  const verse = (id, le, valeur) => ({
+    id, project_id: "p1", subject_key: "altitude-du-site", nature: "donnee-de-base", domain: "sol",
+    status: "assumed", superseded_by: null, created_at: le, decided_at: le,
+    payload: { subject: "Altitude du site", value: valeur, zones: ["Bâtiment A"], declared: true }
+  });
+
+  const choix = valeursSubstituables([
+    verse("vieux", "2026-09-07T09:00:00Z", "13,22 m"),
+    verse("neuf", "2026-09-09T09:00:00Z", "14,22 m")
+  ]);
+
+  assert.deepEqual(choix.map((entree) => entree.id), ["neuf"]);
+});

@@ -29,13 +29,14 @@ import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
 import { agentDeLaFonction } from "../services/memoire-applications.js";
 import { domicilesDesNoms, versementsHorsDomicile } from "../services/memoire-domiciles.js";
+import { valeursCorrigees } from "../services/memoire-valeurs.js";
 import {
   morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, phraseCherchee, porteLaPhrase
 } from "../services/memoire-recherche-texte.js";
 import { renderBoutonHaut } from "./ui/bouton-haut.js";
 import {
   blocDAffirmation, blocDeRegle, blocDeFonction, lignesDeTableau,
-  cheminDeFichier, nomDeFichier, couperLUnite, estMesuree,
+  cheminDeFichier, nomDeFichier, couperLUnite, estMesuree, mesureEnFrancais,
   ligneDeZone, ligneFermante, blocDeVariable, ligneDeCommentaire,
   JETON, OPERATEUR, TOUTES_ZONES, PROVENANCE, STATUT
 } from "../services/memoire-en-texte.js";
@@ -102,7 +103,14 @@ export function preparerLaMemoire(assertions = []) {
   // dit : ce qui est interdit, ce n'est pas le désaccord, c'est le silence.
   const conflits = versementsHorsDomicile(assertions, domicilesDesNoms(assertions));
 
-  return { dossiers, racine, ouEcrit, conflits, fichiers: [...fichiersDeLaMemoire(assertions), ...racine] };
+  // Ce qu'un versement plus récent a changé sans le dire. Un doublon se tait —
+  // il n'y a rien à trancher ; une valeur qui change, non.
+  const corrections = valeursCorrigees(assertions);
+
+  return {
+    dossiers, racine, ouEcrit, conflits, corrections,
+    fichiers: [...fichiersDeLaMemoire(assertions), ...racine]
+  };
 }
 
 /**
@@ -1255,6 +1263,14 @@ export function renderFichier(fichier, {
    */
   conflits = [],
   /**
+   * Les valeurs qu'un versement plus récent a corrigées — `valeursCorrigees()`.
+   *
+   * Le fichier ne montre plus que la dernière : c'est ce que le projet tient
+   * pour vrai. Mais passer de « 0,47 m » à « 0,50 m » sans un mot ferait
+   * relire une valeur en croyant que c'est celle d'hier.
+   */
+  corrections = [],
+  /**
    * Ce qu'on cherche dans ce fichier — `{ouverte, mot, rang}`.
    *
    * `variables-du-projet.ref` fait dix-sept cents lignes, et la seule façon d'y
@@ -1299,12 +1315,19 @@ export function renderFichier(fichier, {
         ligne.nature === "detail" ? " memoire-ligne--detail" : ""
       }${replie ? " memoire-ligne--plie" : ""}${
         lecture === LECTURE.BLAME && ligne.debutDeGroupe && ligne.rang > 1 ? " memoire-ligne--versement" : ""
-      }"
+      }${
+        // Ces deux-là s'écrivaient **après** la fermeture de `class` : elles
+        // devenaient des attributs nus, `<div memoire-ligne--trouvee>`, que le
+        // navigateur accepte et que personne ne voit. La recherche dans un
+        // fichier comptait donc juste — « 1 sur 6 » — sans marquer une seule
+        // ligne, et les flèches, qui cherchent `.memoire-ligne--trouvee`, ne
+        // menaient nulle part. Seul `hidden` marchait, par accident : c'est un
+        // vrai attribut HTML.
+        trouves.includes(ligne.rang) ? " memoire-ligne--trouvee" : ""
+      }${courant === ligne.rang ? " is-courante" : ""}"
         style="--memoire-profondeur:${ligne.profondeur ?? 0}"
         data-memoire-ancetres="${escapeHtml((ligne.ancetres ?? []).join(" "))}"${
         ligne.ferme ? ` data-memoire-ferme="${escapeHtml(ligne.ferme)}"` : ""
-      }${trouves.includes(ligne.rang) ? " memoire-ligne--trouvee" : ""}${
-        courant === ligne.rang ? " is-courante" : ""
       }${cachee ? " hidden" : ""} data-memoire-rang="${ligne.rang}">
         ${
           // L'ancienneté colore **chaque** ligne, la première d'un bloc comme
@@ -1362,6 +1385,14 @@ export function renderFichier(fichier, {
   const monAdresse = cheminDeFichier(fichier.chemin, fichier.extension);
   const venus = (Array.isArray(conflits) ? conflits : []).filter((conflit) => conflit.domicile === monAdresse);
   const partis = (Array.isArray(conflits) ? conflits : []).filter((conflit) => conflit.vise === monAdresse);
+
+  // Les valeurs refaites qui vivent dans **ce** fichier : les nommer ailleurs
+  // enverrait chercher une ligne qui n'y est pas.
+  const dIci = new Set((fichier.lignes ?? [])
+    .map((ligne) => cleDuSujet(texte(ligne?.payload?.subject) || texte(ligne?.subject_key)))
+    .filter(Boolean));
+  const changees = (Array.isArray(corrections) ? corrections : [])
+    .filter((change) => dIci.has(cleDuSujet(change.nom)));
 
   return `
     ${renderDernierVersement(fichier.lignes, { auteurs, avatars, propositions })}
@@ -1437,6 +1468,22 @@ export function renderFichier(fichier, {
                  escapeHtml(conflit.vise)})`).join(", ")}${venus.length > 3 ? "…" : ""}.
                Un nom vit à un seul endroit, et c'est ici : le premier versement l'y a fixé.
                Si ce domicile est le mauvais, cela se tranche par une proposition.
+             </p>`
+          : ""
+      }
+      ${
+        // Une valeur remplacée en silence est une valeur qu'on relit sans
+        // savoir qu'elle a bougé. L'ancienne reste dans l'origine de la ligne.
+        changees.length
+          ? `<p class="memoire-fichier__manquants memoire-fichier__manquants--double">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>${changees.length}</b> valeur${changees.length > 1 ? "s" : ""} ${
+                 changees.length > 1 ? "ont été refaites" : "a été refaite"} par un versement plus récent —
+               ${changees.slice(0, 3).map((change) => `${escapeHtml(change.nom)} (${
+                 escapeHtml(mesureEnFrancais(change.avant) || "—")} → ${
+                 escapeHtml(mesureEnFrancais(change.apres) || "—")})`).join(", ")}${
+                 changees.length > 3 ? "…" : ""}.
+               Seule la dernière s'affiche ; les précédentes sont dans l'origine de la ligne.
              </p>`
           : ""
       }
@@ -1794,7 +1841,10 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
 } = {}) {
   const payload = assertion.payload ?? {};
   const brute = texte(payload.value) || texte(assertion.statement);
-  const coupe = brute && estMesuree(brute) ? couperLUnite(brute) : { nombre: brute, unite: "" };
+  // La virgule décimale, quoi qu'un utilitaire ait versé : « 0.5 m » et
+  // « 0,50 m » se lisaient l'un sous l'autre dans le même fichier.
+  const dite = mesureEnFrancais(brute);
+  const coupe = dite && estMesuree(dite) ? couperLUnite(dite) : { nombre: dite, unite: "" };
 
   // Une règle appliquée s'écrit comme une règle : la donnée en tête, sans `=`,
   // puis ses conditions. Écrite comme une affirmation, elle se lirait comme un
@@ -1956,8 +2006,10 @@ export function provenanceDeLAssertion(assertion = {}, { auteurs = null } = {}) 
 
   const calcul = payload.deduitDe ?? null;
   if (calcul && texte(calcul.calcul)) {
+    // Les entrées d'un calcul sont des mesures : elles s'écrivent comme les
+    // autres. C'est là que « H0 du département = 0.5 m » se lisait.
     const entrees = (calcul.entrees ?? [])
-      .map((entree) => [texte(entree?.sujet), texte(entree?.valeur)].filter(Boolean).join(" = "))
+      .map((entree) => [texte(entree?.sujet), mesureEnFrancais(entree?.valeur)].filter(Boolean).join(" = "))
       .filter(Boolean);
     return { type: PROVENANCE.CALCUL, quoi: `${texte(calcul.calcul)}${entrees.length ? ` (${entrees.join(" ; ")})` : ""}` };
   }
