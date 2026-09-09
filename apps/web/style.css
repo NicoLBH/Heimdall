@@ -21812,6 +21812,14 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 /* Ce que la valeur est. « Altitude du site » se comprend seul, « H0 retenu pour
    le département » non — et l'on choisissait au jugé. Sur sa propre ligne : le
    nom et la valeur doivent rester lisibles d'un coup d'œil quand on parcourt. */
+/* La coupure entre ce que le projet pose et ce qui vit dans ses tableaux. Sans
+   elle, on croirait que le socle du projet compte soixante-deux valeurs. */
+.impact-liste__titre{
+  position:sticky; top:0; z-index:1;
+  margin:10px 0 2px; padding:4px 10px;
+  background:var(--bg);
+  color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+}
 .impact-choix__quoi{
   flex:0 0 100%;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;

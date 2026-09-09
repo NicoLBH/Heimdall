@@ -264,6 +264,48 @@ test("un champ dont les lignes ne s'accordent pas le dit", () => {
   assert.doesNotMatch(html, /arase supérieure : —/);
 });
 
+test("le nom passe devant la description dans les résultats de recherche", () => {
+  // Chercher « vent » doit ramener le cas de vent avant « c'est souvent ce
+  // décalage qui décide ». Chercher dans la description reste utile — c'est ce
+  // qui permet de trouver sans connaître le nom exact —, elle ne doit pas
+  // passer devant.
+  const parLaDescription = {
+    id: "x#a", sujet: "excentrement charge/fût", valeur: "0", zones: [], lectures: 0,
+    partagee: true, champ: { groupe: "géométrie", cle: "a" },
+    quoi: "C'est souvent ce décalage qui décide la taille d'une semelle."
+  };
+  const parLeNom = {
+    id: "x#b", sujet: "vent 1 (W1)", valeur: "0", zones: [], lectures: 0,
+    partagee: true, champ: { groupe: "charges", cle: "b" }, quoi: "Le vent, première direction."
+  };
+
+  const html = renderEcranDeVariante({
+    valeurs: [parLaDescription, parLeNom], etape: ETAPE.CHOIX, cherche: "vent"
+  });
+
+  assert.ok(html.indexOf("vent 1 (W1)") < html.indexOf("excentrement charge"));
+  // Les deux restent : la description a trouvé quelque chose, et le cacher
+  // ferait chercher une valeur qui est là.
+  assert.match(html, /excentrement charge/);
+});
+
+test("les champs des tableaux se séparent de ce que le projet pose", () => {
+  // Un seul tableau de fondations offre soixante-deux champs. Mélangés, ils
+  // noieraient les quelques valeurs qu'on vient chercher en premier.
+  const socle = { id: "a", sujet: "Altitude du site", valeur: "13,22 m", zones: [], lectures: 2, quoi: "" };
+  const champ = {
+    id: "b#c", sujet: "drainage", valeur: "Sol drainé", zones: [], lectures: 0, partagee: true,
+    champ: { groupe: "hypothèses réglementaires", cle: "c" }, quoi: ""
+  };
+
+  const html = renderEcranDeVariante({ valeurs: [socle, champ], etape: ETAPE.CHOIX });
+  assert.match(html, /impact-liste__titre">Dans les tableaux/);
+  assert.ok(html.indexOf("Altitude du site") < html.indexOf("impact-liste__titre"));
+
+  // Rien à séparer quand il n'y a que du socle.
+  assert.doesNotMatch(renderEcranDeVariante({ valeurs: [socle], etape: ETAPE.CHOIX }), /impact-liste__titre/);
+});
+
 test("le résultat porte ses deux gestes, et le second se refuse s'il ne dit rien", () => {
   const rendu = (bouge) => ({
     ok: true, recalculees: [], cycles: [], inchangees: 12, confirmees: 0, aRevoir: [], depart: [],

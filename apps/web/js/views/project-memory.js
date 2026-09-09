@@ -3273,8 +3273,18 @@ function ouvrirLaVariante(root) {
       ...entree,
       lectures: emplois.get(champDeLIdentifiant(entree.id).id)?.lectures ?? 0
     }))
-    .sort((gauche, droite) =>
-      droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr"));
+    // Ce que le projet **pose** d'abord, les champs des tableaux ensuite. Un
+    // seul tableau de fondations en offre soixante-deux : mélangés, ils
+    // noieraient les quelques valeurs qu'on vient chercher en premier.
+    .sort((gauche, droite) => {
+      const dansUnTableau = Number(Boolean(gauche.champ)) - Number(Boolean(droite.champ));
+      if (dansUnTableau) return dansUnTableau;
+      // Les champs gardent l'ordre de leur déclaration : c'est celui dans lequel
+      // un ingénieur lit une semelle — géométrie, sol, butée, béton, charges —,
+      // et le trier par ordre alphabétique le perdrait.
+      if (gauche.champ) return 0;
+      return droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr");
+    });
 
   view.variante = {
     valeurs, etape: ETAPE.CHOIX, choisie: null,
