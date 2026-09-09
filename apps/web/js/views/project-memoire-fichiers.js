@@ -29,7 +29,7 @@ import { renderSideResizer } from "./ui/side-resizer.js";
 import { renderBoutonCopier } from "./ui/bouton-copier.js";
 import { agentDeLaFonction } from "../services/memoire-applications.js";
 import { domicilesDesNoms, versementsHorsDomicile } from "../services/memoire-domiciles.js";
-import { valeursCorrigees } from "../services/memoire-valeurs.js";
+import { valeursCorrigees, exceptionsInutiles } from "../services/memoire-valeurs.js";
 import {
   morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, phraseCherchee, porteLaPhrase
 } from "../services/memoire-recherche-texte.js";
@@ -107,8 +107,12 @@ export function preparerLaMemoire(assertions = []) {
   // il n'y a rien à trancher ; une valeur qui change, non.
   const corrections = valeursCorrigees(assertions);
 
+  // Et les exceptions qui répètent le général : elles ne disent rien de plus
+  // aujourd'hui, et figeront une valeur le jour où le général changera.
+  const inutiles = exceptionsInutiles(assertions);
+
   return {
-    dossiers, racine, ouEcrit, conflits, corrections,
+    dossiers, racine, ouEcrit, conflits, corrections, inutiles,
     fichiers: [...fichiersDeLaMemoire(assertions), ...racine]
   };
 }
@@ -1271,6 +1275,13 @@ export function renderFichier(fichier, {
    */
   corrections = [],
   /**
+   * Les exceptions qui répètent la valeur générale — `exceptionsInutiles()`.
+   *
+   * On ne les retire pas : peut-être quelqu'un a-t-il voulu que cette zone ne
+   * bouge plus. On les nomme, et il décide.
+   */
+  inutiles = [],
+  /**
    * Ce qu'on cherche dans ce fichier — `{ouverte, mot, rang}`.
    *
    * `variables-du-projet.ref` fait dix-sept cents lignes, et la seule façon d'y
@@ -1393,6 +1404,9 @@ export function renderFichier(fichier, {
     .filter(Boolean));
   const changees = (Array.isArray(corrections) ? corrections : [])
     .filter((change) => dIci.has(cleDuSujet(change.nom)));
+  const repetees = (Array.isArray(inutiles) ? inutiles : [])
+    .filter((vaine) => dIci.has(cleDuSujet(vaine.nom)));
+  const zonesFigees = repetees.reduce((total, vaine) => total + vaine.zones.length, 0);
 
   return `
     ${renderDernierVersement(fichier.lignes, { auteurs, avatars, propositions })}
@@ -1472,6 +1486,23 @@ export function renderFichier(fichier, {
           : ""
       }
       ${
+        // Le compte porte sur les **zones**, pas sur les noms : c'est une zone
+        // qui se fige, et c'est d'elle que parle la phrase.
+        zonesFigees
+          ? `<p class="memoire-fichier__manquants">
+               ${svgIcon("alert", { className: "octicon" })}
+               <b>${zonesFigees}</b> exception${zonesFigees > 1 ? "s" : ""} ${
+                 zonesFigees > 1 ? "répètent" : "répète"} la valeur générale —
+               ${repetees.slice(0, 3).map((vaine) => `${escapeHtml(vaine.nom)} (${
+                 escapeHtml(vaine.zones.join(", "))})`).join(", ")}${repetees.length > 3 ? "…" : ""}.
+               ${zonesFigees > 1 ? "Elles ne disent" : "Elle ne dit"} rien de plus aujourd'hui ;
+               le jour où la valeur générale changera, ${
+                 zonesFigees > 1 ? "ces zones resteront" : "cette zone restera"} sur l'ancienne
+               sans que personne l'ait décidé.
+             </p>`
+          : ""
+      }
+      ${
         // Une valeur remplacée en silence est une valeur qu'on relit sans
         // savoir qu'elle a bougé. L'ancienne reste dans l'origine de la ligne.
         changees.length
@@ -1512,6 +1543,26 @@ export function renderFichier(fichier, {
       <div class="memoire-fichier__corps">
         ${corps || `<p class="review-empty-note">Ce fichier ne porte plus aucune valeur : tout ce qu'il contenait a été remplacé ou écarté.</p>`}
       </div>
+      ${
+        // Ce qui a quitté le présent sans que rien ne le remplace. Ce n'est pas
+        // un refus — c'est un travail qui a eu lieu, et qui ne décrit plus le
+        // projet d'aujourd'hui. Il descend ici, avec son motif, plutôt que de
+        // disparaître : « on ne s'en sert plus » et « ça n'a jamais existé » ne
+        // sont pas la même phrase.
+        (fichier.horsPerimetre ?? []).length
+          ? `<footer class="memoire-fichier__ecartees memoire-fichier__ecartees--perimetre">
+               <b>${fichier.horsPerimetre.length} hors périmètre</b>
+               <p>Rien ne les remplace : elles ont cessé de décrire le projet. Elles gardent
+                  leur auteur, leur date et leur proposition — c'est le présent qu'elles ont quitté,
+                  pas la mémoire.</p>
+               ${fichier.horsPerimetre.map((sortie) => `
+                 <div class="memoire-ligne memoire-ligne--ecartee">
+                   <span class="memoire-ligne__code">${renderJetons(jetonsDeLAssertion(sortie.assertion))}</span>
+                   <span class="memoire-ligne__motif">${escapeHtml(sortie.dit)}</span>
+                 </div>`).join("")}
+             </footer>`
+          : ""
+      }
       ${
         fichier.ecartees.length
           ? `<footer class="memoire-fichier__ecartees">

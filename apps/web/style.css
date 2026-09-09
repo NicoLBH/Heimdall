@@ -20143,6 +20143,21 @@ body.proposition-merge-open{ overflow:hidden; }
 /* Le bandeau : un champ, un compte, deux flèches, une croix. Il ne s'affiche
    que si on l'a ouvert — un champ permanent au-dessus de chaque fichier prend
    la place de deux lignes de code sur tous pour servir sur un. */
+/* Ce qui a quitté le présent : même mise en page que les écartées — c'est le
+   même geste de lecture — mais un autre motif, écrit sur chaque ligne. */
+.memoire-fichier__ecartees--perimetre .memoire-ligne--ecartee{
+  display:flex; align-items:baseline; gap:12px; justify-content:space-between;
+  /* Pas de texte barré ici : le barré dit « refusé », et ces lignes-là n'ont
+     rien de refusé — elles ont été vraies, et ne le sont plus. */
+  text-decoration:none;
+}
+.memoire-fichier__ecartees--perimetre .memoire-ligne--ecartee *{ text-decoration:none; }
+.memoire-ligne__motif{
+  flex:0 1 auto; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--muted); font-size:12px; font-style:italic;
+}
+
 .memoire-cherche{
   display:flex; align-items:center; gap:8px;
   padding:8px 12px;
@@ -20150,6 +20165,13 @@ body.proposition-merge-open{ overflow:hidden; }
      s'en détache pas. Un filet entre les deux coupait une barre d'outils en
      deux barres. */
   background:var(--panel2);
+  /* Et collé sous l'en-tête, comme lui. Sans cela, aller à la trouvaille
+     suivante faisait défiler le fichier et le bandeau sortait de l'écran : la
+     recherche paraissait s'être refermée toute seule, et l'on ne pouvait plus
+     passer au résultat suivant sans remonter. */
+  position:sticky;
+  top:calc(var(--memoire-outils-haut) + var(--memoire-tete-hauteur));
+  z-index:var(--z-header);
 }
 .memoire-cherche__icone{ display:inline-flex; color:var(--muted); }
 .memoire-cherche__champ{
@@ -21237,16 +21259,27 @@ img.memoire-versement__avatar{ object-fit:cover; background:none; }
 /* La tête du fichier — Code / Origine, sa taille, la copie — se colle juste
    sous celle du contenu : c'est là qu'on change de lecture, et on doit pouvoir
    le faire sans remonter trois cents lignes. */
+/* Deux barres collées l'une sous l'autre : l'en-tête du fichier, puis le
+   bandeau de recherche. Le second doit savoir où finit le premier — d'où ces
+   deux mesures, déclarées ici et **imposées** plus bas par `min-height`. Les
+   deviner de part et d'autre les faisait diverger de quatre pixels, et le
+   bandeau passait sous l'en-tête. */
+.memoire-fichier{
+  --memoire-outils-haut:44px;
+  --memoire-tete-hauteur:41px;
+}
 .memoire-fichier__tete{
   display:flex;
   align-items:center;
   gap:8px;
   padding:8px 12px;
+  min-height:var(--memoire-tete-hauteur);
+  box-sizing:border-box;
   border-bottom:1px solid var(--border);
   border-radius:var(--radius) var(--radius) 0 0;
   background:var(--panel2);
   position:sticky;
-  top:44px;
+  top:var(--memoire-outils-haut);
   z-index:var(--z-header);
 }
 .memoire-fichier__nom{

@@ -796,4 +796,16 @@ Deux précautions le jour où on l'écrira :
   considérable : il se lit dans le fil du projet, avec son auteur et sa date, et
   il se refuse.
 
-En attendant, un projet d'**essai** encombré se recommence ; un projet réel, non.
+**Livré depuis.** Le mécanisme existe : `memoire-perimetre.js`. Une version
+d'utilitaire qui reprend le travail d'une précédente, et une zone retirée du
+projet, sortent leurs lignes du présent — au pied du fichier, avec leur motif.
+
+Ce qui reste, et qui est le geste plutôt que le mécanisme :
+
+- **le retrait délibéré.** Un utilisateur qui veut retirer une ligne sans qu'un
+  utilitaire ni une zone ne l'y oblige n'a pas de verbe pour le dire. Ce serait
+  une décision comme une autre — versée, datée, signée, refusable ;
+- **le versement qui déclare ce qu'il remplace.** Aujourd'hui la reprise se
+  **déduit** des numéros de version. C'est juste, et c'est fragile : un
+  utilitaire qui changerait de lignée en changeant de nom ne reprendrait rien.
+  Le dire explicitement vaudrait mieux que de le calculer.

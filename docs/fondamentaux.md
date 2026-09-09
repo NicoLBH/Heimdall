@@ -477,17 +477,55 @@ mot ferait relire une valeur en croyant que c'est celle d'hier.
 par le premier versement, et verser ailleurs ouvre un conflit plutôt qu'une
 seconde ligne. Se règle par une proposition, comme toute contradiction.
 
+### Deux portées qui se recouvrent : la plus spécifique l'emporte
+
+Poser une valeur pour tout le projet, puis la raffiner sur un bâtiment, est la
+façon normale de travailler : une généralité, puis ses exceptions. Une valeur
+qui **nomme** la zone l'emporte donc, pour cette zone-là ; ailleurs, c'est la
+générale qui s'applique. La spécificité passe avant la date — sinon on ne
+pourrait plus raffiner un projet sans que la première valeur générale versée
+ensuite ne défasse tout.
+
+Deux obligations en découlent, et elles ne sont pas facultatives :
+
+- **le même juge partout.** Ce que le fichier affiche, ce que le rejeu consomme
+  et ce qu'une variante fait bouger doivent être **la même ligne**. Les deux
+  résolutions prenaient auparavant la première ligne du tableau — l'ordre où la
+  base avait rendu ses lignes : l'écran montrait 42 m et le calcul tournait sur
+  13 m. Une variante posée sur la valeur affichée ne changeait rien en aval, et
+  rien ne le disait ;
+- **une exception qui répète le général se signale.** Elle ne dit rien de plus
+  aujourd'hui, et le jour où la générale change, cette zone reste sur l'ancienne
+  valeur sans que personne l'ait décidé. On ne la retire pas — peut-être
+  était-ce voulu — on la nomme, et quelqu'un décide.
+
 **3. Des noms qui ne devraient plus exister du tout.** Une version d'un
 utilitaire versait quatre-vingts cotes une par une — `Section Lx de la semelle
 Portique courant file A`, et ainsi de suite ; la suivante range tout dans un seul
 tableau. Les quatre-vingts noms restent, sans producteur et sans lecteur.
 
-Ce troisième cas n'a **pas** de réponse aujourd'hui, et c'est le seul qui
-justifie de repartir d'un projet neuf — en essai, jamais en production. Ce qu'il
-demande : qu'un versement puisse déclarer *ce qu'il remplace*, non pas ligne à
-ligne mais par son origine — « cette version de cet utilitaire remplace tout ce
-que la précédente a versé ». L'information existe déjà sur chaque ligne : elle
-porte l'utilitaire et la version qui l'ont produite.
+Il en existe une seconde forme, et c'est la même : on crée une « zone d'essai »,
+on y calcule, les résultats s'écrivent, puis on retire la zone. Les valeurs
+restent, portées par une zone qui n'existe plus.
+
+Dans les deux cas la ligne **sort du présent** et **reste dans le passé**. Elle
+quitte le code du fichier, elle garde son auteur, sa date et sa proposition, et
+le fichier dit pourquoi elle est partie — au pied, dans une section « hors
+périmètre ». C'est la différence entre « on ne s'en sert plus » et « ça n'a
+jamais existé », et une mémoire qui les confond ne vaut plus rien.
+
+Deux déclencheurs, et **rien ne se devine** :
+
+- une version d'utilitaire qui a repris le travail d'une précédente, sur une
+  portée donnée — chaque ligne porte l'utilitaire et la version qui l'ont
+  produite ;
+- une définition de zone remplacée ou écartée : c'est la trace du retrait.
+
+Une zone dont aucune définition n'a jamais existé n'entre pas : personne ne l'a
+retirée, personne ne l'a décrite non plus, et les lignes qui la portent restent
+visibles — c'est ainsi qu'on verra qu'il manque une définition. Sans trace du
+retrait, la ligne reste : mieux vaut une ligne de trop qu'une ligne escamotée
+sans raison.
 
 ### Ce qui ne sera jamais offert
 
@@ -497,5 +535,8 @@ peut plus répondre à « depuis quand ne croit-on plus cela ? ».
 
 ### Où c'est écrit
 
-`apps/web/js/services/memoire-valeurs.js` — la dernière valeur, et ce qu'elle a
-remplacé.
+`apps/web/js/services/memoire-valeurs.js` — la dernière valeur, le juge des
+portées, et ce qu'une correction a remplacé.
+
+`apps/web/js/services/memoire-perimetre.js` — ce qui a quitté le présent, et
+pourquoi.

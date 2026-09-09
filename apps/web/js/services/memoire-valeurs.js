@@ -46,15 +46,24 @@
  */
 
 import { cleDuSujet } from "./memoire-identifiants.js";
+import { normalizeZoneKey } from "./project-zones.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
-/** Les zones d'une affirmation, normalisées. Vide = « toutes zones ». */
+/**
+ * Les zones d'une affirmation, en clés de zone. Vide = « toutes zones ».
+ *
+ * `normalizeZoneKey` et non `cleDuSujet` : ce sont des zones, pas des sujets, et
+ * la base les range en `batiment-a`. Deux normalisations pour la même chose
+ * finiraient par ne plus se rencontrer.
+ *
+ * Le `payload` d'abord, comme partout : il garde ce que l'utilisateur a écrit.
+ */
 function zonesDe(assertion = {}) {
   const dites = Array.isArray(assertion?.payload?.zones) && assertion.payload.zones.length
     ? assertion.payload.zones
     : (Array.isArray(assertion?.zones) ? assertion.zones : []);
-  return new Set(dites.map((zone) => cleDuSujet(zone)).filter(Boolean));
+  return new Set(dites.map(normalizeZoneKey).filter(Boolean));
 }
 
 /** La portée d'un versement, sous une forme qui se compare. */
@@ -172,4 +181,120 @@ export function valeursCorrigees(assertions = []) {
   }
 
   return corrections;
+}
+
+
+/**
+ * Le versement qui vaut, dans une zone, parmi ceux d'un même nom.
+ *
+ * ## Les deux règles, et il en faut deux
+ *
+ * **La plus spécifique l'emporte.** Poser une valeur pour tout le projet puis la
+ * raffiner sur un bâtiment est la façon normale de travailler — une généralité,
+ * puis ses exceptions. Une valeur qui nomme la zone l'emporte donc sur une valeur
+ * qui vaut partout ; ailleurs, c'est la générale qui s'applique.
+ *
+ * **À portée égale, la plus récente.** C'est la règle du haut de ce fichier, et
+ * c'est elle qui manquait ici : les deux résolutions prenaient **la première du
+ * tableau**, c'est-à-dire l'ordre où la base avait rendu ses lignes. L'écran
+ * montrait « 42 m » et le calcul tournait sur « 13 m ». Une variante posée sur la
+ * valeur affichée ne changeait alors rien en aval — elle mentait sans le dire.
+ *
+ * ## Pourquoi ici
+ *
+ * Parce qu'il ne peut y avoir qu'un juge. Ce que l'écran affiche et ce que le
+ * rejeu consomme doivent être **la même ligne**, sans quoi la mémoire dit une
+ * chose et le calcul en fait une autre — le pire des deux mondes, parce que rien
+ * ne le signale.
+ *
+ * @param {object[]} candidats les versements d'un même nom
+ * @param {string} [zone] la clé de zone, `""` pour la portée générale
+ * @returns {object|null}
+ */
+export function versementQuiVaut(candidats = [], zone = "") {
+  const voulue = normalizeZoneKey(zone);
+  const dits = (Array.isArray(candidats) ? candidats : []).filter(porteUneValeur);
+
+  const parRecence = (liste) => liste.slice().sort(duPlusRecent)[0] ?? null;
+
+  // Ce qui nomme cette zone, d'abord. Puis ce qui vaut partout.
+  const dansLaZone = voulue ? dits.filter((assertion) => zonesDe(assertion).has(voulue)) : [];
+  if (dansLaZone.length) return parRecence(dansLaZone);
+
+  return parRecence(dits.filter((assertion) => zonesDe(assertion).size === 0));
+}
+
+/**
+ * Les valeurs d'une zone : `clé du nom → versement`.
+ *
+ * Le même juge, appliqué à toute la mémoire d'un coup. Une règle n'y entre pas :
+ * elle produit une valeur, elle ne la porte pas.
+ */
+export function valeursDeLaPortee(assertions = [], zone = "") {
+  const parNom = new Map();
+
+  for (const assertion of (Array.isArray(assertions) ? assertions : []).filter(porteUneValeur)) {
+    const cle = cleDuSujet(texte(assertion?.payload?.subject) || texte(assertion?.subject_key));
+    if (!parNom.has(cle)) parNom.set(cle, []);
+    parNom.get(cle).push(assertion);
+  }
+
+  const retenues = new Map();
+  for (const [cle, candidats] of parNom) {
+    const retenue = versementQuiVaut(candidats, zone);
+    if (retenue) retenues.set(cle, retenue);
+  }
+  return retenues;
+}
+
+
+/**
+ * Les exceptions qui répètent la valeur générale.
+ *
+ * `Toutes zones: 0,5 m` et `batiment-a: 0,5 m` : la seconde ne dit rien de plus
+ * que la première **aujourd'hui**. C'est un piège, et il se referme plus tard :
+ * le jour où la générale passe à 0,6 m, `batiment-a` reste à 0,5 m sans que
+ * personne l'ait décidé — une exception que rien ne justifie fige une valeur que
+ * tout le monde croit suivre.
+ *
+ * On ne la retire pas : peut-être quelqu'un a-t-il voulu, précisément, que ce
+ * bâtiment ne bouge plus. On la **nomme**, et il décide.
+ *
+ * @returns {{nom: string, zones: string[], valeur: string}[]}
+ */
+export function exceptionsInutiles(assertions = []) {
+  const dits = (Array.isArray(assertions) ? assertions : []).filter(porteUneValeur);
+  const parNom = new Map();
+
+  for (const assertion of dits) {
+    const cle = cleDuSujet(texte(assertion?.payload?.subject) || texte(assertion?.subject_key));
+    if (!parNom.has(cle)) parNom.set(cle, []);
+    parNom.get(cle).push(assertion);
+  }
+
+  const inutiles = [];
+
+  for (const candidats of parNom.values()) {
+    const generale = versementQuiVaut(candidats, "");
+    if (!generale) continue;
+
+    const zones = new Set(candidats.flatMap((assertion) => [...zonesDe(assertion)]));
+    const repetent = [...zones]
+      .filter((zone) => {
+        const ici = versementQuiVaut(candidats, zone);
+        // Celle qui vaut ici est bien une exception — pas la générale elle-même
+        // vue depuis cette zone —, et elle dit la même chose.
+        return ici && ici !== generale && dit(ici) === dit(generale);
+      })
+      .sort();
+
+    if (!repetent.length) continue;
+    inutiles.push({
+      nom: texte(generale?.payload?.subject) || texte(generale?.subject_key),
+      zones: repetent,
+      valeur: dit(generale)
+    });
+  }
+
+  return inutiles;
 }

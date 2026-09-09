@@ -34,6 +34,7 @@
 import { cleDuSujet } from "./memoire-identifiants.js";
 import { zonesLisibles } from "./memoire-blame.js";
 import { normalizeZoneKey } from "./project-zones.js";
+import { valeursDeLaPortee } from "./memoire-valeurs.js";
 import { sujetDe, valeurDuSujet } from "./memoire-raisonnement.js";
 import { VERDICT, lecteurDeValeurs, rejouerLaRegle } from "./memoire-evaluateur.js";
 import { ordreDeLaZone } from "./memoire-plan.js";
@@ -96,6 +97,13 @@ function reglesDeLaZone(assertions, zone) {
 /**
  * Ce que le projet dit, dans cette zone, avant qu'on rejoue.
  *
+ * Le choix de la ligne qui vaut est délégué à `valeursDeLaPortee` : la plus
+ * spécifique l'emporte, et à portée égale la plus récente. C'est le même juge
+ * que l'écran et que `valeurDuSujet`. Cette fonction avait le sien — « la
+ * première du tableau, sauf si une portée arrive ensuite » —, qui dépendait de
+ * l'ordre où la base rendait ses lignes : le rejeu pouvait tourner sur une
+ * valeur que le fichier ne montrait plus.
+ *
  * Les substitutions s'appliquent **par affirmation**, pas par sujet : c'est la
  * ligne qu'on fait bouger qui a un identifiant, et deux valeurs successives d'un
  * même sujet ne sont pas la même chose.
@@ -103,22 +111,9 @@ function reglesDeLaZone(assertions, zone) {
 function valeursDeLaZone(assertions, zone, substitutions) {
   const table = new Map();
 
-  for (const assertion of assertions) {
-    if (estUneRegle(assertion) || !enVigueur(assertion)) continue;
-    const cle = cleDuSujet(sujetDe(assertion));
-    if (!cle) continue;
-
-    const portees = porteesDe(assertion);
-    // Une valeur d'une autre zone n'entre pas : l'emprunter serait le pire des
-    // mensonges — elle se lirait comme la valeur d'ici.
-    if (portees.length && !portees.includes(zone)) continue;
-
+  for (const [cle, assertion] of valeursDeLaPortee(assertions, zone)) {
     const substituee = substitutions.get(texte(assertion.id));
-    const valeur = substituee !== undefined ? texte(substituee) : texte(assertion?.payload?.value);
-
-    // La valeur portée l'emporte sur celle qui vaut partout : elle est plus
-    // précise, et c'est la règle que suit déjà `valeurDuSujet`.
-    if (!table.has(cle) || portees.length) table.set(cle, valeur);
+    table.set(cle, substituee !== undefined ? texte(substituee) : texte(assertion?.payload?.value));
   }
 
   return table;

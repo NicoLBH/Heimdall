@@ -31,6 +31,7 @@
 import { zonesDeRangement, rangDeLaZone } from "./memoire-rangement.js";
 import { domicilesDesNoms, rangementDuVersement } from "./memoire-domiciles.js";
 import { versementsEclipses } from "./memoire-valeurs.js";
+import { horsPerimetre } from "./memoire-perimetre.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -61,6 +62,10 @@ export function fichiersDeLaMemoire(assertions = []) {
   // « batiment-a: 0,5 m » l'une sous l'autre, toutes deux « retenu », ne
   // disent pas deux choses : elles disent la même, deux fois.
   const eclipses = versementsEclipses(assertions);
+  // Ce qui a quitté le présent sans que rien ne le remplace : une zone retirée
+  // du projet, une version d'utilitaire reprise par la suivante. La ligne ne
+  // s'efface pas — elle descend au pied du fichier, avec son motif.
+  const sorties = horsPerimetre(assertions);
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
     // Ce qui a été remplacé n'est plus l'état. Il reste dans l'histoire de sa
@@ -75,12 +80,15 @@ export function fichiersDeLaMemoire(assertions = []) {
       parFichier.set(cle, {
         chemin, extension,
         fichier: rangementDuVersement(assertion, domiciles).fichier,
-        lignes: [], ecartees: []
+        lignes: [], ecartees: [], horsPerimetre: []
       });
     }
 
     const entree = parFichier.get(cle);
+    const sortie = sorties.get(texte(assertion?.id));
+
     if (texte(assertion?.status) === VAUT.REJECTED) entree.ecartees.push(assertion);
+    else if (sortie) entree.horsPerimetre.push({ assertion, ...sortie });
     else entree.lignes.push(assertion);
   }
 
@@ -88,6 +96,7 @@ export function fichiersDeLaMemoire(assertions = []) {
     ...fichier,
     lignes: fichier.lignes.sort(parSujet),
     ecartees: fichier.ecartees.sort(parSujet),
+    horsPerimetre: fichier.horsPerimetre.sort((gauche, droite) => parSujet(gauche.assertion, droite.assertion)),
     // Les sections du fichier : « Toutes zones » d'abord, puis le découpage du
     // projet. Une affirmation qui vaut pour deux zones ouvre les deux.
     sections: sectionsDuFichier(fichier.lignes)
