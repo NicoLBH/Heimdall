@@ -2176,14 +2176,24 @@ function redessinerEnGardantLeChamp(root) {
   if (place !== null) apres.setSelectionRange(place, place);
 }
 
-/** Passer à la trouvaille suivante — ou précédente —, et y descendre. */
+/**
+ * Passer à la trouvaille suivante — ou précédente —, et y descendre.
+ *
+ * On part de **la ligne que l'écran montre comme courante**, pas de l'état.
+ * Après une frappe, l'état repart de `null` alors que la vue affiche déjà la
+ * première trouvaille : la première pression sur Entrée demandait donc « la
+ * suivante après rien », c'est-à-dire la première — celle où l'on était déjà.
+ * Rien ne bougeait, et il fallait appuyer deux fois pour avancer d'un cran.
+ */
 function allerAlaTrouvaille(root, direction) {
   const rangs = [...root.querySelectorAll(".memoire-ligne--trouvee[data-memoire-rang]")]
     .map((ligne) => Number(ligne.getAttribute("data-memoire-rang")))
     .filter((rang) => Number.isFinite(rang));
   if (!rangs.length) return;
 
-  const suivant = rangVoisin(rangs, docsViewState.memoireCherche?.rang, direction);
+  const affichee = Number(root.querySelector(".memoire-ligne.is-courante")?.getAttribute("data-memoire-rang"));
+  const depuis = Number.isFinite(affichee) ? affichee : docsViewState.memoireCherche?.rang;
+  const suivant = rangVoisin(rangs, depuis, direction);
   docsViewState.memoireCherche = { ...docsViewState.memoireCherche, ouverte: true, rang: suivant };
   redessinerEnGardantLeChamp(root);
   descendreJusquALaLigne(root);
@@ -2959,7 +2969,10 @@ function renderBrancheMemoire() {
     conflits: memoire.conflits ?? [],
     // Et ce qu'un versement plus récent a refait : le fichier n'en montre que
     // la dernière valeur, et le dire évite de la relire pour celle d'hier.
-    corrections: memoire.corrections ?? []
+    corrections: memoire.corrections ?? [],
+    // Et les exceptions qui répètent le général : un piège qui se referme le
+    // jour où la valeur générale change.
+    inutiles: memoire.inutiles ?? []
   };
 
   // Un fichier se cherche **avant** de conclure qu'on est dans un dossier : la

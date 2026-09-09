@@ -39,6 +39,7 @@ import { cleDuSujet } from "./memoire-identifiants.js";
 import { TOUTES_ZONES } from "./memoire-en-texte.js";
 import { zonesLisibles } from "./memoire-blame.js";
 import { normalizeZoneKey } from "./project-zones.js";
+import { versementQuiVaut } from "./memoire-valeurs.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -94,6 +95,11 @@ export function reglesQuiProduisent(assertions = [], zone = "") {
  * La zone d'abord, « Toutes zones » ensuite. Emprunter la valeur d'une autre
  * zone serait le pire des mensonges : elle se lirait comme la valeur d'ici.
  *
+ * Le choix lui-même est délégué à `versementQuiVaut` : c'est le même juge que
+ * pour le rejeu et pour ce que l'écran affiche. Cette fonction choisissait
+ * auparavant **la première du tableau** — l'ordre où la base avait rendu ses
+ * lignes —, et lisait donc « 13 m » quand le fichier montrait « 42 m ».
+ *
  * @returns {{valeur: string, zone: string, assertion: object}|null}
  */
 export function valeurDuSujet(sujet, assertions = [], zone = "") {
@@ -128,13 +134,14 @@ export function valeurDuSujet(sujet, assertions = [], zone = "") {
   //
   // Le libellé d'origine, lui, se garde : c'est celui qu'on affiche.
   const voulue = normalizeZoneKey(zone);
-  const dansLaZone = voulue
-    ? dites.find((assertion) => zonesLisibles(assertion).some((portee) => normalizeZoneKey(portee) === voulue))
-    : null;
-
-  const partout = dites.find((assertion) => zonesLisibles(assertion).length === 0);
-  const retenue = dansLaZone ?? partout ?? null;
+  const retenue = versementQuiVaut(dites, voulue);
   if (!retenue) return null;
+
+  // Est-elle retenue parce qu'elle nomme cette zone, ou parce qu'elle vaut
+  // partout ? La ligne de provenance le dit, et ce n'est pas la même chose.
+  const dansLaZone = zonesLisibles(retenue).some((portee) => normalizeZoneKey(portee) === voulue)
+    ? retenue
+    : null;
 
   // Le libellé tel qu'il a été écrit, pas la clé : « Bâtiment A » se lit, pas
   // « batiment-a ». À défaut de libellé connu, la clé demandée fait l'affaire —

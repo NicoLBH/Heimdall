@@ -5,8 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { versementsEclipses, valeursCorrigees } from "./memoire-valeurs.js";
+import { versementsEclipses, valeursCorrigees, versementQuiVaut, valeursDeLaPortee } from "./memoire-valeurs.js";
 import { fichiersDeLaMemoire } from "./memoire-blame.js";
+import { valeurDuSujet } from "./memoire-raisonnement.js";
 
 const verse = (id, { le, zones = [], valeur = "0,5 m", sujet = "H0 retenu pour le département" }) => ({
   id, project_id: "p1", subject_key: "h0-retenu-pour-le-departement",
@@ -84,4 +85,64 @@ test("une règle ne s'éclipse pas : elle n'est pas une valeur", () => {
   });
 
   assert.deepEqual([...versementsEclipses([regle("r1", "2026-09-07T08:00:00Z"), regle("r2", "2026-09-09T08:00:00Z")])], []);
+});
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Le juge : la plus spécifique l'emporte, à portée égale la plus récente
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const altitude = (id, le, valeur, zones = []) => ({
+  id, project_id: "p1", subject_key: "altitude-du-site", nature: "donnee-de-base", domain: "sol",
+  status: "assumed", superseded_by: null, created_at: le, decided_at: le, zones,
+  payload: { subject: "Altitude du site", value: valeur, zones }
+});
+
+test("la plus spécifique l'emporte, et ailleurs c'est la générale", () => {
+  // Poser une valeur pour tout le projet puis la raffiner sur un bâtiment est
+  // la façon normale de travailler : une généralité, puis ses exceptions.
+  const memoire = [
+    altitude("partout", "2026-09-01T09:00:00Z", "13 m"),
+    altitude("ici", "2026-09-05T09:00:00Z", "42 m", ["batiment-a"])
+  ];
+
+  assert.equal(versementQuiVaut(memoire, "batiment-a").id, "ici");
+  assert.equal(versementQuiVaut(memoire, "batiment-b").id, "partout");
+  assert.equal(versementQuiVaut(memoire, "").id, "partout");
+
+  // Et cela ne dépend pas de l'ordre où la base a rendu ses lignes.
+  assert.equal(versementQuiVaut([...memoire].reverse(), "batiment-a").id, "ici");
+});
+
+test("une exception ancienne ne l'emporte pas sur une générale récente… si elle nomme la zone", () => {
+  // La spécificité passe avant la date : c'est une décision de portée, pas une
+  // correction. Poser une valeur générale plus tard ne défait pas l'exception —
+  // sinon on ne pourrait jamais raffiner un projet sans tout refaire.
+  const memoire = [
+    altitude("ici", "2026-09-01T09:00:00Z", "42 m", ["batiment-a"]),
+    altitude("partout", "2026-09-09T09:00:00Z", "13 m")
+  ];
+
+  assert.equal(versementQuiVaut(memoire, "batiment-a").id, "ici");
+});
+
+test("l'écran et la résolution lisent la même ligne", () => {
+  // Le défaut : les deux résolutions prenaient la **première du tableau**.
+  // L'écran montrait « 42 m », le calcul tournait sur « 13 m », et une variante
+  // posée sur la valeur affichée ne changeait rien en aval.
+  const memoire = [
+    altitude("vieux", "2026-09-01T09:00:00Z", "13 m", ["batiment-a"]),
+    altitude("neuf", "2026-09-09T09:00:00Z", "42 m", ["batiment-a"])
+  ];
+
+  const affichee = fichiersDeLaMemoire(memoire).flatMap((fichier) => fichier.lignes ?? []);
+  assert.deepEqual(affichee.map((ligne) => ligne.id), ["neuf"]);
+  assert.equal(valeurDuSujet("Altitude du site", memoire, "batiment-a").valeur, "42 m");
+  assert.equal(valeursDeLaPortee(memoire, "batiment-a").get("altitude du site").id, "neuf");
+});
+
+test("une valeur d'une autre zone ne s'emprunte jamais", () => {
+  // Ce serait le pire des mensonges : elle se lirait comme la valeur d'ici.
+  const memoire = [altitude("ailleurs", "2026-09-01T09:00:00Z", "42 m", ["batiment-b"])];
+  assert.equal(versementQuiVaut(memoire, "batiment-a"), null);
 });

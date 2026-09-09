@@ -106,6 +106,11 @@ export function definedZones(assertions = []) {
 
   for (const assertion of Array.isArray(assertions) ? assertions : []) {
     if (assertion?.superseded_by) continue;
+    // Une définition **écartée** ne définit rien : un refus est une information,
+    // pas une zone. Sans cela, retirer une zone du projet la laissait dans la
+    // liste, et les valeurs qui ne valaient que pour elle passaient pour l'état
+    // du projet.
+    if (String(assertion?.status ?? "").trim() === "rejected") continue;
     const marque = assertion?.payload?.zoneDefinition;
     if (!marque) continue;
 
