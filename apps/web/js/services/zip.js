@@ -18,7 +18,23 @@
  * `Mémoire/structure.ref` en est un comme un autre. Ce qu'on écrit se
  * décompresse tel quel, y compris les accents — c'est le drapeau UTF-8 qui le
  * garantit, et il est posé sur chaque entrée.
+ *
+ * ## Le système d'origine, qui n'est pas un détail
+ *
+ * Le drapeau UTF-8 ne suffit pas seul. Le répertoire central déclare aussi le
+ * système qui a fabriqué l'archive, et `unzip` s'en sert : une entrée dite
+ * « MS-DOS » porte un nom en page de code OEM, alors il le **traduit** vers le
+ * jeu de caractères local. « Mémoire » ressortait « M├йmoire » sur une machine
+ * en `C.UTF-8` — celle qui construit le site. Déclarer Unix, c'est dire que le
+ * nom est déjà celui qu'on voulait, et qu'il n'y a rien à traduire.
+ *
+ * Déclarer Unix oblige en retour à donner les droits : `unzip` lit alors les
+ * attributs externes comme un mode de fichier, et un mode absent vaut `0000`.
+ * L'archive s'ouvrait, et pas un seul fichier ne se laissait lire.
  */
+
+/** Le système qui fabrique l'archive, tel que le répertoire central le nomme. */
+const SYSTEME_UNIX = 3;
 
 /** La table de CRC-32, calculée une fois. C'est ce que le format exige. */
 const TABLE = (() => {
@@ -124,7 +140,9 @@ export function ecrireUnZip(fichiers = [], le = new Date()) {
 
   for (const entree of entrees) {
     central.long(0x02014B50);
-    central.court(20);
+    // « Version et système d'origine » : Unix (3) sur l'octet haut, version 2.0
+    // sur l'octet bas. Le système est ce qui empêche `unzip` de traduire le nom.
+    central.court((SYSTEME_UNIX << 8) | 20);
     central.court(20);
     central.court(0x0800);
     central.court(0);
@@ -138,7 +156,9 @@ export function ecrireUnZip(fichiers = [], le = new Date()) {
     central.court(0);
     central.court(0);
     central.court(0);
-    central.long(0);
+    // Attributs externes : le mode Unix, sur les seize bits hauts. Un fichier
+    // ordinaire (0o100000) que son propriétaire lit et écrit, les autres lisent.
+    central.long(((0o100644 << 16) >>> 0));
     central.long(entree.depuis);
     central.brut(entree.nom);
   }
