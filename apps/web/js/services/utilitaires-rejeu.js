@@ -70,7 +70,15 @@ export const REFUS = {
   /** L'outil n'a pas répondu, ou a répondu autre chose. */
   INJOIGNABLE: "injoignable",
   /** La valeur essayée ne se lit pas comme le champ l'attend. */
-  VALEUR_ILLISIBLE: "valeur-illisible"
+  VALEUR_ILLISIBLE: "valeur-illisible",
+  /**
+   * Une fonction native dont le projet ne porte pas les entrées.
+   *
+   * Le calcul est au serveur et il sait le refaire ; ce qu'il lui faut — le
+   * tableau des massifs — n'a pas été versé. Une étude qui n'est pas dans la
+   * mémoire ne se reprend pas, et le dire vaut mieux que de rendre zéro massif.
+   */
+  SANS_ENTREES: "sans-entrees"
 };
 
 const PHRASES = {
@@ -82,7 +90,10 @@ const PHRASES = {
   [REFUS.INJOIGNABLE]: "l'outil n'a pas répondu : sa valeur d'aujourd'hui reste affichée",
   [REFUS.VALEUR_ILLISIBLE]:
     "son calcul attend un nombre, et la valeur essayée ne s'en lit pas comme un — la lui passer "
-    + "quand même la ferait retomber sur zéro"
+    + "quand même la ferait retomber sur zéro",
+  [REFUS.SANS_ENTREES]:
+    "ce calcul sait se refaire, mais le projet ne porte pas ses entrées : verse l'étude, et la "
+    + "variante la reprendra"
 };
 
 /** La phrase d'un refus, en français. Un refus sans motif est une inquiétude sans adresse. */
@@ -182,6 +193,146 @@ export function contraintesAReprendre({ enVigueur = [], substitutions = new Map(
 }
 
 /**
+ * Les **fonctions natives** que cette variante concerne.
+ *
+ * ## Pourquoi elles ne passent pas par `contraintesAReprendre`
+ *
+ * Une contrainte déduite est sa propre sortie : l'utilitaire rend une valeur,
+ * et c'est la ligne qu'on regardait. Une fonction native n'est pas une valeur —
+ * c'est un **appel**, et ce qui change est le sujet qu'elle range. La sortie et
+ * la fonction sont deux lignes de la mémoire, et c'est la première dont la
+ * variante doit dire qu'elle a bougé.
+ *
+ * ## Ce qu'on rend, et pourquoi il faut les deux
+ *
+ * La fonction — elle porte l'utilitaire, sa version et ce qu'elle lit — **et** la
+ * sortie, qui est la ligne que le calque remplace. Rendre l'une sans l'autre
+ * ferait soit une valeur sans provenance, soit une provenance sans valeur.
+ */
+export function fonctionsAReprendre({ enVigueur = [], substitutions = new Map() } = {}) {
+  const voulues = substitutions instanceof Map ? substitutions : new Map(Object.entries(substitutions ?? {}));
+  const toutes = (Array.isArray(enVigueur) ? enVigueur : []).filter((a) => !texte(a?.superseded_by));
+  const parId = new Map(toutes.map((a) => [texte(a?.id), a]));
+
+  const substituees = new Map();
+  for (const [id, valeur] of voulues) {
+    const sujet = cleDuSujet(parId.get(texte(id))?.payload?.subject);
+    if (sujet) substituees.set(sujet, texte(valeur));
+  }
+  if (!substituees.size) return [];
+
+  // Les sujets de la mémoire, pour retrouver la sortie d'une fonction par son nom.
+  const parSujet = new Map();
+  for (const assertion of toutes) {
+    const cle = cleDuSujet(texte(assertion?.payload?.subject) || texte(assertion?.subject_key).split("@")[0]);
+    if (cle && !parSujet.has(cle)) parSujet.set(cle, assertion);
+  }
+
+  const reprises = [];
+
+  for (const fonction of toutes) {
+    const native = fonction?.payload?.native;
+    if (!native) continue;
+
+    const lues = (Array.isArray(native.lit) ? native.lit : []).map(cleDuSujet);
+    if (!lues.some((sujet) => substituees.has(sujet))) continue;
+
+    const outil = utilitaireByReference(texte(fonction?.payload?.utilitaire));
+    const { champs, refus } = champsDeLAppel(fonction, substituees);
+    const sortie = (Array.isArray(native.ecrit) ? native.ecrit : [])
+      .map((ecrite) => parSujet.get(cleDuSujet(ecrite?.sujet)))
+      .find(Boolean) ?? null;
+
+    reprises.push({
+      fonction,
+      assertion: sortie,
+      sujet: texte(sortie?.payload?.subject) || texte(native.ecrit?.[0]?.sujet),
+      utilitaire: texte(fonction?.payload?.utilitaire),
+      outil: texte(outil?.rejeu?.outil),
+      // La zone de l'appel : une fonction sans portée a servi partout, et `""`
+      // est cette portée-là.
+      zone: (fonction?.payload?.zones ?? [])[0] ?? "",
+      champs,
+      refus: refus
+        || (texte(outil?.rejeu?.outil) ? "" : REFUS.SANS_REJEU)
+        || (sortie ? "" : REFUS.SANS_ENTREES)
+    });
+  }
+
+  return reprises;
+}
+
+/**
+ * Comment refaire un calcul natif, par outil.
+ *
+ * La liste est **fermée**, et c'est voulu : une fonction native est un contrat
+ * particulier — ce qu'elle lit, ce qu'elle rend — et le brancher demande de
+ * savoir les deux. Un outil absent d'ici rend `REFUS.SANS_REJEU`, ce qui est la
+ * vérité : on sait qu'il dépend, on ne sait pas le refaire.
+ */
+const REPRISES = {
+  fondations: {
+    // Le service pur : ce qu'il faut relire du projet, et comment refaire le
+    // tableau. Il ne parle à personne, et s'importe donc toujours.
+    module: () => import("./fondations-reprise.js"),
+    // L'aller-retour, séparé — et importé **seulement s'il sert**. Le lier au
+    // module ferait échouer toute reprise là où le réseau n'existe pas : dans
+    // les tests, qui passent leur propre calcul.
+    appel: async () => {
+      const service = await import("./fondations-service.js");
+      return (semelles) => service.calculerLesSemelles(semelles);
+    }
+  }
+};
+
+/**
+ * Une fonction native rejouée : le nouveau tableau, et ce qu'il vaut.
+ *
+ * Elle rend la même forme qu'une contrainte relue — `avant`, `apres`,
+ * `valeurABouge` — pour que le cœur de la variante n'ait pas à distinguer les
+ * deux. Le tableau voyage avec : c'est lui qu'un écran montrera, et le
+ * recomposer plus tard demanderait de refaire l'appel.
+ */
+export async function repriseDeLaFonction(reprise, { assertions = [], appeler = null } = {}) {
+  const branche = REPRISES[texte(reprise?.outil)];
+  if (!branche) return null;
+
+  const module = await branche.module();
+  const tableau = module.tableauDuProjet(assertions, reprise.zone);
+  if (!tableau) return { refus: REFUS.SANS_ENTREES };
+
+  const refaite = await module.reprendreLEtude({
+    tableau,
+    profondeurHorsGel: reprise.champs?.profondeurHorsGel,
+    calculer: appeler ?? await branche.appel()
+  });
+  if (!refaite) return null;
+
+  const avant = texte(reprise?.assertion?.payload?.value);
+  // Le tableau compte autant que la phrase qui le résume. Deux tableaux
+  // différents peuvent se résumer pareil — enterrer un massif ne change ni son
+  // volume ni son verdict —, et annoncer « rien n'a bougé » serait faux.
+  const tableauAvant = reprise?.assertion?.payload?.tableau ?? null;
+  const memeTableau = JSON.stringify(tableauAvant) === JSON.stringify(refaite.tableau);
+
+  return {
+    assertion: reprise.assertion,
+    sujet: reprise.sujet,
+    utilitaire: reprise.utilitaire,
+    avant,
+    apres: refaite.valeur,
+    valeurABouge: refaite.valeur !== avant || !memeTableau,
+    // Un calcul natif ne porte pas de réserves : sa loi ne descend pas, et
+    // inventer un doute qu'il n'a pas exprimé serait pire que de se taire.
+    reservesAvant: [],
+    reservesApres: [],
+    reservesOntBouge: false,
+    // Le tableau d'après, pour qui voudra le montrer ligne à ligne.
+    tableau: refaite.tableau
+  };
+}
+
+/**
  * Ce qu'une contrainte devient, une fois son utilitaire rejoué.
  *
  * Pure aussi : elle reçoit le fait de contexte que le serveur vient de rendre et le
@@ -217,6 +368,34 @@ export function relectureDuFait(reprise, fait) {
 }
 
 /**
+ * Refaire les fonctions natives que cette variante concerne.
+ *
+ * Un appel par fonction, et chacune se débrouille : une étude non versée refuse
+ * en le disant, un outil injoignable laisse la valeur d'aujourd'hui affichée.
+ * Une variante partielle qui se dit partielle vaut mieux qu'un échec.
+ */
+async function reprendreLesFonctions({ enVigueur = [], substitutions = new Map(), appeler = null } = {}) {
+  const reprises = fonctionsAReprendre({ enVigueur, substitutions });
+  const recalculees = [];
+  const refusees = [];
+
+  for (const reprise of reprises) {
+    if (reprise.refus) { refusees.push(reprise); continue; }
+
+    try {
+      const refaite = await repriseDeLaFonction(reprise, { assertions: enVigueur, appeler });
+      if (refaite?.refus) refusees.push({ ...reprise, refus: refaite.refus });
+      else if (refaite) recalculees.push(refaite);
+      else refusees.push({ ...reprise, refus: REFUS.INJOIGNABLE });
+    } catch {
+      refusees.push({ ...reprise, refus: REFUS.INJOIGNABLE });
+    }
+  }
+
+  return { recalculees, refusees };
+}
+
+/**
  * Rejouer les utilitaires que cette variante concerne.
  *
  * Le seul point de ce module qui parle au serveur. Il rend la même forme que ce que
@@ -232,17 +411,49 @@ export function relectureDuFait(reprise, fait) {
  * @returns {Promise<{recalculees: object[], refusees: object[]}>}
  */
 export async function rejouerLesUtilitaires({
-  projectId = "", enVigueur = [], substitutions = new Map(), appeler = null, dernierAppel = null
+  projectId = "", enVigueur = [], substitutions = new Map(),
+  appeler = null, dernierAppel = null, calculer = null
 } = {}) {
   const reprises = contraintesAReprendre({ enVigueur, substitutions });
-  const vide = { recalculees: [], refusees: [] };
-  if (!reprises.length) return vide;
+
+  /**
+   * Les fonctions natives se reprennent **en dernier**, et c'est tout le sujet.
+   *
+   * Une variante d'altitude ne touche pas les fondations directement : elle
+   * change la profondeur hors gel, et c'est *elle* que le calcul lit. Reprendre
+   * les fonctions avec les seules valeurs essayées ne les aurait donc jamais
+   * atteintes — la chaîne se serait arrêtée au maillon d'avant, silencieusement.
+   *
+   * On leur passe donc les substitutions **augmentées de ce que les utilitaires
+   * viennent d'établir**. C'est la même composition que fait le cœur de la
+   * variante un cran plus loin, et pour la même raison.
+   */
+  const suite = async (recalculees) => reprendreLesFonctions({
+    enVigueur,
+    substitutions: new Map([
+      ...(substitutions instanceof Map ? substitutions : new Map(Object.entries(substitutions ?? {}))),
+      ...recalculees.map((ligne) => [texte(ligne?.assertion?.id), texte(ligne.apres)])
+    ]),
+    appeler: calculer
+  });
+
+  if (!reprises.length) {
+    const seules = await suite([]);
+    return { recalculees: seules.recalculees, refusees: seules.refusees };
+  }
 
   const outils = await import("./studio-tools-service.js").catch(() => null);
   const demander = appeler ?? outils?.resolveStudioClimateTool;
   const relire = dernierAppel ?? outils?.getLastStudioToolResult;
   if (typeof demander !== "function" || typeof relire !== "function") {
-    return { recalculees: [], refusees: reprises.map((r) => ({ ...r, refus: REFUS.INJOIGNABLE })) };
+    // Les utilitaires sont injoignables ; les fonctions natives, elles, ne
+    // dépendent pas du même outil et peuvent encore se reprendre sur les seules
+    // valeurs essayées.
+    const seules = await suite([]);
+    return {
+      recalculees: seules.recalculees,
+      refusees: [...seules.refusees, ...reprises.map((r) => ({ ...r, refus: REFUS.INJOIGNABLE }))]
+    };
   }
 
   // Le dernier appel de chaque outil, une fois pour toutes : deux contraintes du
@@ -288,5 +499,11 @@ export async function rejouerLesUtilitaires({
     }
   }
 
-  return { recalculees, refusees };
+  // Et maintenant les fonctions natives, qui lisent ce qu'on vient d'établir.
+  const fonctions = await suite(recalculees);
+
+  return {
+    recalculees: [...recalculees, ...fonctions.recalculees],
+    refusees: [...refusees, ...fonctions.refusees]
+  };
 }

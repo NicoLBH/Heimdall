@@ -446,8 +446,10 @@ test("chaque ligne d'une fonction auto-portée se recolore telle quelle", () => 
 
 test("un import se lit, une décision aussi", () => {
   assert.deepEqual(
-    lireUnImport("importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb, zones: zones);"),
-    { variable: "Hauteur du plancher bas", depuis: "donnees-de-base.ddb" }
+    lireUnImport("importe (variable: Hauteur du plancher bas, depuis: donnees-de-base.ddb, zones: Bâtiment A);"),
+    // La zone fait partie de l'emprunt : une variable n'a pas une valeur, elle
+    // en a une par partie d'ouvrage.
+    { variable: "Hauteur du plancher bas", depuis: "donnees-de-base.ddb", zones: "Bâtiment A" }
   );
   assert.equal(lireUnImport("importe ();"), null);
 
@@ -459,42 +461,77 @@ test("un import se lit, une décision aussi", () => {
   assert.equal(lireUneDecision("décision humaine assumée (par: Nicolas L.);"), null);
 });
 
+const FONCTION_NATIVE = {
+  nom: "Prédimensionnement des fondations superficielles",
+  quoi: "Dimensionne les massifs superficiels d'une zone.",
+  portee: "Bâtiment A",
+  entrees: [
+    { nom: "Profondeur hors gel", depuis: "structure.ctr" },
+    { nom: "Données d'entrée des fondations superficielles", depuis: "donnees-de-base.ddb" }
+  ],
+  utilitaire: "dimensionnement_fondations_superficielles",
+  version: "V1",
+  enregistre: [{ sujet: "Résultat du calcul des fondations superficielles", dans: "structure.ctr" }]
+};
+
 test("lire(écrire(G)) = G — une fonction native traverse le texte sans rien perdre", () => {
   // Ce qui se conserve d'une fonction native est ce qui n'est pas déductible :
-  // le fait que sa loi ne s'écrive pas, de quoi la refaire, et ce qu'elle a
-  // posé. Les `importe` et le fichier d'arrivée se déduisent, comme pour une
-  // règle, et ne reviennent donc pas.
-  const fonction = {
-    nom: "Prédimensionnement des fondations superficielles",
-    quoi: "Dimensionne les massifs superficiels d'une zone.",
-    portee: "Bâtiment A",
-    parametres: ["Profondeur hors gel"],
-    importe: [{ variable: "Profondeur hors gel", depuis: "Sol/climat.ctr", zones: "Bâtiment A" }],
-    utilitaire: "dimensionnement_fondations_superficielles",
-    version: "V1",
-    enregistre: [{
-      valeurs: [
-        { sujet: "Section Lx de la semelle File A", valeur: "1,20", unite: "m" },
-        { sujet: "Vérification de la semelle File A", valeur: "vérifiée" }
-      ],
-      dans: "Structure/fondations.ctr",
-      zones: "Bâtiment A"
-    }]
-  };
-
-  const { blocs, refus } = lireUnFichier(texteDesLignes(blocDeFonctionNative(fonction)));
+  // le fait que sa loi ne s'écrive pas, de quoi la refaire, et le nom de ce
+  // qu'elle range. Sa signature, les entrées qu'elle retient, les arguments de
+  // l'appel et le fichier d'arrivée se déduisent tous — et une signature
+  // recopiée diverge.
+  const { blocs, refus } = lireUnFichier(texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE)));
   assert.deepEqual(refus, [], "rien ne doit être refusé");
   assert.equal(blocs.length, 1);
 
   const [bloc] = blocs;
-  assert.equal(bloc.sujet, fonction.nom);
+  assert.equal(bloc.sujet, FONCTION_NATIVE.nom);
   assert.equal(bloc.native, true);
   assert.equal(bloc.utilitaire, "dimensionnement_fondations_superficielles");
   assert.equal(bloc.version, "V1");
   assert.deepEqual(bloc.enregistre, [
-    { sujet: "Section Lx de la semelle File A", valeur: "1,20", unite: "m" },
-    { sujet: "Vérification de la semelle File A", valeur: "vérifiée", unite: "" }
+    { sujet: "Résultat du calcul des fondations superficielles", valeur: "résultat", unite: "" }
   ]);
+  // Les branches qui retiennent une entrée ne sont **pas** des conditions : les
+  // garder ferait une règle là où il n'y a qu'un appel.
+  assert.deepEqual(bloc.conditions, []);
+});
+
+test("une fonction native écrit son appel, jamais ses résultats", () => {
+  // La première version dépliait quatre-vingts cotes dans le fichier de code :
+  // on n'y lisait plus ni ce que la fonction consommait, ni comment l'appeler.
+  const texte = texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE));
+
+  assert.match(texte, /^fonction native Prédimensionnement des fondations superficielles\(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles\) \{$/m);
+  assert.match(texte, /^ {6}zones: Bâtiment A,$/m, "l'appel montre ses arguments");
+  assert.match(texte, /^ {6}Profondeur hors gel: Profondeur hors gel à retenir,$/m);
+  assert.equal((texte.match(/enregistre \(/g) ?? []).length, 1, "un seul enregistre, un seul résultat");
+  assert.match(texte, /^ {6}Résultat du calcul des fondations superficielles: résultat,$/m);
+});
+
+test("l'entrée à retenir dit qu'un paramètre l'emporte sur la mémoire", () => {
+  // C'est la variante écrite dans le langage : le même appel, avec ou sans
+  // valeur essayée. Sans ces lignes, l'écran ferait au moment d'une variante
+  // quelque chose que le code ne dit pas.
+  const texte = texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE));
+
+  assert.match(texte, /^ {3}const Profondeur hors gel à retenir;$/m);
+  assert.match(texte, /^ {3}si \(Profondeur hors gel renseigné\)$/m);
+  assert.match(texte, /^ {3}alors \(Profondeur hors gel à retenir = Profondeur hors gel\)$/m);
+  assert.match(texte, /^ {3}sinon \(Profondeur hors gel à retenir = importe \(variable: Profondeur hors gel, depuis: structure\.ctr, zones: Bâtiment A\)\);$/m);
+});
+
+test("une entrée sans adresse en mémoire ne fabrique pas d'emprunt", () => {
+  // Inventer un `importe` vers un fichier qu'on ne connaît pas ferait lire
+  // « va chercher là » là où il n'y a rien.
+  const texte = texteDesLignes(blocDeFonctionNative({
+    ...FONCTION_NATIVE,
+    entrees: [{ nom: "Profondeur hors gel" }]
+  }));
+
+  assert.doesNotMatch(texte, /importe/);
+  assert.doesNotMatch(texte, /à retenir/);
+  assert.match(texte, /^ {6}Profondeur hors gel: Profondeur hors gel$/m, "l'appel passe l'entrée telle quelle");
 });
 
 test("une règle ordinaire ne porte pas les champs d'une fonction native", () => {
@@ -528,11 +565,19 @@ test("`native` se colore comme `fonction` : les deux mots ouvrent la même chose
   );
 });
 
-test("le corps d'une fonction native se recolore, il ne se lit pas comme un champ", () => {
-  // La ligne porte des deux-points : sans priorité sur la lecture d'un champ,
-  // elle se lisait comme « le sujet "résultat = calcul natif (utilitaire" vaut … ».
-  const ligne = "   résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);";
-  const jetons = jetonsDeLaLigne(ligne);
-  assert.equal(enClair(jetons), ligne);
-  assert.ok(jetons.some((j) => j.type === "mot-natif" && j.texte === "calcul natif"));
+test("chaque ligne d'une fonction native se recolore à l'identique", () => {
+  // Le diff garde ses lignes en texte et les recolore en les relisant. Une
+  // ligne qui ne se réécrit pas à l'identique s'affiche autrement qu'elle n'est
+  // écrite — et c'est le diff entier qu'on cesse alors de croire.
+  for (const ligne of texteDesLignes(blocDeFonctionNative(FONCTION_NATIVE)).split("\n")) {
+    assert.equal(enClair(jetonsDeLaLigne(ligne)), ligne, ligne);
+  }
+});
+
+test("un nom passé en argument n'est pas un texte cité", () => {
+  // Troisième loi de lecture, prolongée : un texte porte des guillemets, une
+  // mesure n'en porte pas, et ce qui n'est ni l'un ni l'autre est un **nom**.
+  const jetons = jetonsDeLaLigne("      Profondeur hors gel: Profondeur hors gel à retenir,");
+  assert.ok(jetons.some((j) => j.type === "locale" && j.texte === "Profondeur hors gel à retenir"));
+  assert.ok(!jetons.some((j) => j.type === "valeur"));
 });

@@ -671,9 +671,15 @@ function sceller(rang, marque, resultat, erreurDite) {
  *   comptait un massif de moins, et c'est le contraire qui est vrai : c'est
  *   celui-là qu'il faut voir.
  *
- * Ce qui part maintenant est une **fonction native** — l'appel, ses entrées, ses
- * sorties, sa loi non écrite — et les cotes qu'elle a posées, chacune avec son
- * verdict. Voir `docs/fondamentaux.md`, règle 9, et `fondations-versement.js`.
+ * Ce qui part maintenant tient en **trois lignes** : le tableau d'entrée — un
+ * massif par ligne, ce qui permet de refaire le calcul —, l'appel lui-même
+ * comme **fonction native**, et le tableau de synthèse sous un seul nom. Voir
+ * `docs/fondamentaux.md`, règle 9, et `fondations-versement.js`.
+ *
+ * C'est le tableau d'entrée qui referme la boucle : une variante d'altitude peut
+ * désormais **refaire** l'étude au lieu de la marquer à refaire. Il devient
+ * visible de l'équipe, et c'est le prix — une cote que personne ne peut relire
+ * n'est pas une cote du projet.
  *
  * La zone ne se met pas ici : elle se demande avant de proposer, et la
  * proposition l'impose à ce qui n'en porte pas.

@@ -92,8 +92,11 @@ export function nativeRetenue(native) {
     utilitaire,
     version: texte(native.version) || null,
     lit: (Array.isArray(native.lit) ? native.lit : []).map(texte).filter(Boolean),
+    // Ce qu'elle range : le **nom** de sa sortie. Pas sa valeur — la valeur est
+    // dans le fichier où elle est rangée, et une valeur écrite à deux endroits
+    // finit par diverger.
     ecrit: (Array.isArray(native.ecrit) ? native.ecrit : [])
-      .map((sortie) => ({ sujet: texte(sortie?.sujet), valeur: texte(sortie?.valeur) }))
+      .map((sortie) => ({ sujet: texte(sortie?.sujet) }))
       .filter((sortie) => sortie.sujet)
   };
 }
@@ -287,7 +290,19 @@ export function itemsDeProposition(affirmations = []) {
           // raisonnement, et ce qui dit six mois plus tard avec quelle version
           // ces cotes ont été trouvées.
           utilitaire: texte(affirmation.utilitaire) || null,
-          lectures: lecturesRetenues(affirmation.lectures)
+          lectures: lecturesRetenues(affirmation.lectures),
+          // Un **tableau**, quand la valeur en est un. Un calcul qui dimensionne
+          // vingt massifs ne rend pas une valeur, et l'éclater en cent quarante
+          // sujets ferait cent quarante lignes semblables là où le métier en
+          // voit une. Voir `docs/fondamentaux.md`, règle 9.
+          tableau: Array.isArray(affirmation.tableau) && affirmation.tableau.length
+            ? affirmation.tableau
+            : null,
+          // Et sa forme, déclarée une fois : « type: tableau » n'apprend rien
+          // tant qu'on ignore ce qu'il faut mettre dans une ligne.
+          structure: Array.isArray(affirmation.structure) && affirmation.structure.length
+            ? affirmation.structure
+            : null
         }
       };
     }));

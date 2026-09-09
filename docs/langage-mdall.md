@@ -303,52 +303,127 @@ fondations superficielles **est** sa loi, et l'écrire dans un projet reviendrai
 langage a donc un second genre de fonction :
 
 ```
-fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel) {
+fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
    // Dimensionne les massifs superficiels d'une zone : descente de charge,
    // combinaisons, portance du sol, glissement, renversement et ferraillage.
    // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
 
-   importe (variable: Profondeur hors gel, depuis: Sol/climat.ctr, zones: Bâtiment A);
+   const Profondeur hors gel à retenir;
+   si (Profondeur hors gel renseigné)
+   alors (Profondeur hors gel à retenir = Profondeur hors gel)
+   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: Bâtiment A));
 
-   résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);
+   résultat = calcul natif (
+      utilitaire: dimensionnement_fondations_superficielles,
+      version: V1,
+      zones: Bâtiment A,
+      Profondeur hors gel: Profondeur hors gel à retenir,
+      Données d'entrée des fondations superficielles: Données d'entrée des fondations superficielles à retenir
+   );
 
    enregistre (
-      Section Lx de la semelle File A: 1,20 m,
-      Section Ly de la semelle File A: 1,20 m,
-      Hauteur de la semelle File A: 0,90 m,
-      Arase supérieure de la semelle File A: -0,10 m,
-      Nombre de massifs de la semelle File A: 9,
-      Volume de béton de la semelle File A: 11,66 m3,
-      Vérification de la semelle File A: "vérifiée",
-      dans: Structure/fondations.ctr,
+      Résultat du calcul des fondations superficielles: résultat,
+      dans: structure.ctr,
       zones: Bâtiment A
    )
 }
 ```
 
-Trois choses la distinguent d'une règle, et pas une de plus.
+Un lecteur y trouve les quatre réponses qu'il cherche, et dans cet ordre : **que
+consomme-t-elle** (la signature), **comment l'appeler** (les arguments), **sous
+quelle forme sort le résultat** (son nom, déclaré ailleurs avec sa forme), et
+**où il est rangé** (l'`enregistre`).
 
-**`native` sur la première ligne.** Il annonce qu'il n'y a pas de corps à
-chercher. Un fichier où les `si` manqueraient sans explication se lirait comme
-un fichier tronqué ; celui-ci se lit comme une décision.
+### `native` sur la première ligne
 
-**`calcul natif` à la place des conditions.** L'utilitaire est nommé, sa version
-aussi : c'est ce qui permet de refaire le calcul en le **redemandant**, et de
-savoir six mois plus tard avec quoi ces cotes ont été trouvées.
+Il annonce qu'il n'y a pas de corps à chercher. Un fichier où les `si`
+manqueraient sans explication se lirait comme un fichier tronqué ; celui-ci se
+lit comme une décision.
 
-**Un `enregistre` qui porte plusieurs sujets.** Une règle conclut sur une
-valeur ; un calcul qui dimensionne rend un tableau. Les éclater en sept
-`enregistre` répéterait sept fois le fichier et la zone pour un seul geste, et
-noierait le tableau dans ce qui ne change pas.
+### `calcul natif` à la place des conditions
 
-Le nom de chaque sortie porte l'appui — « Section Lx **de la semelle File A** » —
-parce que la mémoire s'adresse par sujet : vingt sujets du même nom seraient un
-seul sujet qui change vingt fois de valeur.
+L'utilitaire est nommé, sa version aussi : c'est ce qui permet de refaire le
+calcul en le **redemandant**, et de savoir six mois plus tard avec quoi ces
+cotes ont été trouvées. Le bloc porte ses arguments, un par ligne — à trois
+entrées, une seule ligne dépasse l'écran, et le diff bougerait tout l'appel dès
+qu'une entrée change.
 
-Tout le reste est commun : le commentaire dans la fonction, `importe`, la portée
-en premier paramètre. Une fonction native compte dans les fonctions, ses
-variables dans les variables, et le cerveau la dessine comme une étape du
-raisonnement — parce qu'elle en est une. Voir `docs/fondamentaux.md`, règle 9.
+### `const X à retenir` : la variante, écrite dans le langage
+
+```
+const Profondeur hors gel à retenir;
+si (Profondeur hors gel renseigné)
+alors (Profondeur hors gel à retenir = Profondeur hors gel)
+sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: Bâtiment A));
+```
+
+Un **paramètre passé à l'appel l'emporte sur ce que la mémoire porte**. C'est
+exactement ce qu'une variante fait, et c'est ce qu'un lecteur doit comprendre
+pour savoir comment se servir de la fonction. Sans ces lignes, la fonction
+aurait un `importe` en tête sans dire qu'un paramètre peut le remplacer — et le
+jour où l'on teste une altitude, l'écran ferait quelque chose que le code ne dit
+pas.
+
+`renseigné` est le mot que le langage a déjà pour « n'est pas vide » : la liste
+des opérateurs est fermée, et en ajouter un synonyme aurait donné deux façons
+d'écrire la même chose.
+
+### Un `enregistre`, un résultat
+
+Une règle conclut sur une valeur ; un calcul qui dimensionne rend un **tableau**.
+Il porte donc **un** nom, et ce que ce nom contient se lit là où il est rangé.
+
+La première version dépliait les sorties dans le `.ref` — sept sujets par massif,
+quatre-vingts lignes de cotes dans un fichier de code. On n'y lisait plus ni les
+entrées ni l'appel, et la mémoire comptait quatre-vingts sujets là où le métier
+en voit un.
+
+Sur la ligne, `résultat` est une **référence**, pas une valeur : c'est ce que
+l'appel vient de rendre. Les guillemets font la différence — sans eux
+« résultat » serait un texte que le projet affirme.
+
+### `structure attendue` : ce qu'il y a dans une ligne
+
+`type: "tableau"` ne dit rien. La déclaration de la variable porte donc sa forme,
+une fois, à l'endroit où l'on cherche déjà le nom :
+
+```
+const Données d'entrée des fondations superficielles = {
+   type: "tableau",
+   description: "L'ensemble des données d'entrée nécessaires au calcul de plusieurs massifs…",
+   utilisation: "Entrée du prédimensionnement. C'est ce que le projet conserve pour refaire le calcul…",
+   structure attendue: [
+      désignation: "texte",
+      nombre de massifs: "nombre",
+      hypothèses réglementaires: [
+         règlement: "Fascicule 62" ou "DTU 13.12" ou "EC - NF P94-261" ou "EC8-5 Annexe F",
+         répartition des contraintes: "Meyerhoff" ou "Constante",
+         drainage: "Sol drainé" ou "Sol non drainé"
+      ],
+      géométrie: [
+         arase supérieure: "nombre, en m",
+         hauteur Lz: "nombre, en m"
+      ]
+   ],
+   déjà utilisé dans: [
+      Prédimensionnement des fondations superficielles (structure.ref)
+   ]
+};
+```
+
+Elle s'imbrique, parce qu'un champ peut être un groupe : `règlement` et
+`hypothèses réglementaires.règlement` ne se lisent pas pareil, et le second ne se
+lit pas du tout. Un champ à choix fermé dit ses **valeurs** plutôt que son type —
+« texte » n'apprend rien quand seuls deux mots sont admis. Et elle ne dit que la
+**forme** : ce qu'un projet met dedans vit dans le fichier où le tableau est
+rangé.
+
+### Ce qui reste commun
+
+Le commentaire dans la fonction, `importe`, la portée en premier paramètre. Une
+fonction native compte dans les fonctions, ses variables dans les variables, et
+le cerveau la dessine comme une étape du raisonnement — parce qu'elle en est
+une. Voir `docs/fondamentaux.md`, règle 9.
 
 ---
 
@@ -813,7 +888,8 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/memoire-rangement.js` | où un fichier vit, et sous quelle extension |
 | `apps/web/js/services/incendie-en-texte.js` | branche l'utilitaire incendie sur le tout |
 | `apps/web/js/utilitaires/dimensionnement_fondations_superficielles_V1.js` | déclare la fonction native des fondations — ce qu'elle lit, jamais comment |
-| `apps/web/js/services/fondations-versement.js` | ce qu'une étude de fondations propose : l'appel, et les cotes qu'il a posées |
+| `apps/web/js/services/fondations-versement.js` | ce qu'une étude de fondations propose : ses entrées, l'appel, son résultat |
+| `apps/web/js/services/fondations-reprise.js` | refait l'étude quand la profondeur hors gel change — pur, le calcul lui est passé |
 | `supabase/functions/incendie-habitation/conditions.js` | publie les conditions de la branche empruntée |
 | `apps/web/js/services/memoire-raisonnement.js` | remonte la chaîne, et en tire le schéma des dépendances |
 | `apps/web/js/views/ui/graphe-liaisons.js` | dessine le schéma — il ne sait rien du feu ni de la mémoire |

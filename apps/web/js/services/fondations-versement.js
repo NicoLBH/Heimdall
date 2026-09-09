@@ -7,52 +7,50 @@
  * projet** (voir `docs/fondamentaux.md`, règle 1). Ce fichier construit les
  * lignes ; c'est une proposition qui les fait entrer, et quelqu'un la signe.
  *
- * ## Ce qui part, et sous quelle forme
+ * ## Trois lignes, et pas une de plus
  *
- * Une étude de fondations produit deux objets, et ils ne sont pas de même
- * nature :
+ * Une étude de fondations produit trois objets, et il faut les trois :
  *
- * - **l'appel** — « on a dimensionné les massifs du bâtiment A avec
- *   `dimensionnement_fondations_superficielles V1`, à partir de la profondeur hors gel
- *   du projet ». C'est une **fonction native** : ses entrées, ses sorties et sa
- *   version s'écrivent, son corps ne s'écrit pas. Voir la règle 9 des
- *   fondamentaux, et `dimensionnement_fondations_superficielles_V1.js` ;
- * - **les cotes** — « la semelle File A fait 1,20 × 1,20 × 0,90 ». Cela vaut
- *   pour un bâtiment, se relit, se conteste, et commande du béton.
+ * | ce que c'est | où cela va | pourquoi |
+ * | --- | --- | --- |
+ * | **les entrées** — un massif par ligne | `donnees-de-base.ddb` | c'est ce qui permet de refaire le calcul |
+ * | **l'appel** — l'utilitaire, sa version, ses arguments | `structure.ref` | c'est le raisonnement |
+ * | **le résultat** — le tableau de synthèse | `structure.ctr` | c'est ce que le projet retient |
  *
- * Les deux partent ensemble, et pour la même raison que les règles de l'incendie
- * partent avec leurs exigences : une cote qui dit « ← calcul » sans que le
- * projet porte l'appel quelque part renvoie à rien. On ne saurait plus ni avec
- * quoi elle a été trouvée, ni ce qu'elle a lu, ni quoi refaire le jour où
- * l'altitude change.
+ * ## Ce que la première version faisait, et pourquoi c'était faux
  *
- * ## Pourquoi les cotes deviennent des affirmations
+ * Elle dépliait les sorties : sept sujets par massif, quatre-vingts lignes de
+ * cotes écrites **dans le fichier de code**. Trois choses en découlaient, et
+ * chacune suffit :
  *
- * Parce qu'elles décident. Un massif de 1,20 × 1,20 se retrouve sur les plans,
- * au quantitatif, dans le marché ; il commande un volume de béton et un
- * ferraillage. Les laisser dans l'écran de l'Atelier, c'est les laisser hors du
- * raisonnement — et le jour où la profondeur hors gel bouge, rien ne dit qu'elles
- * sont périmées. C'est exactement ce qu'on veut éviter.
+ * - le `.ref` portait les données du projet — ce qu'un `.ctr` existe pour
+ *   porter — et l'on n'y lisait plus ni les entrées de la fonction ni la façon
+ *   de l'appeler ;
+ * - la mémoire comptait quatre-vingts sujets là où le métier en voit un, tous
+ *   corrects et tous semblables, et aucun écran ne sait replier cela ;
+ * - **les entrées n'étaient nulle part.** Le calcul est au serveur, ses sorties
+ *   étaient en mémoire, et ce qu'il fallait pour le refaire n'existait qu'à
+ *   l'écran de l'Atelier. Une variante d'altitude ne pouvait que marquer les
+ *   fondations à refaire, jamais les refaire.
  *
- * ## Ce qui ne part pas
+ * Le tableau d'entrée versé est ce qui referme la boucle : `fondations-reprise.js`
+ * le relit, y applique la nouvelle profondeur hors gel, redemande le calcul, et
+ * rend le tableau d'après.
  *
- * **Les entrées de saisie.** Charges, angle de frottement, enrobage, cotes de
- * butée : ce sont les paramètres de l'étude, pas des faits du projet. Les verser
- * remplirait la mémoire de trois cents lignes que personne ne relira et qui ne
- * décident de rien — et « une mémoire de projet ne garde pas que des valeurs »
- * ne veut pas dire qu'elle garde tout.
+ * ## Ce qui ne part toujours pas
  *
- * **Ce qui n'a pas été calculé.** Une semelle dont le calcul a échoué n'a pas de
- * cotes vérifiées ; elle part quand même, avec sa vérification qui dit
- * « non calculée ». Taire une ligne du tableau ferait croire que le projet
- * compte un massif de moins.
+ * Le **détail du calcul** — les trois cent quatre-vingt-huit combinaisons, les
+ * ratios intermédiaires, les vérifications une à une. Cela se relit dans
+ * l'Atelier, cela ne décide de rien, et une mémoire de projet n'est pas un
+ * journal de calcul.
  */
 
 import { NATURE, DOMAIN } from "./assertion-taxonomy.js";
 import { PROVENANCE, STATUT } from "./memoire-en-texte.js";
 import { synthese } from "./fondations-etude.js";
 import {
-  DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 as OUTIL, SUJET_HORS_GEL
+  DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 as OUTIL,
+  SUJET_HORS_GEL, SUJET_DONNEES, SUJET_RESULTAT
 } from "../utilitaires/dimensionnement_fondations_superficielles_V1.js";
 import { referenceOf } from "../utilitaires/catalogue.js";
 
@@ -75,121 +73,168 @@ export function ecrire(valeur, decimales = 2) {
   return n.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
 }
 
-/**
- * Le nom d'un résultat, pour cette semelle-là.
- *
- * ## Pourquoi le nom porte la semelle
- *
- * « Section Lx » tout seul ne désigne rien dans un projet qui compte vingt
- * massifs : la mémoire s'adresse par sujet, et vingt sujets du même nom sont un
- * seul sujet qui change vingt fois de valeur. Le nom porte donc l'appui, comme
- * il porte déjà la zone — et la phrase se lit, ce qu'une clé technique ne ferait
- * pas.
- */
-export function sujetDeLaSemelle(quoi, designation) {
-  return `${texte(quoi)} de la semelle ${texte(designation)}`;
+function nombre(valeur) {
+  const n = Number.parseFloat(String(valeur ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Le verdict d'un massif, en trois états et jamais deux. */
+export function verdictDe(verifiee) {
+  // « Non calculée » n'est ni vérifiée ni en défaut : la confondre avec l'un des
+  // deux ferait passer un calcul qui n'a pas eu lieu pour un jugement.
+  return verifiee === true ? "vérifiée" : verifiee === false ? "en défaut" : "non calculée";
 }
 
 /**
- * Ce qu'un massif dimensionné apprend au projet.
+ * Le tableau des entrées, tel que le projet le conserve.
  *
- * Sept faits, et pas un de plus : les trois cotes, l'arase — c'est elle que la
- * profondeur hors gel commande —, le nombre de massifs de ce type, le volume de
- * béton qu'ils font, et le verdict. Le reste du résultat du serveur est le
- * détail du calcul : il se relit dans l'Atelier, et n'a rien à décider.
+ * Les entrées **telles que le calcul les reçoit**, sans mise en forme : c'est ce
+ * qui doit repartir au serveur à l'identique le jour d'une reprise. Les mettre
+ * en phrases ici obligerait à les relire, et une relecture est une occasion de
+ * changer un chiffre sans le vouloir.
  */
-export function resultatsDeLaSemelle(ligne = {}) {
-  const entrees = ligne.entrees ?? {};
-  const nombre = (valeur) => {
-    const n = Number.parseFloat(String(valeur ?? "").replace(",", "."));
-    return Number.isFinite(n) ? n : Number.isFinite(valeur) ? valeur : null;
-  };
+export function tableauDesEntrees(semelles = []) {
+  return (Array.isArray(semelles) ? semelles : []).map((semelle, rang) => ({
+    designation: texte(semelle?.designation) || `Semelle ${rang + 1}`,
+    nombre: Math.max(0, Math.trunc(Number(semelle?.nombre) || 0)),
+    entrees: semelle?.entrees ?? {}
+  }));
+}
 
-  const cote = (quoi, valeur, decimales = 2) => {
-    const n = nombre(valeur);
-    return n === null ? null : { sujet: sujetDeLaSemelle(quoi, ligne.designation), valeur: `${ecrire(n, decimales)} m` };
-  };
+/**
+ * Le tableau de synthèse, tel que le projet le retient.
+ *
+ * Une ligne par type de massif : ses cotes, son volume, son verdict. C'est ce
+ * qui part aux plans et au quantitatif, et c'est tout ce dont on a besoin sans
+ * rouvrir l'étude.
+ */
+export function tableauDuResultat(semelles = [], resultats = []) {
+  const { lignes } = synthese(semelles, resultats);
 
-  return [
-    cote("Section Lx", entrees.sectionLx),
-    cote("Section Ly", entrees.sectionLy),
-    cote("Hauteur", entrees.hauteurLz),
-    cote("Arase supérieure", entrees.araseSuperieure),
-    {
-      sujet: sujetDeLaSemelle("Nombre de massifs", ligne.designation),
-      valeur: String(Math.max(0, Math.trunc(Number(ligne.nombre) || 0)))
-    },
-    {
-      sujet: sujetDeLaSemelle("Volume de béton", ligne.designation),
-      valeur: `${ecrire(ligne.volume?.total ?? 0, 2)} m3`
-    },
-    {
-      sujet: sujetDeLaSemelle("Vérification", ligne.designation),
-      // Trois états, jamais deux. « Non calculée » n'est ni vérifiée ni en
-      // défaut : la confondre avec l'un des deux ferait passer un calcul qui n'a
-      // pas eu lieu pour un verdict.
-      valeur: ligne.verifiee === true ? "vérifiée" : ligne.verifiee === false ? "en défaut" : "non calculée",
-      citee: true
-    }
+  return lignes.map((ligne) => ({
+    designation: ligne.designation,
+    nombre: ligne.nombre,
+    sectionLx: nombre(ligne.entrees?.sectionLx),
+    sectionLy: nombre(ligne.entrees?.sectionLy),
+    hauteur: nombre(ligne.entrees?.hauteurLz),
+    arase: nombre(ligne.entrees?.araseSuperieure),
+    volume: ligne.volume?.total ?? 0,
+    verification: verdictDe(ligne.verifiee),
+    ratio: ligne.ratio
+  }));
+}
+
+/**
+ * Ce qu'on lit d'un tableau de synthèse en une phrase.
+ *
+ * Les trois états séparés, jamais additionnés : « 10 massifs, 9 vérifiées »
+ * laisserait croire qu'une seule est en défaut alors qu'elle n'a peut-être pas
+ * été calculée du tout.
+ */
+export function phraseDuResultat(semelles = [], resultats = []) {
+  const { totaux } = synthese(semelles, resultats);
+  const accord = (compte, mot) => `${compte} ${mot}${compte > 1 ? "s" : ""}`;
+
+  const etats = [
+    totaux.verifiees ? accord(totaux.verifiees, "vérifiée") : "",
+    totaux.enDefaut ? `${totaux.enDefaut} en défaut` : "",
+    totaux.inconnues ? accord(totaux.inconnues, "non calculée") : ""
   ].filter(Boolean);
+
+  const haute = assiseLaPlusHaute(semelles);
+  const assise = haute === null ? "" : `, assise mini ${ecrire(haute, 2)} m`;
+
+  return `${accord(totaux.massifs, "massif")}, ${ecrire(totaux.volume, 2)} m3 de béton${assise} — ${etats.join(", ")}`;
 }
 
 /**
- * Tout ce que l'appel a écrit, dans l'ordre du tableau.
+ * L'assise du massif le moins enterré, sous le niveau fini.
  *
- * C'est la liste que la fonction native porte dans son `enregistre`, et c'est la
- * même qui devient des affirmations. Une seule liste, construite une fois : deux
- * listes finiraient par ne plus dire la même chose, et le fichier de code
- * annoncerait des cotes que la mémoire ne porterait pas.
+ * ## Pourquoi elle est dans la phrase
+ *
+ * Parce que c'est **la cote que la profondeur hors gel commande**, et que sans
+ * elle une reprise se lisait comme si rien n'avait bougé : enterrer un massif ne
+ * change ni son volume ni son verdict, et la phrase disait donc exactement la
+ * même chose avant et après. Une variante qui annonce « recalculé » et montre
+ * deux textes identiques apprend à ne plus la croire.
+ *
+ * La plus **haute** des assises, et non la moyenne : c'est celle-là que le gel
+ * atteindrait, et c'est donc la seule qui décide.
  */
-export function sortiesDeLEtude(semelles = [], resultats = []) {
-  const { lignes, totaux } = synthese(semelles, resultats);
-  const sorties = lignes.flatMap((ligne) => resultatsDeLaSemelle(ligne));
+export function assiseLaPlusHaute(semelles = []) {
+  const assises = (Array.isArray(semelles) ? semelles : [])
+    .map((semelle) => {
+      const arase = nombre(semelle?.entrees?.araseSuperieure) ?? 0;
+      const hauteur = nombre(semelle?.entrees?.hauteurLz) ?? 0;
+      return Math.abs(arase) + hauteur;
+    })
+    .filter((assise) => Number.isFinite(assise));
 
-  // Le total, une fois pour la zone. C'est le chiffre qu'on cherche en premier
-  // dans une étude de fondations, et le recomposer à la main depuis vingt
-  // lignes est exactement le genre d'addition qu'on rate.
-  if (lignes.length) {
-    sorties.push({
-      sujet: "Volume de béton des fondations superficielles",
-      valeur: `${ecrire(totaux.volume, 2)} m3`
-    });
-  }
-  return sorties;
+  return assises.length ? Math.min(...assises) : null;
+}
+
+/**
+ * Le tableau d'entrée, prêt à devenir une donnée de base du projet.
+ *
+ * ## Pourquoi une donnée de base
+ *
+ * Parce que le projet la pose lui-même : personne d'extérieur ne l'impose,
+ * aucune mesure ne l'établit, et elle est en amont de tout ce qu'on en déduira.
+ * C'est aussi la nature dont le changement **se propage** — et c'est exactement
+ * ce qu'on attend d'elle : la modifier doit marquer le résultat à refaire.
+ */
+export function entreesVersables(semelles = [], zone = "") {
+  const table = tableauDesEntrees(semelles);
+  if (!table.length) return null;
+
+  const declaree = (Array.isArray(OUTIL.lit) ? OUTIL.lit : [])
+    .find((entree) => entree.sujet === SUJET_DONNEES) ?? {};
+
+  return {
+    sujet: SUJET_DONNEES,
+    // La taille du tableau, et rien d'autre. Y résumer son contenu ferait une
+    // seconde vérité à côté des lignes, et les deux divergeraient.
+    valeur: `${table.length} ligne${table.length > 1 ? "s" : ""}`,
+    tableau: table,
+    quoi: texte(declaree.quoi),
+    utilisation: texte(declaree.utilisation),
+    structure: declaree.structure ?? null,
+    nature: NATURE.DONNEE_BASE,
+    domaine: DOMAIN.STRUCTURE,
+    provenance: { type: PROVENANCE.DECISION, quoi: `saisie dans l'Atelier — ${ATELIER}` },
+    statut: STATUT.RETENU,
+    reference: `fondations:entrees`,
+    zones: texte(zone) ? [texte(zone)] : [],
+    atelier: ATELIER
+  };
 }
 
 /**
  * L'appel lui-même, versé comme la fonction native qu'il est.
  *
- * ## Ce que porte sa valeur, et ce qu'elle ne porte pas
- *
- * Le nombre de massifs, et rien d'autre. C'est la **taille de l'appel**, écrite
- * une seule fois. Y mettre « 6 vérifiés sur 7 » ferait une seconde vérité à côté
- * des verdicts que les lignes portent déjà, et les deux divergeraient au premier
- * recalcul qui n'aurait pas reversé le résumé.
+ * Sa signature nomme ce qu'elle consomme, son appel montre ses arguments, et son
+ * `enregistre` dit où le résultat est rangé. Un lecteur y trouve les quatre
+ * réponses qu'il cherche — que consomme-t-elle, comment l'appeler, sous quelle
+ * forme sort le résultat, où est-il — sans ouvrir l'Atelier.
  */
-export function fonctionVersable(semelles = [], resultats = [], zone = "", { rappels = null } = {}) {
-  const sorties = sortiesDeLEtude(semelles, resultats);
-  if (!sorties.length) return null;
+export function fonctionVersable(semelles = [], zone = "", { rappels = null } = {}) {
+  if (!tableauDesEntrees(semelles).length) return null;
 
-  const massifs = (Array.isArray(semelles) ? semelles : []).length;
-  const portee = texte(zone) ? [texte(zone)] : [];
-
-  // Ce qu'elle a lu du projet, avec la valeur qu'elle a lue. On l'écrit à la
-  // date de l'appel plutôt que de renvoyer au catalogue : le jour où la V2 lira
-  // autre chose, cette ligne-ci doit continuer de dire ce que la V1 a lu.
-  const lectures = (Array.isArray(OUTIL.lit) ? OUTIL.lit : []).map((entree) => ({
-    sujet: entree.sujet,
-    valeur: entree.sujet === SUJET_HORS_GEL && rappels?.profondeurHorsGel?.valeur
-      // La virgule décimale, comme partout ailleurs : la mémoire compare des
-      // phrases, et « 0.99 m » ne se rapproche pas de « 0,99 m ».
-      ? `${ecrire(rappels.profondeurHorsGel.valeur, 3)} m`
-      : ""
-  }));
+  // Ce qu'elle a lu du projet, avec la valeur lue. On l'écrit à la date de
+  // l'appel plutôt que de renvoyer au catalogue : le jour où la V2 lira autre
+  // chose, cette ligne-ci doit continuer de dire ce que la V1 a lu.
+  const horsGel = rappels?.profondeurHorsGel?.valeur;
+  const lectures = [
+    { sujet: SUJET_HORS_GEL, valeur: horsGel ? `${ecrire(horsGel, 3)} m` : "" },
+    { sujet: SUJET_DONNEES, valeur: `${semelles.length} ligne${semelles.length > 1 ? "s" : ""}` }
+  ];
 
   return {
     sujet: OUTIL.libelle,
-    valeur: `${massifs} ${massifs > 1 ? "massifs" : "massif"}`,
+    // Ce qu'un appel « vaut » est ce qu'il a fait : le nombre de massifs qu'il a
+    // dimensionnés. Les verdicts sont sur le résultat, et les redire ici ferait
+    // deux vérités qui divergeraient au premier recalcul.
+    valeur: `${semelles.length} massif${semelles.length > 1 ? "s" : ""}`,
     // `referentiel` la range dans un `.ref` : c'est du raisonnement, pas un fait
     // du projet. C'est aussi ce qui en fait une **fonction** pour le cerveau et
     // pour les compteurs — une fonction native reste une fonction.
@@ -197,8 +242,8 @@ export function fonctionVersable(semelles = [], resultats = [], zone = "", { rap
     native: {
       utilitaire: OUTIL.nom,
       version: OUTIL.version,
-      lit: lectures.map((lecture) => lecture.sujet),
-      ecrit: sorties.map((sortie) => ({ sujet: sortie.sujet, valeur: sortie.valeur }))
+      lit: [SUJET_HORS_GEL, SUJET_DONNEES],
+      ecrit: [{ sujet: SUJET_RESULTAT }]
     },
     quoi: OUTIL.quoi,
     utilitaire: referenceOf(OUTIL),
@@ -208,60 +253,58 @@ export function fonctionVersable(semelles = [], resultats = [], zone = "", { rap
     provenance: { type: PROVENANCE.CALCUL, quoi: `${OUTIL.libelle} — ${referenceOf(OUTIL)}` },
     source: OUTIL.source,
     reference: `native:${referenceOf(OUTIL)}`,
-    zones: portee,
+    zones: texte(zone) ? [texte(zone)] : [],
     atelier: ATELIER
   };
 }
 
 /**
- * Les cotes, prêtes à devenir des affirmations du projet.
+ * Le tableau de synthèse, prêt à devenir ce que le projet retient.
  *
- * Elles renvoient à la fonction qui les a posées — `← calcul …` — et c'est par
- * là qu'on remonte : la fonction dit ce qu'elle a lu, ce qu'elle a lu dit d'où
- * il vient, et la chaîne va jusqu'à l'altitude du site.
+ * Il renvoie à la fonction qui l'a posé — `← calcul …` — et c'est par là qu'on
+ * remonte : la fonction dit ce qu'elle a lu, ce qu'elle a lu dit d'où il vient,
+ * et la chaîne va jusqu'à l'altitude du site.
+ *
+ * Son **statut** suit le tableau : « retenu » quand tout vérifie, « contesté »
+ * dès qu'un massif est en défaut, « en attente » quand il en reste à calculer.
+ * Un tableau dont un massif ne tient pas n'est pas acquis, et l'écrire ainsi
+ * ferait passer un défaut pour une décision.
  */
-export function cotesVersables(semelles = [], resultats = [], zone = "") {
-  const portee = texte(zone) ? [texte(zone)] : [];
-  const { lignes } = synthese(semelles, resultats);
+export function resultatVersable(semelles = [], resultats = [], zone = "") {
+  const table = tableauDuResultat(semelles, resultats);
+  if (!table.length) return null;
 
-  // Le verdict de chaque massif, pour donner son statut à ses cotes. Une cote
-  // dont le calcul dit qu'elle ne vérifie pas n'est pas « retenue » : le projet
-  // ne la tient pas pour acquise, et l'écrire ainsi ferait passer un défaut
-  // pour une décision.
-  const verdicts = new Map(lignes.map((ligne) => [texte(ligne.designation), ligne.verifiee]));
+  const enDefaut = table.some((ligne) => ligne.verification === "en défaut");
+  const inconnues = table.some((ligne) => ligne.verification === "non calculée");
 
-  const statutDe = (sujet) => {
-    const massif = [...verdicts.keys()].find((nom) => sujet.endsWith(`de la semelle ${nom}`));
-    if (massif === undefined) return STATUT.RETENU;
-    if (verdicts.get(massif) === true) return STATUT.RETENU;
-    // « En défaut » se conteste, « non calculée » attend : deux états
-    // différents, et les confondre ferait croire qu'on a regardé.
-    return verdicts.get(massif) === false ? STATUT.CONTESTE : STATUT.EN_ATTENTE;
-  };
-
-  return sortiesDeLEtude(semelles, resultats).map((sortie) => ({
-    sujet: sortie.sujet,
-    valeur: sortie.valeur,
+  return {
+    sujet: SUJET_RESULTAT,
+    valeur: phraseDuResultat(semelles, resultats),
+    tableau: table,
+    quoi: texte(OUTIL.rend?.quoi),
+    utilisation: texte(OUTIL.rend?.utilisation),
+    structure: OUTIL.rend?.structure ?? null,
     nature: NATURE.CONTRAINTE,
     domaine: DOMAIN.STRUCTURE,
     source: OUTIL.source,
     provenance: { type: PROVENANCE.CALCUL, quoi: `${OUTIL.libelle} — ${referenceOf(OUTIL)}` },
-    statut: statutDe(sortie.sujet),
-    reference: `fondations:${sortie.sujet}`,
-    zones: portee,
+    statut: enDefaut ? STATUT.CONTESTE : inconnues ? STATUT.EN_ATTENTE : STATUT.RETENU,
+    reference: "fondations:resultat",
+    zones: texte(zone) ? [texte(zone)] : [],
     atelier: ATELIER
-  }));
+  };
 }
 
 /**
  * Tout ce qu'une étude propose, dans l'ordre où la mémoire le lit.
  *
- * La fonction d'abord, ses cotes ensuite. C'est l'ordre du raisonnement, et
- * c'est celui qui rend la proposition lisible : on voit ce qui a décidé avant de
- * voir ce qui a été décidé.
+ * Les entrées, l'appel, le résultat. C'est l'ordre du raisonnement : ce dont on
+ * part, ce qui décide, ce qu'on retient.
  */
 export function affirmationsDeLEtude(semelles = [], resultats = [], zone = "", options = {}) {
-  const fonction = fonctionVersable(semelles, resultats, zone, options);
-  if (!fonction) return [];
-  return [fonction, ...cotesVersables(semelles, resultats, zone)];
+  return [
+    entreesVersables(semelles, zone),
+    fonctionVersable(semelles, zone, options),
+    resultatVersable(semelles, resultats, zone)
+  ].filter(Boolean);
 }
