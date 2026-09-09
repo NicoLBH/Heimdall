@@ -315,8 +315,38 @@ Ce que cela donne, et pourquoi :
    une colonne du tableau qui a changé, pas le nombre de lignes. La ligne est
    seulement marquée comme relevant de la variante.
 
-Ce qui reste à faire, et qui revient à l'auteur de l'utilitaire : déclarer les
-clés des champs composites — « fût », « excentrements », « poids volumique du
-béton », « butée mobilisée », « béton armé », « charges », « ferraillage ». Ce
-sont plusieurs valeurs sous un seul nom ; les découper demande de nommer chaque
-morceau, et c'est un travail de métier, pas d'écran.
+### Les soixante-deux champs des fondations
+
+Tous déclarés, avec pour chacun ce qu'il est et ce que le faire varier veut dire.
+La liste vit **dans la déclaration de l'utilitaire** et nulle part ailleurs —
+`utilitaires/dimensionnement_fondations_superficielles_V1.js`, `STRUCTURE_DES_ENTREES` —
+parce qu'une seconde copie dans ce document divergerait au premier ajout
+(règle 4). Sept groupes, dans l'ordre où un ingénieur lit une semelle :
+
+| groupe | champs | ce qu'on y cherche |
+|---|---|---|
+| hypothèses réglementaires | 5 | quelle règle du jeu, et sous quelles conventions |
+| géométrie | 11 | le massif, son fût, et de combien la charge tombe à côté |
+| sol et matériaux | 6 | ce que le terrain accepte, ce que le béton pèse |
+| butée mobilisée | 5 | ce que les terres de devant retiennent, et ce qu'on ose en compter |
+| béton armé | 6 | enrobages, classes, et la sévérité qu'on s'impose |
+| charges | 14 | onze cas de charge, les lests, le type d'exploitation |
+| ferraillage proposé | 8 | quatre nappes, leur nombre de barres et leur diamètre |
+| capacité portante sismique | 7 | ne servent qu'au règlement « EC8-5 Annexe F » |
+
+Trois décisions à retenir :
+
+- **Un cas de charge se fait varier par son effort vertical, et lui seul.** Onze
+  cas par cinq composantes feraient cinquante-cinq champs, et « le moment My du
+  séisme vertical » n'est pas une question qu'un concepteur se pose devant une
+  variante. Celle qu'il se pose est « et si la neige montait de trente pour
+  cent ». Les efforts horizontaux et les moments restent une saisie de l'Atelier,
+  où ils se lisent en face de leur schéma.
+- **Les paramètres d'expert ne se déclarent pas** — `gminElu`, `wElu`,
+  `newmark`, `deSurB`, les coefficients de sécurité. Le calcul lui-même dit que
+  « le classeur les laisse rarement bouger » ; les offrir dans une liste où l'on
+  cherche invite l'accident.
+- **Les valeurs énumérées viennent du calcul**, jamais d'une liste réécrite ici :
+  règlements, répartitions, drainages, inclinaisons, unités, zones sismiques,
+  catégories d'importance, classes de sol EC8, sous-catégories, natures de
+  cisaillement, diamètres de barres. Une liste recopiée diverge (règle 4).

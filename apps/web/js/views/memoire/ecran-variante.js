@@ -104,9 +104,22 @@ function renderChoixDUneValeur(valeur, choisie = null) {
 }
 
 
-/** La liste, ou la phrase qui dit pourquoi elle est vide. */
-function renderListeDesValeurs(valeurs, { cherche = false } = {}) {
-  if (valeurs.length) return valeurs.map(renderChoixDUneValeur).join("");
+/**
+ * La liste, ou la phrase qui dit pourquoi elle est vide.
+ *
+ * Un intertitre sépare ce que le projet **pose** de ce qui vit **dans** ses
+ * tableaux : un seul tableau de fondations offre soixante-deux champs, et sans
+ * la coupure on croirait que le socle du projet en compte autant.
+ */
+function renderListeDesValeurs(valeurs, { cherche = false, choisie = null } = {}) {
+  if (valeurs.length) {
+    const premierChamp = valeurs.findIndex((valeur) => Boolean(valeur.champ));
+    return valeurs.map((valeur, rang) => `${
+      rang === premierChamp && premierChamp > 0
+        ? `<p class="impact-liste__titre">Dans les tableaux, tels que les utilitaires les déclarent</p>`
+        : ""
+    }${renderChoixDUneValeur(valeur, choisie)}`).join("");
+  }
   return `<p class="variante-rang__vide">${
     cherche
       ? "Aucune valeur du socle ne porte ce mot."
@@ -390,9 +403,16 @@ function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
   // On cherche aussi dans le groupe et dans la description : « sol » doit
   // ramener « contrainte limite à l'ELS », qu'on ne trouvait pas sans connaître
   // déjà son nom exact.
+  // Le nom et le groupe d'abord, la description ensuite : chercher « vent » doit
+  // ramener les quatre cas de vent avant « c'est souvent ce décalage qui… ».
+  // Chercher dans la description reste utile — c'est ce qui permet de trouver
+  // sans connaître le nom exact —, mais elle ne doit pas passer devant.
+  const nomme = (valeur) => [valeur.sujet, valeur.champ?.groupe]
+    .some((mot) => texte(mot).toLowerCase().includes(filtre));
   const retenues = filtre
-    ? valeurs.filter((valeur) => [valeur.sujet, valeur.champ?.groupe, valeur.quoi]
-        .some((mot) => texte(mot).toLowerCase().includes(filtre)))
+    ? valeurs
+        .filter((valeur) => nomme(valeur) || texte(valeur.quoi).toLowerCase().includes(filtre))
+        .sort((gauche, droite) => Number(nomme(droite)) - Number(nomme(gauche)))
     : valeurs;
 
   return `
@@ -410,9 +430,7 @@ function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
       </label>
 
       <div class="impact-liste" data-variante-liste>${
-        retenues.length
-          ? retenues.map((valeur) => renderChoixDUneValeur(valeur, choisie)).join("")
-          : renderListeDesValeurs([], { cherche: Boolean(filtre) })
+        renderListeDesValeurs(retenues, { cherche: Boolean(filtre), choisie })
       }</div>
     </section>
   `;

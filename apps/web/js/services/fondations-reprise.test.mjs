@@ -220,7 +220,7 @@ test("la contrainte de sol se trouve dans la liste, sous son nom déclaré", () 
 
   assert.ok(sol, "elle se propose");
   assert.equal(sol.valeur, "2");
-  assert.match(sol.quoi, /contrainte que le sol admet/);
+  assert.match(sol.quoi, /pression que le sol accepte en service/);
   assert.match(sol.id, /#entrees\.contrainteLimite$/);
 
   // Le tableau entier ne se propose plus à sa place : « 2 lignes » ne se fait
