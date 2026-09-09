@@ -40,6 +40,89 @@ import { PRODUIT, LOI } from "./vocabulaire.js";
 /** Le sujet du projet qui commande l'assise. Il est nommé une fois, ici. */
 export const SUJET_HORS_GEL = "Profondeur hors gel";
 
+/**
+ * Le tableau des massifs à dimensionner, tel que le projet le porte.
+ *
+ * ## Pourquoi il entre dans la mémoire
+ *
+ * C'est ce qui rend la reprise possible. Tant que les massifs vivaient dans
+ * l'étude privée de l'Atelier, changer l'altitude du projet ne pouvait que
+ * **marquer** les fondations à refaire : rien de ce qu'il fallait pour les
+ * refaire n'était accessible. Le calcul est au serveur, ses entrées sont au
+ * projet, et c'est ainsi qu'un appel se rejoue.
+ *
+ * Il entre donc comme n'importe quelle donnée de base — par une proposition que
+ * quelqu'un signe —, et il devient visible de l'équipe. C'est le prix, et c'est
+ * le bon : une cote que personne ne peut relire n'est pas une cote du projet.
+ */
+export const SUJET_DONNEES = "Données d'entrée des fondations superficielles";
+
+/** Ce que l'appel rend, et range. Un seul nom, pour un tableau entier. */
+export const SUJET_RESULTAT = "Résultat du calcul des fondations superficielles";
+
+/**
+ * La forme d'une ligne du tableau d'entrée.
+ *
+ * ## Pourquoi la déclarer
+ *
+ * « type: tableau » ne dit rien. Une fonction qui attend « les données d'entrée
+ * des fondations superficielles » ne s'appelle pas tant qu'on ignore ce qu'il
+ * faut mettre dans une ligne — et personne n'ira lire le code du serveur pour
+ * le savoir.
+ *
+ * Elle dit la **forme**, jamais la loi : savoir qu'un massif porte un angle de
+ * frottement n'apprend rien de la façon dont la portance s'en déduit.
+ */
+export const STRUCTURE_DES_ENTREES = [
+  { nom: "désignation", type: "texte" },
+  { nom: "nombre de massifs", type: "nombre" },
+  { nom: "hypothèses réglementaires", champs: [
+    { nom: "règlement", valeurs: ["Fascicule 62", "DTU 13.12", "EC - NF P94-261", "EC8-5 Annexe F"] },
+    { nom: "répartition des contraintes", valeurs: ["Meyerhoff", "Constante"] },
+    { nom: "drainage", valeurs: ["Sol drainé", "Sol non drainé"] },
+    { nom: "unités", valeurs: ["{ T ; Tm }", "{ kN ; kNm }", "{ daN ; daNm }"] }
+  ] },
+  { nom: "géométrie", champs: [
+    { nom: "arase supérieure", type: "nombre, en m" },
+    { nom: "hauteur Lz", type: "nombre, en m" },
+    { nom: "section Lx", type: "nombre, en m" },
+    { nom: "section Ly", type: "nombre, en m" },
+    { nom: "fût", type: "hauteur, a et b, en m" },
+    { nom: "excentrements", type: "charge/fût et fût/semelle, en m" }
+  ] },
+  { nom: "sol et matériaux", champs: [
+    { nom: "poids volumique du sol", type: "nombre" },
+    { nom: "contrainte limite à l'ELS", type: "nombre" },
+    { nom: "angle de frottement", type: "nombre, en degrés" },
+    { nom: "cohésion non drainée", type: "nombre" },
+    { nom: "poids volumique du béton", type: "semelle et fût" }
+  ] },
+  { nom: "butée mobilisée", type: "part, angle, poids volumique, cotes haute et basse" },
+  { nom: "béton armé", type: "enrobages, résistance du béton, limite d'élasticité de l'acier" },
+  { nom: "charges", type: "par cas de charge : V, Hx, Hy, Mx, My" },
+  { nom: "ferraillage", type: "par nappe : nombre de barres, diamètre" }
+];
+
+/**
+ * La forme d'une ligne du tableau de résultat.
+ *
+ * Ce que l'appel rend, et donc ce qu'on peut lire de lui sans rouvrir l'Atelier.
+ * Le détail du calcul — les trois cent quatre-vingt-huit combinaisons, les
+ * ratios intermédiaires — n'en fait pas partie : il se relit dans l'étude, et il
+ * ne décide de rien.
+ */
+export const STRUCTURE_DU_RESULTAT = [
+  { nom: "désignation", type: "texte" },
+  { nom: "nombre de massifs", type: "nombre" },
+  { nom: "section Lx", type: "nombre, en m" },
+  { nom: "section Ly", type: "nombre, en m" },
+  { nom: "hauteur", type: "nombre, en m" },
+  { nom: "arase supérieure", type: "nombre, en m" },
+  { nom: "volume de béton", type: "nombre, en m3" },
+  { nom: "vérification", valeurs: ["vérifiée", "en défaut", "non calculée"] },
+  { nom: "ratio déterminant", type: "nombre" }
+];
+
 export const DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 = {
   nom: "dimensionnement_fondations_superficielles",
   version: "V1",
@@ -75,8 +158,39 @@ export const DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 = {
    * déclarer ferait attendre à la mémoire des sujets que personne ne verse.
    */
   lit: [
-    { sujet: SUJET_HORS_GEL, entree: "profondeurHorsGel", nombre: true, unite: "m" }
+    { sujet: SUJET_HORS_GEL, entree: "profondeurHorsGel", nombre: true, unite: "m" },
+    {
+      sujet: SUJET_DONNEES,
+      entree: "semelles",
+      tableau: true,
+      quoi: "L'ensemble des données d'entrée nécessaires au calcul de plusieurs massifs "
+        + "de fondations superficielles : un massif par ligne, avec sa géométrie, son sol, "
+        + "ses charges et les hypothèses réglementaires retenues.",
+      utilisation: "Entrée du prédimensionnement des massifs superficiels. C'est ce que le "
+        + "projet conserve pour pouvoir refaire le calcul le jour où l'une de ses données "
+        + "de base change — l'altitude, donc la profondeur hors gel, par exemple.",
+      structure: STRUCTURE_DES_ENTREES
+    }
   ],
+
+  /**
+   * Ce que l'appel rend, et range.
+   *
+   * **Un seul nom pour un tableau entier**, et c'est la correction la plus
+   * importante de cette version. La première dépliait les sorties : sept sujets
+   * par massif, quatre-vingts lignes de cotes dans le fichier de **code**. On
+   * n'y lisait plus ni ce que la fonction consommait ni comment l'appeler, et
+   * le `.ref` portait les données du projet — ce qu'un `.ctr` existe pour
+   * porter.
+   */
+  rend: {
+    sujet: SUJET_RESULTAT,
+    quoi: "Le tableau de synthèse du prédimensionnement : un massif par ligne, ses cotes, "
+      + "son volume de béton et son verdict, plus le volume total de l'ensemble.",
+    utilisation: "Ce que le projet retient des fondations superficielles : les cotes qui "
+      + "partent aux plans et au quantitatif, et le volume de béton à commander.",
+    structure: STRUCTURE_DU_RESULTAT
+  },
 
   /**
    * Comment se rejouer : le même calcul au serveur, sur les mêmes massifs.

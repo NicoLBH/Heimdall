@@ -331,15 +331,22 @@ export function definitionsDesVariables(variables = [], explications = null) {
     .map((variable) => {
       const { type, unite } = typeDeLaValeur(variable?.valeur);
       const dit = explications instanceof Map ? explications.get(texte(variable?.cle)) : null;
+      // Une forme déclarée l'emporte sur un type deviné : « 2 lignes » se lit
+      // comme un texte, alors que la variable **est** un tableau — et c'est le
+      // genre de type faux qui fait recréer un nom voisin.
+      const forme = Array.isArray(dit?.structure) && dit.structure.length;
       return {
         nom: texte(variable?.nom),
-        type,
-        unite,
+        type: forme ? "tableau" : type,
+        unite: forme ? "" : unite,
         // Ce qu'elle désigne et ce à quoi elle sert ne se déduisent pas : ils
         // se versent. Vides, les champs le diront eux-mêmes plutôt que de
         // disparaître — voir `À_DÉCRIRE`.
         description: texte(dit?.description),
         utilisation: texte(dit?.utilisation),
+        // Et sa forme, quand c'est un tableau. Elle ne se déduit d'aucune
+        // valeur : elle se verse avec l'affirmation, et se relit ici.
+        structure: Array.isArray(dit?.structure) && dit.structure.length ? dit.structure : null,
         usages: Array.isArray(variable?.usages) ? variable.usages : [],
         devine: true
       };

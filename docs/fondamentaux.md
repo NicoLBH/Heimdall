@@ -277,57 +277,114 @@ et « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien » (règle 5).
 **Un tel utilitaire est donc une fonction native du langage.**
 
 ```
-fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel) {
+fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel, Données d'entrée des fondations superficielles) {
    // Dimensionne les massifs superficiels d'une zone : descente de charge,
    // combinaisons, portance du sol, glissement, renversement et ferraillage.
    // La loi de calcul appartient à l'utilitaire — elle ne s'écrit pas ici.
 
-   importe (variable: Profondeur hors gel, depuis: Sol/climat.ctr, zones: Bâtiment A);
+   const Profondeur hors gel à retenir;
+   si (Profondeur hors gel renseigné)
+   alors (Profondeur hors gel à retenir = Profondeur hors gel)
+   sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: Bâtiment A));
 
-   résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);
+   résultat = calcul natif (
+      utilitaire: dimensionnement_fondations_superficielles,
+      version: V1,
+      zones: Bâtiment A,
+      Profondeur hors gel: Profondeur hors gel à retenir,
+      Données d'entrée des fondations superficielles: Données d'entrée des fondations superficielles à retenir
+   );
 
    enregistre (
-      Section Lx de la semelle File A: 1,20 m,
-      Section Ly de la semelle File A: 1,20 m,
-      Hauteur de la semelle File A: 0,90 m,
-      Vérification de la semelle File A: "vérifiée",
-      dans: Structure/fondations.ctr,
+      Résultat du calcul des fondations superficielles: résultat,
+      dans: structure.ctr,
       zones: Bâtiment A
    )
 }
 ```
 
-### Ce qui ne change pas, et c'est l'essentiel
+### Quatre questions, et le bloc y répond dans l'ordre
 
-Le commentaire dans la fonction, les `importe`, l'`enregistre`, la portée en
-premier paramètre : tout ce que Mdall lit d'une fonction se lit de celle-ci
-exactement pareil. Elle compte dans les fonctions, ses variables comptent dans
-les variables, le cerveau la dessine comme un nœud de raisonnement — parce
-qu'elle en est un —, et l'onde de choc la traverse.
+1. **Que consomme-t-elle ?** La signature les nomme toutes — la portée d'abord,
+   puis chaque entrée.
+2. **Comment l'appeler ?** L'appel montre ses arguments, un par ligne.
+3. **Sous quelle forme sort le résultat ?** Il porte un nom, et ce nom se déclare
+   dans `variables-du-projet.ref` avec sa `structure attendue`.
+4. **Où est-il rangé ?** L'`enregistre` le dit — le fichier, et la portée.
 
-### Ce qui change, et c'est une ligne
+### Un appel s'écrit, un résultat se range
 
-Là où une règle enchaîne ses `si … alors`, celle-ci dit `résultat = calcul natif
-(…)`. Le mot `native` sur la première ligne l'annonce : **on ne cherchera pas un
-corps qui manque, on saura qu'il n'y en a pas à lire.** Un blanc dans un fichier
-se lit comme un oubli ; une ligne qui dit « la loi est ailleurs, la voici
-nommée » se lit comme une décision.
+La première version dépliait les sorties : sept sujets par massif,
+quatre-vingts lignes de cotes **dans le fichier de code**. On n'y lisait plus ni
+les entrées ni l'appel, et le `.ref` portait les données du projet — ce qu'un
+`.ctr` existe pour porter.
 
-L'utilitaire et sa version sont écrits, et c'est ce qui permet de refaire le
-calcul — en le **redemandant**, jamais en le recopiant. Six mois plus tard, on
-saura avec quoi ces cotes ont été trouvées.
+Une fonction écrit donc **un** résultat, nommé. Ce qu'il contient se lit là où
+il est rangé, et sa forme se déclare une fois :
 
-### Une fonction native pose plusieurs sujets
+```
+const Données d'entrée des fondations superficielles = {
+   type: "tableau",
+   description: "L'ensemble des données d'entrée nécessaires au calcul de plusieurs massifs…",
+   utilisation: "Entrée du prédimensionnement. C'est ce que le projet conserve pour pouvoir refaire le calcul…",
+   structure attendue: [
+      désignation: "texte",
+      nombre de massifs: "nombre",
+      hypothèses réglementaires: [
+         règlement: "Fascicule 62" ou "DTU 13.12" ou "EC - NF P94-261" ou "EC8-5 Annexe F",
+         répartition des contraintes: "Meyerhoff" ou "Constante"
+      ],
+      …
+   ],
+   déjà utilisé dans: [
+      Prédimensionnement des fondations superficielles (structure.ref)
+   ]
+};
+```
+
+« type: tableau » ne dit rien. Une fonction qui attend « les données d'entrée
+des fondations » ne s'appelle pas tant qu'on ignore ce qu'il faut mettre dans
+une ligne — et personne n'ira lire le code du serveur pour le savoir.
+
+### L'entrée à retenir : la variante, écrite dans le langage
+
+`const X à retenir; si (X renseigné) alors … sinon (X = importe (…))` dit qu'un
+**paramètre passé à l'appel l'emporte sur ce que la mémoire porte**. C'est
+exactement ce qu'une variante fait, et un lecteur doit le comprendre pour savoir
+comment se servir de la fonction. Sans ces lignes, l'écran ferait au moment
+d'une variante quelque chose que le code ne dit pas.
+
+### Les entrées entrent dans la mémoire, et c'est ce qui permet de refaire
+
+C'est la conséquence la plus importante de cette forme. Tant que les massifs
+vivaient dans l'étude privée de l'Atelier, changer l'altitude ne pouvait que
+**marquer** les fondations à refaire : le calcul est au serveur, et rien de ce
+qu'il fallait pour le refaire n'était accessible.
+
+Le tableau d'entrée étant une donnée de base du projet, la chaîne se referme :
+
+```
+altitude  →  profondeur hors gel  →  Résultat du calcul des fondations
+   ↑ on l'essaie      ↑ l'utilitaire climat        ↑ le calcul natif, redemandé
+```
+
+`fondations-reprise.js` relit le tableau, y applique la nouvelle profondeur — on
+**enterre** le massif, on ne l'épaissit pas —, redemande le calcul et compare.
+Les fonctions natives se reprennent **en dernier**, sur ce que les utilitaires
+viennent d'établir : les reprendre sur les seules valeurs essayées ne les aurait
+jamais atteintes.
+
+### Une fonction native pose son résultat, pas ses lignes
 
 Une règle conclut sur son propre nom : « Classement du bâtiment » conclut le
-classement. Un calcul qui dimensionne vingt massifs pose cent quarante cotes, et
-aucune ne porte le nom de la fonction. Trois endroits du code en dépendent, et
-le manquer coupait la chaîne en silence :
+classement. Une fonction native conclut sur le nom qu'elle range, qui n'est pas
+le sien. Trois endroits du code en dépendent, et le manquer coupait la chaîne
+en silence :
 
 | où | ce qu'il faut lire |
 | --- | --- |
 | `memoire-applications.js` | les lectures se rattachent à **chaque** sortie |
-| `memoire-plan.js` | une valeur produite par la fonction est **dérivée**, pas du socle |
+| `memoire-plan.js` | ce qu'elle pose est **dérivé**, pas du socle |
 | `memoire-evaluateur.js` | elle est **indécidable** au navigateur : sa loi n'est pas dans le texte |
 
 Ce dernier point est le garde-fou. Sans lui, une fonction sans conditions

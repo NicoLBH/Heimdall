@@ -47,7 +47,8 @@ import {
   OPERATEUR, PROVENANCES, STATUTS, RETRAIT, JETON,
   ligneDAffirmation, ligneDeDonnee, ligneDeCondition, ligneDeConsequence,
   ligneDeProvenance, ligneDePreuve, ligneDeStatut, ligneDeDate, ligneDeNote, ligneDeLocale,
-  ligneDImport, ligneDeDecision, ligneDeCalculNatif, ligneDeFonctionNative, jetonsDeValeur
+  ligneDImport, ligneDeDecision, ligneDeFonctionNative, ligneDeLocaleVide, ligneDAffectation,
+  jetonsDeValeur, VERBES
 } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -151,6 +152,18 @@ const TABLEAU_FERMANT = /^\]\s*;?$/;
  * loi n'est pas là, et la ligne le dit.
  */
 const CALCUL_NATIF = /^résultat\s*=\s*calcul natif\s*\((.*)\)\s*;?$/i;
+/** `résultat = calcul natif (` — l'appel qui s'ouvre, ses arguments dessous. */
+const CALCUL_NATIF_OUVRANT = /^résultat\s*=\s*calcul natif\s*\($/i;
+/** `const Profondeur hors gel à retenir;` — une locale déclarée, pas encore posée. */
+const LOCALE_VIDE = /^const\s+(.+?)\s*;$/i;
+/**
+ * `alors (X = Y)` ou `sinon (X = importe (…));`
+ *
+ * Une branche qui **pose une locale** plutôt que de conclure une valeur. Tout ce
+ * qu'elle porte se déduit — le nom de la locale vient de l'entrée, l'adresse du
+ * fichier qui la déclare —, et elle se lit donc pour ne pas être refusée.
+ */
+const AFFECTATION = /^(alors|sinon)\s*\(\s*(.+?)\s*=\s*(.+?)\s*\)\s*;?$/i;
 
 /**
  * Un `importe (variable: X, depuis: fichier);`
@@ -171,7 +184,12 @@ export function lireUnImport(ligne = "") {
   );
 
   const variable = champs.get("variable") ?? "";
-  return variable ? { variable, depuis: champs.get("depuis") ?? "" } : null;
+  // La zone fait partie de l'emprunt : une variable n'a pas une valeur, elle en
+  // a une par partie d'ouvrage. La perdre ici faisait réécrire « zones: zones »
+  // là où le fichier disait « zones: Bâtiment A ».
+  return variable
+    ? { variable, depuis: champs.get("depuis") ?? "", zones: champs.get("zones") ?? "" }
+    : null;
 }
 
 /**
@@ -185,6 +203,9 @@ export function lireUnImport(ligne = "") {
 export function lireUnCalculNatif(ligne = "") {
   const trouve = texte(ligne).match(CALCUL_NATIF);
   if (!trouve) return null;
+  // `résultat = calcul natif (` ouvre un bloc : ses champs sont sur les lignes
+  // suivantes, et cette fonction-ci ne lit que la forme en une ligne.
+  if (!texte(trouve[1])) return null;
 
   const champs = new Map(
     trouve[1].split(",").map((morceau) => {
@@ -413,6 +434,10 @@ export function lireUnFichier(contenu = "") {
   // fonction native : elle n'a pas de branche à prendre, elle a un résultat à
   // ranger, et ses sorties se lisent donc là plutôt que sous une conclusion.
   let enregistrement = false;
+  // L'appel d'une fonction native, tant qu'il est ouvert. Ce qu'il porte se
+  // déduit de la signature — sauf l'utilitaire et sa version, qui sont ce qui
+  // permet de refaire le calcul.
+  let calcul = false;
 
   const fermer = () => {
     if (courant) {
@@ -426,6 +451,7 @@ export function lireUnFichier(contenu = "") {
     courant = null;
     conclusion = "";
     enregistrement = false;
+    calcul = false;
   };
 
   lignes.forEach((brute, rang) => {
@@ -457,16 +483,33 @@ export function lireUnFichier(contenu = "") {
     // date vivent sur la ligne de la mémoire, pas dans son écriture.
     const decision = lireUneDecision(corps);
     if (decision && courant) { courant.provenance = { type: "décision", quoi: decision.quoi }; return; }
-    if (FERMETURE.test(corps)) { conclusion = ""; enregistrement = false; return; }
+    if (FERMETURE.test(corps)) { conclusion = ""; enregistrement = false; calcul = false; return; }
     // Sous un `alors (`, l'`enregistre` ne fait que redire ce que la branche
     // pose : il s'ignore. Seul, il **est** la sortie, et ce qu'il porte est la
     // seule trace de ce qu'un calcul natif a décidé.
     if (ENREGISTRE_OUVRANT.test(corps)) { enregistrement = !conclusion; return; }
 
-    // Le corps d'une fonction native, tout entier. On garde de quoi le refaire
-    // — l'utilitaire, sa version — et rien de plus : il n'y a rien de plus.
+    // Le corps d'une fonction native. On garde de quoi le refaire — l'utilitaire,
+    // sa version — et rien de plus : il n'y a rien de plus. Ses arguments se
+    // déduisent de la signature, et une signature recopiée diverge.
+    if (CALCUL_NATIF_OUVRANT.test(corps) && courant) { calcul = true; return; }
+    if (calcul && courant) {
+      const champ = corps.match(CHAMP_DENREGISTREMENT);
+      const cle = texte(champ?.[1]).toLowerCase();
+      if (cle === "utilitaire") courant.utilitaire = texte(champ[2]).replace(/,$/, "");
+      if (cle === "version") courant.version = texte(champ[2]).replace(/,$/, "");
+      return;
+    }
+
     const natif = lireUnCalculNatif(corps);
     if (natif && courant) { courant.utilitaire = natif.utilitaire; courant.version = natif.version; return; }
+
+    // Ce qu'une fonction native retient de ses entrées : une locale déclarée,
+    // puis deux branches qui disent laquelle prendre. Tout s'en déduit — le nom
+    // vient de l'entrée, l'adresse du fichier qui la déclare —, et l'écrire une
+    // seconde fois dans le graphe le laisserait diverger de la signature.
+    if (courant?.native && LOCALE_VIDE.test(corps)) return;
+    if (courant?.native && AFFECTATION.test(corps)) return;
 
     const ouvreUneConclusion = corps.match(CONCLUSION_OUVRANTE);
     if (ouvreUneConclusion && courant) { conclusion = ouvreUneConclusion[1].toLowerCase(); return; }
@@ -586,6 +629,11 @@ export function lireUnFichier(contenu = "") {
       courant[mot] = lue.unite ? `${lue.valeur} ${lue.unite}` : lue.valeur;
       return;
     }
+
+    // Une fonction native n'a pas de conditions : celle-ci borne l'entrée à
+    // retenir, et elle se déduit de la signature. La garder ferait une règle
+    // là où il n'y a qu'un appel.
+    if (courant?.native && mot === "si") return;
 
     if (mot === "si" || mot === "et" || mot === "ou" || mot === "non" || mot === "sauf si") {
       const condition = lireUneCondition(sansBornes(reste).corps);
@@ -740,11 +788,37 @@ export function jetonsDeLaLigne(ligne = "") {
   const decision = lireUneDecision(nu);
   if (decision) return [...marge, ...(ligneDeDecision(decision, 0) ?? []).slice(1)];
 
-  // Le corps d'une fonction native. Il passe **avant** la lecture d'un champ :
-  // la ligne porte des deux-points, et sans cette priorité elle se lirait comme
-  // « le sujet "résultat = calcul natif (utilitaire" vaut … ».
-  const natif = lireUnCalculNatif(nu);
-  if (natif) return [...marge, ...(ligneDeCalculNatif(natif, 0) ?? []).slice(1)];
+  // L'appel d'une fonction native, qui ouvre son bloc. Il passe **avant** la
+  // lecture d'un champ : sans cette priorité, `résultat = calcul natif (` se
+  // lirait comme le sujet « résultat » valant « calcul natif ( ».
+  if (CALCUL_NATIF_OUVRANT.test(nu)) {
+    return [...marge,
+      { type: JETON.LOCALE, texte: "résultat" },
+      { type: JETON.NEUTRE, texte: " " },
+      { type: JETON.OPERATEUR, texte: "=" },
+      { type: JETON.NEUTRE, texte: " " },
+      { type: JETON.MOT_NATIF, texte: VERBES.CALCUL },
+      { type: JETON.NEUTRE, texte: " " },
+      { type: JETON.PONCTUATION, texte: "(" }];
+  }
+
+  // `const X;` — une locale déclarée, pas encore posée.
+  const declaree = nu.match(LOCALE_VIDE);
+  if (declaree) return [...marge, ...(ligneDeLocaleVide(declaree[1], 0) ?? []).slice(1)];
+
+  // `alors (X = Y)` / `sinon (X = importe (…));` — une branche qui pose une
+  // locale. Elle passe avant `alors`/`sinon` ordinaires : ceux-là posent une
+  // **valeur**, et lire celle-ci comme telle en ferait un texte cité.
+  const affecte = nu.match(AFFECTATION);
+  if (affecte) {
+    const emprunt = lireUnImport(texte(affecte[3]));
+    return [...marge, ...(ligneDAffectation(affecte[1], {
+      nom: texte(affecte[2]),
+      valeur: texte(affecte[3]),
+      importe: emprunt,
+      fin: /;\s*$/.test(nu)
+    }, 0) ?? []).slice(1)];
+  }
 
   const ouvreUneConclusion = nu.match(CONCLUSION_OUVRANTE);
   if (ouvreUneConclusion) {
@@ -772,21 +846,33 @@ export function jetonsDeLaLigne(ligne = "") {
 
     // `dans:` porte un fichier, `zones:` une portée, le reste est le sujet qu'on
     // enregistre — trois natures, trois couleurs.
-    if (nomEnCle === "dans" || nomEnCle === "zones") {
+    const dit = suite.replace(/,$/, "");
+
+    // Quatre clés du langage, quatre natures : un fichier, une portée, un
+    // utilitaire, une version. Les trois dernières ne se citent pas — ce sont
+    // des noms, pas des textes du projet.
+    const COULEURS = { dans: JETON.CHEMIN, zones: JETON.PORTEE, utilitaire: JETON.SOURCE, version: JETON.SOURCE };
+    if (COULEURS[nomEnCle]) {
       return [...marge,
         { type: JETON.LOCALE, texte: cle },
         { type: JETON.PONCTUATION, texte: ":" },
         { type: JETON.NEUTRE, texte: " " },
-        { type: nomEnCle === "dans" ? JETON.CHEMIN : JETON.PORTEE, texte: suite.replace(/,$/, "") },
+        { type: COULEURS[nomEnCle], texte: dit },
         ...virgule];
     }
 
-    const lue = lireUneValeur(suite.replace(/,$/, ""));
+    const lue = lireUneValeur(dit);
+    // Troisième loi de lecture, prolongée : un texte porte des guillemets, une
+    // mesure n'en porte pas — et ce qui n'est **ni l'un ni l'autre** est un
+    // **nom**. `Profondeur hors gel: Profondeur hors gel à retenir` passe une
+    // locale ; le citer en ferait un texte que le projet affirmerait.
+    const reference = !lue.citee && !lue.unite && !/^-?\d/.test(dit) && Boolean(dit);
+
     return [...marge,
       { type: JETON.SUJET, texte: cle },
       { type: JETON.PONCTUATION, texte: ":" },
       { type: JETON.NEUTRE, texte: " " },
-      ...jetonsDeValeur(lue.valeur, lue.unite),
+      ...(reference ? [{ type: JETON.LOCALE, texte: dit }] : jetonsDeValeur(lue.valeur, lue.unite)),
       ...virgule];
   }
 

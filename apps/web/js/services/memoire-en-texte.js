@@ -175,8 +175,17 @@
  * qu'elle importe, ce qu'elle enregistre — s'écrit comme pour n'importe quelle
  * fonction. Un `enregistre` peut porter plusieurs sujets, parce qu'un calcul
  * qui rend un tableau ne rend pas une valeur.
+ *
+ * v4.6 — **un appel s'écrit, un résultat se range.** La v4.5 dépliait les
+ * quatre-vingts sorties d'un calcul de fondations dans le `.ref` : le fichier
+ * de code portait les données, on ne voyait plus ni ce que la fonction
+ * consommait, ni comment l'appeler. Une fonction native écrit donc maintenant
+ * sa **signature** — la portée et ses entrées nommées —, ses entrées à retenir,
+ * son appel avec ses arguments, et **un seul** `enregistre` qui range le
+ * résultat entier. Les données vont dans le `.ctr`, et la forme du tableau se
+ * déclare une fois dans `variables-du-projet.ref`, sous `structure attendue`.
  */
-export const ECRITURE = "4.5";
+export const ECRITURE = "4.6";
 
 /** Le pas d'indentation. Trois espaces, jamais une tabulation. */
 export const RETRAIT = "   ";
@@ -749,7 +758,12 @@ export function blocDEnregistrement({
       jeton(JETON.SUJET, texte(ligne.sujet)),
       jeton(JETON.PONCTUATION, ":"),
       espace(),
-      ...jetonsDeValeur(ligne.valeur, ligne.unite),
+      // Une **référence** cite un nom — `résultat` —, une valeur en est une.
+      // Les guillemets font la différence à la lecture : sans eux, « résultat »
+      // serait un texte que le projet affirme, au lieu de ce que l'appel a rendu.
+      ...(ligne.reference === true
+        ? [jeton(JETON.LOCALE, texte(ligne.valeur))]
+        : jetonsDeValeur(ligne.valeur, ligne.unite)),
       jeton(JETON.PONCTUATION, ",")
     ]);
   }
@@ -804,6 +818,96 @@ export function ligneDeLocale(nom = "", valeur = "", profondeur = 1) {
 
 /**
  * ```
+ * structure attendue: [
+ *    designation: "texte",
+ *    nombre de massifs: nombre,
+ *    règlement: "texte",
+ *    section Lx: "nombre, en m"
+ * ]
+ * ```
+ *
+ * Ce qu'une ligne d'un tableau contient.
+ *
+ * ## Pourquoi une variable de type tableau ne se suffit pas d'un type
+ *
+ * « type: tableau » ne dit rien. Une fonction qui attend « les données d'entrée
+ * du calcul des fondations » ne s'appelle pas tant qu'on ignore ce qu'il faut
+ * mettre dans une ligne — et personne n'ira lire le code du serveur pour le
+ * savoir. La déclaration porte donc la forme, une fois, à l'endroit où l'on
+ * cherche déjà le nom.
+ *
+ * ## Pourquoi elle s'imbrique
+ *
+ * Un champ peut lui-même être un groupe — les hypothèses réglementaires d'un
+ * massif en sont un. On le rend en profondeur plutôt qu'à plat : `règlement` et
+ * `hypothèses réglementaires.règlement` ne se lisent pas pareil, et le second ne
+ * se lit pas du tout.
+ *
+ * Elle ne dit que la **forme**, jamais une valeur : ce qu'un projet met dedans
+ * vit dans le fichier où le tableau est rangé.
+ *
+ * @param {{nom: string, type: string, champs?: object[]}[]} champs
+ * @returns {object[][]} les lignes, ou `[]` si rien n'est déclaré
+ */
+export function lignesDeStructure(champs = null, profondeur = 1) {
+  const dits = (Array.isArray(champs) ? champs : []).filter((champ) => texte(champ?.nom));
+  if (!dits.length) return [];
+
+  const lignes = [[
+    espace(RETRAIT.repeat(Math.max(0, profondeur))),
+    jeton(JETON.LOCALE, "structure attendue"),
+    jeton(JETON.PONCTUATION, ":"),
+    espace(),
+    jeton(JETON.PONCTUATION, "[")
+  ]];
+
+  const poser = (liste, niveau) => {
+    liste.forEach((champ, rang) => {
+      const virgule = rang < liste.length - 1 ? [jeton(JETON.PONCTUATION, ",")] : [];
+      const dedans = (Array.isArray(champ.champs) ? champ.champs : []).filter((sous) => texte(sous?.nom));
+
+      if (dedans.length) {
+        lignes.push([
+          espace(RETRAIT.repeat(niveau)),
+          jeton(JETON.SUJET, texte(champ.nom)),
+          jeton(JETON.PONCTUATION, ":"),
+          espace(),
+          jeton(JETON.PONCTUATION, "[")
+        ]);
+        poser(dedans, niveau + 1);
+        lignes.push([espace(RETRAIT.repeat(niveau)), jeton(JETON.PONCTUATION, "]"), ...virgule]);
+        return;
+      }
+
+      // Un champ à choix fermé dit ses valeurs plutôt que son type : « texte »
+      // n'apprend rien quand seuls « Meyerhoff » et « Constante » sont admis.
+      // Elles se séparent d'un « ou », comme partout ailleurs dans le langage.
+      const admises = (Array.isArray(champ.valeurs) ? champ.valeurs : []).map(texte).filter(Boolean);
+      const dit = admises.length
+        ? admises.flatMap((valeur, place) => [
+            ...(place ? [espace(), jeton(JETON.MOT_CONDITION, "ou"), espace()] : []),
+            jeton(JETON.VALEUR, `"${valeur}"`)
+          ])
+        : [jeton(JETON.VALEUR, `"${texte(champ.type) || "inconnu"}"`)];
+
+      lignes.push([
+        espace(RETRAIT.repeat(niveau)),
+        jeton(JETON.SUJET, texte(champ.nom)),
+        jeton(JETON.PONCTUATION, ":"),
+        espace(),
+        ...dit,
+        ...virgule
+      ]);
+    });
+  };
+
+  poser(dits, profondeur + 1);
+  lignes.push([espace(RETRAIT.repeat(Math.max(0, profondeur))), jeton(JETON.PONCTUATION, "]"), jeton(JETON.PONCTUATION, ",")]);
+  return lignes;
+}
+
+/**
+ * ```
  * const Hauteur du plancher bas = {
  *    type: "mesure",
  *    unité: "m",
@@ -839,7 +943,7 @@ export function ligneDeLocale(nom = "", valeur = "", profondeur = 1) {
  *          utilisation?: string, usages?: {fonction: string, fichier: string}[]}} variable
  */
 export function blocDeVariable({
-  nom = "", type = "", unite = "", description = "", utilisation = "", usages = []
+  nom = "", type = "", unite = "", description = "", utilisation = "", usages = [], structure = null
 } = {}, profondeur = 0) {
   const dit = texte(nom);
   if (!dit) return [];
@@ -871,6 +975,11 @@ export function blocDeVariable({
   if (texte(unite)) lignes.push(champ("unité", texte(unite)));
   lignes.push(champ("description", texte(description) || À_DÉCRIRE.description));
   lignes.push(champ("utilisation", texte(utilisation) || À_DÉCRIRE.utilisation));
+
+  // Ce qu'un tableau contient, champ par champ. Une variable dont le type est
+  // « tableau » ne dit rien tant qu'on ignore ce qu'il y a dans une ligne — et
+  // c'est justement ce qu'il faut savoir pour appeler la fonction qui l'attend.
+  lignes.push(...lignesDeStructure(structure, dedans));
 
   // Où elle sert déjà : la fonction, et le fichier où on la trouve. C'est la
   // liste qui empêche d'en recréer une treize millième — on voit d'un coup
@@ -1195,39 +1304,141 @@ export function blocDeRegle({
 }
 
 /**
- * `résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);`
+ * `const Profondeur hors gel à retenir;`
  *
- * Le corps d'une fonction native, en une ligne — et c'est tout ce qu'il y aura
- * jamais.
+ * Une locale d'une fonction, déclarée avant d'être posée. Elle ne vaut rien
+ * encore : les deux lignes qui suivent disent ce qu'elle vaudra, selon qu'on lui
+ * a passé la valeur ou qu'il faut aller la lire.
  *
- * ## Pourquoi une ligne, et pourquoi elle est écrite
- *
- * Une règle se lit : `si (Hauteur ≤ 28 m) alors ("3e famille B")`. Sa loi est
- * publique — c'est un arrêté — et l'écrire est ce qui permet de la rejouer, de
- * la contester, de la voir vieillir quand le texte change.
- *
- * Certains utilitaires n'ont pas cette loi-là. Un pré-dimensionnement de
- * fondations superficielles parcourt trois cent quatre-vingt-huit combinaisons,
- * pondère, compare des portances et rend des cotes ; sa loi **est** le produit,
- * et l'écrire dans un fichier de projet reviendrait à la donner. Ce n'est pas
- * un détail d'implémentation : c'est la raison d'être de l'utilitaire.
- *
- * On ne peut pas non plus le cacher. Une fois employé sur un projet, il a
- * décidé de cotes ; les taire ferait de la moitié du raisonnement un trou, et
- * « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien ».
- *
- * D'où cette ligne : elle **dit qu'il y a un corps et qu'il ne se lit pas**.
- * L'utilitaire et sa version sont nommés — c'est ce qui permet de savoir, six
- * mois plus tard, avec quoi ces cotes ont été trouvées, et de refaire le calcul
- * en le redemandant plutôt qu'en le recopiant. Le silence, lui, est explicite :
- * personne ne cherchera la formule ici, parce que la ligne dit qu'elle n'y est
- * pas.
+ * Le mot est `const` et non `soit` : `soit` déclare **et** pose en une ligne
+ * (`soit texte = "…"`), ce qui ne convient pas à une valeur dont on ne connaît
+ * pas encore la branche. Le nom porte le jeton d'un sujet, parce que c'en est
+ * un : c'est ce nom-là que l'appel cite plus bas.
  */
-export function ligneDeCalculNatif({ utilitaire = "", version = "" } = {}, profondeur = 1) {
-  const nom = texte(utilitaire);
-  if (!nom) return null;
+export function ligneDeLocaleVide(nom = "", profondeur = 1) {
+  const dit = texte(nom);
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_CONST, "const"),
+    espace(),
+    jeton(JETON.SUJET, dit),
+    jeton(JETON.PONCTUATION, ";")
+  ];
+}
+
+/**
+ * `alors (Profondeur hors gel à retenir = Profondeur hors gel)`
+ * `sinon (Profondeur hors gel à retenir = importe (variable: …, depuis: …, zones: …));`
+ *
+ * Une branche qui **pose une locale** plutôt que de conclure une valeur.
+ *
+ * ## Pourquoi cette forme existe
+ *
+ * C'est la variante, écrite dans le langage. Une fonction reçoit ses entrées
+ * quand on l'appelle avec des valeurs essayées ; le reste du temps on ne lui
+ * passe rien, et elle va lire ce que la mémoire porte. Les deux cas sont le même
+ * appel, et c'est exactement ce qu'un lecteur doit comprendre pour savoir
+ * comment s'en servir.
+ *
+ * Sans elle, la fonction aurait un `importe` en tête, sans dire qu'un paramètre
+ * peut le remplacer — et le jour où l'on teste une altitude, l'écran ferait
+ * quelque chose que le code ne dit pas.
+ *
+ * Le point-virgule ferme la seconde branche, pas la première : c'est une seule
+ * instruction en deux lignes.
+ */
+export function ligneDAffectation(mot, { nom = "", valeur = "", importe = null, fin = false } = {}, profondeur = 1) {
+  const pose = texte(nom);
+  if (!pose) return null;
 
   const jetons = [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.MOT_CONDITION, texte(mot)),
+    espace(),
+    jeton(JETON.PONCTUATION, "("),
+    jeton(JETON.SUJET, pose),
+    espace(),
+    jeton(JETON.OPERATEUR, OPERATEUR.EGAL),
+    espace()
+  ];
+
+  // Ce qu'elle prend : un autre nom, ou ce que la mémoire porte à une adresse.
+  // L'`importe` est ici une **expression**, pas une instruction : son
+  // point-virgule appartient à l'affectation, et le garder en ferait deux.
+  if (importe) {
+    const emprunt = (ligneDImport(importe, 0) ?? []).slice(1);
+    jetons.push(...emprunt.filter((piece) => piece?.texte !== ";"));
+  } else {
+    jetons.push(jeton(JETON.SUJET, texte(valeur)));
+  }
+
+  jetons.push(jeton(JETON.PONCTUATION, ")"));
+  if (fin) jetons.push(jeton(JETON.PONCTUATION, ";"));
+  return jetons;
+}
+
+/**
+ * ```
+ * résultat = calcul natif (
+ *    utilitaire: dimensionnement_fondations_superficielles,
+ *    version: V1,
+ *    zones: Bâtiment A,
+ *    Profondeur hors gel: Profondeur hors gel à retenir,
+ *    Données d'entrée du calcul des fondations superficielles: …
+ * );
+ * ```
+ *
+ * Le corps d'une fonction native — et c'est tout ce qu'il y aura jamais.
+ *
+ * ## Pourquoi la loi n'y est pas
+ *
+ * Une règle se lit : `si (Hauteur ≤ 28 m) alors ("3e famille B")`. Sa loi est
+ * publique — c'est un arrêté — et l'écrire permet de la rejouer, de la contester,
+ * de la voir vieillir quand le texte change.
+ *
+ * Certains utilitaires n'ont pas cette loi-là. Un pré-dimensionnement de
+ * fondations parcourt trois cent quatre-vingt-huit combinaisons et rend des
+ * cotes ; sa loi **est** le produit, et l'écrire dans un fichier de projet
+ * reviendrait à la donner.
+ *
+ * On ne peut pas non plus le cacher : une fois employé, il a décidé de cotes, et
+ * « ne pas savoir n'autorise pas à prétendre qu'il n'y a rien ».
+ *
+ * D'où ce bloc : il **dit qu'il y a un corps et qu'il ne se lit pas**, nomme
+ * l'utilitaire et sa version — de quoi refaire le calcul en le redemandant —, et
+ * montre **avec quoi** on l'appelle.
+ *
+ * ## Pourquoi un bloc, et non une ligne
+ *
+ * Parce qu'un appel porte ses arguments. À trois entrées la ligne dépasse la
+ * largeur d'un écran, et surtout le diff bougerait tout l'appel dès qu'une seule
+ * entrée change — la même raison qui a mis `enregistre` sur plusieurs lignes.
+ *
+ * @param {{utilitaire: string, version?: string,
+ *          arguments?: {nom: string, valeur: string}[]}} appel
+ * @returns {object[][]} les lignes du bloc
+ */
+export function blocDeCalculNatif({ utilitaire = "", version = "", arguments: args = [] } = {}, profondeur = 1) {
+  const nom = texte(utilitaire);
+  if (!nom) return [];
+
+  const dedans = profondeur + 1;
+  const champs = [
+    { nom: "utilitaire", valeur: nom, type: JETON.SOURCE },
+    // La version est ce qui distingue « la cote a changé » de « notre façon de
+    // la trouver a changé ». Sans elle, une reprise six mois plus tard passerait
+    // pour un projet qui a bougé.
+    ...(texte(version) ? [{ nom: "version", valeur: texte(version), type: JETON.SOURCE }] : []),
+    ...(Array.isArray(args) ? args : [])
+      .filter((argument) => texte(argument?.nom))
+      // Un argument passe un **nom**, pas une valeur : il porte donc le jeton
+      // d'une locale, comme la référence que `enregistre` range.
+      .map((argument) => ({ nom: texte(argument.nom), valeur: texte(argument.valeur), type: JETON.LOCALE }))
+  ];
+
+  const lignes = [[
     espace(RETRAIT.repeat(Math.max(1, profondeur))),
     jeton(JETON.LOCALE, "résultat"),
     espace(),
@@ -1235,30 +1446,31 @@ export function ligneDeCalculNatif({ utilitaire = "", version = "" } = {}, profo
     espace(),
     jeton(JETON.MOT_NATIF, VERBES.CALCUL),
     espace(),
-    jeton(JETON.PONCTUATION, "("),
-    jeton(JETON.LOCALE, "utilitaire"),
-    jeton(JETON.PONCTUATION, ":"),
-    espace(),
-    jeton(JETON.SOURCE, nom)
-  ];
+    jeton(JETON.PONCTUATION, "(")
+  ]];
 
-  // La version est ce qui distingue « la cote a changé » de « notre façon de la
-  // trouver a changé ». Sans elle, une reprise de calcul six mois plus tard
-  // passerait pour un projet qui a bougé.
-  if (texte(version)) {
-    jetons.push(
-      jeton(JETON.PONCTUATION, ","), espace(),
-      jeton(JETON.LOCALE, "version"), jeton(JETON.PONCTUATION, ":"), espace(),
-      jeton(JETON.SOURCE, texte(version))
-    );
-  }
+  champs.forEach((champ, rang) => {
+    const duLangage = champ.nom === "utilitaire" || champ.nom === "version";
+    lignes.push([
+      espace(RETRAIT.repeat(dedans)),
+      jeton(duLangage ? JETON.LOCALE : JETON.SUJET, champ.nom),
+      jeton(JETON.PONCTUATION, ":"),
+      espace(),
+      jeton(champ.type, champ.valeur),
+      ...(rang < champs.length - 1 ? [jeton(JETON.PONCTUATION, ",")] : [])
+    ]);
+  });
 
-  jetons.push(jeton(JETON.PONCTUATION, ")"), jeton(JETON.PONCTUATION, ";"));
-  return jetons;
+  lignes.push([
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.PONCTUATION, ")"),
+    jeton(JETON.PONCTUATION, ";")
+  ]);
+  return lignes;
 }
 
 /**
- * `fonction native Prédimensionnement des fondations(Bâtiment A, Profondeur hors gel)`
+ * `fonction native Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, Données d'entrée…)`
  *
  * La tête d'une fonction native, sans son accolade. Elle sert deux fois : au
  * bloc qu'on écrit, et à la ligne qu'on recolore dans un diff. Une seconde
@@ -1282,20 +1494,35 @@ export function ligneDeFonctionNative(nom = "", entrees = []) {
   ];
 }
 
+/** Le nom de la locale qui porte l'entrée retenue pour un appel. */
+export function nomARetenir(entree = "") {
+  const dit = texte(entree);
+  return dit ? `${dit} à retenir` : "";
+}
+
 /**
  * ```
- * fonction native Prédimensionnement des fondations superficielles(Bâtiment A, Profondeur hors gel) {
- *    // Descente de charge, combinaisons, portance, glissement, renversement…
+ * fonction native Prédimensionnement des fondations superficielles(zones, Profondeur hors gel, Données d'entrée…) {
+ *    // Dimensionne les massifs superficiels d'une zone. La loi de calcul
+ *    // appartient à l'utilitaire — elle ne s'écrit pas ici.
  *
- *    importe (variable: Profondeur hors gel, depuis: donnees-de-base.ddb, zones: Bâtiment A);
+ *    const Profondeur hors gel à retenir;
+ *    si (Profondeur hors gel renseigné)
+ *    alors (Profondeur hors gel à retenir = Profondeur hors gel)
+ *    sinon (Profondeur hors gel à retenir = importe (variable: Profondeur hors gel, depuis: structure.ctr, zones: zones));
  *
- *    résultat = calcul natif (utilitaire: dimensionnement_fondations_superficielles, version: V1);
+ *    résultat = calcul natif (
+ *       utilitaire: dimensionnement_fondations_superficielles,
+ *       version: V1,
+ *       zones: zones,
+ *       Profondeur hors gel: Profondeur hors gel à retenir,
+ *       Données d'entrée du calcul des fondations superficielles: Données d'entrée…
+ *    );
  *
  *    enregistre (
- *       Section Lx de la semelle File A: 1,20 m,
- *       Section Ly de la semelle File A: 1,20 m,
- *       dans: fondations.ctr,
- *       zones: Bâtiment A
+ *       Résultat du calcul des fondations superficielles: résultat,
+ *       dans: structure.ctr,
+ *       zones: zones
  *    )
  * }
  * ```
@@ -1303,64 +1530,98 @@ export function ligneDeFonctionNative(nom = "", entrees = []) {
  * Une fonction dont la loi ne s'écrit pas — et qui, à cela près, s'écrit comme
  * les autres.
  *
- * ## Ce qui ne change pas, et c'est l'essentiel
+ * ## Ce que le lecteur doit pouvoir en tirer, et qui commande la forme
  *
- * Elle porte le même commentaire dans la fonction, les mêmes `importe`, le même
- * `enregistre`, la même portée en premier paramètre. Tout ce que le reste de
- * Mdall lit d'une fonction — ses entrées, ses sorties, ses zones, sa place dans
- * le graphe — se lit d'elle exactement pareil. Elle compte donc dans les
- * fonctions, ses variables comptent dans les variables, et le cerveau la dessine
- * comme un nœud de raisonnement, parce qu'elle en est un.
+ * Quatre questions, et le bloc y répond dans cet ordre :
  *
- * ## Ce qui change, et c'est une seule ligne
+ * 1. **Que consomme-t-elle ?** La signature les nomme toutes — la portée
+ *    d'abord, puis chaque entrée.
+ * 2. **Comment l'appeler ?** L'appel montre ses arguments, un par ligne.
+ * 3. **Sous quelle forme sort le résultat ?** Il porte un nom, et ce nom se
+ *    déclare dans `variables-du-projet.ref` avec sa `structure attendue`.
+ * 4. **Où est-il rangé ?** L'`enregistre` le dit — le fichier, et la portée.
  *
- * Là où une règle enchaîne ses `si … alors`, celle-ci dit `résultat = calcul
- * natif (…)`. Le mot `native` sur la première ligne l'annonce : on ne cherchera
- * pas un corps qui manque, on saura qu'il n'y en a pas à lire.
+ * ## Ce qu'elle n'écrit plus, et pourquoi
  *
- * ## Pourquoi les sorties s'écrivent quand même
+ * La première version dépliait les sorties : quatre-vingts lignes de cotes dans
+ * le fichier de **code**. On n'y lisait plus ni les entrées ni l'appel, et le
+ * `.ref` portait les données du projet — exactement ce qu'un `.ctr` existe pour
+ * porter. Une fonction écrit maintenant **un** résultat, nommé ; ce qu'il
+ * contient se lit là où il est rangé.
  *
- * Une fonction native versée sans ses résultats serait un appel dans le vide :
- * le projet saurait qu'un calcul a eu lieu et ignorerait ce qu'il a décidé. Ce
- * sont ses `enregistre` qui font qu'une cote de semelle se relit, se conteste,
- * et se recalcule le jour où la profondeur hors gel change.
- *
- * @param {{nom: string, quoi?: string, portee?: string, parametres?: string[],
- *          importe?: object[], utilitaire?: string, version?: string,
- *          enregistre?: object[]}} fonction
+ * @param {{nom: string, quoi?: string, portee?: string,
+ *          entrees?: {nom: string, depuis?: string}[],
+ *          utilitaire?: string, version?: string,
+ *          enregistre?: {sujet: string, dans?: string}[]}} fonction
  * @returns {object[][]} les lignes du bloc
  */
 export function blocDeFonctionNative({
-  nom = "", quoi = "", portee = "zones", parametres = [],
-  importe = [], utilitaire = "", version = "", enregistre = []
+  nom = "", quoi = "", portee = "zones", entrees = [],
+  utilitaire = "", version = "", enregistre = []
 } = {}, profondeur = 0) {
   const dit = texte(nom);
   if (!dit) return [];
 
   const dedans = profondeur + 1;
+  const zones = texte(portee) || "zones";
+  const prises = (Array.isArray(entrees) ? entrees : []).filter((entree) => texte(entree?.nom));
+
   const corps = [];
 
-  for (const entree of Array.isArray(importe) ? importe : []) {
-    const ligne = ligneDImport(entree, dedans);
-    if (ligne) corps.push(ligne);
+  // Ce qu'on retient pour chaque entrée : ce qu'on nous a passé, sinon ce que la
+  // mémoire porte. C'est la variante écrite dans le langage — le même appel,
+  // avec ou sans valeur essayée.
+  for (const entree of prises) {
+    const nomDeLEntree = texte(entree.nom);
+    const local = nomARetenir(nomDeLEntree);
+    const depuis = texte(entree.depuis);
+
+    // Sans adresse en mémoire, il n'y a pas de branche à écrire : l'entrée est
+    // ce qu'on passe, et rien d'autre. Inventer un `importe` vers un fichier
+    // qu'on ne connaît pas ferait lire « va chercher là » là où il n'y a rien.
+    if (!depuis) continue;
+
+    corps.push(ligneDeLocaleVide(local, dedans));
+    corps.push(ligneDeCondition("si", { sujet: nomDeLEntree, operateur: OPERATEUR.RENSEIGNE }, dedans, { regle: true }));
+    corps.push(ligneDAffectation("alors", { nom: local, valeur: nomDeLEntree }, dedans));
+    corps.push(ligneDAffectation("sinon", {
+      nom: local,
+      importe: { variable: nomDeLEntree, depuis, zones },
+      fin: true
+    }, dedans));
+    corps.push(ligneVide());
   }
-  if (corps.length) corps.push(ligneVide());
 
-  const calcul = ligneDeCalculNatif({ utilitaire, version }, dedans);
-  if (calcul) corps.push(calcul, ligneVide());
+  corps.push(...blocDeCalculNatif({
+    utilitaire,
+    version,
+    arguments: [
+      { nom: "zones", valeur: zones },
+      ...prises.map((entree) => ({
+        nom: texte(entree.nom),
+        // La locale quand il y en a une, l'entrée elle-même sinon.
+        valeur: texte(entree.depuis) ? nomARetenir(entree.nom) : texte(entree.nom)
+      }))
+    ]
+  }, dedans));
 
-  for (const sortie of Array.isArray(enregistre) ? enregistre : []) {
-    corps.push(...blocDEnregistrement({ zones: portee, ...sortie }, dedans));
+  const sorties = (Array.isArray(enregistre) ? enregistre : []).filter((sortie) => texte(sortie?.sujet));
+  if (sorties.length) corps.push(ligneVide());
+
+  for (const sortie of sorties) {
+    corps.push(...blocDEnregistrement({
+      // Ce que la fonction range est **ce qu'elle vient de calculer** : la
+      // ligne cite la locale, elle ne recopie pas sa valeur. Une valeur écrite
+      // à deux endroits finit par diverger, et celle-ci en a quatre-vingts.
+      valeurs: [{ sujet: texte(sortie.sujet), valeur: "résultat", reference: true }],
+      dans: texte(sortie.dans),
+      zones
+    }, dedans));
   }
-
-  // La portée d'abord, comme pour une règle : une même fonction sert plusieurs
-  // parties de l'ouvrage, et la recopier par zone en ferait trois fonctions à
-  // maintenir pour un seul calcul.
-  const entrees = [texte(portee) || "zones", ...(Array.isArray(parametres) ? parametres : [])];
 
   const tete = [
     espace(RETRAIT.repeat(Math.max(0, profondeur))),
-    ...ligneDeFonctionNative(dit, entrees),
+    ...ligneDeFonctionNative(dit, [zones, ...prises.map((entree) => texte(entree.nom))]),
     espace(),
     jeton(JETON.ACCOLADE, "{")
   ];
@@ -1369,8 +1630,8 @@ export function blocDeFonctionNative({
 
   return [
     tete,
-    ...(explique ? [explique, ...(corps.length ? [ligneVide()] : [])] : []),
-    ...corps,
+    ...(explique ? [explique, ligneVide()] : []),
+    ...corps.filter(Boolean),
     ligneFermante(profondeur)
   ];
 }

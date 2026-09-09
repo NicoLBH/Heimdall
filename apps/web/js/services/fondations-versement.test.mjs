@@ -1,14 +1,21 @@
+/**
+ * Ce qu'une étude de fondations propose — trois lignes, et pas quatre-vingts.
+ */
+
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  affirmationsDeLEtude, fonctionVersable, cotesVersables, sortiesDeLEtude,
-  sujetDeLaSemelle, ecrire
+  affirmationsDeLEtude, entreesVersables, fonctionVersable, resultatVersable,
+  tableauDesEntrees, tableauDuResultat, phraseDuResultat, verdictDe, ecrire
 } from "./fondations-versement.js";
 import { applicationsDeLaMemoire } from "./memoire-applications.js";
 import { planDeRecalcul, NOEUD, natureDuNoeud, sortiesDesRegles } from "./memoire-plan.js";
 import { cerveauDuProjet } from "./memoire-cerveau.js";
 import { evaluerLaRegle, rejouerLaRegle, DOUTE, VERDICT } from "./memoire-evaluateur.js";
+import {
+  SUJET_HORS_GEL, SUJET_DONNEES, SUJET_RESULTAT
+} from "../utilitaires/dimensionnement_fondations_superficielles_V1.js";
 
 const SEMELLES = [
   { id: "a", designation: "File A", nombre: 9,
@@ -28,67 +35,104 @@ test("un nombre s'écrit à la française — la mémoire compare des phrases", 
   assert.equal(ecrire("pas un nombre"), "");
 });
 
-test("le nom d'un résultat porte l'appui : vingt « Section Lx » seraient un seul sujet", () => {
-  assert.equal(sujetDeLaSemelle("Section Lx", "File A"), "Section Lx de la semelle File A");
+test("un verdict a trois états, jamais deux", () => {
+  // « Je ne sais pas » n'est pas « ça ne passe pas ».
+  assert.equal(verdictDe(true), "vérifiée");
+  assert.equal(verdictDe(false), "en défaut");
+  assert.equal(verdictDe(null), "non calculée");
 });
 
-test("chaque massif apprend sept faits au projet, et le tableau son total", () => {
-  const sorties = sortiesDeLEtude(SEMELLES, RESULTATS);
-  assert.equal(sorties.length, 2 * 7 + 1);
-  assert.ok(sorties.some((s) => s.sujet === "Volume de béton des fondations superficielles"));
+test("une étude propose trois lignes : ses entrées, l'appel, son résultat", () => {
+  // La première version en proposait quatre-vingts — sept sujets par massif —
+  // et écrivait les cotes dans le fichier de code.
+  const lignes = affirmationsDeLEtude(SEMELLES, RESULTATS, "Bâtiment A");
+  assert.deepEqual(lignes.map((ligne) => ligne.sujet), [
+    SUJET_DONNEES,
+    "Prédimensionnement des fondations superficielles",
+    SUJET_RESULTAT
+  ]);
 });
 
-test("« non calculée » n'est ni vérifiée ni en défaut", () => {
-  const sansResultat = sortiesDeLEtude([SEMELLES[0]], [null]);
-  const verdict = sansResultat.find((s) => s.sujet.startsWith("Vérification"));
-  assert.equal(verdict.valeur, "non calculée");
+test("les entrées partent telles que le calcul les reçoit", () => {
+  // C'est ce qui doit repartir au serveur à l'identique le jour d'une reprise.
+  // Les mettre en phrases obligerait à les relire, et une relecture est une
+  // occasion de changer un chiffre sans le vouloir.
+  const table = tableauDesEntrees(SEMELLES);
+  assert.equal(table.length, 2);
+  assert.deepEqual(table[0], { designation: "File A", nombre: 9, entrees: SEMELLES[0].entrees });
 });
 
-test("une semelle dont le calcul a échoué part quand même : la taire ferait un massif de moins", () => {
-  const sorties = sortiesDeLEtude(SEMELLES, [RESULTATS[0], { error: "le serveur a refusé" }]);
-  assert.ok(sorties.some((s) => s.sujet === "Section Lx de la semelle Pignon"));
-  assert.equal(sorties.find((s) => s.sujet === "Vérification de la semelle Pignon").valeur, "non calculée");
+test("le tableau d'entrée se verse comme une donnée de base, avec sa forme", () => {
+  const entrees = entreesVersables(SEMELLES, "Bâtiment A");
+  assert.equal(entrees.nature, "donnee-de-base");
+  assert.equal(entrees.valeur, "2 lignes", "sa valeur dit la taille, jamais le contenu");
+  assert.equal(entrees.tableau.length, 2);
+  // « type: tableau » n'apprend rien tant qu'on ignore ce qu'il y a dans une ligne.
+  assert.ok(entrees.structure.some((champ) => champ.nom === "hypothèses réglementaires"));
+  assert.match(entrees.quoi, /un massif par ligne/);
 });
 
-test("l'appel se verse comme une fonction, pas comme une valeur", () => {
-  const fonction = fonctionVersable(SEMELLES, RESULTATS, "Bâtiment A");
+test("l'appel se verse comme une fonction, et nomme ses deux entrées", () => {
+  const fonction = fonctionVersable(SEMELLES, "Bâtiment A");
   assert.equal(fonction.referentiel, true, "une fonction se range dans un .ref");
   assert.equal(fonction.native.utilitaire, "dimensionnement_fondations_superficielles");
   assert.equal(fonction.native.version, "V1");
-  assert.deepEqual(fonction.native.lit, ["Profondeur hors gel"]);
-  assert.equal(fonction.native.ecrit.length, 15);
+  assert.deepEqual(fonction.native.lit, [SUJET_HORS_GEL, SUJET_DONNEES]);
+  // Un seul résultat, nommé. Ce qu'il contient se lit là où il est rangé.
+  assert.deepEqual(fonction.native.ecrit, [{ sujet: SUJET_RESULTAT }]);
+  assert.equal(fonction.valeur, "2 massifs");
 });
 
-test("sa valeur dit la taille de l'appel, jamais les verdicts", () => {
-  // Les verdicts sont sur les lignes. Les redire ici ferait une seconde vérité,
-  // et les deux divergeraient au premier recalcul qui ne reverserait pas le résumé.
-  const fonction = fonctionVersable(SEMELLES, RESULTATS, "Bâtiment A");
-  assert.equal(fonction.valeur, "2 massifs");
-  assert.doesNotMatch(fonction.valeur, /vérifi/i);
+test("le résultat est un tableau, sous un seul nom", () => {
+  const resultat = resultatVersable(SEMELLES, RESULTATS, "Bâtiment A");
+  assert.equal(resultat.sujet, SUJET_RESULTAT);
+  assert.equal(resultat.tableau.length, 2);
+  assert.deepEqual(
+    { ...resultat.tableau[0], volume: Number(resultat.tableau[0].volume.toFixed(3)) },
+    {
+      designation: "File A", nombre: 9, sectionLx: 1.2, sectionLy: 1.2,
+      hauteur: 0.9, arase: -0.1, volume: 11.664,
+      verification: "vérifiée", ratio: 0.82
+    }
+  );
+  assert.ok(resultat.structure.some((champ) => champ.nom === "vérification"));
+});
+
+test("un tableau dont un massif ne tient pas n'est pas acquis", () => {
+  assert.equal(resultatVersable(SEMELLES, RESULTATS, "").statut, "contesté");
+  assert.equal(resultatVersable(SEMELLES, [RESULTATS[0], null], "").statut, "en attente");
+  assert.equal(resultatVersable([SEMELLES[0]], [RESULTATS[0]], "").statut, "retenu");
+});
+
+test("la phrase du résultat sépare les trois états, elle ne les additionne pas", () => {
+  // « 10 massifs, 9 vérifiées » laisserait croire qu'une seule est en défaut
+  // alors qu'elle n'a peut-être pas été calculée du tout.
+  const dit = phraseDuResultat(SEMELLES, RESULTATS);
+  assert.match(dit, /1 vérifiée/);
+  assert.match(dit, /1 en défaut/);
+  assert.doesNotMatch(dit, /non calculée/, "aucune ne manque ici");
+});
+
+test("une semelle dont le calcul a échoué reste dans le tableau", () => {
+  // La taire ferait croire que le projet compte un massif de moins, et c'est
+  // celui-là qu'il faut voir.
+  const table = tableauDuResultat(SEMELLES, [RESULTATS[0], { error: "le serveur a refusé" }]);
+  assert.equal(table.length, 2);
+  assert.equal(table[1].verification, "non calculée");
 });
 
 test("une étude vide ne propose rien — pas même une fonction qui n'aurait rien fait", () => {
-  assert.equal(fonctionVersable([], [], "Bâtiment A"), null);
   assert.deepEqual(affirmationsDeLEtude([], [], "Bâtiment A"), []);
+  assert.equal(fonctionVersable([], "Bâtiment A"), null);
+  assert.equal(entreesVersables([], "Bâtiment A"), null);
 });
 
-test("la fonction se lit avant ce qu'elle a décidé", () => {
-  const lignes = affirmationsDeLEtude(SEMELLES, RESULTATS, "Bâtiment A");
-  assert.equal(lignes[0].referentiel, true);
-  assert.ok(lignes.slice(1).every((ligne) => !ligne.referentiel));
-});
-
-test("ce que la fonction a lu s'enregistre à la date de l'appel, en français", () => {
-  const fonction = fonctionVersable(SEMELLES, RESULTATS, "Bâtiment A", {
-    rappels: { profondeurHorsGel: { valeur: "0.99" } }
-  });
-  assert.deepEqual(fonction.lectures, [{ sujet: "Profondeur hors gel", valeur: "0,990 m" }]);
-});
-
-test("les entrées de saisie ne partent pas : ce ne sont pas des faits du projet", () => {
-  const sujets = cotesVersables(SEMELLES, RESULTATS, "Bâtiment A").map((ligne) => ligne.sujet).join(" | ");
-  for (const saisie of ["angle", "enrobage", "butée", "cohésion", "charges"]) {
-    assert.doesNotMatch(sujets.toLowerCase(), new RegExp(saisie), `${saisie} n'a rien à faire en mémoire`);
+test("les entrées de saisie ne deviennent pas des sujets du projet", () => {
+  // Elles vivent **dans** le tableau, sous un seul nom. Les éclater remplirait
+  // la mémoire de trois cents lignes qui ne décident de rien.
+  const sujets = affirmationsDeLEtude(SEMELLES, RESULTATS, "").map((ligne) => ligne.sujet).join(" | ");
+  for (const saisie of ["angle", "enrobage", "butée", "section lx"]) {
+    assert.doesNotMatch(sujets.toLowerCase(), new RegExp(saisie), `${saisie} n'est pas un sujet`);
   }
 });
 
@@ -102,7 +146,8 @@ function memoireDuProjet() {
       subject: ligne.sujet, value: ligne.valeur, zones: ligne.zones,
       referentiel: ligne.referentiel === true ? true : null,
       native: ligne.native ?? null, utilitaire: ligne.utilitaire ?? null,
-      lectures: ligne.lectures ?? null, domain: ligne.domaine ?? null
+      lectures: ligne.lectures ?? null, domain: ligne.domaine ?? null,
+      tableau: ligne.tableau ?? null, structure: ligne.structure ?? null
     },
     nature: ligne.nature ?? null, domain: ligne.domaine ?? null
   });
@@ -110,8 +155,8 @@ function memoireDuProjet() {
   return [
     { id: "z0", project_id: "p", subject_key: "Altitude du site", statement: "Altitude du site : 1 200 m",
       payload: { subject: "Altitude du site", value: "1200 m", zones: ["Bâtiment A"] }, nature: "donnee-de-base" },
-    { id: "z1", project_id: "p", subject_key: "Profondeur hors gel", statement: "Profondeur hors gel : 0,99 m",
-      payload: { subject: "Profondeur hors gel", value: "0,99 m", zones: ["Bâtiment A"],
+    { id: "z1", project_id: "p", subject_key: SUJET_HORS_GEL, statement: "Profondeur hors gel : 0,99 m",
+      payload: { subject: SUJET_HORS_GEL, value: "0,99 m", zones: ["Bâtiment A"],
         utilitaire: "deduction_profondeur_hors_gel_altitude_V1",
         lectures: [{ sujet: "Altitude du site", valeur: "1200 m" }] }, nature: "contrainte" },
     ...affirmationsDeLEtude(SEMELLES, RESULTATS, "Bâtiment A", {
@@ -120,7 +165,7 @@ function memoireDuProjet() {
   ];
 }
 
-test("la chaîne tient : altitude → profondeur hors gel → chacune des cotes", () => {
+test("la chaîne tient : altitude → profondeur hors gel → le résultat du calcul", () => {
   const memoire = memoireDuProjet();
   const applications = applicationsDeLaMemoire(memoire, { projectId: "p" });
 
@@ -128,22 +173,26 @@ test("la chaîne tient : altitude → profondeur hors gel → chacune des cotes"
   assert.ok(applications.some((ligne) =>
     ligne.output_assertion_id === "z1" && ligne.input_assertion_id === "z0"));
 
-  // Et la fonction native lit le hors gel pour **chacune** des quinze sorties.
-  const parLaFonction = applications.filter((ligne) => ligne.rule_assertion_id === "a1");
-  assert.equal(parLaFonction.length, 15);
-  assert.ok(parLaFonction.every((ligne) =>
-    ligne.input_subject === "Profondeur hors gel" && ligne.input_assertion_id === "z1"));
+  // Et la fonction native lit **les deux** entrées pour produire le résultat.
+  const parLaFonction = applications.filter((ligne) => ligne.rule_assertion_id === "a2");
+  assert.deepEqual(parLaFonction.map((ligne) => ligne.input_subject), [SUJET_HORS_GEL, SUJET_DONNEES]);
+  assert.ok(parLaFonction.every((ligne) => ligne.output_assertion_id === "a3"));
+  assert.equal(parLaFonction[0].input_assertion_id, "z1");
+  assert.equal(parLaFonction[1].input_assertion_id, "a1", "le tableau d'entrée est une entrée du calcul");
 });
 
-test("les cotes sont dérivées, jamais du socle : une variante doit les refaire", () => {
+test("le résultat est dérivé, jamais du socle : une variante doit le refaire", () => {
   const memoire = memoireDuProjet();
   const produites = sortiesDesRegles(memoire);
-  const cote = memoire.find((a) => a.subject_key === "Section Lx de la semelle File A");
-  assert.equal(natureDuNoeud(cote, { produites }), NOEUD.REJOUABLE);
+  const resultat = memoire.find((a) => a.subject_key === SUJET_RESULTAT);
+  const entrees = memoire.find((a) => a.subject_key === SUJET_DONNEES);
+
+  assert.equal(natureDuNoeud(resultat, { produites }), NOEUD.REJOUABLE);
+  // Les entrées, elles, sont du socle : le projet les pose.
+  assert.equal(natureDuNoeud(entrees, { produites }), NOEUD.SOCLE);
 
   const plan = planDeRecalcul(memoire);
-  assert.equal(plan.socle, 1, "seule l'altitude est du socle");
-  assert.equal(plan.rejouables, 15);
+  assert.equal(plan.rejouables, 1);
   assert.equal(plan.cycles.length, 0);
 });
 
@@ -153,9 +202,9 @@ test("le cerveau la compte comme une fonction, et ne l'annonce pas comme une lac
   const cerveau = cerveauDuProjet(memoire, applications, { avecLesFonctions: true });
 
   assert.equal(cerveau.compte.fonctions, 1);
-  assert.equal(cerveau.compte.reglesSansEntree, 0, "elle a une entrée, et elle est enregistrée");
-  // Une fonction native ne conclut pas sur son propre nom : ses conclusions sont
-  // les sujets qu'elle a écrits, et ils sont tous versés.
+  assert.equal(cerveau.compte.reglesSansEntree, 0, "elle a deux entrées, et elles sont enregistrées");
+  // Une fonction native ne conclut pas sur son propre nom : sa conclusion est
+  // le sujet qu'elle a écrit, et il est versé.
   assert.equal(cerveau.compte.conclusionsSansValeur, 0);
 });
 
@@ -169,16 +218,4 @@ test("le navigateur ne prétend pas rejouer ce dont il n'a pas la loi", () => {
   // Sans cette sortie, zéro condition se combinait en « vrai » et le rejeu
   // annonçait que la fonction tient — sans avoir rien calculé.
   assert.equal(rejouerLaRegle(fonction).verdict, VERDICT.INDECIDABLE);
-});
-
-test("une cote qui ne vérifie pas n'est pas « retenue » : le projet ne la tient pas", () => {
-  const lignes = cotesVersables(SEMELLES, RESULTATS, "Bâtiment A");
-  const tient = lignes.find((l) => l.sujet === "Section Lx de la semelle File A");
-  const echoue = lignes.find((l) => l.sujet === "Section Lx de la semelle Pignon");
-  assert.equal(tient.statut, "retenu");
-  assert.equal(echoue.statut, "contesté");
-
-  const inconnue = cotesVersables([SEMELLES[0]], [null], "Bâtiment A")
-    .find((l) => l.sujet === "Section Lx de la semelle File A");
-  assert.equal(inconnue.statut, "en attente", "« je ne sais pas » n'est pas « ça ne passe pas »");
 });

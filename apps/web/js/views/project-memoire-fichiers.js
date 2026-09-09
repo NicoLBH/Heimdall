@@ -220,7 +220,11 @@ function explicationsVersees(fichiers = []) {
       if (!cle || dites.has(cle)) continue;
       const description = texte(payload.quoi);
       const utilisation = texte(payload.utilisation);
-      if (description || utilisation) dites.set(cle, { description, utilisation });
+      // La forme d'un tableau se déclare avec le nom qu'elle décrit : « type:
+      // tableau » n'apprend rien tant qu'on ignore ce qu'il y a dans une ligne,
+      // et c'est ce qu'il faut savoir pour appeler la fonction qui l'attend.
+      const structure = Array.isArray(payload.structure) ? payload.structure : null;
+      if (description || utilisation || structure) dites.set(cle, { description, utilisation, structure });
     }
   }
 
@@ -1516,21 +1520,6 @@ function fichierOuEcrire(sujet, ouEcrit) {
 }
 
 /**
- * Une valeur écrite, séparée de son unité.
- *
- * `« 1,20 m »` s'écrit `1,20` puis `m`, en deux jetons de couleurs différentes ;
- * `« vérifiée »` reste une seule chaîne, citée. C'est la troisième loi de
- * lecture — une valeur mesurée ne porte pas de guillemets, une valeur textuelle
- * en porte — appliquée à ce qu'une fonction a posé.
- */
-function valeurEtUnite(brute) {
-  const dit = texte(brute);
-  return dit && estMesuree(dit)
-    ? { valeur: couperLUnite(dit).nombre, unite: couperLUnite(dit).unite }
-    : { valeur: dit, unite: "" };
-}
-
-/**
  * Ce qu'une fonction fait, quand personne ne l'a écrit.
  *
  * ## Pourquoi on ne se tait pas
@@ -1581,41 +1570,29 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
   //
   // `alors` n'est pas stocké : c'est `payload.value`, et une valeur écrite à
   // deux endroits finit par diverger. On la remet ici.
-  // Une **fonction native** s'écrit comme une fonction, sans son corps : ce
-  // qu'elle importe, l'appel, ce qu'elle enregistre. Sa loi n'est pas là, et
-  // c'est écrit noir sur blanc plutôt que d'être un blanc dans le fichier —
-  // voir `docs/fondamentaux.md`, règle 9.
+  // Une **fonction native** s'écrit comme une fonction, sans son corps : sa
+  // signature, ce qu'elle retient de ses entrées, l'appel, et où va le
+  // résultat. Sa loi n'est pas là, et c'est écrit noir sur blanc plutôt que
+  // d'être un blanc dans le fichier — voir `docs/fondamentaux.md`, règle 9.
   if (payload.native) {
     const sujet = texte(payload.subject) || texte(assertion.subject_key);
     const portee = zone || (zonesLisibles(assertion)[0] ?? "");
-    const lues = (payload.native.lit ?? []).map(texte).filter(Boolean);
-    const ecrites = (payload.native.ecrit ?? [])
-      .map((sortie) => ({ sujet: texte(sortie?.sujet), ...valeurEtUnite(texte(sortie?.valeur)) }))
-      .filter((sortie) => sortie.sujet);
-
-    // Les sorties se groupent par fichier d'arrivée. Vingt massifs qui
-    // atterrissent tous dans le même `.ctr` font un `enregistre`, pas cent
-    // quarante : répéter le fichier et la zone à chaque cote noierait le tableau
-    // dans ce qui ne change pas.
-    const parFichier = new Map();
-    for (const sortie of ecrites) {
-      const dans = fichierOuEcrire(sortie.sujet, ouEcrit)?.dans ?? "";
-      if (!parFichier.has(dans)) parFichier.set(dans, []);
-      parFichier.get(dans).push(sortie);
-    }
 
     const bloc = blocDeFonctionNative({
       nom: sujet,
       quoi: texte(payload.quoi) || quoiParDefaut(sujet),
-      portee: portee,
-      parametres: lues,
-      // La zone de l'emprunt est celle de la fonction : une variable n'a pas une
-      // valeur, elle en a une par partie d'ouvrage, et importer sans dire
-      // laquelle reviendrait à en prendre une au hasard.
-      importe: lues.map((nom) => ({ variable: nom, depuis: fichierQuiDeclare(nom, ouEcrit), zones: portee })),
+      portee,
+      // Chaque entrée, et **où le projet la porte**. C'est cette adresse qui
+      // permet d'écrire la branche « sinon, va la lire là » — et donc de dire
+      // qu'un paramètre passé à l'appel l'emporte sur ce que la mémoire tient.
+      entrees: (payload.native.lit ?? []).map(texte).filter(Boolean)
+        .map((nom) => ({ nom, depuis: fichierQuiDeclare(nom, ouEcrit) })),
       utilitaire: texte(payload.native.utilitaire),
       version: texte(payload.native.version),
-      enregistre: [...parFichier.entries()].map(([dans, valeurs]) => ({ valeurs, dans }))
+      enregistre: (payload.native.ecrit ?? [])
+        .map((sortie) => texte(sortie?.sujet))
+        .filter(Boolean)
+        .map((nom) => ({ sujet: nom, dans: fichierOuEcrire(nom, ouEcrit)?.dans ?? "" }))
     }, profondeur);
 
     return bloc.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
