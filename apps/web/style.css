@@ -21574,7 +21574,13 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .variante-ligne__valeurs{ display:inline-flex; align-items:center; gap:6px; font-size:13px; }
 .variante-ligne__avant{ color:var(--muted); font-weight:500; }
 .variante-ligne--bouge .variante-ligne__avant{ text-decoration:line-through; }
-.variante-ligne__apres{ color:var(--success); font-weight:600; }
+/* La valeur d'après est mise en avant, pas félicitée. Le vert veut dire
+   « bien » : « 12 vérifiées → 12 en défaut » s'écrivait en vert, et la couleur
+   disait le contraire du mot. Rien ici ne sait si une valeur nouvelle est une
+   bonne nouvelle — c'est au lecteur d'en juger, et il faut donc qu'il lise.
+   Le vert et l'ambre restent où ils veulent dire quelque chose : une réserve
+   qui se lève, une réserve qui naît, une valeur restée en suspens. */
+.variante-ligne__apres{ color:var(--text); font-weight:600; }
 .variante-ligne__egal{ color:var(--muted); font-size:12px; font-style:italic; }
 .variante-ligne__reserve,
 .variante-ligne__pourquoi{ grid-column:1 / -1; color:var(--muted); font-size:12px; line-height:1.5; }
@@ -21605,7 +21611,23 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .variante-tableau__cellules{ display:flex; flex-wrap:wrap; gap:4px 12px; min-width:0; }
 .variante-tableau__cellule{ display:inline-flex; align-items:center; gap:4px; }
 .variante-tableau__cellule i{ color:var(--muted); font-style:normal; }
-.variante-tableau__ligne .variante-ligne__avant{ text-decoration:line-through; }
+.variante-tableau__avant{ color:var(--muted); font-weight:500; text-decoration:line-through; }
+/* Pas de vert sur la valeur d'après. Le vert veut dire « bien », et « vérifiée →
+   en défaut » s'écrivait en vert : la couleur disait le contraire du mot. Une
+   cellule qui change est mise en avant, elle n'est pas jugée — personne ici ne
+   sait si descendre de six centimètres est une bonne nouvelle. */
+.variante-tableau__apres{ color:var(--text); font-weight:600; }
+
+/* Ce qui change à l'identique partout, dit une fois, au-dessus des lignes. */
+.variante-tableau__partout{
+  list-style:none; display:flex; flex-direction:column; gap:4px;
+  margin:8px 0 0; padding:6px 10px;
+  border-left:2px solid var(--border); border-radius:0 var(--radius) var(--radius) 0;
+  background:var(--panel2); font-size:12px;
+}
+.variante-tableau__partout li{ display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; }
+.variante-tableau__compte{ color:var(--muted); }
+.variante-tableau__reste{ margin:6px 0 0; padding-left:14px; color:var(--muted); font-size:12px; line-height:1.5; }
 
 .variante-suite{ margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
 

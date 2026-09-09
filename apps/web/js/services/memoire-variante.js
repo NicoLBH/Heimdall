@@ -502,6 +502,42 @@ export function memoireAvecLaVariante(assertions = [], variante = null) {
 }
 
 /**
+ * Ce qui a bougé, colonne par colonne plutôt que ligne par ligne.
+ *
+ * Douze massifs qui descendent tous de six centimètres, ce n'est pas douze
+ * informations : c'en est une, et l'écrire douze fois noie les deux lignes qui
+ * font autre chose. Une colonne dont le changement est **le même partout** se
+ * dit donc une fois, avec le nombre de lignes qu'elle emporte ; une colonne qui
+ * varie d'une ligne à l'autre se laisse lire ligne à ligne.
+ *
+ * @param {{cellules: {colonne: string, avant: string, apres: string}[]}[]} differences
+ * @returns {{colonne: string, lignes: number, avant: string, apres: string, uniforme: boolean}[]}
+ */
+export function resumeParColonne(differences = []) {
+  const colonnes = new Map();
+
+  for (const entree of Array.isArray(differences) ? differences : []) {
+    for (const cellule of entree?.cellules ?? []) {
+      const vue = colonnes.get(cellule.colonne) ?? { colonne: cellule.colonne, lignes: 0, valeurs: new Set() };
+      vue.lignes += 1;
+      vue.valeurs.add(`${cellule.avant}\u0000${cellule.apres}`);
+      if (vue.lignes === 1) { vue.avant = cellule.avant; vue.apres = cellule.apres; }
+      colonnes.set(cellule.colonne, vue);
+    }
+  }
+
+  return [...colonnes.values()].map((vue) => ({
+    colonne: vue.colonne,
+    lignes: vue.lignes,
+    avant: vue.avant ?? "",
+    apres: vue.apres ?? "",
+    // Une seule paire avant/après pour toute la colonne : le changement est le
+    // même partout, et se dit une fois. Deux paires, et il faut les montrer.
+    uniforme: vue.valeurs.size === 1
+  }));
+}
+
+/**
  * Ce qu'on retient d'une variante entre deux écrans.
  *
  * Elle porte l'état de la mémoire au moment du calcul : sans lui, on relirait
