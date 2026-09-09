@@ -38,9 +38,10 @@
 import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { phraseDeReserve } from "../../utilitaires/reserves.js";
-import { TOUTES_ZONES } from "../../services/memoire-en-texte.js";
+import { TOUTES_ZONES, mesureEnFrancais } from "../../services/memoire-en-texte.js";
 import { uniteImposee } from "../../services/saisie-unite.js";
-import { differencesDuTableau, resumeParColonne } from "../../services/memoire-variante.js";
+import { differencesDuTableau, resumeParColonne, structureDuTableau } from "../../services/memoire-variante.js";
+import { colonneNommee, sensDeLaValeur, pireEcart, margeDeclaree } from "../../services/tableau-structure.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -78,6 +79,15 @@ function renderChoixDUneValeur(valeur, choisie = null) {
           ? `${valeur.lectures} ${accorde(valeur.lectures, "emploi", "emplois")}`
           : "aucun emploi connu"
       }</span>
+      ${
+        // Ce que la valeur **est**. « Altitude du site » se comprend seul ;
+        // « H0 retenu pour le département » ou « contrainte limite à l'ELS », non,
+        // et l'on choisissait au jugé. Rien quand le projet ne le dit pas : une
+        // phrase inventée ici serait indiscernable d'une phrase versée.
+        texte(valeur.quoi)
+          ? `<span class="impact-choix__quoi">${escapeHtml(valeur.quoi)}</span>`
+          : ""
+      }
     </button>
   `;
 }
@@ -102,16 +112,63 @@ function renderReserves(codes = []) {
 }
 
 
-/** Une cellule qui change : ce qu'elle disait, ce qu'elle dit. */
-function renderCellule({ colonne, avant, apres }) {
+/**
+ * Une cellule qui change : ce qu'elle disait, ce qu'elle dit.
+ *
+ * La couleur vient de ce que l'utilitaire a **déclaré** du sens de ses valeurs,
+ * jamais des mots eux-mêmes. Un utilitaire qui ne l'a pas déclaré rend une
+ * cellule neutre — ce qui est exact, personne ne nous l'a dit. Voir
+ * `services/tableau-structure.js`.
+ */
+function renderCellule({ colonne, avant, apres }, structure = null) {
+  const declaree = structure ? colonneNommee(structure, colonne) : null;
+  const sens = sensDeLaValeur(declaree, apres);
+
   return `
     <span class="variante-tableau__cellule">
       <i>${escapeHtml(colonne)}</i>
       <b class="variante-tableau__avant">${escapeHtml(avant || "—")}</b>
       ${svgIcon("arrow-right", { className: "octicon" })}
-      <b class="variante-tableau__apres">${escapeHtml(apres || "—")}</b>
+      <b class="variante-tableau__apres${sens ? ` variante-tableau__apres--${sens}` : ""}">${
+        escapeHtml(apres || "—")
+      }</b>
     </span>
   `;
+}
+
+/**
+ * Ce qu'une colonne de marge dit de la pire de ses valeurs.
+ *
+ * « 16,050 » est un nombre sans échelle : seize fois trop, ou seize fois la
+ * marge restante ? La limite le dit, et elle ne s'invente pas — un utilitaire
+ * qui ne la déclare pas ne reçoit pas de phrase, ce qui vaut mieux qu'une phrase
+ * fausse. Une seule valeur est citée, la plus éloignée : c'est celle qui décide,
+ * et les onze autres ne se lisent pas.
+ */
+function renderMarge(differences, structure) {
+  if (!structure) return "";
+
+  const dites = [];
+  for (const colonne of new Set(differences.flatMap((entree) => entree.cellules.map((cellule) => cellule.colonne)))) {
+    const declaree = colonneNommee(structure, colonne);
+    const marge = margeDeclaree(declaree);
+    if (!marge) continue;
+
+    const pire = pireEcart(declaree, differences.flatMap(
+      (entree) => entree.cellules.filter((cellule) => cellule.colonne === colonne).map((cellule) => cellule.apres)
+    ));
+    if (!pire) continue;
+
+    dites.push(`
+      <p class="variante-tableau__marge${pire.depasse ? " variante-tableau__marge--depasse" : ""}">
+        <i>${escapeHtml(colonne)}</i> — ${escapeHtml(marge.comparaison)} ${mesureEnFrancais(String(marge.limite))}.
+        La valeur la plus forte atteint <b>${escapeHtml(pire.valeur)}</b>, soit
+        <b>${mesureEnFrancais(pire.fois.toFixed(pire.fois >= 10 ? 0 : 2))} fois la limite</b>.
+      </p>
+    `);
+  }
+
+  return dites.join("");
 }
 
 /**
@@ -137,6 +194,11 @@ function renderTableauRecalcule(ligne) {
   const apres = Array.isArray(ligne?.tableau) ? ligne.tableau : null;
   if (!apres?.length) return "";
 
+  // Ce que l'utilitaire déclare de son propre tableau — celle d'aujourd'hui, pas
+  // la copie figée au versement : une légende n'est pas une donnée. Voir
+  // `structureDuTableau`.
+  const structure = structureDuTableau(ligne);
+
   const differences = differencesDuTableau(ligne?.assertion?.payload?.tableau ?? [], apres);
   const bougees = differences.filter((entree) => entree.cellules.length);
   const immobiles = differences.filter((entree) => entree.connue && !entree.cellules.length);
@@ -160,12 +222,14 @@ function renderTableauRecalcule(ligne) {
           : `${apres.length} ${accorde(apres.length, "ligne", "lignes")} — aucune n'a bougé`
       }</summary>
 
+      ${renderMarge(bougees, structure)}
+
       ${
         partout.size
           ? `<ul class="variante-tableau__partout">${
               colonnes.filter((vue) => partout.has(vue.colonne)).map((vue) => `
                 <li>
-                  ${renderCellule(vue)}
+                  ${renderCellule(vue, structure)}
                   <span class="variante-tableau__compte">sur ${vue.lignes} ${accorde(vue.lignes, "ligne", "lignes")}</span>
                 </li>
               `).join("")
@@ -177,7 +241,9 @@ function renderTableauRecalcule(ligne) {
         detaillees.map((entree) => `
           <li class="variante-tableau__ligne variante-tableau__ligne--bouge">
             <span class="variante-tableau__nom">${escapeHtml(entree.nom)}</span>
-            <span class="variante-tableau__cellules">${entree.cellules.map(renderCellule).join("")}</span>
+            <span class="variante-tableau__cellules">${
+              entree.cellules.map((cellule) => renderCellule(cellule, structure)).join("")
+            }</span>
           </li>
         `).join("")
       }</ul>

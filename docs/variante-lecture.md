@@ -187,20 +187,120 @@ conversations avec le copilote.
 
 ---
 
-## Ce que cela demande aux utilitaires
+## La démarche : la déclaration fait autorité
 
-Deux ajouts à `payload.structure`, tous deux additifs :
+*Livré. C'est le mécanisme unique dont tout le reste dépend.*
 
-**Le sens des valeurs énumérées.** Aujourd'hui :
-`{nom: "vérification", valeurs: ["vérifiée", "en défaut", "non calculée"]}`.
-L'écran ne peut pas savoir que « en défaut » est mauvais sans le coder en dur,
-c'est-à-dire sans savoir qu'il parle de fondations. Demain :
-`valeurs: [{nom: "vérifiée", sens: "tenu"}, {nom: "en défaut", sens: "rompu"},
-{nom: "non calculée", sens: "inconnu"}]`. C'est ce qui autorise la couleur, le
-verdict de tête, et le compte des bascules — pour n'importe quel utilitaire, y
-compris ceux qui n'existent pas encore.
+Un écran doit savoir que « en défaut » est un défaut, et que `16,050` est seize
+fois trop. Il y a deux façons de le lui apprendre.
 
-**La colonne de marge et son seuil.** `{nom: "ratio déterminant", type: "nombre",
-marge: {limite: 1, sens: "au plus"}}` permet d'écrire « 16 fois sa limite » et
-de classer les massifs par ce qui les rapproche du bord. Sans cela, `16,050` est
-un nombre sans échelle.
+**La mauvaise** : un dictionnaire de mots — « en défaut », « KO », « non
+vérifié », « hors domaine d'emploi » — qu'on enrichirait à chaque utilitaire
+ajouté. C'est une machine à deviner le sens du français, qui se tromperait un
+jour sans le dire, qui obligerait à toucher aux écrans pour chaque nouvel outil,
+et qui ne saurait jamais répondre « je ne sais pas ». Un faux modèle de langue,
+programmé à la main.
+
+**La bonne** : **l'utilitaire déclare, une fois, dans sa structure.** L'écran lit
+la déclaration. Un utilitaire qui ne déclare rien n'est pas un cas particulier à
+traiter : l'écran reste neutre sur lui, ce qui est exact — personne ne lui a dit.
+
+```js
+{ nom: "vérification", valeurs: [
+    { nom: "vérifiée",     sens: SENS.TENU },
+    { nom: "en défaut",    sens: SENS.ROMPU },
+    { nom: "non calculée", sens: SENS.INCONNU }
+] }
+{ nom: "ratio déterminant", type: "nombre", marge: { limite: 1, comparaison: "au plus" } }
+{ nom: "arase supérieure",  type: "nombre, en m" }
+```
+
+Trois garde-fous, et ils sont ce qui empêche le dispositif de redevenir un
+dictionnaire :
+
+1. **Le vocabulaire des sens est fermé** — `tenu`, `rompu`, `inconnu`, et pas un
+   de plus. Ouvert, chacun écrirait le sien et les écrans finiraient par les
+   interpréter, c'est-à-dire par deviner. Ces trois mots ne parlent pas du
+   métier : ils disent seulement ce qu'un lecteur doit ressentir. Le métier reste
+   entier dans le libellé que l'utilitaire a choisi, et c'est lui qu'on affiche.
+2. **Aucune inférence, jamais.** `sensDeLaValeur` sur une valeur non déclarée
+   rend `""`. Un mot n'est pas un sens.
+3. **La forme ancienne reste lue** — `valeurs: ["vérifiée", "en défaut"]` déclare
+   les valeurs possibles sans leur sens, et l'écran reste neutre. Moins
+   d'affichage, jamais d'affichage faux : c'est la bonne dégradation, et c'est ce
+   qui rend la migration additive.
+
+**Une légende n'est pas une donnée.** La déclaration lue est celle de
+l'utilitaire **d'aujourd'hui**, pas la copie figée au versement — la copie ne
+sert que de recours. Pour une *valeur*, le gel est la règle même de Mdall : on
+rejoue avec la loi de l'époque. Mais `sens` et `marge` ne changent pas ce que le
+calcul a rendu ; ils changent ce qu'un lecteur en comprend. Les figer voudrait
+dire qu'un projet versé hier ne profitera jamais d'une légende écrite demain, et
+qu'il faudrait re-verser des années de mémoire pour gagner une couleur. La
+correspondance se fait par nom de colonne : une colonne renommée ne trouve rien,
+donc ne se colore pas — jamais un mauvais rapprochement.
+
+Tout est dans `services/tableau-structure.js`, et **ajouter un utilitaire ne
+demande jamais de toucher à un écran.**
+
+---
+
+## Trouver une valeur, et faire varier ce qui est dans un tableau
+
+*La description est livrée. La variante d'un champ interne reste à écrire.*
+
+### Le défaut
+
+Changer la contrainte de sol retenue pour le calcul est aujourd'hui hors de
+portée. La valeur existe — c'est `contrainteLimite`, dans les `entrées` de chaque
+massif de `Données d'entrée des fondations superficielles` — mais elle n'apparaît
+nulle part dans « chercher une valeur », et l'on ne peut pas la trouver sans
+connaître déjà son nom exact.
+
+Et même parmi les valeurs listées, beaucoup sont obscures : « Altitude du site »
+se comprend seul, « H0 retenu pour le département » non.
+
+### Ce qui est livré : dire ce qu'une valeur est
+
+La liste porte maintenant une phrase sous chaque valeur, prise dans l'ordre du
+plus précis au plus général : ce que l'affirmation dit d'elle-même (`quoi`), à
+quoi elle sert (`utilisation`), le libellé de l'utilitaire qui l'a produite, la
+norme dont elle vient. **Les quatre sont déclarées.** Quand les quatre se
+taisent, la ligne ne dit rien : une phrase fabriquée ici serait indiscernable
+d'une phrase versée.
+
+### Ce qui reste : varier un champ interne d'un agent-D
+
+Le mécanisme est le même que ci-dessus — **la déclaration fait autorité** — et il
+demande un troisième ajout à `structure` : la **clé réelle** du champ.
+
+```js
+{ nom: "sol et matériaux", champs: [
+    { nom: "contrainte limite à l'ELS", cle: "entrees.contrainteLimite", type: "nombre",
+      quoi: "La contrainte admissible du sol à l'ELS, retenue pour le prédimensionnement." }
+] }
+```
+
+Aujourd'hui `STRUCTURE_DES_ENTREES` décrit la **forme** pour un lecteur humain —
+« contrainte limite à l'ELS » — sans dire où la valeur se trouve dans la donnée.
+La `cle` fait le lien, et elle seule : ce qui n'est pas déclaré ne se propose
+pas. Ajouter un utilitaire revient toujours à écrire une déclaration, jamais à
+toucher un écran.
+
+Ce que cela permet, une fois écrit :
+
+1. **La chercher.** Chaque champ déclaré entre dans « chercher une valeur », avec
+   son libellé, sa description et sa valeur du moment — « contrainte limite à
+   l'ELS : 2 » —, trouvable en tapant « contrainte » ou « sol ».
+2. **Une entrée par champ, pas par massif.** On veut changer la contrainte de sol
+   *de la zone*, pas celle du massif n° 7. Douze lignes × quinze champs feraient
+   cent quatre-vingts entrées illisibles. La valeur affichée est celle qu'ils
+   partagent, ou « plusieurs valeurs » quand ils diffèrent.
+3. **La faire varier.** L'identifiant devient composite —
+   `<affirmation>#entrees.contrainteLimite` — et la substitution réécrit le
+   tableau d'entrée **avant** le rejeu. Tout le reste de la chaîne fonctionne
+   alors sans changement : `tableauDuProjet` relit le tableau modifié,
+   `reprendreLEtude` redemande le calcul, et le calque de lecture montre le
+   résultat. Deux points à traiter : `fonctionsAReprendre` doit résoudre un
+   identifiant composite jusqu'à son affirmation de base, et la réécriture du
+   tableau doit être une fonction pure, appliquée une fois, jamais deux.
