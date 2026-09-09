@@ -42,6 +42,8 @@ import { TOUTES_ZONES, mesureEnFrancais } from "../../services/memoire-en-texte.
 import { uniteImposee } from "../../services/saisie-unite.js";
 import { differencesDuTableau, resumeParColonne, structureDuTableau } from "../../services/memoire-variante.js";
 import { colonneNommee, sensDeLaValeur, pireEcart, margeDeclaree } from "../../services/tableau-structure.js";
+import { enchainementDeLaVariante } from "../../services/variante-enchainement.js";
+import { renderEnchainement, SENS } from "../ui/enchainement.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -501,53 +503,14 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
  * ────────────────────────────────────────────────────────────────────────── */
 
 /**
- * Le tableau des résultats, dans ses trois états.
+ * Les trois rangs de ce qu'une variante change.
  *
- * Avant tout calcul, il dit ce qu'il attend plutôt que de rester blanc — un
- * cadre vide se lit comme un écran cassé. Pendant, il montre l'attente et dit
- * surtout ce qui **ne** se passe pas : rien ne s'écrit au serveur.
+ * Sortis du rendu principal parce qu'ils vivent maintenant dans une colonne, à
+ * gauche de la chaîne. Une colonne se remplit, elle ne s'écrit pas au milieu
+ * d'une mise en page.
  */
-function renderResultat(etat) {
-  const { etape, choisie, saisie, rendu } = etat;
-
-  if (etape === ETAPE.ATTENTE) {
-    return `
-      <section class="variante-resultat variante-resultat--attente">
-        <p class="variante-lead variante-attente">
-          ${svgIcon("sync", { className: "octicon" })}
-          Les règles du projet se rejouent ici, et les utilitaires sont redemandés à leur
-          référentiel avec cette valeur. <b>Rien n'y est écrit</b> : ils calculent et se taisent.
-        </p>
-      </section>
-    `;
-  }
-
-  if (!rendu?.ok) {
-    return `
-      <section class="variante-resultat variante-resultat--vide">
-        <p class="variante-rang__vide">
-          ${choisie
-            ? "Donnez une valeur à essayer, puis calculez : ce qui en découle s'affichera ici."
-            : "Choisissez une valeur du socle : ce qui en découle s'affichera ici."}
-        </p>
-      </section>
-    `;
-  }
-
-  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length
-    + rendu.rejouees.length;
-
+function renderRangs(rendu) {
   return `
-    <section class="variante-resultat">
-      <header class="variante-resultat__tete">
-        <b>${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(choisie?.sujet ?? "")} :
-          ${escapeHtml(choisie?.valeur ?? "")} → ${escapeHtml(saisie)}</b>
-        <span class="variante-resultat__compte">${
-          bougees ? `${bougees} ${accorde(bougees, "valeur bouge", "valeurs bougent")}` : "aucune valeur ne bouge"
-        }</span>
-      </header>
-
-      <div class="variante-rangs">
         <section class="variante-rang variante-rang--sur">
           <h5>${svgIcon("check", { className: "octicon" })} Recalculé</h5>
           ${
@@ -593,7 +556,78 @@ function renderResultat(etat) {
             aucun lien avec cette donnée.
           </p>
         </section>
-      </div>
+        `;
+}
+
+/**
+ * Le tableau des résultats, dans ses trois états.
+ *
+ * Avant tout calcul, il dit ce qu'il attend plutôt que de rester blanc — un
+ * cadre vide se lit comme un écran cassé. Pendant, il montre l'attente et dit
+ * surtout ce qui **ne** se passe pas : rien ne s'écrit au serveur.
+ */
+function renderResultat(etat) {
+  const { etape, choisie, saisie, rendu } = etat;
+
+  if (etape === ETAPE.ATTENTE) {
+    return `
+      <section class="variante-resultat variante-resultat--attente">
+        <p class="variante-lead variante-attente">
+          ${svgIcon("sync", { className: "octicon" })}
+          Les règles du projet se rejouent ici, et les utilitaires sont redemandés à leur
+          référentiel avec cette valeur. <b>Rien n'y est écrit</b> : ils calculent et se taisent.
+        </p>
+      </section>
+    `;
+  }
+
+  if (!rendu?.ok) {
+    return `
+      <section class="variante-resultat variante-resultat--vide">
+        <p class="variante-rang__vide">
+          ${choisie
+            ? "Donnez une valeur à essayer, puis calculez : ce qui en découle s'affichera ici."
+            : "Choisissez une valeur du socle : ce qui en découle s'affichera ici."}
+        </p>
+      </section>
+    `;
+  }
+
+  const bougees = rendu.recalculees.filter((ligne) => ligne.valeurABouge || ligne.reservesOntBouge).length
+    + rendu.rejouees.length;
+
+  // La chaîne de ce qui a suivi, quand il y a une chaîne à montrer.
+  const etapes = enchainementDeLaVariante(rendu, {
+    sujet: choisie?.sujet, valeur: choisie?.valeur, essaye: saisie
+  });
+
+  const rangs = renderRangs(rendu);
+
+  return `
+    <section class="variante-resultat">
+      <header class="variante-resultat__tete">
+        <b>${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(choisie?.sujet ?? "")} :
+          ${escapeHtml(choisie?.valeur ?? "")} → ${escapeHtml(saisie)}</b>
+        <span class="variante-resultat__compte">${
+          bougees ? `${bougees} ${accorde(bougees, "valeur bouge", "valeurs bougent")}` : "aucune valeur ne bouge"
+        }</span>
+      </header>
+
+      ${
+        // La chaîne, à droite du tableau : c'est elle qui dit que la troisième
+        // ligne découle de la deuxième, et c'est la seule chose que cet écran a
+        // de plus qu'un tableur. Le même dessin que « le chemin de cette
+        // exécution », tourné d'un quart de tour. Voir `ui/enchainement.js`.
+        etapes.length
+          ? `<div class="variante-resultat__deux">
+              <div class="variante-rangs">${rangs}</div>
+              <aside class="variante-chaine">
+                <h5>${svgIcon("git-branch", { className: "octicon" })} Ce qui a suivi</h5>
+                ${renderEnchainement(etapes, { sens: SENS.VERTICAL })}
+              </aside>
+            </div>`
+          : `<div class="variante-rangs">${rangs}</div>`
+      }
 
       <footer class="variante-resultat__pied">
         <button type="button" class="gh-btn" data-variante-abandonner>Abandonner</button>

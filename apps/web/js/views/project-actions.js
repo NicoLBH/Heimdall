@@ -3,6 +3,7 @@ import { setProjectViewHeader, clearProjectActiveScrollSource, debugProjectScrol
 import { getRunLogEntries, getRunMetrics } from "../services/project-automation.js";
 import { syncProjectActionsFromSupabase } from "../services/project-supabase-sync.js";
 import { svgIcon } from "../ui/icons.js";
+import { renderEnchainement } from "./ui/enchainement.js";
 import { buildRunGraph, describeReadingStack, formatStepDuration } from "../services/run-workflow.js";
 import {
   STATUT, etapeDe, etapesConsultables, numeroter, resumerEtape
@@ -632,36 +633,17 @@ function renderRunGraph(entry) {
           : ""
       }
       <div class="run-graph" data-run-graph-viewport>
-        <div class="run-graph__canvas" data-run-graph-canvas>
-          ${nodes
-            .map(
-              (node, index) => `
-                ${index > 0 ? `<span class="run-graph__link" aria-hidden="true"></span>` : ""}
-                <div class="run-graph__node run-graph__node--${escapeHtml(node.tone)}">
-                  <span class="run-graph__head">
-                    <span class="run-graph__icon">${svgIcon(node.icon, { className: "octicon" })}</span>
-                    ${
-                      // Cliquable seulement si l'étape a tenu un journal.
-                      // Rendre cliquable un titre qui n'ouvre rien, ce serait
-                      // promettre un détail qu'on n'a pas.
-                      consultables.has(node.id)
-                        ? `<button type="button" class="run-graph__label run-graph__label--lien"
-                             data-run-step="${escapeHtml(node.id)}">${escapeHtml(node.label)}</button>`
-                        : `<span class="run-graph__label"
-                             title="Aucun détail n'a été enregistré pour cette étape.">${escapeHtml(node.label)}</span>`
-                    }
-                  </span>
-                  <span class="run-graph__detail">${escapeHtml(node.detail)}</span>
-                  ${
-                    node.duration === null
-                      ? ""
-                      : `<span class="run-graph__duration">${escapeHtml(formatStepDuration(node.duration))}</span>`
-                  }
-                </div>
-              `
-            )
-            .join("")}
-        </div>
+        ${
+          // Le même dessin que la chaîne d'une variante, et volontairement :
+          // deux enchaînements dessinés deux fois donneraient deux gris et deux
+          // flèches, et le jour où l'un change l'autre ne suivrait pas
+          // (règle 4). Voir `views/ui/enchainement.js`.
+          renderEnchainement(nodes.map((node) => ({ ...node, duree: formatStepDuration(node.duration) })), {
+            attributDuLien: "data-run-step",
+            consultables,
+            attributDuCanevas: "data-run-graph-canvas"
+          })
+        }
       </div>
     </section>
   `;
