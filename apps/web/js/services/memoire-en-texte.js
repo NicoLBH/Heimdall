@@ -145,6 +145,8 @@
  * écrit ».
  */
 
+import { valeursDeclarees } from "./tableau-structure.js";
+
 /**
  * La version de l'écriture. Elle change quand la façon d'écrire change.
  *
@@ -1121,7 +1123,12 @@ export function lignesDeStructure(champs = null, profondeur = 1) {
       // Un champ à choix fermé dit ses valeurs plutôt que son type : « texte »
       // n'apprend rien quand seuls « Meyerhoff » et « Constante » sont admis.
       // Elles se séparent d'un « ou », comme partout ailleurs dans le langage.
-      const admises = (Array.isArray(champ.valeurs) ? champ.valeurs : []).map(texte).filter(Boolean);
+      // Les valeurs telles que l'utilitaire les déclare — au format nu, ou avec
+      // leur sens. Le fichier n'écrit que le mot : le sens sert aux écrans à
+      // colorer, il n'a rien à faire dans le code qu'on relit. Relire la forme
+      // ici plutôt que d'appeler `valeursDeclarees` ferait deux lectures d'une
+      // même déclaration, et c'est ainsi qu'elles divergent (règle 4).
+      const admises = valeursDeclarees(champ).map((valeur) => valeur.nom);
       const dit = admises.length
         ? admises.flatMap((valeur, place) => [
             ...(place ? [espace(), jeton(JETON.MOT_CONDITION, "ou"), espace()] : []),

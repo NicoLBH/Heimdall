@@ -35,6 +35,7 @@
  */
 
 import { DOMAIN } from "../services/assertion-taxonomy.js";
+import { SENS, COMPARAISON } from "../services/tableau-structure.js";
 import { PRODUIT, LOI } from "./vocabulaire.js";
 
 /** Le sujet du projet qui commande l'assise. Il est nommé une fois, ici. */
@@ -119,8 +120,20 @@ export const STRUCTURE_DU_RESULTAT = [
   { nom: "hauteur", type: "nombre, en m" },
   { nom: "arase supérieure", type: "nombre, en m" },
   { nom: "volume de béton", type: "nombre, en m3" },
-  { nom: "vérification", valeurs: ["vérifiée", "en défaut", "non calculée"] },
-  { nom: "ratio déterminant", type: "nombre" }
+  // **Le sens, et pas seulement le mot.** « en défaut » ne veut rien dire à un
+  // écran : il faut le lui apprendre, ou le laisser neutre. Le lui apprendre par
+  // un dictionnaire de mots français serait une machine à deviner, qui se
+  // tromperait un jour sans le dire ; c'est donc l'utilitaire qui déclare, une
+  // fois, et n'importe quel écran s'en sert. Voir `services/tableau-structure.js`.
+  { nom: "vérification", valeurs: [
+    { nom: "vérifiée", sens: SENS.TENU },
+    { nom: "en défaut", sens: SENS.ROMPU },
+    { nom: "non calculée", sens: SENS.INCONNU }
+  ] },
+  // Sans limite déclarée, « 16,050 » est un nombre sans échelle : on ne sait pas
+  // si c'est seize fois trop ou seize fois la marge restante. Le ratio est un
+  // taux de travail — il doit rester **au plus** à 1.
+  { nom: "ratio déterminant", type: "nombre", marge: { limite: 1, comparaison: COMPARAISON.AU_PLUS } }
 ];
 
 export const DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 = {

@@ -78,6 +78,66 @@ const estUneRegle = (assertion) => assertion?.payload?.referentiel === true;
  * qui ne mène plus à ce qu'elle affiche, ce qui est exactement le défaut que
  * l'audit cherche.
  */
+/**
+ * Ce qu'une valeur est, en une phrase, quand le projet le dit.
+ *
+ * ## Pourquoi elle manquait
+ *
+ * « Altitude du site » se comprend seul. « H0 retenu pour le département »,
+ * « contrainte limite à l'ELS », « ratio déterminant », non — et la liste des
+ * valeurs qu'on peut faire varier en est pleine. On y choisissait au jugé, ou
+ * l'on renonçait à chercher.
+ *
+ * ## D'où elle vient, et d'où elle ne vient pas
+ *
+ * Quatre sources, toutes **déclarées**, dans l'ordre du plus précis au plus
+ * général : ce que l'affirmation dit d'elle-même, à quoi elle sert, le libellé
+ * de l'utilitaire qui l'a produite, et la norme dont elle vient. Aucune n'est
+ * fabriquée : quand les quatre se taisent, on ne dit rien plutôt que d'écrire
+ * une phrase que personne n'a signée.
+ */
+export function descriptionDeLaValeur(assertion = null) {
+  const payload = assertion?.payload ?? {};
+  const outil = texte(payload.utilitaire) ? utilitaireByReference(texte(payload.utilitaire)) : null;
+
+  return texte(payload.quoi)
+    || texte(payload.utilisation)
+    || texte(outil?.libelle)
+    || texte(payload.source);
+}
+
+/**
+ * La déclaration à laquelle lire un tableau : celle de l'utilitaire d'aujourd'hui.
+ *
+ * ## Pourquoi pas la copie figée
+ *
+ * L'affirmation porte la `structure` telle qu'elle était **au versement**. Pour
+ * une valeur, ce gel est la règle même de Mdall : on rejoue avec la loi de
+ * l'époque, jamais avec une copie d'aujourd'hui. Ici, non — et la différence
+ * n'est pas un détail.
+ *
+ * `sens` et `marge` ne sont pas des données : ce sont les **légendes** qui
+ * disent comment lire une donnée. « en défaut est un défaut », « ce ratio doit
+ * rester sous 1 » ne changent pas ce que le calcul a rendu ; elles changent ce
+ * qu'un lecteur en comprend. Les figer voudrait dire qu'un projet versé hier ne
+ * profitera jamais d'une légende écrite demain, et qu'il faudrait re-verser des
+ * années de mémoire pour gagner une couleur.
+ *
+ * La copie figée reste le recours : un utilitaire retiré du catalogue laisse ses
+ * affirmations lisibles avec ce qu'elles portent. Et la correspondance se fait
+ * **par nom de colonne** : une colonne renommée ne trouve rien, donc ne se
+ * colore pas — jamais un mauvais rapprochement.
+ */
+export function structureDuTableau(ligne = null) {
+  const outil = utilitaireByReference(texte(ligne?.utilitaire)
+    || texte(ligne?.assertion?.payload?.utilitaire));
+  const vivante = outil?.rend?.structure;
+  if (Array.isArray(vivante) && vivante.length) return vivante;
+
+  const figee = ligne?.assertion?.payload?.structure;
+  return Array.isArray(figee) && figee.length ? figee : null;
+}
+
 export function valeursSubstituables(assertions = []) {
   // Ce qu'un versement plus récent a refait ne se propose pas : on choisissait
   // deux fois « H0 retenu pour le département, batiment-a » sans savoir laquelle
@@ -108,6 +168,9 @@ export function valeursSubstituables(assertions = []) {
       // pour trait dans la liste : on en choisissait une au hasard sans savoir
       // sur quelle partie de l'ouvrage on était en train de varier.
       zones: zonesLisibles(assertion),
+      // Ce qu'elle est, quand le projet le dit. Sans elle, une liste de noms
+      // obscurs se choisit au jugé. Voir `descriptionDeLaValeur`.
+      quoi: descriptionDeLaValeur(assertion),
       nature: classifyAssertion(assertion).nature
     }));
 }

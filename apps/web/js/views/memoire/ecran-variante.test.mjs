@@ -132,6 +132,103 @@ test("un tableau qui ne bouge pas reste replié et le dit", () => {
   assert.match(html, /1 ligne — aucune n'a bougé/);
 });
 
+const STRUCTURE = [
+  { nom: "désignation", type: "texte" },
+  { nom: "arase supérieure", type: "nombre, en m" },
+  { nom: "vérification", valeurs: [
+    { nom: "vérifiée", sens: "tenu" },
+    { nom: "en défaut", sens: "rompu" }
+  ] },
+  { nom: "ratio déterminant", type: "nombre", marge: { limite: 1, comparaison: "au plus" } }
+];
+
+const avecStructure = (rendu, structure) => {
+  rendu.recalculees[0].assertion.payload.structure = structure;
+  // Le catalogue l'emporte sur la copie figée : pour éprouver une déclaration
+  // donnée, la ligne ne doit se réclamer d'aucun utilitaire connu.
+  rendu.recalculees[0].utilitaire = "utilitaire_d_essai_V1";
+  return rendu;
+};
+
+test("la couleur d'un verdict vient de ce que l'utilitaire a déclaré", () => {
+  // « 12 vérifiées → 12 en défaut » s'écrivait en vert. Aucun écran ne peut le
+  // savoir sans qu'on le lui dise, et le lui apprendre par un dictionnaire de
+  // mots français serait une machine à deviner.
+  const rendu = avecStructure(fondations(
+    [massif("Semelle 1", "-0,10 m", "0,667", "vérifiée")],
+    [massif("Semelle 1", "-79,00 m", "16,050", "en défaut")]
+  ), STRUCTURE);
+
+  assert.match(ecran(rendu), /variante-tableau__apres--rompu">en défaut/);
+
+  // Le même tableau sans structure déclarée : neutre, et c'est exact.
+  const muet = avecStructure(fondations(
+    [massif("Semelle 1", "-0,10 m", "0,667", "vérifiée")],
+    [massif("Semelle 1", "-79,00 m", "16,050", "en défaut")]
+  ), null);
+  assert.doesNotMatch(ecran(muet), /variante-tableau__apres--/);
+});
+
+test("une marge déclarée donne son échelle au nombre", () => {
+  // « 16,050 » est un nombre sans échelle : seize fois trop, ou seize fois la
+  // marge restante ? Seule la limite déclarée le dit.
+  const rendu = avecStructure(fondations(
+    [massif("A", "-0,10 m", "0,667"), massif("B", "-0,10 m", "0,888")],
+    [massif("A", "-79,00 m", "16,050"), massif("B", "-79,50 m", "8,191")]
+  ), STRUCTURE);
+
+  const html = ecran(rendu);
+  assert.match(html, /variante-tableau__marge--depasse/);
+  assert.match(html, /au plus 1/);
+  // La pire valeur, et elle seule : les autres ne décident de rien.
+  assert.match(html, /atteint <b>16,050<\/b>/);
+  assert.match(html, /16 fois la limite/);
+  assert.doesNotMatch(html, /atteint <b>8,191<\/b>/);
+});
+
+test("sans marge déclarée, aucune phrase d'échelle", () => {
+  const rendu = avecStructure(fondations(
+    [massif("A", "-0,10 m", "0,667")],
+    [massif("A", "-79,00 m", "16,050")]
+  ), [{ nom: "ratio déterminant", type: "nombre" }]);
+
+  assert.doesNotMatch(ecran(rendu), /variante-tableau__marge/);
+});
+
+test("la liste des valeurs dit ce que chacune est, quand le projet le dit", () => {
+  // « Altitude du site » se comprend seul ; « H0 retenu pour le département »,
+  // non, et l'on choisissait au jugé.
+  const decrite = {
+    id: "hg", sujet: "Profondeur hors gel", valeur: "0,47 m", zones: [], lectures: 3,
+    quoi: "Profondeur hors gel d'après le département et l'altitude"
+  };
+  const muette = { id: "x", sujet: "Chose obscure", valeur: "2", zones: [], lectures: 0, quoi: "" };
+
+  const html = renderEcranDeVariante({ valeurs: [decrite, muette], etape: ETAPE.CHOIX });
+  assert.match(html, /impact-choix__quoi">Profondeur hors gel d&#39;après/);
+  // Rien d'inventé pour celle qui ne dit rien : une phrase fabriquée ici serait
+  // indiscernable d'une phrase versée.
+  assert.equal((html.match(/impact-choix__quoi/g) ?? []).length, 1);
+});
+
+test("la déclaration d'aujourd'hui l'emporte sur la copie figée au versement", () => {
+  // `sens` et `marge` sont des légendes, pas des données : les figer voudrait
+  // dire qu'un projet versé hier ne profitera jamais d'une légende écrite
+  // demain. La ligne ci-dessous porte une structure ancienne, sans sens ; le
+  // catalogue, lui, en a une.
+  const rendu = fondations(
+    [massif("Semelle 1", "-0,10 m", "0,667", "vérifiée")],
+    [massif("Semelle 1", "-79,00 m", "16,050", "en défaut")]
+  );
+  rendu.recalculees[0].assertion.payload.structure = [
+    { nom: "vérification", valeurs: ["vérifiée", "en défaut"] }
+  ];
+
+  const html = ecran(rendu);
+  assert.match(html, /variante-tableau__apres--rompu">en défaut/);
+  assert.match(html, /16 fois la limite/);
+});
+
 test("le résultat porte ses deux gestes, et le second se refuse s'il ne dit rien", () => {
   const rendu = (bouge) => ({
     ok: true, recalculees: [], cycles: [], inchangees: 12, confirmees: 0, aRevoir: [], depart: [],
