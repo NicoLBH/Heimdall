@@ -165,3 +165,71 @@ export function versementsHorsDomicile(assertions = [], domiciles = null) {
 
   return [...dits.values()];
 }
+
+
+/**
+ * Le fichier des noms que le projet partage. Il est à la racine, et unique.
+ *
+ * Ici plutôt que dans un écran : c'est une adresse de la mémoire, et deux
+ * écrans qui la déclareraient chacun finiraient par renvoyer ailleurs.
+ */
+export const FICHIER_DES_VARIABLES = "variables-du-projet.ref";
+
+/**
+ * Où une variable est déclarée, pour un `importe`.
+ *
+ * À défaut, le dictionnaire : il les liste toutes, y compris celles que
+ * personne n'a versées. Renvoyer vers lui n'est pas un pis-aller — c'est
+ * exactement l'endroit où l'on verra qu'elle manque.
+ */
+export function fichierQuiDeclare(nom, domiciles) {
+  const cle = cleDuSujet(nom);
+  const chez = domiciles instanceof Map ? domiciles.get(cle) : null;
+  // La carte peut porter le fichier lui-même — c'est ce que l'écran passe — ou
+  // le domicile entier. Les deux disent la même chose.
+  const dit = texte(typeof chez === "string" ? chez : chez?.fichier);
+  return dit || FICHIER_DES_VARIABLES;
+}
+
+/**
+ * Où une fonction range ce qu'elle conclut, quand la mémoire le sait.
+ *
+ * `""` quand elle ne le sait pas : la fonction conclut alors sans dire où, ce
+ * qui est la vérité du moment. Deviner un fichier ferait lire « écrit dans
+ * incendie.ctr » là où rien n'est écrit.
+ */
+export function fichierOuEcrire(sujet, domiciles) {
+  const cle = cleDuSujet(sujet);
+  const chez = domiciles instanceof Map ? domiciles.get(cle) : null;
+  return texte(typeof chez === "string" ? chez : chez?.fichier);
+}
+
+/**
+ * Une fonction qui appelle un agent, prête à s'écrire — où qu'on l'écrive.
+ *
+ * La mémoire et le **diff d'une proposition** doivent en donner le même texte.
+ * Le diff avait le sien : il rendait `fonction Prédimensionnement…()`, sans
+ * signature, sans appel et sans `enregistre`, là où le fichier montre la
+ * fonction entière. Deux grammaires pour la même ligne, et c'est celle qu'on
+ * ne relit pas qui a raison le jour où l'on cherche.
+ *
+ * @param {{sujet: string, quoi?: string, agent: object}} ligne
+ * @param {Map} [domiciles] où vit chaque nom, quand on le sait
+ */
+export function fonctionAEcrire({ sujet = "", quoi = "", agent = null } = {}, domiciles = null) {
+  if (!agent || !texte(sujet)) return null;
+
+  return {
+    nom: texte(sujet),
+    quoi: texte(quoi),
+    entrees: (agent.lit ?? []).map(texte).filter(Boolean)
+      .map((nom) => ({ nom, depuis: fichierQuiDeclare(nom, domiciles) })),
+    agent: texte(agent.genre),
+    utilitaire: texte(agent.utilitaire),
+    version: texte(agent.version),
+    enregistre: (agent.ecrit ?? [])
+      .map((sortie) => texte(sortie?.sujet))
+      .filter(Boolean)
+      .map((nom) => ({ sujet: nom, dans: fichierOuEcrire(nom, domiciles) }))
+  };
+}

@@ -30,6 +30,7 @@ import { renderBoutonCopier } from "./ui/bouton-copier.js";
 import { agentDeLaFonction } from "../services/memoire-applications.js";
 import { domicilesDesNoms, versementsHorsDomicile } from "../services/memoire-domiciles.js";
 import { valeursCorrigees, exceptionsInutiles } from "../services/memoire-valeurs.js";
+import { fichierQuiDeclare, fichierOuEcrire, fonctionAEcrire, FICHIER_DES_VARIABLES } from "../services/memoire-domiciles.js";
 import {
   morceauxSurlignes, lignesQuiPortent, rangVoisin, passagesAutourDe, phraseCherchee, porteLaPhrase
 } from "../services/memoire-recherche-texte.js";
@@ -164,8 +165,8 @@ export function ouChaqueLigneEstEcrite(fichiers = []) {
   return ou;
 }
 
-/** Le nom du fichier des variables. Il est à la racine, et il est unique. */
-export const FICHIER_DES_VARIABLES = "variables-du-projet.ref";
+/** Le nom du fichier des variables. Il vit dans `memoire-domiciles.js`. */
+export { FICHIER_DES_VARIABLES };
 
 /**
  * `Mémoire/variables-du-projet.ref` — les noms que le projet partage.
@@ -1788,30 +1789,6 @@ export function fonctionsSansDoublon(lignes = []) {
 }
 
 /**
- * Le fichier où une variable est déclarée, pour un `importe`.
- *
- * À défaut, le dictionnaire : il les liste toutes, y compris celles que
- * personne n'a versées. Renvoyer vers lui n'est pas un pis-aller — c'est
- * exactement l'endroit où l'on verra qu'elle manque.
- */
-function fichierQuiDeclare(nom, ouEcrit) {
-  const dit = ouEcrit instanceof Map ? texte(ouEcrit.get(cleDuSujet(nom))) : "";
-  return dit || FICHIER_DES_VARIABLES;
-}
-
-/**
- * Où une règle enregistre ce qu'elle conclut, quand la mémoire le sait.
- *
- * `null` quand elle ne le sait pas : la règle conclut alors sans dire où, ce
- * qui est la vérité du moment. Deviner un fichier ferait lire « écrit dans
- * incendie.ctr » là où rien n'est écrit.
- */
-function fichierOuEcrire(sujet, ouEcrit) {
-  const dans = ouEcrit instanceof Map ? texte(ouEcrit.get(cleDuSujet(sujet))) : "";
-  return dans ? { dans } : null;
-}
-
-/**
  * Ce qu'une fonction fait, quand personne ne l'a écrit.
  *
  * ## Pourquoi on ne se tait pas
@@ -1911,22 +1888,14 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
   if (agent) {
     const sujet = texte(payload.subject) || texte(assertion.subject_key);
 
-    const bloc = blocDeFonction({
-      nom: sujet,
-      quoi: texte(payload.quoi) || quoiParDefaut(sujet),
-      // Chaque entrée, et **où le projet la porte**. C'est cette adresse qui
-      // permet d'écrire la branche « sinon, va la lire là » — et donc de dire
-      // qu'un paramètre passé à l'appel l'emporte sur ce que la mémoire tient.
-      entrees: (agent.lit ?? []).map(texte).filter(Boolean)
-        .map((nom) => ({ nom, depuis: fichierQuiDeclare(nom, ouEcrit) })),
-      agent: texte(agent.genre),
-      utilitaire: texte(agent.utilitaire),
-      version: texte(agent.version),
-      enregistre: (agent.ecrit ?? [])
-        .map((sortie) => texte(sortie?.sujet))
-        .filter(Boolean)
-        .map((nom) => ({ sujet: nom, dans: fichierOuEcrire(nom, ouEcrit)?.dans ?? "" }))
-    }, profondeur);
+    // Le même texte que le diff d'une proposition : `fonctionAEcrire` le
+    // compose une fois, ici et là-bas. Chaque entrée porte **où le projet la
+    // porte** — c'est cette adresse qui permet d'écrire la branche « sinon, va
+    // la lire là », donc de dire qu'un paramètre passé à l'appel l'emporte sur
+    // ce que la mémoire tient.
+    const bloc = blocDeFonction(fonctionAEcrire({
+      sujet, quoi: texte(payload.quoi) || quoiParDefaut(sujet), agent
+    }, ouEcrit), profondeur);
 
     return bloc.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
   }
@@ -1956,7 +1925,7 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
       // Où le résultat s'écrit. On ne l'invente pas : si la mémoire ne porte
       // pas encore la valeur produite, la règle conclut sans dire où — ce qui
       // est la vérité du moment.
-      enregistre: fichierOuEcrire(sujet, ouEcrit)
+      enregistre: fichierOuEcrire(sujet, ouEcrit) ? { dans: fichierOuEcrire(sujet, ouEcrit) } : null
     }, profondeur);
     return regle.map((jetons, rang) => ({ nature: rang === 0 ? "regle" : "detail", jetons }));
   }

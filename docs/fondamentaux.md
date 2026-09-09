@@ -433,10 +433,35 @@ C'est la même réponse que partout ailleurs en informatique — *une seule sour
 vérité par nom*, une clé unique, une résolution qui ne devine pas —, appliquée à
 une mémoire de projet plutôt qu'à une base.
 
+### Un écran qui montre autre chose que le fichier ment deux fois
+
+La règle vaut au-delà du rangement : **tout ce qui parle d'une ligne doit en
+parler pareil.** Trois écarts l'ont montré, et chacun était invisible :
+
+- le **diff d'une proposition** nommait le fichier depuis le seul
+  `{nature, domaine}` de la ligne, sans consulter le registre : il pouvait donc
+  annoncer un fichier que la mémoire ne crée pas ;
+- il **écrivait sa propre version** d'une fonction à agent — une tête sans
+  signature, sans appel, sans `enregistre` — là où le fichier l'écrit en entier.
+  On relisait deux textes de la même ligne, et c'est celui qu'on ne relit pas qui
+  a raison le jour où l'on cherche ;
+- le **graphe des dépendances** ne lisait que les conditions d'une règle. Une
+  fonction qui appelle un agent n'en a pas : elle *déclare* ce qu'elle lit et ce
+  qu'elle range, sous d'autres noms que le sien. Le graphe était donc vide, et
+  une variante sur la profondeur hors gel annonçait « rien ne bouge » alors
+  qu'elle refait toutes les fondations. C'est le mensonge le plus coûteux qu'un
+  outil de ce genre puisse produire : il ne se voit pas, et l'on décide dessus.
+
+Chacun se ferme de la même façon — non pas en corrigeant les deux textes, mais
+en **supprimant le second** : un seul juge pour le rangement, un seul écrivain
+pour la fonction, un seul endroit qui dit ce qu'une règle lit et ce qu'elle
+produit.
+
 ### Où c'est écrit
 
-`apps/web/js/services/memoire-domiciles.js` — le registre et les conflits ; le
-rangement des affirmations passe par lui.
+`apps/web/js/services/memoire-domiciles.js` — le registre, les conflits, le
+fichier d'un nom, et le texte d'une fonction à agent ; le rangement des
+affirmations et le diff des propositions passent par lui.
 
 ### Ce qui reste
 

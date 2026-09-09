@@ -46,6 +46,8 @@
  */
 
 import { DOMAINS, domainLabel, natureLabel, classifyAssertion } from "./assertion-taxonomy.js";
+import { agentDeLaFonction } from "./memoire-applications.js";
+import { domicilesDesNoms, fonctionAEcrire, rangementDuVersement } from "./memoire-domiciles.js";
 import { ITEM_TYPE } from "./proposition-review.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -151,6 +153,10 @@ export function tableauAvantApres({ proposition = null, items = [], assertions =
     courantes.set(texte(assertion?.subject_key), assertion);
   }
 
+  // Où vit chaque nom, pour que la fonction dise d'où viennent ses entrées et
+  // où va son résultat — exactement comme le fichier le dit.
+  const domiciles = domicilesDesNoms(Array.isArray(assertions) ? assertions : []);
+
   const lignes = affirmations.map((item) => {
     const cle = cleDe(item);
     const ecrite = ecrites.get(cle) ?? null;
@@ -187,6 +193,17 @@ export function tableauAvantApres({ proposition = null, items = [], assertions =
       domaineLabel: domainLabel(domain),
       nature,
       natureLabel: natureLabel(nature),
+      // **Où** cette ligne ira, calculé comme la mémoire le calcule : par le
+      // domicile du nom, registre consulté. Le diff avait le sien — le seul
+      // `{nature, domaine}` de la ligne —, et pouvait donc annoncer un fichier
+      // que la mémoire ne crée pas. Voir `memoire-domiciles.js`, règle 10.
+      rangement: rangementDuVersement({
+        nature, domain,
+        payload: {
+          subject: sujetDe(apresPorteur, cle) || sujetDe(avantPorteur, cle),
+          referentiel: (item?.payload?.referentiel ?? apresPorteur?.payload?.referentiel) === true
+        }
+      }, domiciles),
       zones: item?.payload?.zones ?? apresPorteur?.zones ?? null,
       source: texte(item?.payload?.source) || texte(apresPorteur?.payload?.source) || "",
       article: texte(item?.payload?.article) || texte(apresPorteur?.payload?.article) || "",
@@ -202,6 +219,20 @@ export function tableauAvantApres({ proposition = null, items = [], assertions =
       // peut changer : le jour où l'arrêté bouge, c'est le seul endroit où cela
       // se verra.
       referentiel: (item?.payload?.referentiel ?? apresPorteur?.payload?.referentiel) === true,
+      // Une fonction qui **appelle un agent** s'écrit en entier — signature,
+      // entrées retenues, appel, `enregistre` — et le diff doit en donner le
+      // même texte que le fichier. Il avait le sien : `fonction …()`, sans
+      // signature ni appel. Voir `memoire-domiciles.js`.
+      fonction: fonctionAEcrire({
+        sujet: sujetDe(apresPorteur, cle) || sujetDe(avantPorteur, cle),
+        quoi: texte(item?.payload?.quoi) || texte(apresPorteur?.payload?.quoi),
+        agent: agentDeLaFonction(item) ?? agentDeLaFonction(apresPorteur)
+      }, domiciles),
+      fonctionAvant: fonctionAEcrire({
+        sujet: sujetDe(avantPorteur, cle),
+        quoi: texte(avantPorteur?.payload?.quoi),
+        agent: agentDeLaFonction(avantPorteur)
+      }, domiciles),
       regle: item?.payload?.regle ?? apresPorteur?.payload?.regle ?? null,
       regleAvant: avantPorteur?.payload?.regle ?? null,
       provenance: item?.payload?.provenance ?? apresPorteur?.payload?.provenance ?? null,
