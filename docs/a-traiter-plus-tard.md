@@ -48,7 +48,7 @@ pas après.
 | 3 | Neige, vent et gel aux standards, puis le spectre — *fait* | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
 | 4 | La localisation et les zones se changent par proposition — *fait* | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
 | 5 | La cascade parallèle — *faite pour la branche climatique* | l'arbre fourche : une valeur changée, plusieurs branches | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
-| 6 | La proposition devient une branche | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
+| 6 | La proposition devient une branche — *faite* | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
 | 7 | Un modèle rédige le titre et le corps d'une proposition | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
 | 8 | Le modèle des décisions | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
 | 9 | Le modèle des raisonnements | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
@@ -1149,6 +1149,8 @@ quelqu'un a choisi. Un raisonnement se **verse**, comme le reste.
 
 ## 17. La proposition devient une branche
 
+**État :** fait, sauf la sortie de l'écran de variante — voir « Ce qui reste ».
+
 ### Ce qu'on cherchait vraiment
 
 L'idée de branche revient — et le débat d'alors partait d'une mauvaise analogie.
@@ -1186,6 +1188,81 @@ Faire une proposition ▾
 - **Une branche vieillit.** Une proposition ouverte depuis trois semaines sur une
   mémoire qui a bougé doit le dire — `laMemoireABouge` sait déjà répondre à cette
   question pour une variante.
+
+### Ce que l'étape a posé
+
+**La base l'accueillait déjà sans le savoir.** `proposition_items` est unique sur
+`(proposition_id, item_type, item_key)` et le versement se fait en
+`merge-duplicates` : y porter un deuxième lot ajoute ce qui est nouveau et
+remplace ce qui porte la même clé. **Aucune migration.** Ce qui manquait était le
+geste, et les trois choses qu'une branche doit dire.
+
+**Le geste.** `renderTransformer` — le seul endroit où le bouton s'écrit — pose
+maintenant une ligne par proposition ouverte, et chacune la **nomme** :
+« Ajouter à #58 Reprise des fondations ». Un menu qui aurait dit « ajouter à une
+proposition ouverte » sans dire laquelle aurait demandé un deuxième clic pour
+savoir de quoi il parle. Les quatre écrans qui portent le bouton — climat,
+fondations, spectre, incendie — y sont raccordés par une ligne chacun.
+
+**La couture.** `preparerUneProposition` accepte un `propositionId` : au lieu
+d'ouvrir une proposition de plus, elle porte le lot dans celle-là. Deux refus, et
+ils comptent autant que le succès : une proposition qui n'est plus ouverte ne
+reçoit rien, et une clé **déjà tranchée** n'est pas repoussée.
+
+**Ce qu'on n'écrase pas.** Le versement remet chaque item à « proposé » et efface
+`decided_by` et `decided_at`. Sur une clé encore proposée c'est exactement ce
+qu'on veut ; sur une clé qu'un relecteur a acceptée ou refusée, ce serait effacer
+sa décision sans le dire — et un refus effacé est un refus qu'on ne pourra pas
+contester. Ces lignes sont retenues, et **dites à l'arrivée**, là où elles se
+trouvent : les quatre écrans partent aussitôt vers la proposition, et la phrase
+se serait lue sur un écran qu'on ne regarde plus.
+
+**Le conflit se dit avant la fusion.** Deux propositions ouvertes sur le même
+sujet affichaient chacune le même « avant », et rien ne disait qu'elles se
+contredisaient. Un bandeau les nomme, au-dessus des onglets — au-dessus, et pas
+*dans* un onglet, parce qu'un onglet qu'on n'ouvre pas ne dit rien.
+
+**Une branche vieillit, et on le calcule.** On aurait pu figer un compte et une
+date à l'ouverture, comme une variante le fait ; mais une proposition vit des
+jours, et un compte figé aurait vieilli lui aussi. On compare donc, à la lecture,
+la date d'ouverture à ce que la mémoire dit **des sujets que la branche touche** —
+ce qui répond en plus à « lesquels », là où un compte n'aurait dit que « quelque
+chose ». Rien n'entre en base : un registre serait faux dès la proposition
+suivante (règle 4).
+
+**Une ligne par sujet, jamais une par item.** C'est la discipline de
+`versementsHorsDomicile`, reprise telle quelle : ce qui se règle, c'est le sujet,
+et le répéter pour chaque branche qui le touche ferait lire trois conflits là où
+il y en a un à trancher.
+
+**`listPropositionItems` rendait `[]` en cas d'échec**, comme lorsqu'il n'y a
+rien. Le garde-fou en aurait conclu « rien de tranché » sur une lecture ratée, et
+repoussé le lot par-dessus un refus qu'il n'avait pas vu. Elle rend `null`, comme
+`listPropositions` et `listProjectAssertions` le font depuis toujours.
+
+**Le diff cumulatif n'a rien demandé.** `tableauAvantApres` prenait déjà
+l'ensemble des items d'une proposition, une ligne de sortie par item : une
+proposition qui en porte trois lots l'affiche cumulée, sans une ligne de code de
+plus. Ce point de la liste ci-dessus était déjà tenu.
+
+### Ce qui reste
+
+**La variante n'alimente pas encore une branche.** « Ajouter cet essai à la
+proposition ouverte » est la sortie qui manque toujours à l'écran de variante :
+celui-ci ne produit pas d'affirmations versables — il rend des valeurs recalculées
+qu'il faudrait d'abord transformer en lignes de proposition, avec leur appel et
+leurs lectures. C'est un travail distinct de la mécanique posée ici, qui
+l'attendait sans en dépendre.
+
+**Une proposition dont les items n'ont pas pu être lus s'affiche vide.** Le défaut
+est ancien ; il est seulement devenu *visible* maintenant que la lecture sait
+distinguer l'échec de l'absence. L'écran aplatit encore `null` en liste vide aux
+deux endroits où il ouvre une proposition, et devrait dire « lecture ratée »
+plutôt que d'afficher une proposition sans lignes.
+
+**L'écran du spectre ne dit pas pourquoi une proposition a échoué.** Il rend la
+main en silence sur `!rendu.ok`, là où les trois autres écrivent la raison à côté
+du bouton. Défaut ancien lui aussi, et sans rapport avec la branche.
 
 ---
 

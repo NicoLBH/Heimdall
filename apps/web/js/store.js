@@ -105,6 +105,11 @@ export const store = {
    * chercher à la main ce qu'on venait de désigner.
    */
   pendingPropositionId: "",
+  // Ce qu'un lot d'Atelier n'a pas pu porter dans la proposition qu'il visait.
+  // Les quatre écrans qui proposent s'en vont aussitôt vers la proposition : la
+  // phrase se lirait donc sur un écran qu'on ne regarde plus, c'est-à-dire nulle
+  // part. Elle voyage, et se dit à l'arrivée. `{ propositionId, tranches }`.
+  pendingPropositionTranches: null,
 
   ui: {
     runId: "",

@@ -28,7 +28,8 @@ import {
   computeElasticResponseValue
 } from "../../../../vendor/utilitaires/seismic-spectrum.js";
 import { renderSvgLineChart, getNiceChartTicks } from "../../../utils/svg-line-chart.js";
-import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
+import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
+import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
 import { lignesVersables, ligneDuSpectre } from "../../../services/spectre-versement.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 
@@ -71,7 +72,7 @@ function texteDuSujet(form) {
  * le projet a déjà décidé, et signe. C'est cette signature qui fait entrer le
  * spectre dans la mémoire, jamais ce bouton.
  */
-async function proposerLeSpectre() {
+async function proposerLeSpectre(propositionId = "") {
   if (preparation) return;
 
   const form = store.projectForm ?? {};
@@ -92,6 +93,7 @@ async function proposerLeSpectre() {
   const { preparerUneProposition } = await import("../../../services/atelier-proposition.js");
   const rendu = await preparerUneProposition({
     projectId,
+    propositionId,
     titre: `Spectre élastique de calcul — zone ${String(form.zoneSismique || "").trim() || "inconnue"}, sol ${String(form.soilClass || "").trim() || "—"}`,
     intro: "Les choix parasismiques du projet, l'appel qui en découle, et le spectre qu'il rend. "
       + "Les entrées entrent avec le reste : c'est ce qui permettra de tout refaire le jour où "
@@ -102,10 +104,18 @@ async function proposerLeSpectre() {
   });
 
   preparation = false;
+  if (!rendu.ok) { rerenderProjectSeismic(); return; }
+
+  // La liste des propositions ouvertes vient de changer.
+  oublierLesBranches();
   rerenderProjectSeismic();
-  if (!rendu.ok) return;
 
   store.pendingPropositionId = rendu.proposition.id;
+  // Ce qui n'a pas pu être porté se dit là où ces lignes se trouvent, pas ici :
+  // on quitte cet écran à la ligne suivante.
+  store.pendingPropositionTranches = rendu.tranches?.length
+    ? { propositionId: rendu.proposition.id, tranches: rendu.tranches }
+    : null;
   const projet = String(store.currentProjectId || "").trim();
   if (projet) window.location.hash = `#project/${projet}/propositions`;
 }
@@ -461,7 +471,11 @@ function renderSeismicCards(form) {
       description: "Premières données de calcul du spectre de dimensionnement élastique et des accélérations réglementaires du projet.",
       // « Transformer » : ouvrir un sujet pour en débattre, ou préparer une
       // proposition à signer. Aucune des deux n'écrit dans la mémoire du projet.
-      actions: renderTransformer({ id: "seismicTransform", disabled: !spectreCalculable(form) }),
+      actions: renderTransformer({
+        id: "seismicTransform",
+        disabled: !spectreCalculable(form),
+        ouvertes: branchesOuvertes(() => rerenderProjectSeismic())
+      }),
       body: `<div class="settings-seismic-sizing-layout">
         <div class="settings-form-grid settings-form-grid--thirds settings-seismic-sizing-layout__controls">
           ${renderInputField({ id: "dampingRatio", label: "ξ coefficient d'amortissement visqueux, exprimé en pourcentage", value: form.dampingRatio || "5", placeholder: "5" })}
@@ -587,7 +601,10 @@ function bindSeismicEvents() {
     currentSeismicRoot.dataset.seismicBranche = "true";
     currentSeismicRoot.addEventListener("ghaction:action", (event) => {
       const quoi = event.detail?.action;
-      if (quoi === TRANSFORMER.PROPOSITION) { void proposerLeSpectre(); return; }
+      // « Faire une proposition » en ouvre une ; « Ajouter à #58 » porte le
+      // même lot dans celle-là. Un seul chemin, une destination de plus.
+      const branche = brancheDeLAction(quoi);
+      if (quoi === TRANSFORMER.PROPOSITION || branche) { void proposerLeSpectre(branche); return; }
       if (quoi !== TRANSFORMER.SUJET) return;
 
       const ouvrir = typeof window !== "undefined" ? window.openStudioToolSubjectDraft : null;
