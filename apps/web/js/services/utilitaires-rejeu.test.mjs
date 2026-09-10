@@ -381,13 +381,62 @@ test("varier le sujet entier reste possible : la colonne n'est alors pas dite", 
   assert.deepEqual(reprises.map((reprise) => reprise.champs), [{ code_insee: "11111" }, { code_insee: "11111" }]);
 });
 
-test("les trois déductions climatiques déclarent la même colonne d'entrée", () => {
+/**
+ * Le cas réel, et celui qui ne marchait pas : **la ligne entière varie**.
+ *
+ * Changer l'adresse d'un projet, c'est le déplacer. L'écran remplace donc les
+ * quatre colonnes d'un coup, ce qui fait quatre substitutions **sur le même
+ * sujet**. Elles étaient rangées à une entrée par sujet : chacune écrasait la
+ * précédente, il ne restait que la dernière — l'adresse —, et les zonages, qui
+ * lisent le code INSEE, la refusaient. Rien ne se recalculait, et l'écran
+ * disait « celle qu'on fait varier n'entre pas dans son calcul » alors qu'on
+ * venait de changer de commune.
+ */
+test("la ligne entière varie : chaque utilitaire y prend la colonne qu'il lit", () => {
+  const reprises = contraintesAReprendre({
+    enVigueur: zonages(),
+    // L'ordre est celui de la structure versée, et l'adresse arrive en dernier :
+    // c'est elle qui écrasait tout le reste.
+    substitutions: new Map([
+      ["loc#commune", "Saint-Michel-Chef-Chef"],
+      ["loc#codeInsee", "44182"],
+      ["loc#codePostal", "44730"],
+      ["loc#adresse", "8 Rue des Mulets 44730 Saint-Michel-Chef-Chef"]
+    ])
+  });
+
+  assert.deepEqual(reprises.map((reprise) => reprise.champs), [{ code_insee: "44182" }, { code_insee: "44182" }]);
+  assert.deepEqual(reprises.map((reprise) => reprise.refus), ["", ""]);
+});
+
+/**
+ * L'inverse reste vrai : une ligne dont **aucune** colonne n'entre dans le
+ * calcul se refuse toujours, et se refuse en le disant.
+ */
+test("une ligne qui ne varie que par des colonnes muettes se refuse encore", () => {
+  const reprises = contraintesAReprendre({
+    enVigueur: zonages(),
+    substitutions: new Map([
+      ["loc#commune", "Homonyme"],
+      ["loc#adresse", "1 rue Neuve"]
+    ])
+  });
+
+  assert.deepEqual(reprises.map((reprise) => reprise.refus), [REFUS.AUTRE_COLONNE, REFUS.AUTRE_COLONNE]);
+});
+
+test("les déductions qui lisent la localisation déclarent la même colonne", () => {
   // Elles la recopiaient chacune de leur côté, sans elle. Le jour où l'une
   // repart de son côté, ce test tombe — plutôt qu'un 400 en production.
+  //
+  // La zone de sismicité manquait à cette liste, et c'est exactement ce qui lui
+  // est arrivé : sa copie avait perdu la colonne, et le nom de la commune
+  // partait dans le champ du code INSEE dès que la ligne variait en entier.
   const memes = [
     "deduction_zone_neige_commune_V1",
     "deduction_zone_vent_commune_V1",
-    "deduction_profondeur_hors_gel_altitude_V1"
+    "deduction_profondeur_hors_gel_altitude_V1",
+    "deduction_zone_sismique_georisques_V1"
   ];
 
   for (const utilitaire of memes) {
@@ -400,5 +449,34 @@ test("les trois déductions climatiques déclarent la même colonne d'entrée", 
       substitutions: new Map([["loc#adresse", "1 rue Neuve"]])
     });
     assert.equal(reprises[0]?.refus, REFUS.AUTRE_COLONNE, `${utilitaire} lit encore l'adresse`);
+  }
+});
+
+test("la ligne entière : chacune reçoit le code INSEE, jamais le nom de la commune", () => {
+  // L'autre face du même test. Un utilitaire sans colonne déclarée prend la
+  // première substitution venue : ici « Saint-Michel-Chef-Chef » dans
+  // `code_insee`, c'est-à-dire le 400 qu'on croyait avoir supprimé.
+  const memes = [
+    "deduction_zone_neige_commune_V1",
+    "deduction_zone_vent_commune_V1",
+    "deduction_profondeur_hors_gel_altitude_V1",
+    "deduction_zone_sismique_georisques_V1"
+  ];
+
+  for (const utilitaire of memes) {
+    const reprises = contraintesAReprendre({
+      enVigueur: [
+        localisation(),
+        deduite({ id: "x", sujet: "Sortie", valeur: "v", utilitaire,
+          lectures: [["Localisation du projet", "00000"]] })
+      ],
+      substitutions: new Map([
+        ["loc#commune", "Ailleurs"],
+        ["loc#codeInsee", "11111"],
+        ["loc#codePostal", "11000"],
+        ["loc#adresse", "1 rue Neuve"]
+      ])
+    });
+    assert.equal(reprises[0]?.champs?.code_insee, "11111", `${utilitaire} n'a pas reçu le code INSEE`);
   }
 });

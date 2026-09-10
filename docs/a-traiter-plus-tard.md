@@ -2369,3 +2369,70 @@ de son mode d'emploi : on tire le marqueur, et le calcul suit.
    vraie carte à tuiles ferait mieux, au prix d'une bibliothèque.
 2. **La hauteur du bâtiment**, toujours, comme au
    [§ 28](#28-ce-qui-reste-en-cache-finit-par-mentir).
+
+## 30. Quatre colonnes qui varient, une seule qu'on gardait
+
+Changer l'adresse du projet, et **rien ne se recalculait**. L'écran de variante
+rangeait les sept lignes de la chaîne climatique dans « à revérifier », toutes
+avec le même motif : « cet utilitaire lit bien ce sujet, mais par une autre de
+ses colonnes ». Un refus qui dit vrai sur ce qu'on lui montre, et faux sur ce
+qu'on vient de faire — on venait précisément de changer de commune.
+
+### Le rangement qui perdait trois colonnes sur quatre
+
+Changer l'adresse d'un projet, c'est le déplacer : l'écran remplace donc la
+ligne entière, ce qui fait **quatre substitutions sur le même sujet** —
+commune, code INSEE, code postal, adresse.
+
+Le rejeu les rangeait dans une table à **une entrée par sujet** :
+
+```js
+substituees.set(sujet, { valeur, colonne });   // la suivante écrase la précédente
+```
+
+Il n'en restait donc qu'une, la dernière dans l'ordre de la structure versée :
+l'adresse. Or les zonages déclarent lire le code INSEE (`champ: "codeInsee"`).
+Ils voyaient une variation sur l'adresse, la refusaient — à juste titre, c'est
+le garde-fou du tour précédent —, et la chaîne s'arrêtait avant son premier
+maillon.
+
+Le sujet porte maintenant **toutes** ses colonnes variées, et chaque utilitaire
+y prend celle qu'il déclare lire. À défaut, une substitution qui ne nomme pas de
+colonne — c'est ainsi qu'on fait varier un sujet entier, et ce chemin existait
+avant les colonnes. Sinon rien, et le refus retrouve son sens.
+
+Les deux reprises — celle des utilitaires, celle des fonctions natives —
+construisaient cette table chacune de leur côté. Elles partagent désormais
+`sujetsSubstitues` : une valeur écrite à deux endroits finit par diverger
+(règle 4), et celle-ci avait déjà commencé.
+
+### La recopie qui avait perdu sa colonne
+
+Le second défaut est le même que le premier, un étage plus bas.
+`deduction_zone_sismique_georisques_V1` **recopiait** la déclaration de lecture
+de la localisation au lieu de partager `LIT_LA_LOCALISATION`, et la copie avait
+perdu `champ: "codeInsee"`. Sans colonne déclarée, la lecture prenait la
+première substitution venue — le nom de la commune, dans le champ du code
+INSEE. C'est exactement le 400 que `champ` existe pour empêcher, revenu par une
+recopie.
+
+Le test qui gardait les trois déductions climatiques ne la couvrait pas : elle y
+est maintenant, et un second test vérifie l'autre face — que chacune reçoit bien
+le code INSEE quand la ligne entière varie.
+
+### Ce qui reste
+
+1. **L'appel emporte encore l'ancienne commune.** Le rejeu réutilise la charge
+   du dernier appel et n'y remplace que les champs déclarés : le code INSEE est
+   le nouveau, `city` et `postal_code` sont ceux d'avant. Le serveur décide par
+   le code INSEE, donc le calcul est juste ; c'est la phrase de provenance qu'il
+   rend qui pourrait nommer la mauvaise commune. Les colonnes muettes n'ont pas
+   d'`entree` par lequel entrer, et leur en donner un les ferait décider de
+   quelque chose — ce qu'elles ne font pas.
+2. **L'altitude ne suit pas la commune.** Déplacer un projet change son
+   altitude, et la cote hors gel en dépend. La variante ne fait varier que ce
+   qu'on lui donne : elle rejoue le hors gel avec la nouvelle commune et
+   l'ancienne altitude. Il faudrait que la localisation entraîne l'altitude,
+   comme elle entraîne les zonages.
+3. **La zone de sismicité ne se rejoue toujours pas** : son calcul reste chez
+   Géorisques, et elle le dit. C'est la règle 5, pas un défaut.
