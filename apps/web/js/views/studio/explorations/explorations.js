@@ -44,13 +44,17 @@ import { resolveCurrentBackendProjectId } from "../../../services/project-supaba
 import { PROJECT_TAB_IDS } from "../../../constants.js";
 import { renderEcranDeVariante, varianteEnJson, ETAPE, SAISIE_DE_LA_VARIANTE } from "../../memoire/ecran-variante.js";
 import { brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
-import { valeurDeLaColonne } from "../../../services/adresse-saisie.js";
+import { substitutionsDeLaLocalisation, colonneDeLaLocalisation } from "../../../services/adresse-saisie.js";
+import { STRUCTURE_DE_LA_LOCALISATION } from "../../../utilitaires/agents-climatiques.js";
 import { ouvrirLEtudeDImpact } from "../../ui/fenetre-impact.js";
 import { ouvrirLAudit } from "../../ui/fenetre-audit.js";
 import { essayerLaVariante } from "../../../services/variante-en-cours.js";
 import { consequencesDeLaVariante, valeursSubstituables, variantePourLEcran } from "../../../services/memoire-variante.js";
 import { emploisParAffirmation } from "../../../services/memoire-applications.js";
 import { champDeLIdentifiant } from "../../../services/tableau-structure.js";
+
+/** Ce que dit une valeur, débarrassée de ses blancs. */
+const texte = (valeur) => String(valeur ?? "").trim();
 import { frappeAvecUnite } from "../../../services/saisie-unite.js";
 import { rejouerLesUtilitaires } from "../../../services/utilitaires-rejeu.js";
 
@@ -215,6 +219,9 @@ function repartirDuChoix() {
   etatDeLaVariante = {
     valeurs: valeursDuSocle(), etape: ETAPE.CHOIX, choisie: null,
     saisie: "", echec: "", cherche: "", rendu: null,
+    // Les colonnes qu'une adresse choisie remplacera, quand la variante porte
+    // une localisation. Vides partout ailleurs.
+    substitutions: [], portees: [],
     projet: memoire.projectId
   };
 }
@@ -237,7 +244,12 @@ async function calculerLaVariante(root) {
   if (!etat?.choisie) return;
 
   const saisie = texteDuChamp(root, "[data-variante-valeur]") || etat.saisie;
-  const substitutions = new Map([[etat.choisie.id, saisie]]);
+  // Une localisation remplace **la ligne entière** : six colonnes d'un coup,
+  // parce que changer l'adresse d'un projet, c'est le déplacer. Partout
+  // ailleurs, une valeur, un identifiant. Voir `services/adresse-saisie.js`.
+  const substitutions = etat.substitutions?.length
+    ? new Map(etat.substitutions.map((entree) => [entree.id, entree.valeur]))
+    : new Map([[etat.choisie.id, saisie]]);
   const assertions = memoire.assertions ?? [];
 
   // Refusé d'entrée — même valeur, valeur vide — : inutile de déranger le
@@ -316,11 +328,48 @@ function brancherLAdresseDeLaVariante(root) {
   brancherLaSaisieDAdresse(root, {
     nom: SAISIE_DE_LA_VARIANTE,
     quandChoisie: (localisation) => {
-      const essaye = valeurDeLaColonne(localisation, cache.getAttribute("data-variante-colonne") || "");
-      cache.value = essaye;
+      const choisie = etatDeLaVariante?.choisie;
+      const porteuse = champDeLIdentifiant(texte(choisie?.id)).id;
+
+      // Toutes les colonnes que le projet offre, et elles seules : une colonne
+      // que son tableau ne porte nulle part n'est pas une valeur qu'on peut
+      // faire varier, et la lui imposer ferait refuser le lot entier.
+      const offertes = (etatDeLaVariante?.valeurs ?? [])
+        .map((valeur) => texte(valeur.id))
+        .filter((id) => champDeLIdentifiant(id).id === porteuse);
+
+      const substitutions = substitutionsDeLaLocalisation(localisation, {
+        id: porteuse,
+        ligne: choisie?.assertion?.payload?.tableau?.[0] ?? null,
+        offertes
+      });
+
+      if (!substitutions.length) {
+        etatDeLaVariante = {
+          ...etatDeLaVariante, portees: [], saisie: "",
+          echec: "C'est déjà là que le projet se trouve : il n'y a pas de variante."
+        };
+        dessinerLaVariante(root);
+        return;
+      }
+
+      // La colonne choisie à gauche reste celle qu'on affiche dans le champ
+      // caché : c'est elle que l'en-tête du résultat nomme.
+      const colonne = texte(cache.getAttribute("data-variante-colonne"));
+      cache.value = substitutions.find((entree) => entree.colonne === colonne)?.valeur ?? "";
+
+      etatDeLaVariante = {
+        ...etatDeLaVariante,
+        substitutions,
+        portees: substitutions.map((entree) => ({
+          nom: nomDeLaColonne(entree.colonne),
+          valeur: entree.valeur
+        })),
+        saisie: cache.value,
+        echec: ""
+      };
       // Redessiner dit ce qui a été retenu de l'adresse : sans cela on choisit
       // dans la liste et rien ne bouge à l'écran, ce qui se lit comme une panne.
-      etatDeLaVariante = { ...etatDeLaVariante, saisie: essaye, echec: "" };
       dessinerLaVariante(root);
     },
     quandEchoue: (motif) => {
@@ -330,6 +379,11 @@ function brancherLAdresseDeLaVariante(root) {
   });
 }
 
+/** Le nom déclaré d'une colonne de la localisation, ou sa clé à défaut. */
+function nomDeLaColonne(cle) {
+  return STRUCTURE_DE_LA_LOCALISATION.find((colonne) => colonne.cle === cle)?.nom || cle;
+}
+
 /** Les gestes de l'écran de variante. */
 function brancherLEcranDeVariante(root) {
   for (const bouton of root.querySelectorAll("[data-variante-choisir]")) {
@@ -337,7 +391,11 @@ function brancherLEcranDeVariante(root) {
       const id = bouton.getAttribute("data-variante-choisir") || "";
       const choisie = (etatDeLaVariante?.valeurs ?? []).find((valeur) => valeur.id === id) ?? null;
       if (!choisie) return;
-      etatDeLaVariante = { ...etatDeLaVariante, choisie, saisie: "", echec: "", etape: ETAPE.SAISIE, rendu: null };
+      etatDeLaVariante = {
+        ...etatDeLaVariante, choisie, saisie: "", echec: "", etape: ETAPE.SAISIE, rendu: null,
+        // Ce qu'une adresse avait porté ne vaut plus : on essaie autre chose.
+        substitutions: [], portees: []
+      };
       dessinerLaVariante(root);
       root.querySelector("[data-variante-valeur]")?.focus();
     });

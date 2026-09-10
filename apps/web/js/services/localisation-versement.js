@@ -32,37 +32,79 @@ import {
 // La mémoire n'a qu'une façon d'écrire une mesure : virgule décimale, unité
 // collée. Deux écritures d'une même cote ne se comparent plus (règle 4).
 import { mesureEcrite } from "../utilitaires/lecture-fait.js";
+// Et une seule façon d'écrire une coordonnée : six décimales, point décimal.
+import { coordonneeEcrite, nombreOuRien } from "./adresse-saisie.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
 export { SUJET_ALTITUDE, SUJET_LOCALISATION, STRUCTURE_DE_LA_LOCALISATION };
 
 /**
- * La localisation telle qu'elle se verse : une ligne, quatre colonnes.
+ * La localisation telle qu'elle se verse : **une ligne, six colonnes**.
  *
- * Un tableau d'une seule ligne, et non quatre sujets. Une commune, son code
- * INSEE et son code postal ne se lisent pas séparément — c'est **un** endroit —,
- * et les éclater ferait quatre lignes de mémoire qu'aucun écran ne sait replier.
+ * Un tableau d'une seule ligne, et non six sujets. Une commune, son code INSEE,
+ * son code postal et le point où le projet se trouve ne se lisent pas
+ * séparément — c'est **un** endroit —, et les éclater ferait six lignes de
+ * mémoire qu'aucun écran ne sait replier.
  *
- * `null` sans code INSEE : deux communes françaises portent le même nom, aucune
- * ne partage son code, et les tables de zonage se lisent par lui. Verser sans
- * lui reviendrait à retenir une localisation avec laquelle rien ne se calcule.
+ * ## Une adresse, ou un point
+ *
+ * Un projet qui n'est pas construit n'a pas d'adresse : il est dans un champ, et
+ * ce qui le situe est le couple de coordonnées qu'on est allé pointer sur une
+ * vue satellite. Les deux formes vivent donc dans la **même** ligne — l'adresse
+ * peut manquer, le point peut manquer —, et non dans deux sujets qui auraient
+ * fini par se contredire.
+ *
+ * ## Ce qui la rend versable
+ *
+ * Le **code INSEE**, toujours : deux communes françaises portent le même nom,
+ * aucune ne partage son code, et les tables de zonage se lisent par lui. Un
+ * point pointé sur la carte en donne un — le service d'adresses le rend à
+ * l'envers, depuis les coordonnées —, si bien qu'un projet sans adresse en a un
+ * quand même. Sans lui, on retiendrait une localisation avec laquelle rien ne se
+ * calcule.
  */
 export function ligneDeLaLocalisation(localisation = {}) {
   const ligne = {
     commune: texte(localisation.city ?? localisation.commune),
     codeInsee: texte(localisation.codeInsee ?? localisation.code_insee),
     codePostal: texte(localisation.postalCode ?? localisation.codePostal ?? localisation.postal_code),
-    adresse: texte(localisation.address ?? localisation.adresse)
+    adresse: texte(localisation.address ?? localisation.adresse),
+    latitude: coordonneeEcrite(localisation.latitude ?? localisation.lat),
+    longitude: coordonneeEcrite(localisation.longitude ?? localisation.lon)
   };
   return ligne.codeInsee ? ligne : null;
 }
 
-/** Comment la localisation se dit en une phrase, sur sa ligne de mémoire. */
+/**
+ * Comment la localisation se dit en une phrase, sur sa ligne de mémoire.
+ *
+ * Le point s'écrit quand il n'y a pas d'adresse — c'est alors la seule chose qui
+ * situe le projet, et une phrase qui ne dirait que « Commune (INSEE 00000) »
+ * laisserait croire qu'on ne sait pas où il est dans la commune.
+ */
 export function phraseDeLaLocalisation(ligne = null) {
   if (!ligne) return "";
+
   const nom = ligne.commune || "commune inconnue";
-  return ligne.codePostal ? `${nom} (${ligne.codePostal}, INSEE ${ligne.codeInsee})` : `${nom} (INSEE ${ligne.codeInsee})`;
+  const administratif = ligne.codePostal
+    ? `${nom} (${ligne.codePostal}, INSEE ${ligne.codeInsee})`
+    : `${nom} (INSEE ${ligne.codeInsee})`;
+
+  if (texte(ligne.adresse)) return administratif;
+
+  const point = pointDit(ligne);
+  return point ? `${administratif} — ${point}` : administratif;
+}
+
+/**
+ * Le point, écrit pour être lu par un humain : quatre décimales, séparés d'une
+ * virgule. Les six décimales versées se comparent ; celles-ci se lisent.
+ */
+export function pointDit(ligne = null) {
+  const lat = nombreOuRien(ligne?.latitude);
+  const lon = nombreOuRien(ligne?.longitude);
+  return lat === null || lon === null ? "" : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 }
 
 /**
@@ -86,7 +128,8 @@ export function localisationVersable(localisation = {}, { zone = "", ou = "" } =
     valeur: phraseDeLaLocalisation(ligne),
     tableau: [ligne],
     structure: STRUCTURE_DE_LA_LOCALISATION,
-    quoi: "Où le projet se trouve : sa commune, son code INSEE, son code postal et son adresse.",
+    quoi: "Où le projet se trouve : sa commune, son code INSEE, son code postal, son adresse "
+      + "quand il en a une, et le point qu'on a retenu.",
     utilisation: "L'entrée de la chaîne climatique. Les zonages neige et vent, puis la cote "
       + "hors gel, en découlent — et se refont quand elle change.",
     nature: NATURE.DONNEE_BASE,

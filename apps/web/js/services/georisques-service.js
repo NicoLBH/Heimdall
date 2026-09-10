@@ -1,5 +1,6 @@
 const COMMUNES_API_URL = "https://geo.api.gouv.fr/communes";
 const ADDRESS_API_URL = "https://api-adresse.data.gouv.fr/search/";
+const REVERSE_API_URL = "https://api-adresse.data.gouv.fr/reverse/";
 const IGN_COMPLETION_API_URL = "https://data.geopf.fr/geocodage/completion/";
 const IGN_ELEVATION_API_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
 const GEORISQUES_API_BASE = "https://www.georisques.gouv.fr/api/v1";
@@ -368,6 +369,55 @@ export async function resolveFrenchAddress(query = "") {
     codeInsee: safeString(properties.citycode),
     lat: coords.lat,
     lon: coords.lon,
+    sourceUrl: url
+  };
+}
+
+/**
+ * La commune d'un point, à l'envers : des coordonnées vers un code INSEE.
+ *
+ * ## Pourquoi il fallait ce sens-là
+ *
+ * Un projet qui n'est pas construit n'a pas d'adresse. Il est dans un champ, et
+ * la seule chose qui le situe est le point qu'on est allé chercher sur une vue
+ * satellite. Sans cet appel, ce projet-là n'avait **pas de code INSEE** — et
+ * sans code INSEE, aucune table de zonage ne se lit : il n'aurait eu ni neige,
+ * ni vent, ni cote hors gel.
+ *
+ * Le service rend l'adresse la plus proche. On garde sa commune, son code INSEE
+ * et son code postal — pas son adresse : la maison d'à côté n'est pas le projet,
+ * et l'écrire reviendrait à inventer une adresse que personne n'a constatée
+ * (règle 5). Les coordonnées rendues sont **celles qu'on a demandées**, pas
+ * celles de l'adresse trouvée.
+ */
+export async function resolveFrenchCoordinates({ latitude = null, longitude = null } = {}) {
+  const lat = toNumber(latitude);
+  const lon = toNumber(longitude);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    throw new Error("Coordonnées latitude / longitude requises.");
+  }
+
+  const searchParams = new URLSearchParams({ lat: String(lat), lon: String(lon), limit: "1" });
+  const url = `${REVERSE_API_URL}?${searchParams.toString()}`;
+  const results = await fetchJson(url);
+  const feature = Array.isArray(results?.features) ? results.features[0] : null;
+
+  if (!feature) {
+    throw new Error("Aucune commune trouvée à cet endroit.");
+  }
+
+  const properties = feature.properties || {};
+
+  return {
+    // Vide, et non l'adresse voisine : le projet n'en a pas, et lui en prêter
+    // une ferait entrer en mémoire un fait que personne n'a constaté.
+    address: "",
+    city: safeString(properties.city),
+    postalCode: safeString(properties.postcode),
+    codeInsee: safeString(properties.citycode),
+    lat,
+    lon,
     sourceUrl: url
   };
 }

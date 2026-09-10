@@ -15443,6 +15443,18 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 }
 .climat-localisation__resolu dt{ color:var(--muted); }
 .climat-localisation__resolu dd{ margin:0; font-weight:600; }
+/* Le point posé se montre **à part** de la localisation d'aujourd'hui : ce sont
+   deux endroits, et les mélanger ferait croire que le projet a déjà bougé alors
+   qu'on est en train de chercher. */
+.climat-localisation__pointe{
+  display:flex; flex-direction:column; gap:4px;
+  padding:8px; border:1px dashed var(--border); border-radius:var(--radius);
+  font-size:12px; line-height:1.5;
+}
+.climat-localisation__pointe > b{ display:flex; align-items:center; gap:6px; }
+.climat-localisation__pointe .octicon{ color:#e5534b; }
+.climat-localisation__coords{ font-variant-numeric:tabular-nums; color:var(--muted); }
+
 /* L'attente se dit : sans elle, choisir une adresse laisse l'écran immobile le
    temps de trois appels, et l'on reclique. */
 .climat-localisation__attente{
@@ -15457,6 +15469,116 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   border-radius:var(--radius);
   background:var(--attention-fond, rgba(210,153,34,.1));
   font-size:12px; line-height:1.5;
+}
+
+/* Le lien vers la recherche approfondie : aligné à droite, au-dessus du champ,
+   et **seulement** en mode modifier — hors de ce mode, il proposerait de
+   chercher une localisation qu'on n'a pas demandé à changer. */
+/* Caché tant que le champ n'est pas en modification. `:has()` lit l'état posé
+   par `bindGhEditableFields` sur le champ **suivant** : le lien se dessine
+   toujours, parce que « Modifier » ne redessine pas l'écran — il pose une
+   classe —, et le redessiner d'ici sortirait du mode qu'on vient d'y entrer. */
+.settings-lien-approfondi{ display:none; margin:0 0 6px; }
+.col-span-2:has(.gh-editable-field.is-editing) > .settings-lien-approfondi{
+  display:flex; justify-content:flex-end;
+}
+.gh-lien{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:0; border:0; background:none;
+  color:var(--link, #4493f8); font: inherit; font-size:12px;
+  cursor:pointer;
+}
+.gh-lien:hover{ text-decoration:underline; }
+.gh-lien .octicon{ color:inherit; }
+
+/* ── La fenêtre de recherche approfondie ──────────────────────────────────
+   Le champ d'adresse et la carte à pointer, côte à côte : on cherche
+   grossièrement, puis on pointe précisément. */
+
+.recherche-localisation{ display:flex; flex-direction:column; gap:10px; width:min(760px, 92vw); }
+.recherche-localisation__lead{ margin:0; font-size:12px; line-height:1.6; color:var(--muted); }
+.recherche-localisation__echec{
+  margin:0; padding:8px; border-radius:var(--radius);
+  border:1px solid var(--attention-bord, rgba(210,153,34,.4));
+  background:var(--attention-fond, rgba(210,153,34,.1));
+  font-size:12px;
+}
+.recherche-localisation__retenue{
+  display:flex; flex-direction:column; gap:4px;
+  padding:8px; border:1px solid var(--border); border-radius:var(--radius);
+  font-size:12px; line-height:1.5;
+}
+.recherche-localisation__vide{ color:var(--muted); font-style:italic; }
+.recherche-localisation__bouge{ color:var(--muted); }
+
+/* ── La carte qu'on déplace, et le point qu'on y pose ─────────────────────
+   La vue satellite est servie dans une `iframe` : on ne peut ni lui demander
+   son centre, ni écouter ses clics. Un voile transparent par-dessus capte les
+   gestes, et le centre se recalcule. Voir `views/ui/carte-a-pointer.js`. */
+
+.carte-pointee{ position:relative; width:100%; border-radius:var(--radius); overflow:hidden; }
+.carte-pointee__fond{ position:absolute; inset:0; }
+.carte-pointee__carte{ width:100%; height:100%; }
+
+/* Le voile prend tous les gestes : sans lui, ils partiraient dans l'`iframe`,
+   qui ne nous dirait jamais ce qu'elle en a fait. */
+.carte-pointee__voile{
+  position:absolute; inset:0; z-index:2;
+  cursor:grab; touch-action:none;
+}
+.carte-pointee__voile.est-tiree{ cursor:grabbing; }
+/* Le voile suit le doigt pendant qu'on tire ; la carte, elle, se repose au
+   relâchement — une `iframe` se recharge à chaque changement de centre, et un
+   rechargement par pixel donnerait un clignotement continu. */
+.carte-pointee__voile.est-tiree .carte-pointee__marqueur{
+  transform:translate(
+    calc(-50% + var(--carte-glissement-x, 0px)),
+    calc(-100% + var(--carte-glissement-y, 0px))
+  ) !important;
+}
+
+.carte-pointee__viseur,
+.carte-pointee__marqueur{
+  position:absolute; left:50%; top:50%;
+  pointer-events:none; line-height:0;
+}
+.carte-pointee__viseur{
+  transform:translate(-50%, -50%);
+  color:#fff; opacity:.85;
+  filter:drop-shadow(0 0 2px rgba(0,0,0,.9));
+}
+/* Rouge, et posé par la pointe : un marqueur centré sur son milieu montre le
+   projet vingt mètres au nord de là où il est. */
+.carte-pointee__marqueur{
+  transform:translate(-50%, -100%);
+  color:#e5534b;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));
+}
+.carte-pointee__marqueur .octicon{ width:28px; height:28px; }
+.carte-pointee__marqueur--centre{ transform:translate(-50%, -100%); }
+
+.carte-pointee__zoom{
+  position:absolute; z-index:3; top:12px; right:12px;
+  display:flex; flex-direction:column; gap:4px;
+}
+.carte-pointee__zoom .gh-btn{ width:32px; padding:0; justify-content:center; }
+
+/* En bas, au milieu, au-dessus du bouton : le haut de la carte est occupé —
+   les écrans qui la portent y posent leurs propres cartouches, et la consigne
+   passait derrière eux. */
+.carte-pointee__mode{
+  position:absolute; z-index:3; left:50%; bottom:56px;
+  transform:translateX(-50%);
+  display:flex; align-items:center; gap:8px;
+  max-width:min(560px, 80%);
+  margin:0; padding:6px 10px; border-radius:var(--radius);
+  background:rgba(0,0,0,.62); color:#fff;
+  font-size:12px; line-height:1.4;
+}
+.carte-pointee__mode .octicon{ flex:0 0 auto; }
+.carte-pointee__poser{
+  position:absolute; z-index:3; left:50%; bottom:14px;
+  transform:translateX(-50%);
 }
 
 /* ── Le champ d'adresse, partagé ──────────────────────────────────────────
@@ -15478,6 +15600,21 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .variante-saisie__champ--adresse{ display:flex; flex-direction:column; gap:4px; }
 .variante-saisie__champ--adresse > span{ color:var(--muted); }
 .variante-saisie__essaye{ color:var(--accent, var(--link, inherit)); }
+/* Les six colonnes qu'une adresse remplace. Sans cette liste, on choisit une
+   adresse et l'on ne voit pas qu'elle change aussi le code INSEE — c'est-à-dire
+   tout ce qui se recalcule ensuite. */
+.variante-saisie__portees{
+  display:flex; flex-direction:column; gap:2px;
+  margin:0; padding:8px; list-style:none;
+  border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg); font-size:11px;
+}
+.variante-saisie__portees li{
+  display:grid; grid-template-columns:minmax(70px, auto) minmax(0, 1fr);
+  gap:8px; align-items:baseline;
+}
+.variante-saisie__colonne{ color:var(--muted); }
+.variante-saisie__portees b{ overflow-wrap:anywhere; }
 
 /* ── Propositions ─────────────────────────────────────────────────────────
    Un changement du corpus soumis à jugement. L'écran reprend la liste de pull
@@ -21826,8 +21963,18 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   margin-bottom:12px;
 }
 /* À l'horizontale, le dessin déborde plutôt qu'il ne se replie : une chaîne de
-   six étapes tassée en six colonnes de 90 px ne se lit pas. */
-.variante-chaine .run-graph__canvas{ overflow-x:auto; }
+   six étapes tassée en six colonnes de 90 px ne se lit pas.
+
+   Le défilement vit sur **un cadre autour**, jamais sur le dessin : celui-ci est
+   la rangée elle-même, en `width:max-content`, et lui demander de défiler
+   revenait à demander à un contenu de se contenir. Les cartes sortaient donc du
+   bloc et couraient sous la colonne d'à côté. */
+.variante-chaine__vue{ max-width:100%; overflow-x:auto; }
+/* Et une carte ne prend pas toute la largeur pour un long libellé : elle le
+   replie. Deux cartes de neuf cents pixels ne se comparent pas d'un regard. */
+.variante-chaine .run-graph__node{ max-width:280px; }
+.variante-chaine .run-graph__label,
+.variante-chaine .run-graph__detail{ overflow-wrap:anywhere; }
 
 .variante-chaine h5{
   display:flex; align-items:center; gap:6px;

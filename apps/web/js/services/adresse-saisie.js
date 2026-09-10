@@ -32,7 +32,8 @@
  * adresse est choisie**, sans bouton et sans quatre champs à remplir.
  */
 
-import { SUJET_LOCALISATION } from "../utilitaires/agents-climatiques.js";
+import { SUJET_LOCALISATION, STRUCTURE_DE_LA_LOCALISATION } from "../utilitaires/agents-climatiques.js";
+import { SEPARATEUR_DE_CHAMP } from "./tableau-structure.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -158,6 +159,54 @@ export function colonneDeLaLocalisation(valeur = null) {
 }
 
 /**
+ * Ce qu'une adresse choisie substitue à une localisation : **la ligne entière**.
+ *
+ * ## Pourquoi la ligne, et non la colonne
+ *
+ * On ne substituait qu'une colonne, celle sur laquelle on avait cliqué à gauche.
+ * C'était juste au sens du modèle et faux au sens de l'usage : *changer
+ * l'adresse d'un projet, c'est le déplacer*. Choisir « Chamonix » en ne
+ * remplaçant que la colonne « adresse » laissait le code INSEE de la commune
+ * d'avant, et rien ne se recalculait — l'écran affichait « l'outil n'a pas
+ * répondu » sur toute la chaîne climatique.
+ *
+ * On remplace donc les six colonnes d'un coup : c'est **un** endroit qui en
+ * remplace un autre.
+ *
+ * ## Ce qui ne change pas ne se substitue pas
+ *
+ * Une colonne dont la valeur est déjà celle du projet est écartée : le rejeu
+ * refuse une variante qui n'en est pas une — « c'est ce que le projet dit déjà »
+ * —, et une seule colonne inchangée ferait échouer le lot entier.
+ *
+ * @param {object} localisation l'adresse résolue, ou le point pointé
+ * @param {object} options
+ * @param {string} options.id l'identifiant de l'affirmation qui porte la ligne
+ * @param {object} [options.ligne] la ligne du projet aujourd'hui
+ * @param {string[]} [options.offertes] les identifiants que l'écran propose ;
+ *   une colonne que le tableau du projet ne porte nulle part n'en est pas
+ * @returns {{id: string, colonne: string, valeur: string}[]}
+ */
+export function substitutionsDeLaLocalisation(localisation = null, { id = "", ligne = null, offertes = null } = {}) {
+  const base = texte(id);
+  if (!localisation || !base) return [];
+
+  const possibles = Array.isArray(offertes) ? new Set(offertes.map(texte)) : null;
+
+  return STRUCTURE_DE_LA_LOCALISATION
+    .map((colonne) => ({
+      id: `${base}${SEPARATEUR_DE_CHAMP}${colonne.cle}`,
+      colonne: colonne.cle,
+      valeur: valeurDeLaColonne(localisation, colonne.cle)
+    }))
+    // Ce qu'on ne sait pas ne s'essaie pas : une adresse absente ne remplace
+    // pas l'adresse du projet par du vide (règle 5).
+    .filter((entree) => entree.valeur)
+    .filter((entree) => texte(ligne?.[entree.colonne]) !== entree.valeur)
+    .filter((entree) => possibles === null || possibles.has(entree.id));
+}
+
+/**
  * Ce qu'une colonne de la localisation vaut, dans une adresse choisie.
  *
  * Les clés du tableau versé ne sont pas celles du service d'adresses —
@@ -166,6 +215,18 @@ export function colonneDeLaLocalisation(valeur = null) {
  * absent et substituerait une chaîne vide, ce qui se calcule très bien jusqu'à
  * une zone de neige fausse.
  */
+/**
+ * Une coordonnée, écrite comme la mémoire l'écrira.
+ *
+ * Six décimales : le dixième de mètre. Le point décimal, et non la virgule —
+ * une coordonnée n'est pas une mesure qu'on lit dans une phrase, c'est un
+ * nombre qu'un service reprendra, et « 45,9 » n'en est pas un pour lui.
+ */
+export function coordonneeEcrite(valeur) {
+  const n = nombreOuRien(valeur);
+  return n === null ? "" : n.toFixed(6);
+}
+
 export function valeurDeLaColonne(localisation = null, cle = "") {
   if (!localisation) return "";
 
@@ -174,6 +235,12 @@ export function valeurDeLaColonne(localisation = null, cle = "") {
     case "codeInsee": return texte(localisation.codeInsee);
     case "codePostal": return texte(localisation.postalCode);
     case "adresse": return texte(localisation.address);
+    // Les coordonnées s'écrivent avec **six décimales** : c'est le dixième de
+    // mètre, et c'est ce qui permet de dire qu'un projet a bougé de cent mètres
+    // sans changer de commune. Les arrondir plus tôt effacerait le déplacement
+    // qu'on cherche justement à voir.
+    case "latitude": return coordonneeEcrite(localisation.latitude);
+    case "longitude": return coordonneeEcrite(localisation.longitude);
     default: return "";
   }
 }
