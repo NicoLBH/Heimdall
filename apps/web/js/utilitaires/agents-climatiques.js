@@ -98,14 +98,30 @@ export const STRUCTURE_DE_LA_LOCALISATION = [
 ];
 
 /**
- * La localisation, telle que les deux agents la lisent.
+ * La localisation, telle que **tout ce qui la lit** la lit.
  *
- * **Le même objet dans les deux `lit`**, et pas deux copies : ce que ce sujet
- * est, ce à quoi il sert et la forme qu'il a ne changent pas selon qui le lit.
- * L'altitude, elle, a deux phrases différentes — les deux agents la lisent pour
- * deux raisons différentes —, et c'est légitime.
+ * **Le même objet partout**, et pas cinq copies : ce que ce sujet est, ce à quoi
+ * il sert et la forme qu'il a ne changent pas selon qui le lit. L'altitude, elle,
+ * a deux phrases différentes — les deux agents la lisent pour deux raisons
+ * différentes —, et c'est légitime.
+ *
+ * ## Pourquoi `champ` est ici, et pourquoi il compte
+ *
+ * La localisation se verse comme **un tableau d'une ligne à quatre colonnes** —
+ * c'est un endroit, pas quatre faits. `champ` dit par laquelle elle entre dans
+ * un calcul : le **code INSEE**, et lui seul. L'adresse, comme le dit sa propre
+ * définition, « ne décide de rien dans les zonages : elle situe ».
+ *
+ * Les trois déductions climatiques répétaient `entree: "code_insee"` chacune de
+ * leur côté, **sans** `champ`. Le rejeu ne pouvait donc pas savoir qu'une
+ * variante d'adresse ne les concernait pas : il envoyait l'adresse entière dans
+ * le champ du code INSEE, le serveur répondait 400, et l'écran affichait
+ * « l'outil n'a pas répondu » — on cherchait une panne de réseau là où il n'y
+ * avait qu'une colonne qui ne décide de rien. Un même fait écrit à quatre
+ * endroits finit par diverger (règle 4) : il s'écrit ici, et les quatre
+ * l'importent.
  */
-const LIT_LA_LOCALISATION = {
+export const LIT_LA_LOCALISATION = {
   sujet: SUJET_LOCALISATION,
   // Le champ de l'appel qui porte ce sujet, et la clé du tableau qui l'alimente :
   // la localisation est une ligne à plusieurs colonnes, et c'est le code INSEE

@@ -46,7 +46,8 @@ import { getLastStudioToolResult, resolveStudioClimateTool } from "../../../serv
 import { getEffectiveProjectLocation } from "./solidity-climate-tool-common.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
-import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
+import { branchesOuvertes, rafraichirLesBranches } from "../../../services/branches-ouvertes.js";
+import { avertirAvantDeProposer, renderPropositionOuverte } from "../../ui/avertissement-proposition.js";
 import { demanderLeTitre } from "../../ui/titre-de-la-proposition.js";
 import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
@@ -77,7 +78,14 @@ const state = {
   location: null,
   results: {}, mapUrl: "", mapLoading: false,
   /** Ce que la dernière adresse choisie n'a pas donné, s'il y a lieu. */
-  saisieEchec: "" };
+  saisieEchec: "",
+  /**
+   * La proposition qu'on vient d'ouvrir, tant qu'on est sur cet écran.
+   *
+   * L'écran partait sur Propositions > détail ; il reste ici et **offre** le
+   * lien. Voir `views/ui/avertissement-proposition.js`.
+   */
+  propositionOuverte: null };
 
 /** Le nom du champ d'adresse, sur cet écran-ci. */
 const SAISIE_DU_CLIMAT = "climat";
@@ -213,6 +221,25 @@ async function proposerLesZones(root, propositionId = "") {
     return;
   }
 
+  // Prévenir **avant** tout le reste. Ce lot change huit lignes d'un coup — la
+  // localisation, l'altitude, les deux appels, les quatre valeurs —, et l'on
+  // clique « Transformer » en croyant proposer une zone de neige. La fenêtre
+  // les montre, et rappelle que rien n'entre avant la fusion.
+  const ou = await avertirAvantDeProposer({
+    quoi: "Les zones et charges climatiques calculées ici vont être proposées à la mémoire "
+      + "du projet, avec la localisation et l'altitude qui les ont produites.",
+    affirmations,
+    memoire: await memoireDuProjet(),
+    // Le menu « Transformer » a déjà demandé où : la redemander serait poser
+    // deux fois la même question dans le même geste.
+    imposee: propositionId
+      ? (branchesOuvertes() ?? []).find((branche) => String(branche.id) === String(propositionId))
+        ?? { id: propositionId, libelle: "la proposition choisie" }
+      : null,
+    branches: branchesOuvertes()
+  });
+  if (!ou) return;
+
   // Où cela s'applique se demande **avant** d'ouvrir la proposition.
   const { demanderLesZones } = await import("../../ui/choix-des-zones.js");
   const zones = await demanderLesZones({ projectId: state.projectId });
@@ -233,7 +260,9 @@ async function proposerLesZones(root, propositionId = "") {
   const { preparerUneProposition } = await import("../../../services/atelier-proposition.js");
   const rendu = await preparerUneProposition({
     projectId: state.projectId,
-    propositionId,
+    // Celle que la fenêtre a retenue : le menu peut avoir dit « nouvelle », et
+    // c'est la fenêtre qui a le dernier mot puisque c'est elle qu'on a lue.
+    propositionId: ou.propositionId || propositionId,
     titre: nom?.titre || buildClimateDraftTitle(),
     // Le résumé écrit devient l'introduction : la description garde ensuite la
     // liste des valeurs, qui n'a pas à disparaître parce qu'on a une phrase.
@@ -258,19 +287,37 @@ async function proposerLesZones(root, propositionId = "") {
   // La liste des propositions ouvertes vient de changer : celle qu'on vient
   // d'ouvrir n'y était pas, et celle qu'on vient d'enrichir n'a plus le même
   // contenu. La garder ferait rouvrir une troisième proposition au clic suivant.
-  oublierLesBranches();
+  // Et c'est la même lecture qui repose le compteur de la barre d'onglets.
+  void rafraichirLesBranches();
 
+  // **On reste ici.** L'écran partait sur Propositions > détail, ce qui faisait
+  // perdre le fil de ce qu'on était en train de régler : on venait d'essayer une
+  // adresse, on en essayait une autre, et l'on se retrouvait ailleurs. Le lien
+  // vers la proposition est offert, il n'est pas imposé.
+  state.propositionOuverte = {
+    id: rendu.proposition.id,
+    numero: rendu.proposition.number ?? null,
+    titre: nom?.titre || buildClimateDraftTitle(),
+    // Ce qui n'a pas pu être porté se dit **ici**, puisqu'on ne quitte plus
+    // l'écran : le taire ferait croire que tout est passé.
+    tranches: rendu.tranches ?? []
+  };
   render(root);
-  // On va où la signature se donne, **et sur la proposition elle-même** : la
-  // liste obligerait à retrouver à la main celle qu'on vient de préparer.
-  store.pendingPropositionId = rendu.proposition.id;
-  // Ce qui n'a pas pu être porté se dit là où ces lignes se trouvent, pas ici :
-  // on quitte cet écran à la ligne suivante.
-  store.pendingPropositionTranches = rendu.tranches?.length
-    ? { propositionId: rendu.proposition.id, tranches: rendu.tranches }
-    : null;
-  const projet = String(store.currentProjectId || "").trim();
-  if (projet) window.location.hash = `#project/${projet}/propositions`;
+}
+
+/**
+ * Ce que la mémoire du projet dit aujourd'hui, pour la fenêtre d'avertissement.
+ *
+ * `null` quand on n'a pas pu la lire : la fenêtre l'écrit plutôt que d'afficher
+ * « rien aujourd'hui » sur huit lignes qui existent peut-être (règle 5).
+ */
+async function memoireDuProjet() {
+  try {
+    const { listProjectAssertions } = await import("../../../services/project-memory-supabase.js");
+    return await listProjectAssertions(state.projectId);
+  } catch {
+    return null;
+  }
 }
 
 async function hydrateState() {
@@ -376,6 +423,10 @@ function render(root) {
         </div>
         <div class="settings-card__body studio-tool-card__body">
           ${state.error ? `<p class="gh-text-muted" style="color:var(--danger);">${escapeHtml(state.error)}</p>` : ""}
+          ${renderPropositionOuverte({
+            projet: String(store.currentProjectId || "").trim(),
+            proposition: state.propositionOuverte
+          })}
           <div data-solidity-climate-map class="studio-tool-map-layer">
             ${renderMapCard()}
           </div>

@@ -38,6 +38,8 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { definedZones, normalizeZoneKey } from "../../services/project-zones.js";
 import { resolveCurrentBackendProjectId } from "../../services/project-supabase-sync.js";
+import { avertirAvantDeProposer, renderPropositionOuverte } from "../ui/avertissement-proposition.js";
+import { branchesOuvertes, rafraichirLesBranches } from "../../services/branches-ouvertes.js";
 import { definitionVersable, renommageVersable, retraitVersable } from "../../services/zones-versement.js";
 import { preparerUneProposition } from "../../services/atelier-proposition.js";
 import { renderSectionCard, rerenderProjectParametres } from "./project-parametres-core.js";
@@ -71,7 +73,14 @@ const state = {
   /** Garder le formulaire ouvert pour la zone suivante. */
   encore: true,
   /** L'exemple montré. Il avance d'un cran à chaque zone ajoutée. */
-  exemple: 0
+  exemple: 0,
+  /**
+   * La proposition qu'on vient d'ouvrir, tant qu'on est sur cet écran.
+   *
+   * L'écran partait sur Propositions > détail, ce qui empêchait d'ajouter deux
+   * zones de suite. Voir `views/ui/avertissement-proposition.js`.
+   */
+  proposition: null
 };
 
 /** L'exemple du moment, sans jamais sortir de la liste. */
@@ -207,6 +216,10 @@ function renderCorps() {
 
   return `
     ${state.notice ? `<div class="settings-inline-notice">${escapeHtml(state.notice)}</div>` : ""}
+    ${renderPropositionOuverte({
+      projet: String(store.currentProjectId || "").trim(),
+      proposition: state.proposition
+    })}
     ${renderFormulaire()}
     ${tableau}
   `;
@@ -238,13 +251,24 @@ function renderDecoupageParametresContent() {
  * qu'il faudrait retrouver ferait croire que rien ne s'est passé — c'est
  * exactement ce qu'on reprochait à l'écriture directe, en sens inverse.
  */
-async function proposer({ titre, intro, lignes }) {
+async function proposer({ titre, intro, lignes, quoi }) {
   const dites = (Array.isArray(lignes) ? lignes : []).filter(Boolean);
   if (!dites.length) {
     state.notice = "Rien à proposer.";
     rerenderProjectParametres();
     return;
   }
+
+  // Prévenir **avant**. L'écran partait droit sur une proposition : on cliquait
+  // « Ajouter » en croyant ajouter une zone, et l'on se retrouvait sur un écran
+  // de relecture sans avoir su qu'on venait d'ouvrir quelque chose à signer.
+  const vers = await avertirAvantDeProposer({
+    quoi: quoi || "Cette modification du découpage va être proposée à la mémoire du projet.",
+    affirmations: dites,
+    memoire: Array.isArray(state.assertions) ? state.assertions : null,
+    branches: branchesOuvertes()
+  });
+  if (!vers) return;
 
   state.busy = true;
   state.notice = "";
@@ -256,6 +280,7 @@ async function proposer({ titre, intro, lignes }) {
 
     const rendu = await preparerUneProposition({
       projectId, titre, intro, affirmations: dites,
+      propositionId: vers.propositionId,
       // Pas de portée : une définition de zone vaut pour l'ouvrage, pas pour la
       // partie qu'elle décrit — sans quoi elle disparaîtrait de toute lecture
       // autre que la sienne, y compris de celle où on la cherche.
@@ -265,9 +290,16 @@ async function proposer({ titre, intro, lignes }) {
 
     state.exemple += 1;
     state.assertions = null;
-    store.pendingPropositionId = rendu.proposition.id;
-    const projet = String(store.currentProjectId || "").trim();
-    if (projet) window.location.hash = `#project/${projet}/propositions`;
+    // **On reste ici.** L'écran partait sur Propositions > détail, ce qui
+    // empêchait d'ajouter deux zones de suite : on revenait à la main entre
+    // chaque. Le lien vers la proposition est offert, pas imposé.
+    state.proposition = {
+      id: rendu.proposition.id,
+      numero: rendu.proposition.number ?? null,
+      titre: rendu.proposition.title ?? titre,
+      tranches: rendu.tranches ?? []
+    };
+    void rafraichirLesBranches();
   } catch (error) {
     state.notice = error instanceof Error ? error.message : String(error);
   } finally {
@@ -312,6 +344,8 @@ function bindDecoupageParametresSection(root) {
     }
 
     void proposer({
+      quoi: `Ajouter la zone « ${nom} » au découpage du projet. Ce qui la portera ne vaudra `
+        + `que pour elle — et rien ne vaudra pour elle tant que la proposition n'est pas fusionnée.`,
       titre: `Découpage du projet — ajouter « ${nom} »`,
       intro: "Une partie de l'ouvrage de plus, et ce qu'elle recouvre. Ce qui la portera ne "
         + "vaudra que pour elle.",
@@ -362,6 +396,10 @@ function bindDecoupageParametresSection(root) {
       const renommee = Boolean(zone) && zone.label !== nouveauNom;
 
       void proposer({
+        quoi: renommee
+          ? `Renommer « ${zone?.label ?? ""} » en « ${nouveauNom} ». La clé d'une zone vient de `
+            + `son nom : renommer, c'est en définir une et en retirer une autre.`
+          : `Préciser ce que « ${nouveauNom} » recouvre.`,
         titre: renommee
           ? `Découpage du projet — renommer « ${zone.label} » en « ${nouveauNom} »`
           : `Découpage du projet — préciser « ${nouveauNom} »`,
@@ -383,6 +421,8 @@ function bindDecoupageParametresSection(root) {
       const zone = definedZones(state.assertions ?? []).find((entry) => entry.key === cle);
       if (!zone) return;
       void proposer({
+        quoi: `Retirer « ${zone.label} » du découpage. Tout ce qui ne valait que pour cette zone `
+          + `quittera le présent — et restera lisible dans l'histoire.`,
         titre: `Découpage du projet — retirer « ${zone.label} »`,
         intro: "Cette partie ne fait plus partie du projet. Ce qui ne valait que pour elle "
           + "quitte le présent, avec son motif — et reste lisible dans l'histoire.",

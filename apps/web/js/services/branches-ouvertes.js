@@ -91,6 +91,49 @@ export function oublierLesBranches() {
   enCours = null;
 }
 
+/**
+ * Relire les propositions ouvertes, **et en reposer le compte** de la barre.
+ *
+ * ## Pourquoi ici
+ *
+ * Le compteur « Propositions » de la barre d'onglets était posé par l'écran des
+ * propositions, en effet de bord : les gestes qui en ouvraient une y
+ * emmenaient. Depuis qu'ils **restent sur l'écran d'origine**, plus personne ne
+ * le pose — on ouvrait une proposition et la barre continuait d'en annoncer
+ * trois.
+ *
+ * Ce fichier est le seul qui sait déjà lire les propositions ouvertes d'un
+ * projet. Le compte se pose donc d'où il se lit : une deuxième lecture ailleurs
+ * finirait par ne plus donner le même nombre (règle 4).
+ *
+ * Une base muette ne remet **rien** : afficher zéro après une lecture ratée
+ * dirait qu'il n'y a plus rien à signer, ce qu'on ne sait pas (règle 5).
+ *
+ * @returns {Promise<number|null>} le compte, ou `null` si la base s'est tue
+ */
+export async function rafraichirLesBranches() {
+  oublierLesBranches();
+
+  const projet = projetAffiche();
+  if (!projet) return null;
+
+  await lire(projet, null);
+  const branches = su.projet === projet && su.lue ? su.branches : null;
+  if (branches === null) return null;
+
+  store.projectPropositionsView = { openCount: branches.length };
+
+  try {
+    const { rafraichirLesOngletsDuProjet } = await import("../views/project-header.js");
+    rafraichirLesOngletsDuProjet();
+  } catch {
+    // La barre n'est pas dessinée — on est hors d'un projet. Le compte est
+    // posé quand même : le prochain dessin le lira.
+  }
+
+  return branches.length;
+}
+
 async function lire(projet, quandCharge) {
   let branches = null;
 

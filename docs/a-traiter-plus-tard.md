@@ -2017,3 +2017,87 @@ Ce qu'il faut, et qui vaut pour les trois :
 Écrire une quatrième popup à côté des trois gestes. C'est exactement l'histoire
 du champ d'adresse : trois copies d'une même question, qui avaient déjà divergé
 avant qu'on les regarde.
+
+---
+
+## 26. Changer d'adresse ne change pas de commune
+
+### Ce que l'étape a posé
+
+La popup d'avertissement de [§ 25](#25-une-seule-saisie-dadresse-et-la-popup-qui-manque-encore),
+partagée par les trois gestes qui passent par une proposition : Paramètres >
+Localisation (sur « Valider »), Paramètres > Découpage (ajout, renommage,
+retrait) et Atelier > Neige, Vent & Gel (« Transformer »). Elle montre ce qui
+va être proposé — ce que la mémoire dit aujourd'hui, ce qu'on propose —, rappelle
+que rien n'entre avant la fusion, laisse annuler, et demande où porter le lot.
+Les trois **restent sur l'écran d'origine** ; le compteur de la barre d'onglets
+se repose depuis `services/branches-ouvertes.js`.
+
+La description d'une proposition s'écrit en Markdown, avec le champ des sujets
+(`views/ui/redaction-markdown.js` câble les briques déjà partagées).
+
+### Ce qu'un essai de variante a révélé
+
+Un export de variante — l'adresse du projet passée de Saint-Michel-Chef-Chef à
+Chamonix — ne recalculait **rien** : `recalculees: []`, `rejouees: []`, et huit
+lignes « à revérifier » dont sept disaient « l'outil n'a pas répondu ». Ni les
+zonages, ni la cote hors gel, ni les fondations.
+
+La cause n'était pas le réseau.
+
+| ce qu'on croyait | ce qui se passait |
+| --- | --- |
+| les agents-D n'ont pas été appelés | ils l'ont été, avec `code_insee = "Place de la Gare 74400 Chamonix-Mont-Blanc"` |
+| l'outil est en panne | le serveur répondait 400, faute de trouver cette commune |
+| la chaîne s'arrête aux fondations | elle s'arrête au **premier** maillon : rien n'ayant bougé, rien ne se propage |
+
+La localisation se verse comme **un tableau d'une ligne à quatre colonnes** —
+commune, code INSEE, code postal, adresse — et une seule entre dans un calcul :
+le code INSEE. `agents-climatiques.js` le déclarait déjà (`champ: "codeInsee"`),
+mais **personne ne lisait cette déclaration**, et les trois déductions
+climatiques recopiaient `entree: "code_insee"` chacune de leur côté sans elle.
+Le rejeu envoyait donc la colonne variée, quelle qu'elle soit, dans le champ du
+code INSEE.
+
+C'est réparé : la colonne visée voyage avec la substitution, les trois
+déductions reprennent la déclaration partagée, et varier une colonne qu'un
+utilitaire ne lit pas rend un refus nommé — « cet utilitaire lit bien ce sujet,
+mais par une autre de ses colonnes » — au lieu d'un appel voué à échouer.
+
+### Ce qui reste, et qu'il faut trancher
+
+**Changer l'adresse d'un projet, dans la tête de celui qui le fait, c'est le
+déplacer.** Le modèle, lui, a raison de dire que l'adresse ne décide de rien :
+c'est le code INSEE qui commande. Les deux se rejoignent mal, et le refus nommé
+ne fait que rendre le désaccord lisible.
+
+Trois réponses possibles, et il faut en choisir une :
+
+1. **La variante d'une localisation porte la ligne entière.** On choisit une
+   adresse dans le champ partagé ; le service rend commune, code INSEE, code
+   postal et coordonnées ; les quatre colonnes se substituent d'un coup. C'est ce
+   que l'utilisateur croit faire, et c'est la seule qui fasse repartir toute la
+   chaîne. Il faut alors que `substitutions` accepte plusieurs colonnes d'un même
+   sujet — aujourd'hui c'est une valeur par identifiant.
+2. **L'écran n'offre que le code INSEE.** Les trois autres colonnes cessent
+   d'être des valeurs qu'on fait varier. Honnête, et frustrant : on ne peut pas
+   « essayer Chamonix » sans connaître son code INSEE.
+3. **On laisse comme maintenant** : quatre colonnes, trois refus nommés. Le
+   moins de code, et le plus d'explications à donner à chaque nouvel arrivant.
+
+La 1 est la bonne, et elle demande de toucher au rejeu.
+
+### Ce que l'essai a montré d'autre, et qui n'est pas ce défaut
+
+- **L'altitude ne se rejoue pas avec la localisation.** Elle est un sujet à part
+  (`Altitude du site`), versé par le même geste mais varié séparément. Déplacer
+  un projet de 13 m à 1 035 m demande donc deux variantes. Si la réponse 1
+  ci-dessus est retenue, l'altitude devrait suivre l'adresse choisie — le relief
+  se lit aux coordonnées.
+- **La mémoire de l'essai portait chaque zonage en double** : une ligne
+  `base-datum` signée par la proposition 64, et une ligne `site-constraint` sans
+  proposition. C'est exactement le doublon décrit en
+  [§ 24](#24-verser-les-contraintes-du-site), constaté sur un projet réel.
+- **`H0 retenu pour le département` est rangé « à revérifier » sans être
+  rejoué**, alors que `agent_d_profondeur_hors_gel_V1` le pose. Sa ligne le cite
+  comme lecture avec une valeur vide. À reprendre avec la réponse 1.
