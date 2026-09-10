@@ -20480,6 +20480,13 @@ body.proposition-merge-open{ overflow:hidden; }
 
 .mdall-provenance{ color:rgb(188,140,255); font-style:italic; }
 
+/* Ce qu'une décision a écarté. Barré, et de la couleur d'un statut « écarté » :
+   c'est le même geste — on l'a laissé de côté —, et le barré dit d'un coup
+   d'œil que cette ligne n'est pas ce que le projet retient. Sans lui, trois
+   « écarté: » sous une valeur se lisaient comme trois valeurs de plus. */
+.mdall-mot-ecarte{ color:rgb(219,109,40); }
+.mdall-ecarte{ color:rgb(240,166,120); text-decoration:line-through; opacity:.9; }
+
 .mdall-mot-statut{ color:rgb(210,153,34); }
 .mdall-statut{ color:rgb(232,193,102); font-weight:600; }
 
@@ -21131,6 +21138,21 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 .titre-propose__champ > span{ color:var(--text); font-size:12px; font-weight:600; }
 .titre-propose__champ > span i{ color:var(--muted); font-weight:400; font-style:normal; }
 .titre-propose__resume{ resize:vertical; font:inherit; line-height:1.5; }
+
+/* Ce qu'on a tranché en fermant un sujet. Les écartés en deux colonnes — ce
+   qu'on écarte, et pourquoi —, parce que la seconde est facultative et qu'une
+   ligne par possible se relit là où une phrase qui les énumère ne se relit pas. */
+.decision-sujet{ max-width:560px; }
+.decision-sujet__lead{ margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.decision-sujet__lead b{ color:var(--text); font-weight:600; }
+.decision-sujet__champ{ display:flex; flex-direction:column; gap:6px; }
+.decision-sujet__champ > span{ color:var(--text); font-size:12px; font-weight:600; }
+.decision-sujet__champ > span i{ color:var(--muted); font-weight:400; font-style:normal; }
+.decision-sujet__ecarte{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+/* Trois boutons : « Annuler » part à gauche, où il ne se confond pas avec les
+   deux fermetures. Le principal reste le dernier, à droite, comme partout. */
+.decision-sujet__pied{ flex-wrap:wrap; gap:8px; }
+.decision-sujet__pied [data-decision-annuler]{ margin-right:auto; }
 .fichiers-meta__gens{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
 .fichiers-meta__gens li{ display:flex; align-items:center; gap:8px; font-size:13px; }
 /* La barre des langages, et sa légende : la même couleur porte la part et sa

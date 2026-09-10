@@ -1054,6 +1054,76 @@ export function createProjectSubjectsActions(config) {
     }
   }
 
+  /**
+   * Ce qu'on vient de trancher devient une proposition, jamais une écriture.
+   *
+   * Le sujet est déjà fermé quand on arrive ici : c'était le geste, il a
+   * réussi, et rien de ce qui suit ne doit le remettre en cause. Une
+   * proposition qui échoue laisse un sujet fermé sans sa décision — c'est
+   * l'état d'avant cette étape, et on le **dit** plutôt que de rouvrir le
+   * sujet dans le dos de quelqu'un.
+   *
+   * On ne demande pas les zones : la portée d'une décision prise dans un fil de
+   * sujet n'est presque jamais connue de celui qui ferme, et une question de
+   * plus au moment de fermer ferait renoncer. Elle vaut partout jusqu'à ce
+   * qu'on la restreigne dans la proposition.
+   */
+  async function proposerLaDecisionDuSujet(subjectId, tranche) {
+    try {
+      const [{ decisionVersable }, { preparerUneProposition }, { resolveCurrentBackendProjectId }] =
+        await Promise.all([
+          import("../../services/decision-versement.js"),
+          import("../../services/atelier-proposition.js"),
+          import("../../services/project-supabase-sync.js")
+        ]);
+
+      const projectId = String(await resolveCurrentBackendProjectId() || "").trim();
+      if (!projectId) return;
+
+      const sujet = getNestedSujet(subjectId);
+      const affirmations = decisionVersable({
+        // Le sujet est **la question** : c'est ce sur quoi on a tranché, et c'est
+        // par ce nom que la valeur retrouvera sa décision.
+        sujet: tranche.question,
+        retenu: tranche.retenu,
+        question: tranche.question,
+        ecartes: tranche.ecartes,
+        motif: tranche.motif,
+        // Le même nom que celui dont ce fichier signe déjà ses décisions : deux
+        // lectures de l'utilisateur finiraient par ne plus s'accorder (règle 4).
+        par: resolveDefaultHumanActorLabel(),
+        quand: new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
+        atelier: `Sujet « ${String(sujet?.title ?? "").trim()} »`,
+        reference: `sujet:${subjectId}`
+      });
+      if (!affirmations.length) return;
+
+      const rendu = await preparerUneProposition({
+        projectId,
+        titre: `Décision — ${tranche.question}`,
+        intro: "Ce qui a été tranché en fermant un sujet. La décision porte la question et les "
+          + "possibles écartés ; la valeur, s'il y en a une, la cite.",
+        affirmations,
+        zones: []
+      });
+
+      if (!rendu.ok) {
+        showError(`Le sujet est fermé, mais la décision n'a pas pu être proposée : ${rendu.raison}`);
+        return;
+      }
+
+      // On va où la signature se donne, et sur la proposition elle-même. Le
+      // bouton disait « fermer **et proposer** » : la proposition est la moitié
+      // du geste, et la laisser derrière soi sans rien dire la ferait oublier.
+      store.pendingPropositionId = rendu.proposition.id;
+      const projet = String(store.currentProjectId || "").trim();
+      if (projet) window.location.hash = `#project/${projet}/propositions`;
+    } catch (error) {
+      console.warn("proposerLaDecisionDuSujet failed", error);
+      showError("Le sujet est fermé, mais la décision n'a pas pu être proposée.");
+    }
+  }
+
   async function applyIssueStatusAction(root, action) {
     const normalized = String(action || "");
     if (!normalized) return;
@@ -1061,10 +1131,28 @@ export function createProjectSubjectsActions(config) {
     const target = currentDecisionTarget(root);
     const isSubjectTarget = target?.type === "sujet";
     let optimisticPrevious = null;
+    let tranche = null;
 
     if (isSubjectTarget) {
       const subject = getNestedSujet(target.id);
       if (!subject) return;
+
+      // Fermer un sujet est une décision. On demande donc ce qu'on a tranché —
+      // **avant** de fermer, parce qu'après on est passé à autre chose.
+      //
+      // Seulement « fermé comme réalisé » : un sujet fermé comme non pertinent
+      // ou comme doublon ne tranche rien du projet, il dit que ce fil n'avait
+      // pas lieu d'être. Y poser la question ferait entrer en mémoire des
+      // décisions sur l'outil plutôt que sur l'ouvrage.
+      if (normalized === "issue:close:realized") {
+        const { demanderCeQuOnATranche, SANS_DECISION } = await import("../ui/decision-du-sujet.js");
+        const reponse = await demanderCeQuOnATranche({ titre: subject?.title ?? subject?.raw?.title });
+
+        // Renoncer à la fenêtre, c'est renoncer à fermer : on n'a encore rien
+        // fait, et fermer quand même serait agir sur un geste annulé.
+        if (reponse === null) return;
+        if (reponse !== SANS_DECISION) tranche = reponse;
+      }
 
       optimisticPrevious = applyOptimisticSubjectIssueAction(target.id, normalized);
       rerenderScope(root);
@@ -1094,6 +1182,10 @@ export function createProjectSubjectsActions(config) {
     if (normalized === "issue:close:realized") {
       if (isSubjectTarget) {
         await reloadSubjectsFromSupabase(root, { rerender: true, updateModal: true });
+        // Le sujet est fermé — c'était le geste. La décision se **propose**
+        // ensuite : elle n'entre en mémoire qu'après signature (règle 1), et
+        // l'échouer ne doit pas remettre en cause une fermeture réussie.
+        if (tranche) await proposerLaDecisionDuSujet(target.id, tranche);
         return;
       }
       applyIssueCloseOrReopen("closed", root);

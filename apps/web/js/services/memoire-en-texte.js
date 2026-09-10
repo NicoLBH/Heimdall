@@ -220,6 +220,10 @@ export const JETON = {
   MOT_CONDITION: "mot-condition",
   /** `sauf si` — le mot qui borne la règle. */
   MOT_EXCEPTION: "mot-exception",
+  /** `écarté:` — le mot qui ouvre un possible que la décision a laissé. */
+  MOT_ECARTE: "mot-ecarte",
+  /** Ce qui a été écarté : « ardoise », « membrane EPDM ». */
+  ECARTE: "ecarte",
   /** `parce que` — le mot qui introduit la preuve. */
   MOT_RAISON: "mot-raison",
   /** La preuve elle-même, citée. */
@@ -1347,6 +1351,65 @@ export function ligneDePreuve(citation = "", profondeur = 2, { regle = false } =
   ];
 }
 
+/**
+ * `écarté: ardoise` — un possible que la décision a laissé de côté.
+ *
+ * ## Pourquoi ces lignes existent, et pourquoi elles sont plusieurs
+ *
+ * C'est **ce qui distingue une décision de tout le reste**, et c'est exactement
+ * ce que personne ne retrouve six mois plus tard. « Pourquoi pas de l'ardoise ? »
+ * a une réponse quelque part dans la tête de trois personnes — ou nulle part. Le
+ * plus grand service que Mdall puisse rendre est de la garder.
+ *
+ * Une ligne par possible, jamais une phrase qui les énumère : trois écartés dans
+ * une seule ligne ne se relisent pas, et le jour où l'un d'eux revient sur la
+ * table on veut pouvoir le désigner.
+ *
+ * Le motif suit, indenté d'un cran, sous la forme qu'a déjà toute preuve dans ce
+ * langage — `parce que:`. Il peut manquer : on se rappelle souvent qu'on a
+ * écarté l'ardoise sans se rappeler l'argument, et l'écarté sans son motif vaut
+ * mieux que rien.
+ */
+export function lignesDesEcartes(ecartes = [], profondeur = 1) {
+  const lignes = [];
+
+  for (const ecarte of Array.isArray(ecartes) ? ecartes : []) {
+    const quoi = texte(ecarte?.quoi);
+    if (!quoi) continue;
+
+    lignes.push([
+      espace(RETRAIT.repeat(Math.max(1, profondeur))),
+      jeton(JETON.MOT_ECARTE, "écarté:"),
+      espace(),
+      jeton(JETON.ECARTE, quoi)
+    ]);
+
+    const pourquoi = ligneDePreuve(ecarte?.pourquoi, profondeur + 1);
+    if (pourquoi) lignes.push(pourquoi);
+  }
+
+  return lignes;
+}
+
+/**
+ * `question: quelle couverture pour le bâtiment A ?`
+ *
+ * Sans elle il reste une valeur, et une valeur n'engage personne. Elle ouvre le
+ * bloc parce que c'est par elle qu'on le lit : on cherche « ce sur quoi on a
+ * tranché » avant de chercher ce qui a été retenu.
+ */
+export function ligneDeQuestion(question = "", profondeur = 1) {
+  const dit = texte(question);
+  if (!dit) return null;
+
+  return [
+    espace(RETRAIT.repeat(Math.max(1, profondeur))),
+    jeton(JETON.PROVENANCE, "question:"),
+    espace(),
+    jeton(JETON.SOURCE, dit)
+  ];
+}
+
 /** `statut: retenu` — l'état du raisonnement dans ce projet. */
 export function ligneDeStatut(statut = "", profondeur = 1) {
   const dit = texte(statut);
@@ -1946,10 +2009,18 @@ export function lignesDeConclusion(mot, enregistre = {}, profondeur = 1) {
  */
 export function blocDAffirmation({
   sujet = "", valeur = "", unite = "", provenance = null, preuve = "", statut = "", le = "",
-  zone = "", virgule = false
+  zone = "", virgule = false,
+  // Ce qui fait une décision. Absent partout ailleurs : une contrainte ne
+  // tranche rien, elle s'impose.
+  decision = null
 } = {}, profondeur = 0) {
   const dedans = profondeur + 1;
   const corps = [];
+
+  // La question ouvre le bloc : c'est par elle qu'on lit une décision, et on la
+  // cherche avant de chercher ce qui a été retenu.
+  const demande = ligneDeQuestion(decision?.question, dedans);
+  if (demande) corps.push(demande);
 
   // La date passe avant la provenance : un constat se situe d'abord dans le
   // temps, et c'est la première question qu'on lui pose.
@@ -1961,6 +2032,10 @@ export function blocDAffirmation({
 
   const pourquoi = ligneDePreuve(preuve, dedans + 1);
   if (pourquoi) corps.push(pourquoi);
+
+  // Les écartés après la provenance : on sait d'abord qui a tranché, puis entre
+  // quoi. L'inverse ferait lire une liste avant de savoir de qui elle vient.
+  corps.push(...lignesDesEcartes(decision?.ecartes, dedans));
 
   const etat = ligneDeStatut(statut, dedans);
   if (etat) corps.push(etat);

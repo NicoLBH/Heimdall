@@ -73,7 +73,12 @@ export const EXTENSIONS = {
   [NATURE.CONTRAINTE]: "ctr",
   [NATURE.HYPOTHESE]: "hyp",
   [NATURE.CONSTAT]: "cst",
-  [NATURE.INTENDANCE]: "crp"
+  [NATURE.INTENDANCE]: "crp",
+  // Les décisions. Rangées **par domaine**, comme les règles, et pour la même
+  // raison : une décision est le pendant humain d'une règle, elle produit une
+  // valeur au lieu de la porter, et elle appartient à la discipline sur
+  // laquelle elle tranche. Ce n'est pas une mesure du bâtiment.
+  [NATURE.DECISION]: "dec"
 };
 
 /** Les règles appliquées. Elles n'ont pas de nature : ce sont des textes. */
@@ -128,13 +133,17 @@ export function phraseDeLExtension(extension) {
     [NATURE.CONTRAINTE]: "Ce qui s'impose au projet. Si vous n'êtes pas d'accord, vous n'avez pas de recours.",
     [NATURE.HYPOTHESE]: "Ce qu'on suppose en attendant mieux. Se remplace, et ce qui en dépend devient suspect.",
     [NATURE.CONSTAT]: "Ce qui a été observé, à une date. Un constat sans date ne vaut rien.",
-    [NATURE.INTENDANCE]: "Ce qui est entré au dossier : documents, pièces jointes, avis."
+    [NATURE.INTENDANCE]: "Ce qui est entré au dossier : documents, pièces jointes, avis.",
+    [NATURE.DECISION]: "Ce que des humains ont tranché, et ce qu'ils ont écarté en le faisant."
   }[entree[0]];
 }
 
 /** L'ordre de lecture des extensions : les textes d'abord, puis ce qu'on en tire. */
 export const ORDRE_DES_EXTENSIONS = [
   EXTENSION_REGLE,
+  // Juste après les règles : ce sont les deux qui **produisent** des valeurs
+  // sans les porter, l'une par le texte, l'autre par un humain.
+  EXTENSIONS[NATURE.DECISION],
   EXTENSIONS[NATURE.DONNEE_BASE],
   EXTENSIONS[NATURE.CONTRAINTE],
   EXTENSIONS[NATURE.HYPOTHESE],
@@ -158,10 +167,12 @@ export const ORDRE_DES_EXTENSIONS = [
  *   les variables du projet, écrites une fois et citées partout ailleurs. Ce
  *   sont des `const`, et c'est ce qui permet à une règle de les nommer sans les
  *   recopier.
- * - **`enonce`** — un `.ctr`, un `.cst`, un `.crp` énoncent des paires : un
- *   sujet, une valeur, sa provenance. C'est du JSON, et rien de plus.
+ * - **`enonce`** — un `.ctr`, un `.cst`, un `.crp`, un `.dec` énoncent des
+ *   paires : un sujet, une valeur, sa provenance. C'est du JSON, et rien de
+ *   plus. Une décision y ajoute ce qu'elle a écarté, ce qui reste un énoncé :
+ *   elle ne s'exécute pas, contrairement à la règle dont elle est le pendant.
  *
- * Une couleur par extension ferait croire à six langages là où il y en a trois,
+ * Une couleur par extension ferait croire à sept langages là où il y en a trois,
  * et surtout elle raterait le point : ce qui compte est de distinguer un nom
  * **posé** d'un nom **cité**.
  */
