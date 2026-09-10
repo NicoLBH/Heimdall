@@ -20,6 +20,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
 import { lecturesDeclarees, reservesConservees, entreesDe, mesureEcrite } from "./lecture-fait.js";
+import { SUJET_ALTITUDE, SUJET_H0 } from "./agents-climatiques.js";
 
 export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   nom: "deduction_profondeur_hors_gel_altitude",
@@ -47,9 +48,9 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
    * rendre un chiffre.
    */
   lit: [
-    { sujet: "H0 retenu pour le département", lire: (fait) => fait?.fact_value?.h0_selected_m },
+    { sujet: SUJET_H0, lire: (fait) => fait?.fact_value?.h0_selected_m },
     {
-      sujet: "Altitude du site",
+      sujet: SUJET_ALTITUDE,
       entree: "altitude",
       // L'appel attend un nombre. « 1200 m » n'en est pas un pour lui, et le
       // laisser passer le ferait retomber sur zéro — une cote de fondation

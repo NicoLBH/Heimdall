@@ -245,3 +245,69 @@ test("aucune variante, aucun appel", async () => {
   assert.deepEqual(rendu, { recalculees: [], refusees: [] });
   assert.equal(appele, false);
 });
+
+/* ── Ce qui entre par une proposition se rejoue aussi ─────────────────────── */
+
+/**
+ * La même contrainte, entrée par une **proposition** signée.
+ *
+ * C'est le chemin normal — celui de l'Atelier —, et il portait un `kind` que la
+ * reprise ne reconnaissait pas : `base-datum` au lieu de `site-constraint`. Tout
+ * était pourtant là, l'utilitaire, sa version et ce qu'il avait lu.
+ */
+const parProposition = ({ id, sujet, valeur, utilitaire, lectures = [] }) => ({
+  id, kind: "base-datum", subject_key: sujet, nature: "contrainte",
+  status: "assumed", superseded_by: null, decided_at: at,
+  statement: `${sujet} : ${valeur}`,
+  payload: {
+    subject: sujet, value: valeur, utilitaire,
+    lectures: lectures.map(([sujetLu, valeurLue]) => ({ sujet: sujetLu, valeur: valeurLue }))
+  }
+});
+
+test("une contrainte versée par proposition se reprend comme les autres", () => {
+  const reprises = contraintesAReprendre({
+    enVigueur: [
+      dit("ddb-alt", "Altitude du site", "13 m"),
+      parProposition({
+        id: "gel", sujet: "Profondeur hors gel", valeur: "0,71 m",
+        utilitaire: "deduction_profondeur_hors_gel_altitude_V1",
+        lectures: [["Altitude du site", "13 m"]]
+      })
+    ],
+    substitutions: new Map([["ddb-alt", "890 m"]])
+  });
+
+  assert.deepEqual(reprises.map((r) => [r.sujet, r.outil, r.refus]), [
+    ["Profondeur hors gel", "frost", ""]
+  ]);
+});
+
+test("l'appel d'un agent n'est pas une valeur : il ne se reprend pas deux fois", () => {
+  // La ligne de l'appel cite l'agent, ce qu'il a posé cite l'utilitaire. Reprendre
+  // les deux referait le même calcul, et l'écran montrerait deux fois la même
+  // chose — ou, pire, un refus là où tout marche.
+  const appel = {
+    id: "appel-gel", kind: "base-datum", subject_key: "appel", nature: null,
+    status: "assumed", superseded_by: null, decided_at: at,
+    statement: "Profondeur hors gel d'après le département et l'altitude",
+    payload: {
+      subject: "Profondeur hors gel d'après le département et l'altitude",
+      value: "Profondeur hors gel",
+      utilitaire: "agent_d_profondeur_hors_gel_V1",
+      referentiel: true,
+      agent: {
+        genre: "agent-D", utilitaire: "agent_d_profondeur_hors_gel", version: "V1",
+        lit: ["Localisation du projet", "Altitude du site"],
+        ecrit: [{ sujet: "Profondeur hors gel" }]
+      },
+      lectures: [{ sujet: "Altitude du site", valeur: "13 m" }]
+    }
+  };
+
+  const reprises = contraintesAReprendre({
+    enVigueur: [dit("ddb-alt", "Altitude du site", "13 m"), appel],
+    substitutions: new Map([["ddb-alt", "890 m"]])
+  });
+  assert.deepEqual(reprises, []);
+});

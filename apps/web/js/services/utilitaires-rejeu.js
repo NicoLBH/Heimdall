@@ -50,12 +50,12 @@
  * inventer.
  */
 
-import { DERIVED_CONSTRAINT_KIND, inputsStateOf } from "./derived-constraints.js";
+import { inputsStateOf } from "./derived-constraints.js";
 import { RESERVES } from "../utilitaires/reserves.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
 import { lireUnNombre } from "./memoire-en-texte.js";
 import { champDeLIdentifiant, memoireAvecLesChamps } from "./tableau-structure.js";
-import { utilitaireByReference } from "../utilitaires/catalogue.js";
+import { agentByReference, utilitaireByReference } from "../utilitaires/catalogue.js";
 import { lecturesDeLUtilitaire, agentDeLaFonction } from "./memoire-applications.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -102,9 +102,36 @@ export function phraseDuRefus(motif) {
   return PHRASES[texte(motif)] ?? "";
 }
 
-/** Une contrainte déduite du site, seule chose qu'un utilitaire produise ici. */
-const estDeduite = (assertion) =>
-  texte(assertion?.kind) === DERIVED_CONSTRAINT_KIND && texte(assertion?.payload?.utilitaire) !== "";
+/**
+ * Une valeur qu'un utilitaire du catalogue sait relire.
+ *
+ * ## Pourquoi ce n'est plus le `kind` qui décide
+ *
+ * La condition était `kind === "site-constraint"` : la marque du versement
+ * automatique depuis les faits de contexte. Elle excluait, sans le dire, tout ce
+ * qui entre par une **proposition** — c'est-à-dire tout ce que l'Atelier
+ * propose et qu'un humain signe, qui est le chemin normal. Une zone de neige
+ * versée par proposition citait pourtant son utilitaire, sa version et ce
+ * qu'elle avait lu : tout était là, et rien ne la reprenait.
+ *
+ * Ce qui décide est donc **ce que la ligne cite**, et ce que cela sait faire :
+ *
+ * - rien → ce n'est pas une valeur déduite ;
+ * - un **agent** déclaré → c'est le record d'un appel, pas une valeur : ce qu'il
+ *   a posé cite son propre utilitaire, et c'est cette ligne-là qu'on refait ;
+ * - un utilitaire que le catalogue **ne connaît pas** → on le nomme quand même,
+ *   avec un refus motivé. Ne pas savoir n'autorise pas à faire disparaître une
+ *   ligne de l'écran (règle 5) ;
+ * - un utilitaire **sans `deduire`** — un dimensionnement dont la loi ne descend
+ *   pas — se reprend par sa fonction native, un cran plus loin.
+ */
+const estDeduite = (assertion) => {
+  const reference = texte(assertion?.payload?.utilitaire);
+  if (!reference || agentByReference(reference)) return false;
+
+  const outil = utilitaireByReference(reference);
+  return !outil || typeof outil.deduire === "function";
+};
 
 /** Les réserves d'un rendu, nettoyées de ce qu'on ne connaît pas. */
 function reservesDe(brutes) {
@@ -241,6 +268,12 @@ export function fonctionsAReprendre({ enVigueur = [], substitutions = new Map() 
   for (const fonction of toutes) {
     const native = agentDeLaFonction(fonction);
     if (!native) continue;
+
+    // L'appel d'un **agent déclaré** ne se rejoue pas lui-même : ce qu'il a posé
+    // cite son propre utilitaire, et c'est cette ligne-là que la variante refait
+    // — une par valeur, chacune avec sa version. Le reprendre ici referait le
+    // même appel deux fois ; le refuser afficherait une panne là où tout marche.
+    if (agentByReference(texte(fonction?.payload?.utilitaire))) continue;
 
     const lues = (Array.isArray(native.lit) ? native.lit : []).map(cleDuSujet);
     if (!lues.some((sujet) => substituees.has(sujet))) continue;

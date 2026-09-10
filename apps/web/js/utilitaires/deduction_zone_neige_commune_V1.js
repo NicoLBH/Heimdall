@@ -16,6 +16,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
 import { lecturesDeclarees, reservesConservees, entreesDe } from "./lecture-fait.js";
+import { SUJET_ALTITUDE } from "./agents-climatiques.js";
 
 export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
   nom: "deduction_zone_neige_commune",
@@ -30,14 +31,15 @@ export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
   /**
    * L'altitude, et rien d'autre du projet.
    *
-   * La zone elle-même vient d'une table communale que la mémoire ne porte pas :
-   * la commune n'est pas un sujet versé, et déclarer la lire serait déclarer un
-   * lien vers rien. L'altitude, si — c'est elle qui décide de la réserve
+   * La commune est lue par l'**agent**, pas ici : c'est lui qui fait l'appel, et
+   * c'est sa déclaration qui porte la localisation du projet — voir
+   * `agents-climatiques.js`. Ce fichier-ci est la *lecture* du fait produit, et
+   * ce qu'elle lit du projet est l'altitude : c'est elle qui décide de la réserve
    * au-delà de 900 m, et un projet qui la corrige doit voir cette zone bouger.
    */
   lit: [
     {
-      sujet: "Altitude du site",
+      sujet: SUJET_ALTITUDE,
       entree: "altitude",
       /** L'appel attend un nombre : « 1200 m » retomberait sur zéro. */
       nombre: true,

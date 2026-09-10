@@ -15430,6 +15430,24 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   font-size:14px;
 }
 
+/* La localisation, saisissable : les zonages ne se calculent pas sans elle, et
+   elle venait jusqu'ici en silence du formulaire du projet. */
+.climat-localisation{ display:flex; flex-direction:column; gap:8px; }
+.climat-localisation__quoi{ margin:0; font-size:12px; line-height:1.5; }
+.climat-localisation__champ{ display:flex; flex-direction:column; gap:4px; font-size:12px; }
+.climat-localisation__champ > span{ color:var(--muted); }
+.climat-localisation__champ i{ font-style:normal; opacity:.7; }
+.climat-localisation__champ input{ width:100%; }
+/* Ce qui bloque le calcul se dit à côté du champ, pas dans une erreur du
+   serveur : « code_insee is required » n'est une phrase pour personne. */
+.climat-localisation__manque{
+  margin:0; padding:8px;
+  border:1px solid var(--attention-bord, rgba(210,153,34,.4));
+  border-radius:var(--radius);
+  background:var(--attention-fond, rgba(210,153,34,.1));
+  font-size:12px; line-height:1.5;
+}
+
 /* ── Propositions ─────────────────────────────────────────────────────────
    Un changement du corpus soumis à jugement. L'écran reprend la liste de pull
    requests, parce que le geste est le même et déjà connu. */
