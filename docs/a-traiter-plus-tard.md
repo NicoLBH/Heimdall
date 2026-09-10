@@ -49,7 +49,7 @@ pas après.
 | 4 | La localisation et les zones se changent par proposition — *fait* | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
 | 5 | La cascade parallèle — *faite pour la branche climatique* | l'arbre fourche : une valeur changée, plusieurs branches | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
 | 6 | La proposition devient une branche — *faite* | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
-| 7 | Un modèle rédige le titre et le corps d'une proposition | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
+| 7 | Un modèle rédige le titre et le corps d'une proposition — *fait* | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
 | 8 | Le modèle des décisions | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
 | 9 | Le modèle des raisonnements | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
 | 10 | Le cerveau, requalifié et filtré | la mémoire et les raisonnements, vus ensemble | [§ 22](#22-le-cerveau-requalifié) |
@@ -1268,6 +1268,8 @@ du bouton. Défaut ancien lui aussi, et sans rapport avec la branche.
 
 ## 18. Le titre et le corps d'une proposition
 
+**État :** fait.
+
 ### Le défaut, mesurable
 
 Vingt-cinq propositions intitulées « Fondations superficielles — dimensionnement »
@@ -1289,6 +1291,71 @@ partout :
 
 Le titre qu'on veut : *« Massifs du bâtiment A descendus à 0,66 m après relevé
 d'altitude »*. Pas *« Fondations superficielles — dimensionnement »*.
+
+### Ce que l'étape a posé
+
+**La règle est vérifiée, pas seulement demandée.** « Il ne produit aucune
+valeur » écrit dans une consigne est un vœu. `redaction.js`, au serveur, relève
+tout nombre de ce que le modèle rend et le cherche dans ce qu'on lui a donné : un
+seul chiffre absent refuse la rédaction **entière**, et l'écran garde le titre
+d'origine en disant pourquoi. C'est la discipline de la cloison et des domiciles
+de noms — on ne demande pas au code de bien se tenir, on casse quand il ne se
+tient pas.
+
+La comparaison porte sur les **nombres**, pas sur le texte : « 0,66 » et « 0.66 »
+sont la même cote, et les refuser l'une pour l'autre écarterait une rédaction
+juste. À l'inverse « 66 » n'est pas « 0,66 » — un modèle qui perd la virgule est
+refusé, ce qu'une comparaison de chaînes aurait laissé passer.
+
+**La consigne ne quitte pas le serveur**, et un test le tient. Contrairement à
+celle de la note de dépôt — dupliquée dans le navigateur et comparée par un test
+—, celle-ci n'existe qu'en un endroit. `verifie-cloison.test.mjs` lit les phrases
+de la consigne **dans la fonction** et vérifie qu'aucun fichier servi ne les
+porte : la liste ne peut pas se périmer, puisqu'elle est relue à sa source.
+
+**La question arrive dans le geste**, juste après « à quelles zones ? » et pour la
+même raison. Un titre qu'on corrigerait sur la proposition déjà ouverte serait un
+titre qu'on ne corrige pas : on est passé à autre chose. La fenêtre s'ouvre
+**sans attendre le modèle**, avec le titre de l'écran, et se met à jour quand la
+rédaction arrive — attendre pour tout montrer d'un coup laisserait un écran figé
+après un clic. Ce qu'on a commencé à taper n'est jamais écrasé.
+
+**Le résumé devient l'introduction de la description**, qui garde ensuite sa
+liste de valeurs : une phrase écrite à la main ne doit pas faire disparaître ce
+que la proposition porte.
+
+**On ne paie pas toujours.** Une seule ligne se nomme d'elle-même — « Zone de
+neige : A1 → A2 » est déjà le meilleur titre possible —, et un diff dont la
+mémoire n'a pas pu être lue n'a pas de « avant » : la phrase serait écrite sur la
+moitié de l'information. Dans les deux cas l'écran garde son titre et le dit.
+
+**Le diff est celui du relecteur.** `tableauAvantApres`, appelé avec une
+proposition encore sans identifiant, donne exactement le tableau que l'onglet
+Changements affichera ensuite. Deux calculs de diff auraient fini par ne plus
+dire la même chose (règle 4), et le titre aurait décrit autre chose que le
+tableau.
+
+**Les lignes identiques ne partent pas au modèle**, leur nombre si. Une ligne
+inchangée ne dit rien de ce qui change, et la citer dans un titre serait une
+fausse piste ; le compte, lui, dit quelque chose du lot.
+
+**Les deux chemins de nommage restent séparés.** `proposition-title.js` nomme un
+lot de **documents** sans modèle, et il a raison de le dire : trois natures, un
+émetteur et une période, la phrase s'assemble. Ce qui distingue deux propositions
+d'**affirmations** n'est pas dénombrable, et c'est là que le modèle gagne son
+coût. Aucun des deux n'a à devenir l'autre.
+
+### Ce qui reste
+
+**Le titre ne se corrige pas après coup.** Il se choisit avant l'ouverture, et
+`propositions-supabase.js` n'a aucun chemin de mise à jour du `title` ni de la
+`description` — seules les colonnes de cycle de vie se modifient. Rebaptiser une
+proposition ouverte demanderait un `PATCH` de plus, et l'écran qui va avec.
+
+**Une branche enrichie ne se renomme pas.** Quand on ajoute un lot à une
+proposition ouverte ([§ 17](#17-la-proposition-devient-une-branche)), le titre
+reste celui du premier lot — ce qui est correct tant qu'on ne sait pas
+renommer, et discutable le jour où l'on saura.
 
 ---
 

@@ -18,6 +18,7 @@ import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.j
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
 import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
 import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
+import { demanderLeTitre } from "../../ui/titre-de-la-proposition.js";
 import { NATURE, DOMAIN } from "../../../services/assertion-taxonomy.js";
 import { svgIcon } from "../../../ui/icons.js";
 import {
@@ -747,6 +748,14 @@ async function proposerLesFondations(root, propositionId = "") {
   const zones = await demanderLesZones({ projectId: projetCourant });
   if (zones === null) return;
 
+  // Comment elle s'appellera, demandé dans le geste. Rien à demander quand on
+  // enrichit une branche : elle a déjà son nom.
+  const nom = propositionId ? null : await demanderLeTitre({
+    projectId: projetCourant, affirmations, zones,
+    secours: "Fondations superficielles — dimensionnement"
+  });
+  if (!propositionId && nom === null) return;
+
   etat.transformation = "Préparation de la proposition…";
   etat.etudeErreur = "";
   dessiner(root);
@@ -755,8 +764,11 @@ async function proposerLesFondations(root, propositionId = "") {
   const rendu = await preparerUneProposition({
     projectId: projetCourant,
     propositionId,
-    titre: "Fondations superficielles — dimensionnement",
-    intro: "L'appel du calcul, ses entrées, et les cotes qu'il a posées — chacune avec son verdict.",
+    titre: nom?.titre || "Fondations superficielles — dimensionnement",
+    // Le résumé écrit devient l'introduction : la description garde ensuite la
+    // liste des valeurs, qui n'a pas à disparaître parce qu'on a une phrase.
+    intro: nom?.description
+      || "L'appel du calcul, ses entrées, et les cotes qu'il a posées — chacune avec son verdict.",
     source: "Fondations superficielles — NF P94-261, EN 1997-1, EN 1992-1-1",
     affirmations,
     zones

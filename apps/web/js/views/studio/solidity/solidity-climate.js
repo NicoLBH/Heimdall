@@ -32,6 +32,7 @@ import { resolveCurrentBackendProjectId } from "../../../services/project-supaba
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
 import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
 import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
+import { demanderLeTitre } from "../../ui/titre-de-la-proposition.js";
 import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
 import { renderProjectLocationMapCard } from "../../shared/project-location-map-card.js";
@@ -201,6 +202,14 @@ async function proposerLesZones(root, propositionId = "") {
   const zones = await demanderLesZones({ projectId: state.projectId });
   if (zones === null) return;
 
+  // Comment elle s'appellera, demandé dans le geste. Un titre qu'on corrigerait
+  // sur la proposition déjà ouverte serait un titre qu'on ne corrige pas. Rien
+  // à demander quand on enrichit une branche : elle a déjà son nom.
+  const nom = propositionId ? null : await demanderLeTitre({
+    projectId: state.projectId, affirmations, zones, secours: buildClimateDraftTitle()
+  });
+  if (!propositionId && nom === null) return;
+
   state.transforming = true;
   state.error = "";
   render(root);
@@ -209,8 +218,11 @@ async function proposerLesZones(root, propositionId = "") {
   const rendu = await preparerUneProposition({
     projectId: state.projectId,
     propositionId,
-    titre: buildClimateDraftTitle(),
-    intro: "La localisation du projet, les deux appels qui en découlent, et ce qu'ils posent. "
+    titre: nom?.titre || buildClimateDraftTitle(),
+    // Le résumé écrit devient l'introduction : la description garde ensuite la
+    // liste des valeurs, qui n'a pas à disparaître parce qu'on a une phrase.
+    intro: nom?.description
+      || "La localisation du projet, les deux appels qui en découlent, et ce qu'ils posent. "
       + "Les entrées entrent avec le reste : c'est ce qui permettra de tout refaire le jour où "
       + "l'une d'elles change.",
     // La première ligne qui cite un texte : les deux premières sont des

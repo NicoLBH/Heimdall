@@ -21122,6 +21122,15 @@ button.fichiers-ajout__item:hover{ background:rgba(110,118,129,.16); }
 .zones-choix__corps{ display:flex; flex-direction:column; gap:2px; min-width:0; }
 .zones-choix__nom{ color:var(--text); font-size:13px; font-weight:500; }
 .zones-choix__quoi{ color:var(--muted); font-size:12px; }
+
+/* Le titre d'une proposition, proposé et corrigible. La ligne d'état au-dessus
+   des champs plutôt qu'en dessous : elle dit d'où vient ce qui est écrit, et
+   cela se lit avant le texte, pas après. */
+.titre-propose__etat{ margin:0; color:var(--muted); font-size:12px; line-height:1.5; min-height:18px; }
+.titre-propose__champ{ display:flex; flex-direction:column; gap:6px; }
+.titre-propose__champ > span{ color:var(--text); font-size:12px; font-weight:600; }
+.titre-propose__champ > span i{ color:var(--muted); font-weight:400; font-style:normal; }
+.titre-propose__resume{ resize:vertical; font:inherit; line-height:1.5; }
 .fichiers-meta__gens{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
 .fichiers-meta__gens li{ display:flex; align-items:center; gap:8px; font-size:13px; }
 /* La barre des langages, et sa légende : la même couleur porte la part et sa
