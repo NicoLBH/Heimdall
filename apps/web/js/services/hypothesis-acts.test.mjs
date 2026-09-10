@@ -154,6 +154,9 @@ test("on ne conteste pas un constat : on en fait un autre, plus tard", () => {
 
   assert.equal(plan.ok, false);
   assert.match(plan.reason, /constat/i);
+  // Le refus se lit à voix haute : « une constat » se disait avant que
+  // l'article suive le nom.
+  assert.match(plan.reason, /sur un constat/);
 });
 
 test("une affirmation non classée ne se juge pas", () => {

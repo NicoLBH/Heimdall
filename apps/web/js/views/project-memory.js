@@ -71,6 +71,7 @@ import {
 import { paginateItems, renderPaginationControls } from "./ui/pagination.js";
 import {
   READER,
+  READERS,
   describeEmptyReader,
   groupByDomain,
   readerLabel,
@@ -181,6 +182,12 @@ const READER_FILTERS = {
   [READER.ALL]: {},
   [READER.HYPOTHESES]: { nature: NATURE.HYPOTHESE },
   [READER.CONSTRAINTS]: { nature: NATURE.CONTRAINTE },
+  // Les deux natures qui ne portent encore rien s'écrivent comme les autres :
+  // `nature:decision` se tape dans la barre et rend zéro ligne, ce qui est la
+  // vérité. Un raccourci qui n'aurait pas de requête équivalente serait le seul
+  // du rail à ne pas se corriger au clavier.
+  [READER.DECISIONS]: { nature: NATURE.DECISION },
+  [READER.REASONINGS]: { nature: NATURE.RAISONNEMENT },
   [READER.FINDINGS]: { nature: NATURE.CONSTAT, ouverts: "oui" },
   [READER.BASE_DATA]: { nature: NATURE.DONNEE_BASE }
 };
@@ -406,6 +413,10 @@ const READER_ICONS = {
   [READER.ALL]: "book",
   [READER.HYPOTHESES]: "issue-opened",
   [READER.CONSTRAINTS]: "shield",
+  // Deux possibles mis face à face, un seul retenu : c'est le dessin même d'une
+  // décision. Et pour le raisonnement, une suite d'étapes reliées.
+  [READER.DECISIONS]: "git-compare",
+  [READER.REASONINGS]: "project-roadmap",
   [READER.FINDINGS]: "tools",
   [READER.BASE_DATA]: "north-star"
 };
@@ -429,7 +440,9 @@ const NATURE_ICON = {
   [NATURE.HYPOTHESE]: READER_ICONS[READER.HYPOTHESES],
   [NATURE.CONTRAINTE]: READER_ICONS[READER.CONSTRAINTS],
   [NATURE.CONSTAT]: READER_ICONS[READER.FINDINGS],
-  [NATURE.DONNEE_BASE]: READER_ICONS[READER.BASE_DATA]
+  [NATURE.DONNEE_BASE]: READER_ICONS[READER.BASE_DATA],
+  [NATURE.DECISION]: READER_ICONS[READER.DECISIONS],
+  [NATURE.RAISONNEMENT]: READER_ICONS[READER.REASONINGS]
 };
 
 function marqueDeLaLigne(assertion) {
@@ -1227,10 +1240,13 @@ function renderMemoryNav() {
     });
   };
 
-  // Les cinq lectures ensemble : ce sont cinq filtres sur la même table, et
-  // isoler l'une d'elles sous un trait laissait croire qu'elle était d'une autre
+  // Les lectures ensemble : ce sont des filtres sur la même table, et isoler
+  // l'une d'elles sous un trait laissait croire qu'elle était d'une autre
   // nature. Sous le trait vient ce qui **appartient à qui lit** : ses recherches.
-  const lectures = [READER.ALL, READER.HYPOTHESES, READER.CONSTRAINTS, READER.FINDINGS, READER.BASE_DATA];
+  //
+  // L'ordre vient de `READERS`, dans le service : le rail ne tient pas sa propre
+  // liste, sans quoi une lecture ajoutée là-bas manquerait ici.
+  const lectures = READERS;
 
   return renderProjectRail({
     id: "memoryRail",
@@ -1508,6 +1524,8 @@ function titreDeLaLecture() {
     [READER.ALL]: "Toute la mémoire du projet",
     [READER.HYPOTHESES]: "Hypothèses du projet",
     [READER.CONSTRAINTS]: "Contraintes du projet",
+    [READER.DECISIONS]: "Décisions du projet",
+    [READER.REASONINGS]: "Raisonnements du projet",
     [READER.FINDINGS]: "Constats du projet",
     [READER.BASE_DATA]: "Données de base du projet"
   };

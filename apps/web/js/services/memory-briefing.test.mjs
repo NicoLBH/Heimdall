@@ -102,7 +102,8 @@ test("les natures viennent dans l'ordre de ce qui fonde quoi", () => {
 });
 
 test("l'ordre annoncé du module est bien celui des blocs", () => {
-  assert.deepEqual(BRIEFING_NATURES, ["donnee-de-base", "contrainte", "hypothese", "constat", "intendance"]);
+  assert.deepEqual(BRIEFING_NATURES,
+    ["donnee-de-base", "contrainte", "decision", "raisonnement", "hypothese", "constat", "intendance"]);
 });
 
 test("une nature absente n'a pas de bloc vide", () => {
@@ -111,6 +112,21 @@ test("une nature absente n'a pas de bloc vide", () => {
   assert.match(brief.texte, /## Contrainte/);
   assert.doesNotMatch(brief.texte, /## Hypothèse/);
   assert.doesNotMatch(brief.texte, /## Constat/);
+  // Les deux natures que rien ne verse encore : la légende les nomme, le corps
+  // du dossier n'en dit rien. Un bloc « Décision » vide laisserait croire que le
+  // projet n'a rien tranché, alors que Mdall ne sait pas encore l'enregistrer.
+  assert.doesNotMatch(brief.texte, /## Décision/);
+  assert.doesNotMatch(brief.texte, /## Raisonnement/);
+});
+
+test("la légende nomme le vocabulaire entier, décision comprise", () => {
+  const brief = buildMemoryBriefing({ project: PROJET, assertions: [contrainte()] });
+
+  // Ce qui tranche une décision est un humain, et c'est ce qui la distingue de
+  // tout le reste. Le dire au copilote lui évite de la confondre avec une valeur.
+  assert.match(brief.texte, /\*\*Décision\*\* — un humain, entre des possibles qu'il a écartés\./);
+  assert.match(brief.texte, /\*\*Raisonnement\*\* — rien ne le tranche : il ne dit pas ce qui est vrai/);
+  assert.match(brief.texte, /\*\*Intendance\*\* — rien ne la tranche : elle n'affirme pas/);
 });
 
 test("chaque nature dit ce qui la trancherait", () => {

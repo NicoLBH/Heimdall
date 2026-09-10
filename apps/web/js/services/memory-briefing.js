@@ -57,6 +57,7 @@ import {
   classifyAssertion,
   domainLabel,
   natureLabel,
+  sansTranchantLabel,
   settledByLabel
 } from "./assertion-taxonomy.js";
 import { dependenciesOf, needsReview } from "./assertion-dependencies.js";
@@ -64,10 +65,24 @@ import { HYPOTHESIS_STATE, stateLabel, stateOf } from "./hypothesis-acts.js";
 import { definedZones, describeZonesOf, zonesOf } from "./project-zones.js";
 import { describeConflict, findConflicts } from "./assertion-conflicts.js";
 
-/** L'ordre de lecture : ce qui fonde d'abord, ce qui en découle ensuite. */
+/**
+ * L'ordre de lecture : ce qui fonde d'abord, ce qui en découle ensuite.
+ *
+ * Ce n'est pas l'ordre du rail — `NATURES` —, et c'est voulu : on **lit** en
+ * partant de ce qui s'impose, on **explique** en partant de ce qui fonde. Deux
+ * ordres pour deux gestes, chacun écrit là où il sert.
+ *
+ * Décisions et raisonnements y figurent alors que rien ne les verse encore : la
+ * légende du dossier nomme le vocabulaire entier, et un bloc vide ne s'écrit
+ * pas. Les omettre ferait qu'on les oublierait le jour où l'étape 8 les
+ * enregistre, et le copilote lirait une mémoire amputée sans que rien ne le
+ * dise.
+ */
 export const BRIEFING_NATURES = [
   NATURE.DONNEE_BASE,
   NATURE.CONTRAINTE,
+  NATURE.DECISION,
+  NATURE.RAISONNEMENT,
   NATURE.HYPOTHESE,
   NATURE.CONSTAT,
   NATURE.INTENDANCE
@@ -278,8 +293,10 @@ function commentLire() {
     "Les affirmations sont classées par nature, et une nature dit **ce qui la trancherait** :",
     "",
     ...BRIEFING_NATURES.map((nature) => {
-      const tranche = settledByLabel(nature);
-      return `- **${natureLabel(nature)}** — ${tranche || "rien ne la tranche : elle n'affirme pas, elle sert de matière"}.`;
+      // Deux natures n'ont pas de tranchant, et elles ne le disent pas de la
+      // même façon : la phrase vit à côté de la nature, pas ici.
+      const dit = settledByLabel(nature) || sansTranchantLabel(nature);
+      return `- **${natureLabel(nature)}** — ${dit}.`;
     }),
     "",
     "Seule une hypothèse se conteste. Une contrainte fausse ne se conteste pas : elle se corrige — et cela veut dire qu'on a calculé faux.",

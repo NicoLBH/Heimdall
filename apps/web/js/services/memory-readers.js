@@ -1,5 +1,5 @@
 /**
- * Trois façons de lire la mémoire, et **aucune ne stocke quoi que ce soit**.
+ * Les façons de lire la mémoire, et **aucune ne stocke quoi que ce soit**.
  *
  * « Un utilitaire qui rassemble toutes les hypothèses depuis le début » n'est
  * pas un utilitaire : c'est une lecture de la mémoire. S'il tenait ses propres
@@ -10,15 +10,26 @@
  * peut pas inventer une ligne : tout ce qu'il rend vient de la liste qu'on lui
  * donne, et une affirmation qu'on n'y trouve pas n'existe nulle part.
  *
- * Les trois lectures répondent à trois questions qu'on ne se pose pas au même
- * moment :
+ * Les lectures répondent à des questions qu'on ne se pose pas au même moment :
  *
- *  - **Les hypothèses** — « sur quoi bâtit-on ? ». C'est le document qu'on
- *    imprime avant une réunion : une ligne par sujet, à sa valeur en vigueur.
  *  - **Les contraintes** — « que doit-on respecter ? ». Elles ne se lèvent pas,
  *    elles se vérifient.
+ *  - **Les décisions** — « qu'a-t-on tranché, et qu'a-t-on écarté ? ».
+ *  - **Les raisonnements** — « par où est-on passé pour en arriver là ? ».
  *  - **Les constats en cours** — « qu'est-ce qui reste ouvert ? ». Le suivi des
  *    avis du bureau de contrôle, généralisé à toutes les sources.
+ *  - **Les hypothèses** — « sur quoi bâtit-on ? ». C'est le document qu'on
+ *    imprime avant une réunion : une ligne par sujet, à sa valeur en vigueur.
+ *  - **Les données de base** — « qu'est-ce que le projet **est** ? ».
+ *
+ * ## Deux lectures vides, et qui disent pourquoi
+ *
+ * Décisions et raisonnements ne rendent rien : **rien ne les verse encore**.
+ * Elles sont là quand même, et c'est délibéré — une lacune nommée vaut mieux
+ * qu'une absence silencieuse (règle 5). Un projet dont la barre latérale ne
+ * mentionne pas les décisions laisse croire que Mdall n'en a que faire ; le même
+ * projet, avec une entrée qui dit « aucune, et voici pourquoi », dit la vérité
+ * du moment et rend l'étape suivante évidente.
  *
  * Le **regroupement par domaine** est ce qui rend ces listes lisibles quand
  * elles comptent soixante-dix lignes. Ce qui n'est pas classé vient en dernier,
@@ -32,23 +43,47 @@ import { MEMORY, currentAssertions } from "./project-memory.js";
 /**
  * Les lectures de la mémoire, et la liste entière.
  *
- * `BASE_DATA` est à part, et l'écran le montre par un filet : les trois autres
- * disent ce que le projet **sait**, celle-ci dit ce qu'il **est**. C'est de
- * cette dernière que partent les déductions, et c'est là qu'un humain vient
- * vérifier ce sur quoi tout le reste a été calculé.
+ * `BASE_DATA` vient en dernier : les autres disent ce que le projet **sait**,
+ * celle-ci dit ce qu'il **est**. C'est d'elle que partent les déductions, et
+ * c'est là qu'un humain vient vérifier ce sur quoi tout le reste a été calculé.
  */
 export const READER = {
   ALL: "all",
   HYPOTHESES: "hypotheses",
   CONSTRAINTS: "constraints",
+  DECISIONS: "decisions",
+  REASONINGS: "reasonings",
   FINDINGS: "findings",
   BASE_DATA: "base-data"
 };
+
+/**
+ * L'ordre du rail, et il n'y en a qu'un.
+ *
+ * Il vit ici parce que c'est ici que les lectures sont définies : l'écrire dans
+ * l'écran de la Mémoire ferait deux endroits à tenir, et le jour où une lecture
+ * s'ajoute, l'un des deux l'oublierait (règle 4).
+ *
+ * L'ordre suit celui des natures — `NATURES` dans `assertion-taxonomy.js` —,
+ * précédé de la liste entière. Ce qui s'impose, ce qu'on a tranché, le chemin
+ * qui y mène, ce qu'on a vu, ce qu'on suppose, ce que le projet est.
+ */
+export const READERS = [
+  READER.ALL,
+  READER.CONSTRAINTS,
+  READER.DECISIONS,
+  READER.REASONINGS,
+  READER.FINDINGS,
+  READER.HYPOTHESES,
+  READER.BASE_DATA
+];
 
 const READER_LABELS = {
   [READER.ALL]: "Tout",
   [READER.HYPOTHESES]: "Hypothèses",
   [READER.CONSTRAINTS]: "Contraintes",
+  [READER.DECISIONS]: "Décisions",
+  [READER.REASONINGS]: "Raisonnements",
   [READER.FINDINGS]: "Constats",
   [READER.BASE_DATA]: "Données de base"
 };
@@ -65,6 +100,10 @@ const READER_LEADS = {
     "Ce sur quoi le projet bâtit. Une ligne par sujet, à sa valeur en vigueur : changer cette valeur rend suspect ce qui en découle.",
   [READER.CONSTRAINTS]:
     "Ce que le projet doit respecter — un article du PLU, une règle d'accessibilité, une clause de notice. Une contrainte ne se lève pas : elle se vérifie.",
+  [READER.DECISIONS]:
+    "Ce que des humains ont tranché, et ce qu'ils ont écarté en le faisant. Une décision ne porte pas la valeur : la valeur la cite.",
+  [READER.REASONINGS]:
+    "Par où le projet est passé : les règles enchaînées, et les endroits où quelqu'un a dû choisir. C'est là qu'on voit ce qu'une donnée nouvelle remet en cause.",
   [READER.FINDINGS]:
     "Ce qui reste ouvert : les avis et remarques que rien n'est encore venu lever.",
   [READER.BASE_DATA]:
@@ -124,6 +163,16 @@ export function readerRows(assertions = [], reader = READER.ALL) {
   if (reader === READER.CONSTRAINTS) {
     return currentAssertions(lignes).filter(
       (assertion) => classifyAssertion(assertion).nature === NATURE.CONTRAINTE
+    );
+  }
+
+  if (reader === READER.DECISIONS || reader === READER.REASONINGS) {
+    // Le filtre est écrit comme les autres, et il ne rend rien : aucune ligne ne
+    // porte encore ces natures. C'est voulu — le jour où l'étape 8 en verse, ces
+    // deux lectures se remplissent sans qu'on touche à une ligne d'ici.
+    const voulue = reader === READER.DECISIONS ? NATURE.DECISION : NATURE.RAISONNEMENT;
+    return currentAssertions(lignes).filter(
+      (assertion) => classifyAssertion(assertion).nature === voulue
     );
   }
 
@@ -206,6 +255,22 @@ export function describeEmptyReader(reader) {
   }
   if (reader === READER.CONSTRAINTS) {
     return "Aucune contrainte n'a encore été versée. Ce n'est pas que le projet n'en a pas : rien ne les extrait encore des documents qui les portent — un PLU, une notice, un CCTP.";
+  }
+  // Les deux phrases qui comptent : elles ne disent pas « il n'y en a pas »,
+  // elles disent **pourquoi** il n'y en a pas. La différence est tout le sujet —
+  // un projet prend des décisions tous les jours, et c'est Mdall qui ne savait
+  // pas encore les garder.
+  if (reader === READER.DECISIONS) {
+    return "Le projet n'a encore enregistré aucune décision. Ce n'est pas qu'il n'en a pas pris — "
+      + "c'est que Mdall ne savait pas encore les garder. Elles se cachent dans les comptes rendus de "
+      + "réunion, dans les fils de sujets, dans les courriels : le copilote saura les y repérer et les "
+      + "proposer, et un humain les signera.";
+  }
+  if (reader === READER.REASONINGS) {
+    return "Le projet n'a encore enregistré aucun raisonnement. Les enchaînements de règles existent — "
+      + "le cerveau du projet les dessine —, mais un raisonnement est plus que cela : c'est une chaîne "
+      + "qui traverse des décisions humaines, et rien ne le devinera à partir du graphe. Il se verse, "
+      + "comme le reste.";
   }
   if (reader === READER.FINDINGS) {
     return "Aucun constat n'est ouvert. Tout ce que le projet a relevé a été levé ou écarté.";
