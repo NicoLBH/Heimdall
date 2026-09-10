@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   READER,
+  READERS,
   currentHypotheses,
   describeEmptyReader,
   groupByDomain,
@@ -171,4 +172,46 @@ test("chaque lecture porte un nom et une promesse", () => {
     assert.ok(readerLabel(lecture).length > 0);
     assert.ok(readerLead(lecture).length > 20, `${lecture} ne dit pas ce qu'elle filtre`);
   }
+});
+
+/* ── Décisions et raisonnements : déclarés, vides, et qui disent pourquoi ── */
+
+test("le rail suit un seul ordre, celui que le projet a demandé", () => {
+  // Tout, puis ce qui s'impose, ce qu'on a tranché, le chemin qui y mène, ce
+  // qu'on a vu, ce qu'on suppose, ce que le projet est.
+  assert.deepEqual(READERS, [
+    "all", "constraints", "decisions", "reasonings", "findings", "hypotheses", "base-data"
+  ]);
+
+  // Aucune lecture hors du rail : une lecture qu'aucune entrée ne montre serait
+  // un filtre que personne ne peut atteindre.
+  assert.deepEqual([...READERS].sort(), Object.values(READER).sort());
+});
+
+test("les deux lectures neuves ne rendent rien, et c'est la vérité du moment", () => {
+  const memoire = [hypothese({ id: "h" }), avis({ id: "a" })];
+
+  assert.deepEqual(readerRows(memoire, READER.DECISIONS), []);
+  assert.deepEqual(readerRows(memoire, READER.REASONINGS), []);
+});
+
+test("une décision versée se lirait sans qu'on touche au filtre", () => {
+  // Le filtre est écrit comme les autres : le jour où une ligne porte cette
+  // nature, la lecture la montre. C'est ce qui rend l'étape 8 additive.
+  const decision = { id: "d", kind: "decision", nature: "decision", statement: "Toiture en bac acier" };
+
+  assert.deepEqual(readerRows([decision], READER.DECISIONS).map((ligne) => ligne.id), ["d"]);
+  assert.deepEqual(readerRows([decision], READER.REASONINGS), []);
+});
+
+test("les deux entrées vides disent pourquoi elles sont vides", () => {
+  // C'est tout leur objet : « aucune décision » laisserait croire que le projet
+  // n'en a pas pris. Une lacune nommée vaut mieux qu'une absence silencieuse.
+  const decisions = describeEmptyReader(READER.DECISIONS);
+  assert.match(decisions, /Ce n'est pas qu'il n'en a pas pris/);
+  assert.match(decisions, /Mdall ne savait pas encore les garder/);
+
+  const raisonnements = describeEmptyReader(READER.REASONINGS);
+  assert.match(raisonnements, /traverse des décisions humaines/);
+  assert.match(raisonnements, /rien ne le devinera à partir du graphe/);
 });

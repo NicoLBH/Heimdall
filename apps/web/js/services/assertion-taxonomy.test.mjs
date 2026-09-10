@@ -12,10 +12,12 @@ import {
   domainLabel,
   filterByTaxonomy,
   natureFromKind,
+  natureIndefinie,
   natureLabel,
   normalizeDomain,
   normalizeNature,
   isContestable,
+  sansTranchantLabel,
   settledBy,
   settledByLabel,
   summarizeTaxonomy
@@ -175,15 +177,43 @@ test("un constat est tranché par une observation déjà faite", () => {
   assert.equal(settledBy(NATURE.CONSTAT), SETTLED_BY.OBSERVATION);
 });
 
-test("rien ne tranche une intendance : elle n'affirme rien", () => {
+test("rien ne tranche une intendance ni un raisonnement : ils n'affirment rien", () => {
   assert.equal(settledBy(NATURE.INTENDANCE), null);
+  // Un raisonnement ne dit pas ce qui est vrai, il dit par où l'on y est
+  // arrivé. Ce sont ses étapes qui se tranchent, chacune à sa façon.
+  assert.equal(settledBy(NATURE.RAISONNEMENT), null);
 });
 
-test("les trois connaissances sont tranchées par trois choses différentes", () => {
-  // Deux natures qui se tranchent pareil seraient la même nature.
-  const tranchants = [NATURE.CONSTAT, NATURE.HYPOTHESE, NATURE.CONTRAINTE].map(settledBy);
-  assert.equal(new Set(tranchants).size, 3);
+test("les connaissances sont tranchées par des choses différentes", () => {
+  // Deux natures qui se tranchent pareil seraient la même nature. La décision
+  // en fait partie : ce qui la tranche est un humain, et rien d'autre ne l'est.
+  const tranchants = [
+    NATURE.CONSTAT, NATURE.HYPOTHESE, NATURE.CONTRAINTE, NATURE.DONNEE_BASE, NATURE.DECISION
+  ].map(settledBy);
+  assert.equal(new Set(tranchants).size, 5);
   assert.ok(tranchants.every(Boolean));
+});
+
+test("les deux natures neuves sont déclarées, et rien ne les remplit encore", () => {
+  // Déclarées : le vocabulaire les connaît, un filtre les propose, l'écran peut
+  // dire qu'il n'en a aucune. Vides : rien dans le code ne produit ces natures,
+  // et le rattrapage par `kind` ne les invente pas non plus.
+  assert.equal(normalizeNature("decision"), NATURE.DECISION);
+  assert.equal(normalizeNature("raisonnement"), NATURE.RAISONNEMENT);
+  assert.equal(natureLabel(NATURE.DECISION), "Décision");
+  assert.equal(natureLabel(NATURE.RAISONNEMENT), "Raisonnement");
+
+  for (const kind of ["hypothesis", "base-datum", "review", "document", "link", ""]) {
+    const { nature } = classifyAssertion({ kind });
+    assert.notEqual(nature, NATURE.DECISION, kind);
+    assert.notEqual(nature, NATURE.RAISONNEMENT, kind);
+  }
+});
+
+test("l'ordre des natures est celui de la barre latérale, et il n'y en a qu'un", () => {
+  assert.deepEqual(NATURES, [
+    "contrainte", "decision", "raisonnement", "constat", "hypothese", "donnee-de-base", "intendance"
+  ]);
 });
 
 test("une nature inconnue ne se rapproche d'aucune", () => {
@@ -204,4 +234,30 @@ test("ce qui n'est pas classé ne se conteste pas non plus", () => {
   // Ne pas savoir de quoi il s'agit n'autorise pas à s'y prononcer.
   assert.equal(isContestable(null), false);
   assert.equal(isContestable(""), false);
+});
+
+/* ── L'article vient avec le nom ─────────────────────────────────────────── */
+
+test("chaque nature porte son article : deux sont masculines", () => {
+  // « On ne se prononce pas sur une constat » se lisait ainsi avant que
+  // l'article suive le nom. Le raisonnement aurait fait la deuxième faute.
+  assert.equal(natureIndefinie(NATURE.CONSTAT), "un constat");
+  assert.equal(natureIndefinie(NATURE.RAISONNEMENT), "un raisonnement");
+  assert.equal(natureIndefinie(NATURE.DECISION), "une décision");
+  assert.equal(natureIndefinie(NATURE.CONTRAINTE), "une contrainte");
+  assert.equal(natureIndefinie(NATURE.DONNEE_BASE), "une donnée de base");
+
+  // Une nature qu'on ne connaît pas se dit, elle ne se tait pas.
+  assert.equal(natureIndefinie("supposition"), "une affirmation non classée");
+});
+
+test("une nature que rien ne tranche dit pourquoi, chacune à sa façon", () => {
+  // Une seule phrase pour les deux était fausse deux fois sur le raisonnement :
+  // le genre, et le fond — il n'est pas la matière dont on extrait.
+  assert.match(sansTranchantLabel(NATURE.INTENDANCE), /^rien ne la tranche/);
+  assert.match(sansTranchantLabel(NATURE.RAISONNEMENT), /^rien ne le tranche/);
+
+  // Une nature qu'un tranchant désigne n'a rien à dire ici.
+  assert.equal(sansTranchantLabel(NATURE.CONTRAINTE), "");
+  assert.equal(sansTranchantLabel("supposition"), "");
 });

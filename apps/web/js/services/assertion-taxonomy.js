@@ -26,7 +26,15 @@
  *   Vérifiable, plausible, tenue pour vraie parce que le travail ne peut pas
  *   attendre le résultat du sondage.
  * - **Constat** — tranché par l'observation, déjà faite. Daté, situé, signé.
+ * - **Décision** — tranchée par un arbitrage humain, entre des possibles. Ce
+ *   qu'elle porte de propre, ce sont les possibles **écartés**.
+ * - **Raisonnement** — rien ne le tranche : il ne dit pas ce qui est vrai, il
+ *   dit par où l'on y est arrivé — et par quelles décisions on est passé.
  * - **Intendance** — rien ne la tranche : elle n'affirme rien sur l'ouvrage.
+ *
+ * Les deux du milieu sont **déclarées et vides** : rien ne les verse encore. Une
+ * lacune nommée vaut mieux qu'une absence silencieuse (règle 5), et le jour où
+ * l'étape 8 du plan les enregistre, il n'y aura rien à renommer.
  *
  * ## Le domaine : de quoi elle parle
  *
@@ -73,7 +81,16 @@ export const SETTLED_BY = {
    * ni une règle imposée du dehors — c'est la définition que le projet donne de
    * lui-même, et c'est de là que part tout le reste.
    */
-  PROJET: "projet"
+  PROJET: "projet",
+  /**
+   * Un humain, entre des possibles qu'il avait sous les yeux.
+   *
+   * Rien d'extérieur ne tranchait : ni texte, ni mesure, ni observation. C'est
+   * quelqu'un qui a choisi, et c'est **le fait qu'il ait choisi** — donc écarté
+   * le reste — qui fait l'information. Un arbitrage sans possibles écartés n'est
+   * pas un arbitrage : c'est une valeur.
+   */
+  ARBITRAGE: "arbitrage"
 };
 
 /**
@@ -154,6 +171,49 @@ export const NATURE = {
    */
   DONNEE_BASE: "donnee-de-base",
   /**
+   * Ce qu'un humain a tranché, entre des possibles, à une date.
+   *
+   * Tranchée par un **arbitrage**. C'est le pendant humain d'une règle : une
+   * règle conclut par un raisonnement, une décision conclut par un choix — et
+   * dans les deux cas la conclusion est une **autre** ligne, qui cite celle-ci.
+   * La décision ne porte donc pas la valeur ; elle porte la **question**, les
+   * **possibles écartés**, qui a tranché, et le motif — ou l'aveu qu'il n'y en a
+   * pas, ce qui est plus honnête qu'une justification fabriquée après coup
+   * (règle 5).
+   *
+   * Ce sont les possibles écartés qui font tout l'intérêt, et c'est exactement
+   * ce que personne ne retrouve six mois plus tard : quand on demande « pourquoi
+   * pas de l'ardoise ? », la réponse est dans la tête de trois personnes, ou
+   * nulle part.
+   *
+   * **Rien n'en verse encore.** La nature est déclarée pour que l'écran puisse
+   * dire qu'il n'en a aucune plutôt que de taire qu'elles existent ; ce qui les
+   * enregistre vient à l'étape 8 du plan — `docs/a-traiter-plus-tard.md`, § 15.
+   *
+   * → « toiture en bac acier, l'ardoise et la membrane écartées, le 12 mars,
+   *   par la maîtrise d'œuvre, pour le coût ».
+   */
+  DECISION: "decision",
+  /**
+   * Une suite d'étapes dont certaines sont des décisions humaines.
+   *
+   * **Rien ne la tranche**, et c'est voulu : un raisonnement n'affirme rien sur
+   * l'ouvrage, il dit *comment* on est arrivé à ce qu'on affirme. Ses étapes,
+   * elles, sont tranchées chacune à sa façon — une règle par un texte, une
+   * fonction native par le calcul, une décision par un humain.
+   *
+   * C'est là qu'est sa valeur, et elle n'existe nulle part ailleurs : un
+   * raisonnement qui traverse une décision **ne se rejoue pas tout seul**. Quand
+   * une entrée bouge, la chaîne se rejoue jusqu'à la décision, puis s'arrête et
+   * demande si le choix d'alors tient encore — avec un nom, une date et les
+   * possibles d'origine, au lieu d'un doute général.
+   *
+   * **Rien n'en verse encore**, et rien ne les devinera : le graphe des
+   * dépendances donne les chaînes déterministes, il ne saura jamais qu'entre
+   * deux d'entre elles quelqu'un a choisi. Voir § 16 du même carnet.
+   */
+  RAISONNEMENT: "raisonnement",
+  /**
    * Un document au corpus, une affaire rattachée : ce que le projet a rangé.
    *
    * **Ce n'est pas une connaissance, et probablement pas une nature.** Une
@@ -172,14 +232,19 @@ export const NATURE = {
 /**
  * Ce qui tranche chaque nature. La table de `SETTLED_BY`, par nature.
  *
- * L'intendance n'y figure pas : rien ne la tranche, parce qu'elle n'affirme
- * rien. Une absence ici se lit « cette nature n'est pas une connaissance ».
+ * Deux natures portent `null`, et pour la même raison : elles n'affirment rien
+ * sur l'ouvrage. L'intendance est la matière première dont les autres
+ * s'extraient ; le raisonnement est le chemin par lequel on est arrivé à ce
+ * qu'on affirme. Un `null` ici se lit « cette nature n'est pas une
+ * connaissance », jamais « on ne sait pas ».
  */
 const NATURE_SETTLED_BY = {
   [NATURE.CONSTAT]: SETTLED_BY.OBSERVATION,
   [NATURE.HYPOTHESE]: SETTLED_BY.MESURE,
   [NATURE.CONTRAINTE]: SETTLED_BY.TIERS,
   [NATURE.DONNEE_BASE]: SETTLED_BY.PROJET,
+  [NATURE.DECISION]: SETTLED_BY.ARBITRAGE,
+  [NATURE.RAISONNEMENT]: null,
   [NATURE.INTENDANCE]: null
 };
 
@@ -200,6 +265,8 @@ const NATURE_LABELS = {
   [NATURE.HYPOTHESE]: "Hypothèse",
   [NATURE.CONTRAINTE]: "Contrainte",
   [NATURE.DONNEE_BASE]: "Donnée de base",
+  [NATURE.DECISION]: "Décision",
+  [NATURE.RAISONNEMENT]: "Raisonnement",
   [NATURE.INTENDANCE]: "Intendance"
 };
 
@@ -249,12 +316,25 @@ function texte(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-/** Les natures connues, dans l'ordre où on les lit. */
+/**
+ * Les natures connues, dans l'ordre où on les lit.
+ *
+ * C'est **l'ordre de la barre latérale de la Mémoire**, et il n'y en a qu'un :
+ * ce qui s'impose d'abord, ce qu'on a tranché ensuite, le chemin qui y mène,
+ * puis ce qu'on a vu, ce qu'on suppose, et ce que le projet est. Deux ordres —
+ * un pour le rail, un pour le menu des filtres — finiraient par ne plus se
+ * ressembler, et l'on chercherait « Décisions » à deux endroits différents.
+ *
+ * L'intendance vient en dernier : elle n'affirme rien, et sa place dans la
+ * mémoire n'est pas tranchée.
+ */
 export const NATURES = [
-  NATURE.DONNEE_BASE,
+  NATURE.CONTRAINTE,
+  NATURE.DECISION,
+  NATURE.RAISONNEMENT,
   NATURE.CONSTAT,
   NATURE.HYPOTHESE,
-  NATURE.CONTRAINTE,
+  NATURE.DONNEE_BASE,
   NATURE.INTENDANCE
 ];
 
@@ -294,6 +374,36 @@ export function natureLabel(nature) {
   return NATURE_LABELS[normalizeNature(nature)] ?? UNCLASSIFIED_LABEL;
 }
 
+/**
+ * Le genre de chaque nature. Deux sont masculines, et une phrase le suppose.
+ *
+ * « On ne se prononce pas sur une constat » se lisait déjà ainsi : l'article
+ * était écrit en dur dans la phrase, et il valait pour la majorité. Ajouter le
+ * raisonnement en aurait fait deux fautes sur sept. Le genre appartient au nom,
+ * il vit donc avec lui (règle 10).
+ */
+const NATURE_ARTICLES = {
+  [NATURE.CONSTAT]: "un",
+  [NATURE.HYPOTHESE]: "une",
+  [NATURE.CONTRAINTE]: "une",
+  [NATURE.DONNEE_BASE]: "une",
+  [NATURE.DECISION]: "une",
+  [NATURE.RAISONNEMENT]: "un",
+  [NATURE.INTENDANCE]: "une"
+};
+
+/**
+ * « un constat », « une décision » — le nom de la nature avec son article.
+ *
+ * Une nature inconnue rend « une affirmation non classée » : elle se dit, elle
+ * ne se tait pas et elle ne se devine pas.
+ */
+export function natureIndefinie(nature) {
+  const connue = normalizeNature(nature);
+  if (!connue) return "une affirmation non classée";
+  return `${NATURE_ARTICLES[connue]} ${NATURE_LABELS[connue].toLowerCase()}`;
+}
+
 export function domainLabel(domain) {
   return DOMAIN_LABELS[normalizeDomain(domain)] ?? UNCLASSIFIED_LABEL;
 }
@@ -314,12 +424,38 @@ const SETTLED_BY_LABELS = {
   [SETTLED_BY.TIERS]: "un tiers — règlement, norme, marché",
   [SETTLED_BY.MESURE]: "une mesure qui n'a pas encore eu lieu",
   [SETTLED_BY.OBSERVATION]: "une observation, déjà faite",
-  [SETTLED_BY.PROJET]: "le projet lui-même — son programme, sa situation"
+  [SETTLED_BY.PROJET]: "le projet lui-même — son programme, sa situation",
+  [SETTLED_BY.ARBITRAGE]: "un humain, entre des possibles qu'il a écartés"
 };
 
 /** Ce qui tranche, dit en français. Pour l'écran, et pour les messages d'erreur. */
 export function settledByLabel(nature) {
   return SETTLED_BY_LABELS[settledBy(nature)] ?? "";
+}
+
+/**
+ * Ce qu'on dit d'une nature que **rien** ne tranche, et pourquoi.
+ *
+ * Une seule phrase servait pour les deux, écrite au féminin pour l'intendance :
+ * « rien ne la tranche : elle n'affirme pas, elle sert de matière ». Appliquée
+ * au raisonnement elle était deux fois fausse — le genre, et le fond : un
+ * raisonnement n'est pas la matière dont on extrait, c'est le chemin par lequel
+ * on est arrivé.
+ *
+ * Chaque nature porte donc la sienne, ici, à côté de sa définition. Une nature
+ * qu'un tranchant désigne — ou qu'on ne connaît pas — rend `""` : l'appelant
+ * emploie alors `settledByLabel`.
+ */
+const SANS_TRANCHANT = {
+  [NATURE.INTENDANCE]: "rien ne la tranche : elle n'affirme pas, elle sert de matière",
+  [NATURE.RAISONNEMENT]:
+    "rien ne le tranche : il ne dit pas ce qui est vrai, il dit par où l'on y est arrivé — "
+    + "ce sont ses étapes qui se tranchent, chacune à sa façon"
+};
+
+export function sansTranchantLabel(nature) {
+  const connue = normalizeNature(nature);
+  return connue && settledBy(connue) === null ? SANS_TRANCHANT[connue] ?? "" : "";
 }
 
 /**

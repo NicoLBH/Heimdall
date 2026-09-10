@@ -29,6 +29,19 @@ Et une septième, qui ne devrait pas exister : **`.mdall`**. Elle marque ce dont
 personne n'a dit la nature. Un fichier `.mdall` qui se remplit est un signal :
 un utilitaire a oublié de se prononcer.
 
+### Deux suffixes réservés, et rien ne les écrit encore
+
+**`.dec`** pour les décisions, **`.rai`** pour les raisonnements. Ils sont
+nommés ici et nulle part ailleurs, pour une seule raison : que personne n'en
+invente d'autres le jour où l'on s'y mettra.
+
+Ce qu'ils contiendront n'est **pas** décrit sur cette page, et c'est délibéré —
+on ne connaît pas encore la forme d'un fichier de décisions, et l'écrire au
+jugé reviendrait à graver un choix qu'on n'a pas fait. Les deux **natures**,
+elles, existent déjà dans le vocabulaire de la mémoire, et la barre latérale
+porte leurs deux entrées : vides, et qui disent pourquoi. Voir
+[`a-traiter-plus-tard.md`](a-traiter-plus-tard.md), § 15 et § 16.
+
 ---
 
 ## `.ref` — les règles appliquées

@@ -51,7 +51,7 @@
  * pas.
  */
 
-import { classifyAssertion, isContestable, natureLabel, settledByLabel } from "./assertion-taxonomy.js";
+import { classifyAssertion, isContestable, natureIndefinie, settledByLabel } from "./assertion-taxonomy.js";
 
 /** Ce qu'on peut faire à une hypothèse. */
 export const ACT = {
@@ -261,13 +261,15 @@ export function planAct({
   // ne tient qu'à l'affichage n'en est pas une.
   const { nature } = classifyAssertion(assertion);
   if (!isContestable(nature)) {
-    const quoiCest = nature ? natureLabel(nature).toLowerCase() : "affirmation non classée";
+    // L'article vient avec le nom : « une constat » se lisait mal, et deux des
+    // natures sont masculines.
+    const quoiCest = natureIndefinie(nature);
     const tranche = settledByLabel(nature);
     return {
       ok: false,
       reason: tranche
-        ? `On ne se prononce pas sur une ${quoiCest} : elle est tranchée par ${tranche}.`
-        : `On ne se prononce pas sur une ${quoiCest}.`
+        ? `On ne se prononce pas sur ${quoiCest} : elle est tranchée par ${tranche}.`
+        : `On ne se prononce pas sur ${quoiCest}.`
     };
   }
 

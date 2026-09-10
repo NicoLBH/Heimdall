@@ -44,7 +44,7 @@ pas après.
 | # | Étape | Ce qu'elle débloque | Section |
 |---|---|---|---|
 | 1 | Les explorations passent dans l'Atelier — *fait* | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
-| 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
+| 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi — *fait* | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
 | 3 | Neige, vent et gel aux standards, puis le spectre | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
 | 4 | La localisation et les zones se changent par proposition | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
 | 5 | La cascade parallèle | **la démonstration** | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
@@ -1004,13 +1004,47 @@ latérale, dans l'ordre demandé :
 Tout · Contraintes · Décisions · Raisonnements · Constats · Hypothèses · Données de base
 ```
 
-### Premier temps, tout de suite : l'entrée vide qui dit pourquoi
+### Premier temps — *fait* : l'entrée vide qui dit pourquoi
 
-Avant tout modèle, les deux entrées entrent dans la barre latérale et affichent
-la vérité du moment : *« Le projet n'a encore enregistré aucune décision. Ce
-n'est pas qu'il n'en a pas pris — c'est que Mdall ne savait pas encore les
-garder. »* Une lacune nommée vaut mieux qu'une absence silencieuse (règle 5), et
-c'est ce qui rendra l'étape suivante évidente à tout le monde.
+Avant tout modèle, les deux entrées sont entrées dans la barre latérale et
+affichent la vérité du moment : *« Le projet n'a encore enregistré aucune
+décision. Ce n'est pas qu'il n'en a pas pris — c'est que Mdall ne savait pas
+encore les garder. »* Une lacune nommée vaut mieux qu'une absence silencieuse
+(règle 5), et c'est ce qui rend l'étape suivante évidente à tout le monde.
+
+Le rail lit désormais, de haut en bas :
+
+```
+Tout · Contraintes · Décisions · Raisonnements · Constats · Hypothèses · Données de base
+```
+
+**Ce que l'étape a posé, et rien de plus.**
+
+- `NATURE.DECISION` et `NATURE.RAISONNEMENT` sont **déclarées** dans le
+  vocabulaire (`services/assertion-taxonomy.js`), avec ce qui les tranche : un
+  **arbitrage** pour l'une — un cinquième `SETTLED_BY` —, rien pour l'autre, qui
+  n'affirme pas, elle dit par où l'on est passé.
+- **Rien ne les produit.** Aucun `kind` ne s'y rattrape, aucun écran ne les
+  écrit : le rattrapage par provenance ne les invente pas, et un test le tient.
+- Les deux lectures s'écrivent comme les autres — `nature:décision` se tape dans
+  la barre et rend zéro ligne, ce qui est exact. Le jour où l'étape 8 en verse,
+  elles se remplissent sans qu'on touche à un filtre.
+- L'ordre du rail est **celui des natures** (`NATURES`), et il n'y en a qu'un :
+  le menu des filtres suit le même. Deux ordres finiraient par ne plus se
+  ressembler.
+- Le dossier de contexte nomme le vocabulaire entier dans sa légende, décision
+  comprise, mais **n'écrit aucun bloc vide** : un titre « Décision » sans ligne
+  ferait croire que le projet n'a rien tranché.
+
+Deux fautes de français dormaient à côté et sont parties avec : « on ne se
+prononce pas sur *une* constat » — l'article vit maintenant avec le nom —, et la
+phrase « rien ne *la* tranche : elle sert de matière », écrite pour l'intendance,
+qui aurait été deux fois fausse sur le raisonnement.
+
+**Ce qui n'est pas fait**, et qui est l'étape 8 : ce qui écrit une décision — le
+`.dec`, la forme de sa charge (question, écartés, motif), le repérage par le
+copilote, la signature. Les deux suffixes réservés sont nommés dans
+[`extensions.md`](extensions.md) pour que personne n'en invente d'autres.
 
 ### Comment la rendre explicite : le copilote propose, un humain signe
 
@@ -1096,6 +1130,10 @@ que Mdall a de plus à offrir à un projet — et personne d'autre ne le fait.
 
 Une huitième extension — `.rai` — et une entrée « Raisonnements » dans la barre
 latérale.
+
+**L'entrée existe depuis l'étape 2** ; elle est vide et le dit. Le reste — ce
+qu'un `.rai` contient, comment un raisonnement se verse, comment il s'arrête sur
+une décision quand on le rejoue — est l'étape 9.
 
 ### Ce qu'on ne fera pas
 
