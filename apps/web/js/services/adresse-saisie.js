@@ -128,6 +128,18 @@ export function adresseEnUneLigne(localisation = null) {
 }
 
 /**
+ * La commune et son code postal, en une ligne : « Annecy 74000 ».
+ *
+ * C'était un **champ** de la fiche du projet — `communeCp` —, écrit à côté de
+ * `city` et `postalCode`, dérivé à deux endroits et reparsé à un troisième.
+ * Une valeur écrite à deux endroits finit par diverger (règle 4) ; celle-ci se
+ * calcule maintenant là où on en a besoin, et ne se range plus nulle part.
+ */
+export function communeEtCodePostal(localisation = null) {
+  return [texte(localisation?.city), texte(localisation?.postalCode)].filter(Boolean).join(" ");
+}
+
+/**
  * Vrai quand le serveur a de quoi répondre.
  *
  * Sans code INSEE, les tables de zonage ne se lisent pas : le calcul ne part

@@ -46,8 +46,7 @@ function syncProjectLocationFromPersistedState() {
     postalCode: typeof persistedForm.postalCode === "string" ? persistedForm.postalCode : store.projectForm.postalCode,
     latitude: Number.isFinite(persistedForm.latitude) ? persistedForm.latitude : store.projectForm.latitude,
     longitude: Number.isFinite(persistedForm.longitude) ? persistedForm.longitude : store.projectForm.longitude,
-    altitude: Number.isFinite(persistedForm.altitude) ? persistedForm.altitude : store.projectForm.altitude,
-    communeCp: typeof persistedForm.communeCp === "string" ? persistedForm.communeCp : store.projectForm.communeCp
+    altitude: Number.isFinite(persistedForm.altitude) ? persistedForm.altitude : store.projectForm.altitude
   };
 
   Object.assign(store.projectForm, location);

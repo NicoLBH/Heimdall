@@ -180,6 +180,14 @@ function ensureProjectFormDefaults() {
     form.riskCategory = "Risque normal";
   }
 
+  // `communeCp` était une **seconde écriture** de la commune : « Annecy 74000 »
+  // à côté de `city` et `postalCode`, dérivée à deux endroits et relue ici. Une
+  // valeur écrite à deux endroits finit par diverger (règle 4), et celle-ci
+  // avait le mauvais goût de se reparser.
+  //
+  // Elle ne s'écrit plus nulle part. Cette reprise reste, et **elle seule** :
+  // un projet enregistré avant ce changement porte encore le champ dans son état
+  // local, et l'ignorer lui ferait perdre sa commune.
   if ((!form.city || !form.postalCode) && form.communeCp) {
     const raw = String(form.communeCp).trim();
     const match = raw.match(/^(.*?)(?:\s*[,-]?\s*)(\d{4,5})$/);
@@ -190,8 +198,6 @@ function ensureProjectFormDefaults() {
       form.city = form.city || raw;
     }
   }
-
-  form.communeCp = [form.city, form.postalCode].filter(Boolean).join(" ").trim();
 
   form.importance = importanceLabelToCode(form.importance || form.importanceCategory || "II");
   form.importanceCategory = importanceCodeToLabel(form.importanceCategory || form.importance || "II");

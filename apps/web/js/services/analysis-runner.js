@@ -1,4 +1,5 @@
 import { store } from "../store.js";
+import { communeEtCodePostal } from "./adresse-saisie.js";
 import { getPreferredAnalysisDocumentIds, normalizeDocumentRefIds, setLastAnalysisDocumentIds } from "./project-documents-store.js";
 import { rerenderRoute } from "../router.js";
 import { syncProjectSituationsRunbar } from "../views/project-situations-runbar.js";
@@ -128,14 +129,12 @@ function getDomValue(id) {
 }
 
 function syncProjectFormFromDom() {
-  const communeCp = getDomValue("communeCp");
   const importance = getDomValue("importance");
   const soilClass = getDomValue("soilClass");
   const liquefaction = getDomValue("liquefaction");
   const referential = getDomValue("referential");
   const pdfInput = el("pdfFile");
 
-  if (communeCp !== null) store.projectForm.communeCp = communeCp.trim();
   if (importance !== null) store.projectForm.importance = importance;
   if (soilClass !== null) store.projectForm.soilClass = soilClass;
   if (liquefaction !== null) store.projectForm.liquefaction = liquefaction;
@@ -150,7 +149,9 @@ function readInputs() {
   syncProjectFormFromDom();
 
   return {
-    communeCp: (store.projectForm.communeCp || "").trim(),
+    // Calculée, non lue : « Annecy 74000 » était un champ à côté de `city` et
+    // `postalCode`, et deux écritures d'une même commune ne se comparent plus.
+    communeCp: communeEtCodePostal(store.projectForm),
     importance: store.projectForm.importance || "II",
     soilClass: store.projectForm.soilClass || "A",
     liquefaction: store.projectForm.liquefaction || "no",

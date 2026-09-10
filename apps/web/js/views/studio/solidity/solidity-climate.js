@@ -70,6 +70,7 @@ import { fetchFrenchAltitude, resolveFrenchCoordinates } from "../../../services
 import { renderCarteAPointer, brancherLaCarteAPointer } from "../../ui/carte-a-pointer.js";
 import { ZOOM_COMMUNE, ZOOM_PARCELLE, zoomBorne } from "../../../services/carte-pointee.js";
 import { pointDit } from "../../../services/localisation-versement.js";
+import { localisationDeLaMemoire } from "../../../services/localisation-du-projet.js";
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
 import { renderSpinnerHtml } from "../../ui/spinner.js";
 
@@ -131,8 +132,9 @@ const CARTE_DU_CLIMAT = "climat";
 const LOCALISATION_RESOLUE = [
   { cle: "city", nom: "Commune" },
   { cle: "codeInsee", nom: "Code INSEE" },
-  { cle: "postalCode", nom: "Code postal" },
-  { cle: "altitude", nom: "Altitude", unite: "m" }
+  { cle: "postalCode", nom: "Code postal" }
+  // Pas l'altitude : la carte « Neige » la porte déjà, et deux fois la même
+  // mesure à trente centimètres l'une de l'autre fait chercher la différence.
 ];
 
 function buildClimateDraftDescription() {
@@ -357,10 +359,17 @@ async function hydrateState() {
   try {
     const projectId = await resolveCurrentBackendProjectId();
     state.projectId = String(projectId || "").trim();
-    // Celle du projet au premier montage seulement : une saisie en cours ne se
-    // perd pas parce qu'on est passé sur un autre panneau et revenu.
-    if (!state.location) state.location = getEffectiveProjectLocation();
     if (!state.projectId) throw new Error("Projet introuvable.");
+
+    // **À chaque venue**, et depuis la mémoire. On la gardait d'un montage à
+    // l'autre pour ne pas perdre une saisie en cours, et l'on affichait alors
+    // l'adresse d'avant après avoir fusionné la proposition qui la corrigeait —
+    // par soi, ou par un collègue. Rien ne disait que c'était faux, et le calcul
+    // serait parti sur celle-là. Voir `services/localisation-du-projet.js`.
+    state.location = localisationDeLaMemoire(await memoireDuProjet()) ?? getEffectiveProjectLocation();
+    state.pointe = null;
+    recentrer(state.location, ZOOM_PARCELLE);
+
     const rows = await Promise.all(TOOL_KEYS.map((toolKey) => getLastStudioToolResult({ projectId: state.projectId, toolKey })));
     state.results = Object.fromEntries(rows.map((row, index) => [TOOL_KEYS[index], row]));
   } catch (error) {
@@ -565,7 +574,10 @@ function render(root) {
     nom: CARTE_DU_CLIMAT,
     // Une fonction, et non l'état capturé : l'écran redessine, et un objet pris
     // à la liaison porterait le centre d'il y a trois déplacements.
-    etat: () => ({ centre: state.centre, point: state.pointe, zoom: state.zoom }),
+    // **Le marqueur qui est dessiné**, et non le seul point posé : c'est celui du
+    // projet qu'on saisit la première fois, et ne pas le donner ici rendait le
+    // marqueur impossible à prendre tant qu'on n'en avait pas posé un autre.
+    etat: () => ({ centre: state.centre, point: pointPose() ?? pointDuProjet(), zoom: state.zoom }),
     quandGeste: (enCours) => {
       state.geste = enCours;
       // Ce qu'on a refusé de dessiner pendant le geste se rattrape à sa fin.
@@ -734,7 +746,13 @@ function brancherLaSaisie(root) {
   });
 
   root.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
-    void prendreLaLocalisation(root, getEffectiveProjectLocation(), { zoom: ZOOM_PARCELLE });
+    // Relue, jamais reprise d'un cache : c'est le geste qui dit « remets-moi ce
+    // que le projet tient pour vrai », et une photo d'il y a dix minutes n'est
+    // pas cela.
+    void (async () => {
+      const memoire = localisationDeLaMemoire(await memoireDuProjet()) ?? getEffectiveProjectLocation();
+      await prendreLaLocalisation(root, memoire, { zoom: ZOOM_PARCELLE });
+    })();
   });
 }
 

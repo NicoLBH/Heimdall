@@ -49,6 +49,7 @@
 
 import { store } from "../store.js";
 import { branchesQuiAccueillent } from "./proposition-branche.js";
+import { TRANSFORMER } from "../views/ui/transformer.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -70,6 +71,12 @@ export function branchesOuvertes(quandCharge = null) {
   const projet = projetAffiche();
   if (!projet) return [];
 
+  ecouterLOuvertureDesMenus();
+  // Le dernier rappel connu : c'est lui qu'on rappellera quand un menu s'ouvre
+  // et qu'on aura relu. Sans lui, la relecture aurait lieu et personne ne
+  // redessinerait.
+  if (typeof quandCharge === "function") dernierRappel = quandCharge;
+
   if (su.projet !== projet) {
     su = { projet, branches: [], lue: false };
     enCours = null;
@@ -77,6 +84,48 @@ export function branchesOuvertes(quandCharge = null) {
 
   if (!su.lue && !enCours) enCours = lire(projet, quandCharge);
   return su.branches;
+}
+
+/**
+ * Relire à **chaque ouverture** du menu « Transformer ».
+ *
+ * Le magasin gardait sa liste pour la vie de la page. Sur un projet où deux
+ * personnes travaillent en même temps, cela veut dire proposer d'ajouter un lot
+ * à une proposition qu'un collègue vient de fusionner — et le lot part dans une
+ * branche fermée. Un cache qui ne se rafraîchit qu'au rechargement de la page
+ * n'est pas un cache : c'est une photo.
+ *
+ * On relit donc au moment où quelqu'un **regarde** : l'ouverture du menu est le
+ * seul instant où la fraîcheur compte, et c'est un appel par clic, pas un par
+ * rendu.
+ */
+let ecoute = false;
+let dernierRappel = null;
+
+function ecouterLOuvertureDesMenus() {
+  if (ecoute || typeof document === "undefined") return;
+  ecoute = true;
+
+  document.addEventListener("ghaction:menu-ouvert", (evenement) => {
+    // Seulement les menus qui proposent des branches. Les autres n'ont rien à
+    // relire, et les relire ferait un appel par clic sur n'importe quel menu.
+    const racine = evenement.target;
+    const propose = typeof racine?.querySelector === "function"
+      && racine.querySelector(`[data-menu-action^="${TRANSFORMER.AJOUTER}"], [data-menu-action="${TRANSFORMER.PROPOSITION}"]`);
+    if (!propose) return;
+
+    void relireLesBranches();
+  });
+}
+
+/** Oublier, relire, et redessiner. Rendue pour les écrans qui veulent forcer. */
+export async function relireLesBranches() {
+  const projet = projetAffiche();
+  if (!projet) return;
+
+  su = { projet, branches: su.projet === projet ? su.branches : [], lue: false };
+  enCours = null;
+  await lire(projet, dernierRappel);
 }
 
 /**

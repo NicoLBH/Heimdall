@@ -1,6 +1,7 @@
 import { buildSupabaseAuthHeaders, getSupabaseUrl } from "../../assets/js/auth.js";
 import { setCurrentDemoProject } from "../demo-context.js";
 import { store } from "../store.js";
+import { communeEtCodePostal } from "../services/adresse-saisie.js";
 import { createProjectWithDefaultPhases, syncProjectsCatalogFromSupabase } from "../services/project-supabase-sync.js";
 import { searchFrenchCommunes } from "../services/georisques-service.js";
 import { svgIcon } from "../ui/icons.js";
@@ -44,7 +45,10 @@ const projectCreateUiState = {
     description: "",
     city: "",
     postalCode: "",
-    communeCp: "",
+    // Ce qui est **tapé** dans le champ commune. Ce n'est pas une donnée du
+    // projet — celle-ci est `city` + `postalCode` — mais le texte d'un champ
+    // qui les porte tous les deux, et qu'on ne veut pas effacer à chaque frappe.
+    communeSaisie: "",
     clientName: "",
     departmentCode: ""
   },
@@ -359,7 +363,7 @@ function renderProjectCreatePage(root) {
                   type="text"
                   autocomplete="off"
                   placeholder="Ex : Annecy"
-                  value="${escapeHtml(draft.communeCp || [draft.city, draft.postalCode].filter(Boolean).join(" ").trim())}"
+                  value="${escapeHtml(draft.communeSaisie || communeEtCodePostal(draft))}"
                 >
                 ${renderCitySuggestions()}
               </label>
@@ -427,9 +431,9 @@ function renderCitySuggestionsPanel() {
       projectCreateUiState.draft.city = item.name || "";
       projectCreateUiState.draft.postalCode = item.postalCode || "";
       projectCreateUiState.draft.departmentCode = item.departmentCode || "";
-      projectCreateUiState.draft.communeCp = [item.name, item.postalCode].filter(Boolean).join(" ").trim();
+      projectCreateUiState.draft.communeSaisie = communeEtCodePostal({ city: item.name, postalCode: item.postalCode });
       const cityInput = document.getElementById("projectCreateCityInput");
-      if (cityInput) cityInput.value = projectCreateUiState.draft.communeCp;
+      if (cityInput) cityInput.value = projectCreateUiState.draft.communeSaisie;
       clearCitySuggestions();
     });
   });
@@ -495,7 +499,7 @@ function bindProjectCreatePage(root) {
   });
 
   cityInput?.addEventListener("input", () => {
-    projectCreateUiState.draft.communeCp = cityInput.value;
+    projectCreateUiState.draft.communeSaisie = cityInput.value;
     updateCitySuggestions(cityInput.value);
   });
 

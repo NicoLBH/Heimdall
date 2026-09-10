@@ -1221,7 +1221,6 @@ function syncProjectLocationFields({ address, city, postalCode, codeInsee, latit
     store.projectForm.altitude = Number.isFinite(altitude) ? altitude : null;
   }
 
-  store.projectForm.communeCp = [store.projectForm.city, store.projectForm.postalCode].filter(Boolean).join(" ").trim();
   syncLocationDerivedStaleUi();
 }
 
