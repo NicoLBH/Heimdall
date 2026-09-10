@@ -12,7 +12,6 @@ import {
   currentAssertions,
   declaredBaseDatum,
   declaredHypothesis,
-  declaredZone,
   describeAssertionFacts,
   planSupersessions,
   searchAssertions,
@@ -480,32 +479,6 @@ test("une donnée de base a besoin d'une valeur : c'est elle qui sert d'entrée"
 test("une donnée de base ne se conteste pas : elle se corrige", () => {
   // Personne d'extérieur ne tranche ce que le projet est.
   assert.equal(isContestable(NATURE.DONNEE_BASE), false);
-});
-
-/* ── La définition d'une zone ────────────────────────────────────────────── */
-
-test("une zone se définit par un geste explicite", () => {
-  const plan = declaredZone({ projectId: "p", label: "Zone A", definition: "RDC — ERP type M" });
-
-  assert.equal(plan.ok, true);
-  assert.equal(plan.row.payload.zoneDefinition, true);
-  assert.equal(plan.row.payload.zoneKey, "zone-a");
-  assert.equal(plan.row.nature, NATURE.DONNEE_BASE);
-});
-
-test("une définition de zone ne porte pas la zone qu'elle décrit", () => {
-  // Sinon elle disparaîtrait de toute lecture autre que la sienne — y compris
-  // de celle où on la cherche.
-  const plan = declaredZone({ projectId: "p", label: "Zone A", definition: "RDC" });
-
-  assert.equal(plan.row.zones, null);
-});
-
-test("une zone sans nom est refusée, et le refus donne un exemple", () => {
-  const plan = declaredZone({ projectId: "p", definition: "RDC" });
-
-  assert.equal(plan.ok, false);
-  assert.match(plan.reason, /Zone A|Rez-de-chauss/);
 });
 
 test("une affirmation dit ce qu'elle affirme, pas qu'elle est un document", async () => {

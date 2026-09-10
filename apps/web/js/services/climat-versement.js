@@ -34,13 +34,15 @@
 
 import { NATURE } from "./assertion-taxonomy.js";
 import { PROVENANCE, STATUT, AGENT } from "./memoire-en-texte.js";
+import { AGENTS_CLIMATIQUES, SUJET_ALTITUDE, SUJET_LOCALISATION } from "../utilitaires/agents-climatiques.js";
 import {
-  AGENTS_CLIMATIQUES,
-  SUJET_ALTITUDE,
-  SUJET_LOCALISATION,
-  STRUCTURE_DE_LA_LOCALISATION
-} from "../utilitaires/agents-climatiques.js";
+  altitudeVersable,
+  ligneDeLaLocalisation,
+  localisationVersable,
+  phraseDeLaLocalisation
+} from "./localisation-versement.js";
 import { referenceOf, sortiesDeLAgent } from "../utilitaires/catalogue.js";
+import { mesureEcrite } from "../utilitaires/lecture-fait.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -48,99 +50,25 @@ const texte = (valeur) => String(valeur ?? "").trim();
 export const ATELIER = "Neige, Vent & Gel";
 
 /**
- * Un nombre, écrit comme la mémoire écrit ses mesures.
+ * Réexportée : la mémoire n'a qu'une façon d'écrire une mesure.
  *
- * La virgule décimale, et l'unité collée derrière. « 2.59 m » et « 2,59 m »
- * seraient deux écritures d'une même cote, et le diff d'un fichier les
- * signalerait comme une modification.
+ * Elle en a eu deux le temps d'une version — une ici, une dans `lecture-fait.js`
+ * —, ce qui est exactement ce que la règle 4 interdit : « 2.59 m » et « 2,59 m »
+ * sont la même cote écrite de deux façons, et deux écritures ne se comparent
+ * plus. L'écran climatique l'emploie sous ce nom-là.
  */
-export function mesure(valeur, decimales = 2, unite = "m") {
-  const n = Number(valeur);
-  if (!Number.isFinite(n)) return "";
-  const ecrit = n.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
-  return unite ? `${ecrit} ${unite}` : ecrit;
-}
+export { mesureEcrite as mesure };
 
 /**
- * La localisation telle qu'elle se verse : une ligne, quatre colonnes.
+ * La localisation et l'altitude ne se construisent **pas ici**.
  *
- * Un tableau d'une seule ligne, et non quatre sujets. Une commune, son code
- * INSEE et son code postal ne se lisent pas séparément — c'est **un** endroit —,
- * et les éclater ferait quatre lignes de mémoire qu'aucun écran ne sait replier.
+ * Deux écrans les posent — les Paramètres, où le projet dit où il est, et cet
+ * atelier, qui les corrige pour un calcul. Si chacun bâtissait sa ligne, les
+ * deux finiraient par ne plus décrire la même chose (règle 4). Elles sont donc
+ * réexportées telles quelles depuis `localisation-versement.js` : l'écran
+ * climatique les emploie sans avoir à savoir d'où elles viennent.
  */
-export function ligneDeLaLocalisation(localisation = {}) {
-  const ligne = {
-    commune: texte(localisation.city ?? localisation.commune),
-    codeInsee: texte(localisation.codeInsee ?? localisation.code_insee),
-    codePostal: texte(localisation.postalCode ?? localisation.codePostal ?? localisation.postal_code),
-    adresse: texte(localisation.address ?? localisation.adresse)
-  };
-  // Sans code INSEE, rien ne se calcule et rien ne se verse : le zonage d'une
-  // commune homonyme serait une valeur fausse énoncée comme un fait.
-  return ligne.codeInsee ? ligne : null;
-}
-
-/** Comment la localisation se dit en une phrase, sur sa ligne de mémoire. */
-export function phraseDeLaLocalisation(ligne = null) {
-  if (!ligne) return "";
-  const nom = ligne.commune || "commune inconnue";
-  return ligne.codePostal ? `${nom} (${ligne.codePostal}, INSEE ${ligne.codeInsee})` : `${nom} (INSEE ${ligne.codeInsee})`;
-}
-
-/**
- * La localisation, prête à être proposée comme donnée de base.
- *
- * Sa provenance est une **décision** : personne ne l'a mesurée ni déduite —
- * quelqu'un a dit où le projet se trouve, et c'est le genre de chose qu'on
- * rediscute six mois plus tard quand la parcelle change.
- */
-export function localisationVersable(localisation = {}, zone = "") {
-  const ligne = ligneDeLaLocalisation(localisation);
-  if (!ligne) return null;
-
-  return {
-    sujet: SUJET_LOCALISATION,
-    valeur: phraseDeLaLocalisation(ligne),
-    tableau: [ligne],
-    structure: STRUCTURE_DE_LA_LOCALISATION,
-    quoi: "Où le projet se trouve : sa commune, son code INSEE, son code postal et son adresse.",
-    utilisation: "L'entrée de la chaîne climatique. Les zonages neige et vent, puis la cote "
-      + "hors gel, en découlent — et se refont quand elle change.",
-    nature: NATURE.DONNEE_BASE,
-    provenance: { type: PROVENANCE.DECISION, quoi: `saisie dans l'Atelier — ${ATELIER}` },
-    statut: STATUT.RETENU,
-    reference: "climat:localisation",
-    zones: texte(zone) ? [texte(zone)] : [],
-    atelier: ATELIER
-  };
-}
-
-/**
- * L'altitude du site, prête à être proposée.
- *
- * Elle se versait jusqu'ici comme un produit des zonages — « zonages
- * réglementaires — Marseille » —, ce qui était faux : le serveur ne la calcule
- * pas, il la reçoit et la rend telle quelle. C'est une **entrée**, et l'écrire
- * comme une sortie faisait de la chaîne climatique une boucle sur elle-même.
- */
-export function altitudeVersable(localisation = {}, zone = "") {
-  const valeur = mesure(localisation?.altitude, 2, "m");
-  if (!valeur) return null;
-
-  return {
-    sujet: SUJET_ALTITUDE,
-    valeur,
-    quoi: "L'altitude du terrain naturel au droit du projet.",
-    utilisation: "Elle décide de la réserve au-delà de 900 m sur les zonages, et elle est le "
-      + "second terme de la formule de la cote hors gel.",
-    nature: NATURE.DONNEE_BASE,
-    provenance: { type: PROVENANCE.DECISION, quoi: `saisie dans l'Atelier — ${ATELIER}` },
-    statut: STATUT.RETENU,
-    reference: "climat:altitude",
-    zones: texte(zone) ? [texte(zone)] : [],
-    atelier: ATELIER
-  };
-}
+export { ligneDeLaLocalisation, localisationVersable, phraseDeLaLocalisation, altitudeVersable };
 
 /**
  * Ce qu'un agent a lu du projet, avec la valeur lue.
@@ -212,7 +140,7 @@ export function valeurDeLaSortie(sortie, resultats = {}) {
   const charge = brut?.result_payload ?? brut ?? {};
   const valeur = charge?.[sortie.cle];
   if (valeur === null || valeur === undefined || texte(valeur) === "") return "";
-  return sortie.decimales === null ? texte(valeur) : mesure(valeur, sortie.decimales, sortie.unite);
+  return sortie.decimales === null ? texte(valeur) : mesureEcrite(valeur, sortie.decimales, sortie.unite);
 }
 
 /**
@@ -275,11 +203,11 @@ export function sortiesVersables(agent, { resultats = {}, localisation = null, a
  */
 export function lignesVersables({ localisation = {}, resultats = {}, zone = "" } = {}) {
   const ligne = ligneDeLaLocalisation(localisation);
-  const altitude = mesure(localisation?.altitude, 2, "m");
+  const altitude = mesureEcrite(localisation?.altitude, 2, "m");
 
   const lignes = [
-    localisationVersable(localisation, zone),
-    altitudeVersable(localisation, zone)
+    localisationVersable(localisation, { zone, ou: ATELIER }),
+    altitudeVersable(localisation, { zone, ou: ATELIER })
   ];
 
   for (const agent of AGENTS_CLIMATIQUES) {

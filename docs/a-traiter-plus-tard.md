@@ -46,7 +46,7 @@ pas après.
 | 1 | Les explorations passent dans l'Atelier — *fait* | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
 | 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi — *fait* | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
 | 3 | Neige, vent et gel aux standards, puis le spectre — *fait* | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
-| 4 | La localisation et les zones se changent par proposition | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
+| 4 | La localisation et les zones se changent par proposition — *fait* | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
 | 5 | La cascade parallèle | **la démonstration** | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
 | 6 | La proposition devient une branche | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
 | 7 | Un modèle rédige le titre et le corps d'une proposition | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
@@ -1217,16 +1217,63 @@ d'altitude »*. Pas *« Fondations superficielles — dimensionnement »*.
 
 ## 19. La localisation et les zones se changent par proposition
 
-Aujourd'hui, la localisation du projet et son découpage en zones se changent
-**hors mémoire**. Deux conséquences, et la seconde est pire :
+**État :** fait.
 
-- on perd le **qui, quand, pourquoi** sur la donnée la plus structurante du
+La localisation du projet et son découpage en zones se changeaient **hors
+proposition** — pire, ils s'écrivaient **directement** en mémoire. C'était une
+exception à la règle 1 sur ce qui structure tout le reste, et on ne la voyait
+pas : elle était dans un service qui s'appelait « verser une donnée de base ».
+
+Trois conséquences, et la troisième est la pire :
+
+- on perdait le **qui, quand, pourquoi** sur la donnée la plus structurante du
   projet ;
-- **rien ne se recalcule**, alors que changer la commune change la neige, le
+- le sujet versé par les Paramètres, « Adresse du projet », **n'était lu par
+  personne** : les agents climatiques lisent « Localisation du projet », que seul
+  l'Atelier posait. Deux sujets pour un même endroit, dont l'un ne servait à rien ;
+- **rien ne se recalculait**, alors que changer la commune change la neige, le
   vent, le gel et la zone sismique — donc les fondations et le spectre.
 
-Les deux deviennent des affirmations du socle, et se changent comme tout le
-reste : par une proposition. Une zone **retirée** est déjà traitée
+### Ce que l'étape a posé
+
+- **Un seul sujet pour un seul endroit.** « Adresse du projet » disparaît ; les
+  deux écrans posent « Localisation du projet », la ligne à quatre colonnes que
+  les agents lisent. Elle se construit dans `services/localisation-versement.js`,
+  une fois : deux écrans la posent, et si chacun bâtissait la sienne les deux
+  finiraient par ne plus décrire le même endroit (règle 4).
+- **Le geste de mémoire est explicite.** Un bouton « Proposer à la mémoire » sur
+  l'écran de localisation, distinct de l'enregistrement. L'enregistrement range
+  l'adresse dans la fiche du projet — c'est lui qui dessine la carte et
+  pré-remplit les utilitaires ; la proposition, elle, se relit avant d'être
+  signée. Une proposition qui s'ouvrirait à chaque frappe ne se relirait jamais.
+- **Définir, renommer, retirer une zone** ouvrent une proposition
+  (`services/zones-versement.js`). Renommer en définit une autre **et** retire la
+  première : la clé vient du nom, et sans le retrait le projet aurait un bâtiment
+  de trop.
+- **Retirer n'est pas refuser.** Un refus est le geste de celui qui relit — « ne
+  l'applique pas ». Retirer une zone est une décision du projet : elle se verse
+  comme une **définition de plus**, marquée `retiree`, qui périme la précédente.
+  La zone quitte les listes et reste dans l'histoire, avec son motif. C'est la
+  règle 11 : on ne corrige pas la mémoire, on verse par-dessus.
+- **La proposition emporte ce qui fait une zone** — `zoneDefinition`, `zoneKey`,
+  `retiree` — et lui donne la clé du projet, `zone:batiment-a`. Sans elle,
+  redéfinir une zone laisserait les deux définitions valoir à la fois.
+- `services/base-data-supabase.js` **est supprimé** : c'était le fichier qui
+  écrivait directement, et le laisser en place invitait à s'en resservir.
+
+### Ce qui reste, et qu'il faut nommer
+
+- **L'adresse vit encore à deux endroits** : dans la mémoire, désormais, et dans
+  la table `project_location` que l'écran édite. La seconde est le formulaire —
+  ce qui dessine la carte et pré-remplit les utilitaires —, la première est la
+  référence du raisonnement. Les réunir demande que tout ce qui lit
+  `getEffectiveProjectLocation` lise la mémoire ; c'est un travail à part.
+- **« Verser les contraintes du site »**, dans la Mémoire, écrit encore
+  directement les contraintes déduites des faits de contexte. C'est l'ancien
+  chemin, doublé depuis l'étape 3 par la proposition de l'Atelier : deux façons
+  d'entrer pour la même connaissance. À trancher.
+
+Une zone **retirée** était déjà traitée du côté de ce qu'elle emporte
 ([§ 13](#13-retirer-ce-quune-ancienne-version-dutilitaire-a-versé)) : ce qui ne
 valait que pour elle quitte le présent, avec son motif.
 

@@ -20,7 +20,7 @@ import {
 import { persistCurrentProjectState } from "../../services/project-state-storage.js";
 import { saveProjectLocationToSupabase, loadProjectLocationFromSupabase } from "../../services/project-location-supabase.js";
 import { upsertProjectContextFact } from "../../services/project-context-facts-service.js";
-import { versDonneeDeBase } from "../../services/base-data-supabase.js";
+import { altitudeVersable, localisationVersable } from "../../services/localisation-versement.js";
 import { resolveCurrentBackendProjectId } from "../../services/project-supabase-sync.js";
 import { svgIcon } from "../../ui/icons.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../services/google-maps-embed-service.js";
@@ -33,39 +33,87 @@ import {
 } from "./project-parametres-core.js";
 import { renderProjectLocationMapCard } from "../shared/project-location-map-card.js";
 
-/**
- * Verse l'adresse du projet dans la mémoire, comme donnée de base.
- *
- * L'adresse est ce dont tout le reste se déduit : les zones climatiques, la
- * sismicité, l'argile. Elle a donc sa place dans la mémoire, pas seulement dans
- * un formulaire — et il faut pouvoir relire quelle adresse valait quand un
- * calcul a été fait, qui l'a renseignée, et quand elle a changé.
- *
- * Rien n'est versé si elle n'a pas bougé : réenregistrer l'écran ne doit pas
- * ajouter une ligne d'histoire identique à la précédente. Et un échec ne défait
- * pas l'enregistrement, qui, lui, a eu lieu.
- */
-async function conserverAdresseEnMemoire() {
-  const morceaux = [
-    String(store.projectForm.address || "").trim(),
-    [String(store.projectForm.postalCode || "").trim(), String(store.projectForm.city || "").trim()]
-      .filter(Boolean)
-      .join(" ")
-  ].filter(Boolean);
+/** L'écran d'où la localisation vient, quand elle est proposée d'ici. */
+const ECRAN = "Localisation du projet";
 
-  if (morceaux.length === 0) return;
+/**
+ * Proposer la localisation à la mémoire du projet.
+ *
+ * ## Ce qui se passait avant, et pourquoi c'était faux
+ *
+ * L'écran **écrivait directement** « Adresse du projet » en mémoire, à chaque
+ * enregistrement. Trois défauts, et le troisième est le pire :
+ *
+ * - c'était une exception à la règle 1 — *rien n'entre jamais directement dans
+ *   la mémoire* — sur la donnée la plus structurante du projet ;
+ * - le sujet versé, « Adresse du projet », n'était lu par **personne** : les
+ *   agents climatiques lisent « Localisation du projet », que seul l'Atelier
+ *   posait. Deux sujets pour un même endroit, dont l'un ne servait à rien ;
+ * - **rien ne se recalculait.** Changer la commune change la neige, le vent, le
+ *   gel et la zone sismique — donc les fondations et le spectre. Une écriture
+ *   silencieuse ne déclenche rien.
+ *
+ * ## Et ce qui se passe maintenant
+ *
+ * L'enregistrement de l'écran reste ce qu'il est : il range l'adresse dans la
+ * fiche du projet, ce qui dessine la carte et pré-remplit les utilitaires. Le
+ * **geste de mémoire** est distinct et explicite — un bouton —, parce qu'une
+ * proposition qui s'ouvrirait à chaque frappe ne se relirait jamais.
+ */
+async function proposerLaLocalisation() {
+  const uiState = ensureLocalisationUiState();
+  if (uiState.locationProposalInProgress) return;
+
+  const localisation = {
+    city: store.projectForm.city,
+    codeInsee: store.projectForm.codeInsee,
+    postalCode: store.projectForm.postalCode,
+    address: store.projectForm.address,
+    altitude: store.projectForm.altitude
+  };
+
+  // La localisation **commande** : sans elle, proposer l'altitude seule verserait
+  // une hauteur sans endroit, que rien ne saurait employer.
+  const ou = localisationVersable(localisation, { ou: ECRAN });
+  if (!ou) {
+    uiState.locationProposalNotice = "Il manque le code INSEE de la commune : les tables de "
+      + "zonage se lisent par lui, et sans lui rien ne se calcule. Renseignez l'adresse, "
+      + "la commune se résoudra.";
+    rerenderProjectParametres();
+    return;
+  }
+
+  const lignes = [ou, altitudeVersable(localisation, { ou: ECRAN })].filter(Boolean);
+
+  uiState.locationProposalInProgress = true;
+  uiState.locationProposalNotice = "";
+  rerenderProjectParametres();
 
   try {
-    await versDonneeDeBase({
-      projectId: await resolveCurrentBackendProjectId(),
-      subject: "Adresse du projet",
-      value: morceaux.join(", "),
-      declaredBy: store.user?.id ?? null
+    const projectId = await resolveCurrentBackendProjectId();
+    if (!projectId) throw new Error("Projet introuvable.");
+
+    const { preparerUneProposition } = await import("../../services/atelier-proposition.js");
+    const rendu = await preparerUneProposition({
+      projectId,
+      titre: `Localisation du projet — ${String(store.projectForm.city || "").trim() || "commune inconnue"}`,
+      intro: "Où le projet se trouve, et à quelle altitude. Tout ce que le site impose en "
+        + "découle : les zonages neige et vent, la cote hors gel, la zone de sismicité — donc "
+        + "les fondations et le spectre. Les rejouer après signature dira ce qui a changé.",
+      affirmations: lignes,
+      // Pas de portée : le projet est là où il est, pas seulement son bâtiment A.
+      zones: []
     });
+    if (!rendu.ok) throw new Error(rendu.raison);
+
+    store.pendingPropositionId = rendu.proposition.id;
+    const projet = String(store.currentProjectId || "").trim();
+    if (projet) window.location.hash = `#project/${projet}/propositions`;
   } catch (error) {
-    console.warn("[project-location] adresse non versée en mémoire", {
-      message: error instanceof Error ? error.message : String(error)
-    });
+    uiState.locationProposalNotice = error instanceof Error ? error.message : String(error);
+  } finally {
+    uiState.locationProposalInProgress = false;
+    rerenderProjectParametres();
   }
 }
 
@@ -111,6 +159,12 @@ function ensureLocalisationUiState() {
   }
   if (typeof parametresUiState.locationEditInProgress !== "boolean") {
     parametresUiState.locationEditInProgress = false;
+  }
+  if (typeof parametresUiState.locationProposalInProgress !== "boolean") {
+    parametresUiState.locationProposalInProgress = false;
+  }
+  if (typeof parametresUiState.locationProposalNotice !== "string") {
+    parametresUiState.locationProposalNotice = "";
   }
   if (!parametresUiState.locationPendingSelectionPromise || typeof parametresUiState.locationPendingSelectionPromise.then !== "function") {
     parametresUiState.locationPendingSelectionPromise = null;
@@ -1040,7 +1094,6 @@ async function refreshLocationDerivedData({ runEnrichment = false, triggerType =
       altitude: savedProject?.altitude ?? store.projectForm.altitude
     });
     store.projectForm.codeInsee = String(savedProject?.code_insee || codeInsee || "").trim();
-    await conserverAdresseEnMemoire();
     store.projectForm.locationSavedSnapshot = {
       address: String(store.projectForm.address || "").trim(),
       city: String(store.projectForm.city || "").trim(),
@@ -1449,9 +1502,20 @@ export function renderLocalisationParametresContent() {
     cards: [
       renderSectionCard({
         title: "Localisation",
-        description: "Localisation administrative et d’usage du projet.",
+        description: "Localisation administrative et d’usage du projet. Elle entre dans la mémoire "
+          + "par une proposition : c'est d'elle que se déduisent la neige, le vent, le gel et la "
+          + "sismicité, et il faut pouvoir relire laquelle valait quand un calcul a été fait.",
         badge: "",
-        body: `${renderLocationAutocompleteField({ id: "projectAddress", width: "col-span-2", fieldKey: "address", label: "Adresse", value: form.address || "", placeholder: getLocationFieldPlaceholder("address", "Ex. 12 avenue de la Gare, Annecy"), placeholderStrong: hasStrongPlaceholder("address") })}
+        action: `
+          <button type="button" class="gh-btn gh-btn--primary" data-localisation-proposer
+            ${parametresUiState.locationProposalInProgress ? "disabled" : ""}>
+            ${parametresUiState.locationProposalInProgress ? "Préparation…" : "Proposer à la mémoire"}
+          </button>
+        `,
+        body: `${parametresUiState.locationProposalNotice
+          ? `<div class="settings-inline-notice">${escapeHtml(parametresUiState.locationProposalNotice)}</div>`
+          : ""}
+        ${renderLocationAutocompleteField({ id: "projectAddress", width: "col-span-2", fieldKey: "address", label: "Adresse", value: form.address || "", placeholder: getLocationFieldPlaceholder("address", "Ex. 12 avenue de la Gare, Annecy"), placeholderStrong: hasStrongPlaceholder("address") })}
         ${(ensureGeorisquesState().commune || Number.isFinite(form.latitude) || Number.isFinite(form.longitude)) ? `
           <div class="settings-auto-fields">
             ${renderAutoResolvedField("Commune résolue", ensureGeorisquesState().commune?.name || form.city || "—", "Données de localisation résolues automatiquement.", { muted: hasStaleLocationDerivedData() })}
@@ -1479,6 +1543,13 @@ export function bindLocalisationParametresSection(root) {
   void root;
   ensureLocalisationUiState();
   bindBaseParametresUi();
+
+  // Le geste de mémoire est **explicite**. L'enregistrement de l'écran range
+  // l'adresse dans la fiche du projet ; ce bouton-ci la propose, et quelqu'un
+  // signe. Une proposition qui s'ouvrirait à chaque frappe ne se relirait jamais.
+  document.querySelector("[data-localisation-proposer]")?.addEventListener("click", () => {
+    void proposerLaLocalisation();
+  });
   const uiState = ensureLocalisationUiState();
   const projectId = String(store.currentProjectId || "").trim();
   if (projectId && uiState.locationHydratedProjectId !== projectId) void hydrateLocationPlaceholdersFromSupabase();

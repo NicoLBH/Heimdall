@@ -41,11 +41,11 @@ test("sans code INSEE, la localisation ne se verse pas", () => {
   // Deux communes françaises portent le même nom ; aucune ne partage son code
   // INSEE. Verser sans lui reviendrait à retenir le zonage d'une homonyme.
   assert.equal(ligneDeLaLocalisation({ city: "Sainte-Marie", postalCode: "97438" }), null);
-  assert.equal(localisationVersable({ city: "Sainte-Marie" }), null);
+  assert.equal(localisationVersable({ city: "Sainte-Marie" }, {}), null);
 });
 
 test("la localisation se verse en une ligne, pas en quatre sujets", () => {
-  const ligne = localisationVersable(LOCALISATION, "batiment-a");
+  const ligne = localisationVersable(LOCALISATION, { zone: "batiment-a", ou: ATELIER });
 
   assert.equal(ligne.sujet, SUJET_LOCALISATION);
   assert.equal(ligne.tableau.length, 1);
@@ -69,12 +69,12 @@ test("la phrase de la localisation nomme la commune et son code", () => {
 test("l'altitude est une entrée, pas un produit des zonages", () => {
   // Elle se versait comme si les zonages l'avaient calculée. Le serveur ne la
   // calcule pas : il la reçoit et la rend telle quelle.
-  const ligne = altitudeVersable(LOCALISATION);
+  const ligne = altitudeVersable(LOCALISATION, { ou: ATELIER });
 
   assert.equal(ligne.sujet, SUJET_ALTITUDE);
   assert.match(ligne.valeur, /^1\s326,00 m$/u);
   assert.equal(ligne.provenance.type, "décision");
-  assert.match(ligne.provenance.quoi, /saisie dans l'Atelier/);
+  assert.equal(ligne.provenance.quoi, `saisie — ${ATELIER}`);
 });
 
 /* ── Les deux appels ─────────────────────────────────────────────────────── */

@@ -168,6 +168,18 @@ function conditionRetenue(condition) {
 
 /** La clé métier d'une affirmation, portée comprise. */
 export function cleDAffirmation(affirmation) {
+  // Une **définition de zone** a sa clé à elle, et c'est celle que le projet
+  // porte déjà : `zone:batiment-a`. Deux raisons, et la seconde est la vraie.
+  //
+  // Une zone se nomme comme n'importe quoi d'autre — « Rez-de-chaussée » est un
+  // sujet possible ailleurs —, et sans préfixe une définition périmerait une
+  // valeur de même nom. Et surtout : redéfinir une zone, ou la retirer, doit
+  // **périmer sa définition précédente**. Sans cette clé, les deux vaudraient à
+  // la fois et le projet aurait deux découpages.
+  if (affirmation?.zoneDefinition === true) {
+    return `zone:${normalizeZoneKey(affirmation?.zoneKey ?? affirmation?.sujet ?? "")}`;
+  }
+
   const base = normalizeSubjectKey(affirmation?.sujet ?? "");
   const portees = [...new Set((affirmation?.zones ?? []).map(normalizeZoneKey).filter(Boolean))].sort();
   const cle = portees.length ? `${base}@${portees.join("+")}` : base;
@@ -307,7 +319,16 @@ export function itemsDeProposition(affirmations = []) {
           // tant qu'on ignore ce qu'il faut mettre dans une ligne.
           structure: Array.isArray(affirmation.structure) && affirmation.structure.length
             ? affirmation.structure
-            : null
+            : null,
+          // Ce qui fait d'une donnée de base une **zone**, et son retrait quand
+          // c'en est un. Rien ne se devine d'un libellé : « Zone A » n'est pas
+          // une zone parce qu'il commence par ces deux mots — c'est cette marque
+          // qui le dit, et elle seule.
+          zoneDefinition: affirmation.zoneDefinition === true ? true : null,
+          zoneKey: affirmation.zoneDefinition === true
+            ? normalizeZoneKey(affirmation.zoneKey ?? affirmation.sujet ?? "")
+            : null,
+          retiree: affirmation.retiree === true ? true : null
         }
       };
     }));
