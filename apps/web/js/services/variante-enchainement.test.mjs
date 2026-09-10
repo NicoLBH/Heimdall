@@ -47,7 +47,9 @@ test("une étape dit ce qu'elle lit, d'après ce que l'utilitaire a déclaré", 
     recalculees: [recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1")]
   }), DEPART);
 
-  assert.deepEqual(horsGel.entrees, ["H0 retenu pour le département", "Altitude du site"]);
+  assert.deepEqual(horsGel.entrees, [
+    "Localisation du projet", "H0 retenu pour le département", "Altitude du site"
+  ]);
   assert.deepEqual(horsGel.sorties, ["Profondeur hors gel"]);
   assert.equal(horsGel.detail, "a recalculé");
 });
@@ -85,4 +87,94 @@ test("une variante qui n'enchaîne rien ne dessine pas de chaîne", () => {
   assert.deepEqual(enchainementDeLaVariante(rendu(), DEPART), []);
   assert.deepEqual(enchainementDeLaVariante({ ok: false }, DEPART), []);
   assert.deepEqual(enchainementDeLaVariante(null, DEPART), []);
+});
+
+/* ── L'arbre : une valeur changée fourche ────────────────────────────────── */
+
+test("deux étapes qui lisent la même chose sont sœurs, pas l'une après l'autre", () => {
+  // La démonstration : changer l'altitude change la zone de neige **et** la cote
+  // hors gel — deux branches du même rang —, et la cote hors gel change ensuite
+  // les fondations, un rang plus loin. En file, cela se lirait « neige, puis
+  // hors gel, puis fondations », ce qui est faux : la neige ne commande rien.
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [
+      recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1"),
+      recalculee("Zone de neige", "deduction_zone_neige_commune_V1"),
+      recalculee("Résultat du calcul des fondations superficielles",
+        "dimensionnement_fondations_superficielles_V1")
+    ]
+  }), DEPART);
+
+  assert.deepEqual(etapes.map((etape) => [etape.rang, etape.sorties?.[0] ?? etape.label]), [
+    [0, "Altitude du site"],
+    [1, "Profondeur hors gel"],
+    [1, "Zone de neige"],
+    [2, "Résultat du calcul des fondations superficielles"]
+  ]);
+});
+
+test("chaque étape dit de qui elle découle", () => {
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [
+      recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1"),
+      recalculee("Résultat du calcul des fondations superficielles",
+        "dimensionnement_fondations_superficielles_V1")
+    ]
+  }), DEPART);
+
+  // Les fondations lisent la cote hors gel — pas l'altitude. Le parent est donc
+  // l'étape qui vient d'écrire la cote, et c'est ce qui les met un rang plus bas.
+  assert.equal(etapes[1].parent, "depart");
+  assert.equal(etapes[2].parent, "recalculee:a-Profondeur hors gel");
+});
+
+test("une étape qui lit ce que rien d'ici n'a écrit est au rang 1", () => {
+  // Elle découle de ce qu'on essaie, par un chemin qu'on ne voit pas. Le dire au
+  // rang 1 vaut mieux que de la ranger au hasard, et bien mieux que de la
+  // ranger sous une sœur qui ne la commande pas.
+  const [, orpheline] = enchainementDeLaVariante(rendu({
+    recalculees: [recalculee("Zone de sismicité", "deduction_zone_sismique_georisques_V1")]
+  }), DEPART);
+
+  assert.equal(orpheline.rang, 1);
+  assert.equal(orpheline.parent, "depart");
+});
+
+test("un récapitulatif ferme la chaîne au tronc, sous aucune branche", () => {
+  // « 3 à revérifier » n'est pas une étape de la chaîne : elle ne découle
+  // d'aucune en particulier, et la ranger sous la plus profonde la dessinerait
+  // comme sa fille — le défaut même qu'on ferme ici. Elle vient en dernier, et
+  // au rang du tronc : c'est là que les branches se rejoignent.
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [
+      recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1"),
+      recalculee("Résultat du calcul des fondations superficielles",
+        "dimensionnement_fondations_superficielles_V1")
+    ],
+    aRevoir: [{ sujet: "Note de calcul" }]
+  }), DEPART);
+
+  const dernier = etapes[etapes.length - 1];
+  assert.equal(dernier.id, "a-revoir");
+  assert.equal(dernier.rang, 0);
+  // Et le tronc ne se confond pas avec la branche la plus profonde, qui reste
+  // là où elle est : le récapitulatif ne l'a ni aplatie ni emportée.
+  assert.equal(etapes[2].rang, 2);
+});
+
+test("la localisation est la tête de la cascade", () => {
+  // C'est ce que l'étape 4 a rendu possible : la localisation est un sujet de la
+  // mémoire, les trois utilitaires climatiques déclarent la lire, et la changer
+  // fait donc partir trois branches à la fois.
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [
+      recalculee("Zone de neige", "deduction_zone_neige_commune_V1"),
+      recalculee("Zone de vent", "deduction_zone_vent_commune_V1"),
+      recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1"),
+      recalculee("Résultat du calcul des fondations superficielles",
+        "dimensionnement_fondations_superficielles_V1")
+    ]
+  }), { sujet: "Localisation du projet", valeur: "Annecy", essaye: "Briançon" });
+
+  assert.deepEqual(etapes.map((etape) => etape.rang), [0, 1, 1, 1, 2]);
 });

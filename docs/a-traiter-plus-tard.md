@@ -47,7 +47,7 @@ pas après.
 | 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi — *fait* | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
 | 3 | Neige, vent et gel aux standards, puis le spectre — *fait* | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
 | 4 | La localisation et les zones se changent par proposition — *fait* | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
-| 5 | La cascade parallèle | **la démonstration** | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
+| 5 | La cascade parallèle — *faite pour la branche climatique* | l'arbre fourche : une valeur changée, plusieurs branches | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
 | 6 | La proposition devient une branche | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
 | 7 | Un modèle rédige le titre et le corps d'une proposition | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
 | 8 | Le modèle des décisions | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
@@ -1268,10 +1268,9 @@ Trois conséquences, et la troisième est la pire :
   ce qui dessine la carte et pré-remplit les utilitaires —, la première est la
   référence du raisonnement. Les réunir demande que tout ce qui lit
   `getEffectiveProjectLocation` lise la mémoire ; c'est un travail à part.
-- **« Verser les contraintes du site »**, dans la Mémoire, écrit encore
-  directement les contraintes déduites des faits de contexte. C'est l'ancien
-  chemin, doublé depuis l'étape 3 par la proposition de l'Atelier : deux façons
-  d'entrer pour la même connaissance. À trancher.
+- **« Verser les contraintes du site »** écrit encore directement — c'est le
+  dernier chemin qui contourne la proposition, et il a maintenant sa section :
+  [§ 24](#24-verser-les-contraintes-du-site).
 
 Une zone **retirée** était déjà traitée du côté de ce qu'elle emporte
 ([§ 13](#13-retirer-ce-quune-ancienne-version-dutilitaire-a-versé)) : ce qui ne
@@ -1410,6 +1409,9 @@ et fait passer `ag` de 1,92 à 0,84 m/s².
 
 ## 21. La cascade parallèle, la démonstration
 
+**État :** fait pour la branche climatique. La branche sismique se déclare et se
+dit, mais ne se rejoue pas — voir « Ce qui reste » ci-dessous.
+
 ```
 Localisation du projet
  ├── Altitude ──────► Profondeur hors gel ──────► Fondations
@@ -1419,11 +1421,75 @@ Localisation du projet
 Une seule valeur changée, deux chaînes qui partent, quatre utilitaires rejoués.
 C'est la démonstration que le produit existe.
 
-**Ce qui manque techniquement est petit et précis :** l'enchaînement livré est
-une **file**, et il faut un **arbre**. Le composant sait dessiner une suite de
-boîtes reliées ; il lui faut le **rang** de propagation, pas seulement l'ordre du
-rejeu. Les arêtes existent déjà (`lecturesDeLaRegle`, `sortiesDeLaFonction`, le
-`lit` de chaque utilitaire) ; il ne manque que le trait qui fourche.
+**Ce qui manquait était petit et précis :** l'enchaînement livré était une
+**file**, et il fallait un **arbre**. Le composant savait dessiner une suite de
+boîtes reliées ; il lui manquait le **rang** de propagation, pas seulement
+l'ordre du rejeu. Les arêtes existaient déjà (`lecturesDeLaRegle`,
+`sortiesDeLaFonction`, le `lit` de chaque utilitaire) ; il ne manquait que le
+trait qui fourche.
+
+### Ce que l'étape a posé
+
+**Le rang se calcule, il ne se devine pas d'un ordre.**
+`enchainementDeLaVariante` tient deux registres — qui a écrit quel sujet, et à
+quel rang — et range chaque étape un cran sous le plus profond des sujets qu'elle
+**déclare lire** et qu'une étape d'ici vient d'écrire. Deux étapes qui lisent la
+même chose sont donc **sœurs**, du même rang : c'est exactement la fourche qu'on
+cherchait à montrer. Une étape qui lit ce que rien d'ici n'a écrit va au rang 1 —
+elle découle de ce qu'on essaie, par un chemin qu'on ne voit pas —, ce qui vaut
+mieux que de la ranger sous une sœur qui ne la commande pas.
+
+**Un seul dessin, deux formes.** `renderEnchainement` reste le composant unique
+(règle 4). Sans rang il dessine une file, et c'est le bon dessin pour le chemin
+d'une exécution — décision, corpus, lecture, avis se suivent vraiment. Avec des
+rangs qui diffèrent, et à la verticale seulement, il indente comme un journal de
+branches et **supprime les traits entre boîtes successives** : dans un arbre, la
+boîte suivante n'est pas la suite de la précédente, et un trait entre elles dirait
+le contraire de ce qui s'est passé.
+
+**Le crochet est court, et de longueur fixe.** Un trait continu du haut de la
+colonne jusqu'au coude serait plus joli, mais il devrait remonter jusqu'à la sœur
+précédente, dont la hauteur n'est pas connue de la feuille de style : il se
+rompait sous chaque boîte un peu haute, et un tronc rompu se lit comme une branche
+qui s'arrête. Un crochet franc ne prétend rien — l'indentation dit la profondeur,
+il dit l'attache.
+
+**Les récapitulatifs reviennent au tronc.** « 3 à revérifier » ne découle
+d'aucune étape en particulier : cela repose sur *tout* ce qui vient de bouger. Les
+ranger au rang le plus profond les aurait dessinés sous la dernière branche, qui
+ne les commande pas — le défaut même que l'étape ferme, rouvert en bas du schéma.
+Au tronc, et venant en dernier, ils se lisent comme ce qu'ils sont : ce en quoi
+l'ensemble des branches se rejoint.
+
+**La localisation est devenue la tête de la cascade.** L'étape 4 en avait fait un
+sujet de la mémoire ; il fallait encore que les utilitaires déclarent la lire. Les
+trois utilitaires climatiques le déclarent maintenant — celui du vent ne déclarait
+**rien du tout** —, et changer la commune fait donc partir trois branches à la
+fois, dont l'une continue jusqu'aux fondations.
+
+**Le zonage sismique déclare la commune, sans savoir se rejouer.** Il déclarait
+lire le vide, au motif qu'il « se lit sur des coordonnées, que la mémoire ne porte
+pas comme sujets ». Ce n'était pas vrai : le zonage est réglementairement
+communal, et le fichier le dit lui-même en tête. Sa valeur vient de Géorisques et
+il n'a pas de `rejeu` — il apparaît donc **à revérifier**, en disant pourquoi,
+plutôt que d'être absent de la chaîne comme si rien n'en dépendait. Règle 5 : ne
+pas savoir rejouer n'autorise pas à prétendre que rien ne dépend de la commune.
+
+### Ce qui reste
+
+**La branche sismique ne se rejoue pas.** Le spectre a bien son agent et sa
+reprise ([§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre)), mais entre
+la commune et lui la zone de sismicité ne se recalcule pas : sa valeur vient de
+Géorisques, et `contraintesAReprendre` ne sait reprendre qu'un utilitaire portant
+un `rejeu.outil`. Généraliser cela est un travail distinct — c'est aussi la
+deuxième question de [§ 24](#24-verser-les-contraintes-du-site) —, et l'étape s'en
+tient à le **dire** : la zone de sismicité se range à revérifier, avec sa raison,
+au lieu de disparaître.
+
+**Le titre d'une étape reste la référence de l'utilitaire**
+(`deduction_zone_neige_commune_V1`). C'est délibéré ici — le libellé répéterait ce
+que la ligne « écrit » dit déjà juste en dessous —, mais cela mérite d'être
+retranché le jour où le schéma s'élargit.
 
 ---
 
@@ -1457,3 +1523,52 @@ dépendance avec le reste du plan : il se glisse entre deux étapes.
 À faire d'abord, quand on l'ouvrira : lister ce qui manque, précisément, plutôt
 que de le reprendre au fil de l'eau. Un manque nommé se corrige ; un manque
 ressenti se repousse.
+
+---
+
+## 24. Verser les contraintes du site
+
+Le bouton **Verser › Verser les contraintes du site**, dans la Mémoire, lit les
+faits de contexte du projet et écrit les contraintes déduites **directement** en
+base — `derived-constraints-supabase.js`, `writeAssertions`. Pas de proposition,
+pas de signature.
+
+C'est le dernier de son espèce. L'étape 4 a fermé les deux autres (la
+localisation, le découpage) ; celui-ci est resté parce qu'il n'était pas nommé
+dans le plan.
+
+### Pourquoi ce n'est pas seulement une entorse à la règle 1
+
+**Il est doublé.** Depuis l'étape 3, l'Atelier climatique propose les mêmes
+sujets — zone de neige, zone de vent, cote hors gel — par une proposition qu'on
+signe, avec l'appel de l'agent et ce qu'il a lu. Deux chemins pour la même
+connaissance, dont l'un écrit sans qu'on relise, et rien à l'écran ne dit lequel
+a produit la ligne qu'on regarde. C'est la règle 4 sur un chemin d'écriture plutôt
+que sur une valeur, et cela finira par se voir sur un projet réel : deux zones de
+neige de provenances différentes, l'une signée, l'autre non.
+
+**Il n'est pas identique pour autant.** Il verse aussi ce que l'Atelier ne
+propose pas : le zonage sismique et l'argile, qui viennent de Géorisques et n'ont
+pas d'écran de proposition. Le supprimer sans les reprendre ferait disparaître
+ces deux-là.
+
+### Ce qu'il faut trancher avant d'écrire du code
+
+1. **Le bouton disparaît-il, ou devient-il une proposition ?** Un « verser » qui
+   ouvre une proposition portant tout ce que les faits de contexte établissent
+   est le geste le plus simple, et il garde le service rendu : reprendre en une
+   fois ce qui a été calculé avant que la mémoire existe.
+2. **Que fait-on de Géorisques ?** Le zonage sismique et l'argile n'ont pas
+   d'atelier. Soit ils en gagnent un — ce qui est aussi ce que demande la moitié
+   sismique de la cascade ([§ 21](#21-la-cascade-parallèle-la-démonstration)) —,
+   soit la proposition ci-dessus reste leur seule porte.
+3. **Que deviennent les lignes déjà versées par ce chemin ?** Elles restent :
+   rien ne s'efface. Mais elles ne citent pas de proposition, et un écran qui
+   demandera « qui a signé ceci » n'aura pas de réponse. Il devra le dire plutôt
+   que d'inventer un signataire (règle 5).
+
+### Ce qu'on ne fera pas
+
+Laisser les deux chemins coexister « en attendant ». C'est ainsi qu'on se
+retrouve avec deux mémoires, et le jour où elles divergent personne ne sait
+laquelle fait foi.

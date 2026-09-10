@@ -26,7 +26,9 @@
 import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE } from "./reserves.js";
+import { lecturesDeclarees } from "./lecture-fait.js";
 import { valeurParColonne } from "./lecture-tabulaire.js";
+import { SUJET_LOCALISATION } from "./agents-climatiques.js";
 
 const COLONNE_ZONE = /(zone(_?sismi\w*)?|code_?zone|niveau_?zone)/i;
 const COLONNE_LIBELLE = /(libelle|label|intitule|niveau|qualification)/i;
@@ -47,6 +49,26 @@ export const DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1 = {
   domaine: DOMAIN.STRUCTURE,
   cleDonnee: "seismic_zone",
 
+  /**
+   * Elle lit la commune, et elle le dit.
+   *
+   * Sans cette ligne, changer la localisation laissait la zone de sismicité
+   * hors de la chaîne, sans un mot — comme si rien n'en dépendait. Or tout en
+   * dépend : c'est la commune, et rien d'autre, qui décide de la zone.
+   *
+   * Elle ne sait pas se rejouer pour autant : sa valeur vient de Géorisques, et
+   * il n'y a pas de `rejeu` à déclarer ici. Elle apparaîtra donc à revérifier,
+   * en disant pourquoi. C'est la règle 5 : ne pas savoir rejouer n'autorise pas
+   * à prétendre que rien ne dépend de la commune.
+   */
+  lit: [
+    {
+      sujet: SUJET_LOCALISATION,
+      entree: "code_insee",
+      lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
+    }
+  ],
+
   deduire(fait = {}) {
     const valeurConservee = String(fait?.fact_value?.value ?? "").trim();
     const brut = fait?.fact_value?.data ?? fait?.fact_value?.raw ?? null;
@@ -66,6 +88,7 @@ export const DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1 = {
         codeInsee: fait?.fact_value?.codeInsee ?? null,
         commune: fait?.fact_value?.commune ?? null
       },
+      lectures: lecturesDeclarees(DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1, fait),
       reserves: [RESERVE.PORTEE_COMMUNALE]
     };
   }

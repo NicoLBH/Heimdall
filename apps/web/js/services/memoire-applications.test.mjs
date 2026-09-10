@@ -472,9 +472,9 @@ test("une contrainte versée sans déclaration prend celle de son catalogue", ()
   );
 
   assert.deepEqual(lignes.map((l) => l.input_subject), [
-    "H0 retenu pour le département", "Altitude du site"
+    "Localisation du projet", "H0 retenu pour le département", "Altitude du site"
   ]);
-  assert.equal(lignes[1].input_assertion_id, "ddb-alt");
+  assert.equal(lignes[2].input_assertion_id, "ddb-alt");
 });
 
 test("un utilitaire inconnu du catalogue ne rend aucun lien", () => {
