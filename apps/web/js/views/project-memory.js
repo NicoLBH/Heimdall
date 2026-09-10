@@ -81,6 +81,7 @@ import {
 } from "../services/memory-readers.js";
 import {
   DOMAINS,
+  ICONE_DE_LA_DECISION,
   NATURE,
   NATURES,
   UNCLASSIFIED_LABEL,
@@ -415,7 +416,10 @@ const READER_ICONS = {
   [READER.CONSTRAINTS]: "shield",
   // Deux possibles mis face à face, un seul retenu : c'est le dessin même d'une
   // décision. Et pour le raisonnement, une suite d'étapes reliées.
-  [READER.DECISIONS]: "git-compare",
+  //
+  // Le nom vient du vocabulaire : trois écrans posent cette icône, et trois
+  // chaînes écrites à la main finiraient par ne plus montrer la même chose.
+  [READER.DECISIONS]: ICONE_DE_LA_DECISION,
   [READER.REASONINGS]: "project-roadmap",
   [READER.FINDINGS]: "tools",
   [READER.BASE_DATA]: "north-star"

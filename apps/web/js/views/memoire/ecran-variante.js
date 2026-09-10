@@ -37,6 +37,7 @@
 
 import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
+import { ICONE_DE_LA_DECISION } from "../../services/assertion-taxonomy.js";
 import { phraseDeReserve } from "../../utilitaires/reserves.js";
 import { TOUTES_ZONES, mesureEnFrancais } from "../../services/memoire-en-texte.js";
 import { uniteImposee } from "../../services/saisie-unite.js";
@@ -371,8 +372,52 @@ function renderRejouee(ligne) {
 }
 
 
+/**
+ * Un choix humain que la variante remet en question.
+ *
+ * Il ne se rejoue pas : il se **redemande**, à qui l'a fait. La ligne est donc
+ * plus haute que les autres, et c'est voulu — elle porte une question adressée
+ * à quelqu'un, là où les autres portent un doute technique.
+ *
+ * Les écartés se montrent **tels qu'ils étaient** : c'est la réponse à
+ * « qu'est-ce qu'on avait envisagé ? », et c'est ce que personne ne retrouve
+ * six mois plus tard. Sans eux, la question se poserait à l'aveugle.
+ */
+function renderDecisionARevoir(ligne) {
+  const choix = ligne.decision;
+  const ecartes = (choix.ecartes ?? []).filter((ecarte) => ecarte?.quoi);
+
+  return `
+    <li class="variante-ligne variante-ligne--decision">
+      <span class="variante-ligne__sujet">
+        ${svgIcon(ICONE_DE_LA_DECISION, { className: "octicon" })}
+        ${escapeHtml(choix.question || ligne.sujet)}
+      </span>
+      <p class="variante-decision__phrase">${escapeHtml(choix.phrase)}</p>
+      ${
+        ecartes.length
+          ? `<ul class="variante-decision__ecartes">${ecartes.map((ecarte) => `
+              <li>
+                <b>${escapeHtml(ecarte.quoi)}</b>${
+                  ecarte.pourquoi ? ` — ${escapeHtml(ecarte.pourquoi)}` : ""
+                }
+              </li>`).join("")}</ul>`
+          // Nommer le manque plutôt que de laisser un blanc : une décision dont
+          // les écartés n'ont pas été notés n'est pas une décision sans écartés.
+          : `<p class="variante-decision__lacune">Les possibles écartés n'avaient pas été notés.</p>`
+      }
+      ${choix.motif ? `<p class="variante-decision__motif">${escapeHtml(choix.motif)}</p>` : ""}
+    </li>
+  `;
+}
+
 /** Une ligne devenue suspecte : nommée, jamais devinée. */
 function renderARevoir(ligne) {
+  // Un choix humain a sa propre forme : la question, qui l'a tranchée, et ce
+  // qu'il avait écarté. Le réduire à une phrase de motif perdrait exactement ce
+  // pour quoi la décision a été enregistrée.
+  if (ligne.decision) return renderDecisionARevoir(ligne);
+
   return `
     <li class="variante-ligne variante-ligne--suspecte">
       <span class="variante-ligne__sujet">${escapeHtml(ligne.sujet)}</span>
@@ -539,7 +584,15 @@ function renderRangs(rendu) {
                 <h5>${svgIcon("alert", { className: "octicon" })} À revérifier</h5>
                 <p>
                   Ces valeurs reposent sur ce qui vient de bouger, et nous ne savons pas les rejouer ici.
-                  Elles sont <b>nommées</b>, jamais devinées.
+                  Elles sont <b>nommées</b>, jamais devinées.${
+                    // Un choix humain ne se rejoue pas : il se redemande. Le
+                    // dire ici évite de lire la section entière comme une liste
+                    // de pannes — il y a des questions dedans, pas des défauts.
+                    rendu.aRevoir.some((ligne) => ligne.decision)
+                      ? ` Certaines sont des <b>choix humains</b> : ceux-là ne se rejouent pas,
+                          ils se redemandent à qui les a faits.`
+                      : ""
+                  }
                 </p>
                 <ul class="variante-lignes">${rendu.aRevoir.map(renderARevoir).join("")}</ul>
               </section>`

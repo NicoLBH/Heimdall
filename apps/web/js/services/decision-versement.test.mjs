@@ -99,8 +99,11 @@ test("la valeur cite la décision, et la décision se signe", () => {
   const [decision, valeur] = decisionVersable(COUVERTURE);
   const attendu = "Couverture du bâtiment A — tranché par Nicolas LE BIHAN, le 12 mars 2026";
 
-  assert.deepEqual(valeur.provenance, { type: PROVENANCE.DECISION, quoi: attendu });
-  assert.deepEqual(decision.provenance, { type: PROVENANCE.DECISION, quoi: attendu });
+  // La phrase se lit ; `par` et `le` se **relisent** — c'est par eux qu'on ira
+  // demander à quelqu'un de nommé si son choix tient encore.
+  const signee = { type: PROVENANCE.DECISION, quoi: attendu, par: "Nicolas LE BIHAN", le: "12 mars 2026" };
+  assert.deepEqual(valeur.provenance, signee);
+  assert.deepEqual(decision.provenance, signee);
   assert.equal(citationDeLaDecision({ sujet: "X" }), "X");
 });
 

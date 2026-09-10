@@ -78,7 +78,16 @@ export const EXTENSIONS = {
   // raison : une décision est le pendant humain d'une règle, elle produit une
   // valeur au lieu de la porter, et elle appartient à la discipline sur
   // laquelle elle tranche. Ce n'est pas une mesure du bâtiment.
-  [NATURE.DECISION]: "dec"
+  [NATURE.DECISION]: "dec",
+  // Les raisonnements. Ils n'avaient pas d'extension du tout, et
+  // `extensionDeRangement` rendait `undefined` pour eux : un fichier sans nom,
+  // qui n'aurait échoué qu'au premier versement.
+  //
+  // **Transversaux**, contrairement aux décisions : un raisonnement traverse les
+  // disciplines par construction — il part d'une donnée du site, passe par une
+  // règle incendie, bute sur un arbitrage, et finit dans la structure. Le ranger
+  // sous un domaine reviendrait à choisir lequel de ses maillons le nomme.
+  [NATURE.RAISONNEMENT]: "rai"
 };
 
 /** Les règles appliquées. Elles n'ont pas de nature : ce sont des textes. */
@@ -107,7 +116,12 @@ export const DOCUMENTS = "Documents";
 export const TRANSVERSALES = {
   [NATURE.DONNEE_BASE]: "Données de base",
   [NATURE.HYPOTHESE]: "Hypothèses",
-  [NATURE.INTENDANCE]: "Corpus"
+  [NATURE.INTENDANCE]: "Corpus",
+  // Un raisonnement traverse les disciplines : il part d'une donnée du site,
+  // passe par une règle incendie, bute sur un arbitrage, et finit dans la
+  // structure. Le ranger sous un domaine reviendrait à choisir lequel de ses
+  // maillons le nomme — et une chaîne recopiée sous trois domaines diverge.
+  [NATURE.RAISONNEMENT]: "Raisonnements"
 };
 
 /** Là où va ce dont on ignore le domaine. */
@@ -134,16 +148,18 @@ export function phraseDeLExtension(extension) {
     [NATURE.HYPOTHESE]: "Ce qu'on suppose en attendant mieux. Se remplace, et ce qui en dépend devient suspect.",
     [NATURE.CONSTAT]: "Ce qui a été observé, à une date. Un constat sans date ne vaut rien.",
     [NATURE.INTENDANCE]: "Ce qui est entré au dossier : documents, pièces jointes, avis.",
-    [NATURE.DECISION]: "Ce que des humains ont tranché, et ce qu'ils ont écarté en le faisant."
+    [NATURE.DECISION]: "Ce que des humains ont tranché, et ce qu'ils ont écarté en le faisant.",
+    [NATURE.RAISONNEMENT]: "Par où le projet est passé, et les endroits où quelqu'un a dû choisir."
   }[entree[0]];
 }
 
 /** L'ordre de lecture des extensions : les textes d'abord, puis ce qu'on en tire. */
 export const ORDRE_DES_EXTENSIONS = [
   EXTENSION_REGLE,
-  // Juste après les règles : ce sont les deux qui **produisent** des valeurs
-  // sans les porter, l'une par le texte, l'autre par un humain.
+  // Juste après les règles : ce sont ceux qui **produisent** des valeurs sans
+  // les porter — le texte, l'humain, et la chaîne qui va de l'un à l'autre.
   EXTENSIONS[NATURE.DECISION],
+  EXTENSIONS[NATURE.RAISONNEMENT],
   EXTENSIONS[NATURE.DONNEE_BASE],
   EXTENSIONS[NATURE.CONTRAINTE],
   EXTENSIONS[NATURE.HYPOTHESE],
@@ -167,10 +183,11 @@ export const ORDRE_DES_EXTENSIONS = [
  *   les variables du projet, écrites une fois et citées partout ailleurs. Ce
  *   sont des `const`, et c'est ce qui permet à une règle de les nommer sans les
  *   recopier.
- * - **`enonce`** — un `.ctr`, un `.cst`, un `.crp`, un `.dec` énoncent des
- *   paires : un sujet, une valeur, sa provenance. C'est du JSON, et rien de
- *   plus. Une décision y ajoute ce qu'elle a écarté, ce qui reste un énoncé :
- *   elle ne s'exécute pas, contrairement à la règle dont elle est le pendant.
+ * - **`enonce`** — un `.ctr`, un `.cst`, un `.crp`, un `.dec`, un `.rai`
+ *   énoncent des paires : un sujet, une valeur, sa provenance. C'est du JSON,
+ *   et rien de plus. Une décision y ajoute ce qu'elle a écarté, un raisonnement
+ *   la suite de ses étapes ; ni l'un ni l'autre ne s'exécute, contrairement à la
+ *   règle dont ils sont le pendant.
  *
  * Une couleur par extension ferait croire à sept langages là où il y en a trois,
  * et surtout elle raterait le point : ce qui compte est de distinguer un nom

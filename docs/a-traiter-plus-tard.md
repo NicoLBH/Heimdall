@@ -51,7 +51,7 @@ pas après.
 | 6 | La proposition devient une branche — *faite* | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
 | 7 | Un modèle rédige le titre et le corps d'une proposition — *fait* | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
 | 8 | Le modèle des décisions — *fait* | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
-| 9 | Le modèle des raisonnements | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
+| 9 | Le modèle des raisonnements — *le rejeu s'arrête sur un choix* | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
 | 10 | Le cerveau, requalifié et filtré | la mémoire et les raisonnements, vus ensemble | [§ 22](#22-le-cerveau-requalifié) |
 
 [§ 23](#23-incendie-habitation-finir) — *incendie habitation* — ne dépend de rien
@@ -1184,6 +1184,9 @@ vrai bandeau.
 
 ## 16. Ce qu'est un raisonnement
 
+**État :** le point dur est fait — un rejeu s'arrête sur un choix humain et dit à
+qui s'adresser. Le versement d'un raisonnement reste : voir « Ce qui reste ».
+
 ### Ce qu'il n'est pas
 
 Mdall sait deux choses aujourd'hui : la **règle** (`.ref`, conditions →
@@ -1232,6 +1235,66 @@ latérale.
 **L'entrée existe depuis l'étape 2** ; elle est vide et le dit. Le reste — ce
 qu'un `.rai` contient, comment un raisonnement se verse, comment il s'arrête sur
 une décision quand on le rejoue — est l'étape 9.
+
+### Ce que l'étape 9 a posé
+
+**Le rejeu s'arrête sur un choix humain, et dit à qui s'adresser.** C'était le
+point dur, et c'est fait. Là où l'écran disait « à revérifier » sans un mot —
+un doute sans adresse —, il écrit maintenant :
+
+> Le 12 mars 2026, Marie D. a retenu 0,50 m entre 0,45 m et 0,55 m.
+> Ce choix tenait sous Altitude du site = 13 m. Tient-il encore à 800 m ?
+
+**Chaque morceau de cette phrase est lu, aucun n'est déduit :** qui et quand
+viennent de la provenance, ce qui a été retenu de la valeur, les possibles de
+`payload.decision.ecartes`, et ce qui a bougé du départ de la variante. Ce qui
+manque manque : une décision sans auteur ne se voit pas attribuer le dernier
+connecté, une décision sans écartés notés ne s'en voit pas offrir de plausibles.
+La phrase est alors plus courte, et l'écran le dit (règle 5).
+
+**`par` et `le` n'arrivaient pas jusqu'à la base.** Le langage sait les écrire
+depuis toujours — `décision humaine assumée (…, par: X, le: d)` — et
+`provenanceRetenue` les jetait à deux lignes de la base : la provenance ne
+gardait que son type et sa phrase. Sans eux, on ne pouvait aller demander à
+personne si son choix tenait encore. C'était le maillon manquant de tout ce
+mécanisme, et il tenait en deux champs.
+
+**Un choix humain a sa propre étape dans la chaîne.** L'enchaînement de
+l'étape 5 le sort du compte « n à revérifier » et lui donne un nœud, avec sa
+question. La fondre dans un compte aurait perdu exactement ce pour quoi la
+décision a été enregistrée — et la chaîne se serait lue comme si elle s'était
+arrêtée toute seule.
+
+**Les écartés se montrent tels qu'ils étaient**, barrés, avec leur motif quand il
+y en avait un. C'est la réponse à « qu'est-ce qu'on avait envisagé ? », et sans
+eux la question se poserait à l'aveugle.
+
+**Une seule icône pour une décision.** Trois écrans la posent — le rail de la
+mémoire, la chaîne d'une variante, le bloc d'un choix remis en question. Elle est
+déclarée avec la nature, une fois (règle 10).
+
+**`.rai` a sa place**, et il n'en avait aucune : `extensionDeRangement` rendait
+`undefined` pour un raisonnement. Il est **transversal** — un raisonnement
+traverse les disciplines par construction, et le ranger sous un domaine
+reviendrait à choisir lequel de ses maillons le nomme.
+
+### Ce qui reste
+
+**Un raisonnement ne se verse pas encore.** Ce qu'un `.rai` contient — la suite
+des étapes, leurs liens, où il s'est arrêté la dernière fois — n'est pas écrit,
+et c'est délibéré : rien ne le produit. Le producteur naturel existe pourtant, et
+il est identifié : `chaineDuRaisonnement` construit déjà la chaîne d'un sujet
+jusqu'aux données de base, et l'onglet « Comment on en est arrivé là » l'affiche.
+Le geste manquant est « verser ce raisonnement » depuis cet écran — et il
+demande d'abord de décider ce qu'on fige d'une chaîne qui se recalcule.
+
+**`chaineDuRaisonnement` ne voit pas les décisions.** Elle remonte par
+`reglesQuiProduisent`, qui filtre sur `payload.referentiel === true` : une
+décision n'y répond pas, et la chaîne s'arrête sur la valeur décidée comme sur
+une donnée de base ordinaire — sans dire que quelqu'un l'a choisie. Il lui faut
+un `decisionsQuiProduisent` jumeau. C'est ce qui manque pour qu'un raisonnement
+**affiché** montre ses arbitrages, là où un raisonnement **rejoué** les montre
+déjà.
 
 ### Ce qu'on ne fera pas
 

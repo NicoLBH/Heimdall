@@ -46,6 +46,14 @@ entrée : vide, et qui dit pourquoi. Voir
 `.dec` était réservé à côté de lui jusqu'à ce qu'on sache ce qu'une décision
 contient. On le sait : il a sa section, plus bas.
 
+**Sa place, en revanche, est décidée** : un raisonnement est **transversal**, et
+vit dans `Mémoire/Raisonnements/raisonnements.rai`. Il traverse les disciplines
+par construction — il part d'une donnée du site, passe par une règle incendie,
+bute sur un arbitrage, et finit dans la structure. Le ranger sous un domaine
+reviendrait à choisir lequel de ses maillons le nomme. Jusqu'à l'étape 9, la
+nature n'avait aucune extension du tout et le rangement rendait `undefined` :
+un fichier sans nom, qui n'aurait échoué qu'au premier versement.
+
 ---
 
 ## `.ref` — les règles appliquées
@@ -319,6 +327,7 @@ Mémoire/
    Données de base/  donnees-de-base.ddb
    Hypothèses/       hypotheses.hyp
    Corpus/           corpus.crp
+   Raisonnements/    raisonnements.rai
    Incendie/         incendie.ref  incendie.ctr  incendie.cst
    Structure/        structure.ref  structure.ctr  structure.dec
 Documents/
@@ -328,7 +337,7 @@ Documents/
 **Ce qui est observé est transversal, ce qui est déduit est par domaine.** Une
 règle, une contrainte, un constat et une décision viennent d'un corpus ou d'un
 arbitrage, donc d'une discipline. Une donnée de base, une hypothèse et le corpus
-appartiennent au bâtiment.
+appartiennent au bâtiment — et un raisonnement les traverse toutes.
 
 La **zone** n'est pas un répertoire : c'est une section dans le fichier, parce
 que l'unité de production est le domaine — une étude incendie touche plusieurs

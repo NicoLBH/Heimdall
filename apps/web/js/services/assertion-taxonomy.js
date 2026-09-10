@@ -328,6 +328,16 @@ function texte(value) {
  * L'intendance vient en dernier : elle n'affirme rien, et sa place dans la
  * mémoire n'est pas tranchée.
  */
+/**
+ * Le dessin d'une décision : deux possibles mis face à face, un seul retenu.
+ *
+ * Déclaré ici, avec la nature, parce que trois écrans le posent déjà — le rail
+ * de la mémoire, la chaîne d'une variante, le bloc d'un choix remis en question
+ * — et que trois `svgIcon("…")` écrits à la main finiraient par ne plus montrer
+ * la même chose (règle 10).
+ */
+export const ICONE_DE_LA_DECISION = "git-compare";
+
 export const NATURES = [
   NATURE.CONTRAINTE,
   NATURE.DECISION,

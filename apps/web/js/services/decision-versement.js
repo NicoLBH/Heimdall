@@ -213,6 +213,12 @@ export function decisionVersable({
   const portee = Array.isArray(zones) ? zones : [];
   const signature = citationDeLaDecision({ sujet: nom, par, quand });
 
+  // Qui et quand, **structurés** et pas seulement dans la phrase : c'est ce qui
+  // permettra, le jour où une donnée bouge, d'aller demander à quelqu'un de
+  // nommé si son choix tient encore. Une phrase qu'il faudrait redécouper pour
+  // en extraire un nom serait une deuxième écriture du même fait (règle 4).
+  const depuis = { type: PROVENANCE.DECISION, quoi: signature, par: texte(par), le: texte(quand) };
+
   const lignes = [{
     sujet: nom,
     // Ce que la décision **vaut** est ce qu'elle a retenu ; sans rien de retenu,
@@ -223,7 +229,7 @@ export function decisionVersable({
     domaine: texte(domaine),
     decision: dite,
     quoi: dite.question,
-    provenance: { type: PROVENANCE.DECISION, quoi: signature },
+    provenance: depuis,
     citation: dite.motif,
     statut: STATUT.RETENU,
     zones: portee,
@@ -240,7 +246,7 @@ export function decisionVersable({
       nature: texte(natureDeLaValeur) || NATURE.DONNEE_BASE,
       domaine: texte(domaine),
       quoi: dite.question,
-      provenance: { type: PROVENANCE.DECISION, quoi: signature },
+      provenance: depuis,
       citation: dite.motif,
       statut: STATUT.RETENU,
       zones: portee,
