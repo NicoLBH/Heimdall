@@ -64,7 +64,8 @@ import { preparerUneProposition } from "../../../services/atelier-proposition.js
 import { normalizeSubjectKey } from "../../../services/project-memory.js";
 import { copierDansLePressePapiers } from "../../ui/bouton-copier.js";
 import { fichierDeLEtude, fichierDesRegles } from "../../../services/incendie-en-texte.js";
-import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
+import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
+import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
 import { zoneChoices, ZONE_TOUT_LOUVRAGE } from "../../../services/project-zones.js";
 import { DOMAIN, NATURE } from "../../../services/assertion-taxonomy.js";
 import { store } from "../../../store.js";
@@ -894,7 +895,7 @@ function ouvrirUnSujetDepuisLEtude() {
  * qui contredit ce que le projet a déjà décidé, et signe. C'est cette signature,
  * et elle seule, qui fait entrer quoi que ce soit dans la mémoire.
  */
-async function proposerDepuisLEtude(root) {
+async function proposerDepuisLEtude(root, propositionId = "") {
   if (etat.versementEnCours) return;
 
   const affirmations = affirmationsRetenues();
@@ -917,6 +918,7 @@ async function proposerDepuisLEtude(root) {
 
   const rendu = await preparerUneProposition({
     projectId: projetEnBase,
+    propositionId,
     titre: `Incendie — ${nomDeLEtudeCourante()}`,
     intro: "Conclusions de l'étude incendie, telles que le référentiel les a établies.",
     source: etat.vue?.texteDeReference?.source || "arrêté du 31 janvier 1986 modifié",
@@ -931,8 +933,12 @@ async function proposerDepuisLEtude(root) {
     return;
   }
 
-  etat.versementDit = `Proposition « ${rendu.proposition.title} » ouverte — ${rendu.items} affirmation${
+  etat.versementDit = `Proposition « ${rendu.proposition.title} » ${
+    propositionId ? "enrichie" : "ouverte"} — ${rendu.items} affirmation${
     rendu.items > 1 ? "s" : ""}. Elle attend d'être signée.`;
+
+  // La liste des propositions ouvertes vient de changer.
+  oublierLesBranches();
   dessiner(root);
 
   // On va où la signature se donne. Le rail garde l'étude : on revient dessus
@@ -940,6 +946,11 @@ async function proposerDepuisLEtude(root) {
   // On va où la signature se donne, **et sur la proposition elle-même** : la
   // liste obligerait à retrouver à la main celle qu'on vient de préparer.
   store.pendingPropositionId = rendu.proposition.id;
+  // Ce qui n'a pas pu être porté se dit là où ces lignes se trouvent, pas ici :
+  // on quitte cet écran à la ligne suivante.
+  store.pendingPropositionTranches = rendu.tranches?.length
+    ? { propositionId: rendu.proposition.id, tranches: rendu.tranches }
+    : null;
   const projet = String(store.currentProjectId || "").trim();
   if (projet) window.location.hash = `#project/${projet}/propositions`;
 }
@@ -1035,7 +1046,10 @@ function brancher(root) {
       ouvrirUnSujetDepuisLEtude();
       return;
     }
-    if (quoi === TRANSFORMER.PROPOSITION) void proposerDepuisLEtude(root);
+    // « Faire une proposition » en ouvre une ; « Ajouter à #58 » porte le même
+    // lot dans celle-là. Un seul chemin, une destination de plus.
+    const branche = brancheDeLAction(quoi);
+    if (quoi === TRANSFORMER.PROPOSITION || branche) void proposerDepuisLEtude(root, branche);
   });
 
   // Une remise arrive après que le panneau a été dessiné : sans cette écoute,
@@ -1628,7 +1642,8 @@ function dessiner(root) {
                   id: "incendieTransformer",
                   // Rien à transformer tant que le référentiel n'a rien conclu
                   // qui s'impose au projet.
-                  disabled: etat.enCours || etat.versementEnCours || lignesDuVersement().length === 0
+                  disabled: etat.enCours || etat.versementEnCours || lignesDuVersement().length === 0,
+                  ouvertes: branchesOuvertes(() => dessiner(root))
                 })}
                 ${renderGhActionButton({ id: "incendieRecommencer", label: "Recommencer", tone: "default", size: "md", disabled: etat.enCours, mainAction: "" })}
               </div>

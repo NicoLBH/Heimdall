@@ -16,7 +16,8 @@
 import { escapeHtml } from "../../../utils/escape-html.js";
 import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.js";
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
-import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
+import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
+import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
 import { NATURE, DOMAIN } from "../../../services/assertion-taxonomy.js";
 import { svgIcon } from "../../../ui/icons.js";
 import {
@@ -411,8 +412,11 @@ function brancher(root) {
   // deux n'écrit dans la mémoire du projet — voir `docs/fondamentaux.md`.
   root.addEventListener("ghaction:action", (evenement) => {
     const quoi = evenement.detail?.action;
+    // « Faire une proposition » en ouvre une ; « Ajouter à #58 » porte le même
+    // lot dans celle-là. Un seul chemin, une destination de plus.
+    const branche = brancheDeLAction(quoi);
     if (quoi === TRANSFORMER.SUJET) ouvrirUnSujetDeFondations();
-    else if (quoi === TRANSFORMER.PROPOSITION) void proposerLesFondations(root);
+    else if (quoi === TRANSFORMER.PROPOSITION || branche) void proposerLesFondations(root, branche);
   });
 
   // La saisie ne redessine rien : redessiner à chaque frappe ferait perdre le
@@ -728,7 +732,7 @@ function ouvrirUnSujetDeFondations() {
  * Elle reste **ouverte** : le système la remplit, quelqu'un la signe. C'est
  * cette signature qui fait entrer les cotes dans la mémoire.
  */
-async function proposerLesFondations(root) {
+async function proposerLesFondations(root, propositionId = "") {
   if (etat.transformation) return;
 
   const affirmations = affirmationsDesSemelles();
@@ -750,6 +754,7 @@ async function proposerLesFondations(root) {
   const { preparerUneProposition } = await import("../../../services/atelier-proposition.js");
   const rendu = await preparerUneProposition({
     projectId: projetCourant,
+    propositionId,
     titre: "Fondations superficielles — dimensionnement",
     intro: "L'appel du calcul, ses entrées, et les cotes qu'il a posées — chacune avec son verdict.",
     source: "Fondations superficielles — NF P94-261, EN 1997-1, EN 1992-1-1",
@@ -764,10 +769,18 @@ async function proposerLesFondations(root) {
     return;
   }
 
+  // La liste des propositions ouvertes vient de changer.
+  oublierLesBranches();
+
   dessiner(root);
   // On va où la signature se donne, **et sur la proposition elle-même** : la
   // liste obligerait à retrouver à la main celle qu'on vient de préparer.
   store.pendingPropositionId = rendu.proposition.id;
+  // Ce qui n'a pas pu être porté se dit là où ces lignes se trouvent, pas ici :
+  // on quitte cet écran à la ligne suivante.
+  store.pendingPropositionTranches = rendu.tranches?.length
+    ? { propositionId: rendu.proposition.id, tranches: rendu.tranches }
+    : null;
   const projet = String(store.currentProjectId || "").trim();
   if (projet) window.location.hash = `#project/${projet}/propositions`;
 }
@@ -1033,7 +1046,8 @@ function dessiner(root) {
                   id: "fondationsTransformer",
                   // Rien à transformer tant qu'aucune semelle ne vérifie : une
                   // cote qu'on vient de dire fausse ne se propose pas.
-                  disabled: etat.transformation !== "" || affirmationsDesSemelles().length === 0
+                  disabled: etat.transformation !== "" || affirmationsDesSemelles().length === 0,
+                  ouvertes: branchesOuvertes(() => dessiner(root))
                 }) : ""}
                 ${surLeTableau ? "" : renderGhActionButton({ id: "fondationsReinitialiser", label: "Réinitialiser", tone: "default", size: "md", disabled: etat.calculEnCours, mainAction: "" })}
                 ${surLeTableau ? "" : renderGhActionButton({ id: "fondationsCalculer", label: etat.calculEnCours ? "Calcul en cours…" : dejaCalcule ? "Recalculer" : "Calculer", tone: "primary", size: "md", disabled: etat.calculEnCours, mainAction: "" })}

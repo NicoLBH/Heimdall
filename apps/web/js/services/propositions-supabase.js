@@ -186,6 +186,14 @@ export async function listPropositionDocuments(propositionId) {
  * Elles seules se conservent. Ce que l'analyse produit se recalcule à chaque
  * ouverture ; ce qu'un humain a répondu, jamais.
  */
+/**
+ * @returns {Promise<object[]|null>} `null` quand la base n'a pas répondu, jamais
+ *   un tableau vide. La distinction porte une décision : « aucune réponse
+ *   humaine sur cette proposition » et « je n'ai pas pu lire les réponses » ne
+ *   sont pas la même phrase, et confondre les deux ferait repousser un lot
+ *   par-dessus un refus qu'on n'avait pas vu (règle 5). C'est le contrat de
+ *   `listPropositions` et de `listProjectAssertions` ; celui-ci ne le suivait pas.
+ */
 export async function listPropositionItems(propositionId) {
   if (!propositionId) return [];
 
@@ -202,7 +210,7 @@ export async function listPropositionItems(propositionId) {
       })) ?? []
     );
   } catch {
-    return [];
+    return null;
   }
 }
 

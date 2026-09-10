@@ -30,7 +30,8 @@ import { getLastStudioToolResult, resolveStudioClimateTool } from "../../../serv
 import { getEffectiveProjectLocation } from "./solidity-climate-tool-common.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
-import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
+import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
+import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
 import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
 import { renderProjectLocationMapCard } from "../../shared/project-location-map-card.js";
@@ -168,7 +169,10 @@ export async function renderSolidityClimate(root, { force = false } = {}) {
         });
         return;
       }
-      if (quoi === TRANSFORMER.PROPOSITION) void proposerLesZones(root);
+      // « Faire une proposition » en ouvre une ; « Ajouter à #58 » porte le
+      // même lot dans celle-là. Un seul chemin, une destination de plus.
+      const branche = brancheDeLAction(quoi);
+      if (quoi === TRANSFORMER.PROPOSITION || branche) void proposerLesZones(root, branche);
     });
   }
 
@@ -182,7 +186,7 @@ export async function renderSolidityClimate(root, { force = false } = {}) {
  * qui contredit ce que le projet a déjà décidé, et signe. C'est cette signature
  * qui fait entrer les zones dans la mémoire, jamais ce bouton.
  */
-async function proposerLesZones(root) {
+async function proposerLesZones(root, propositionId = "") {
   if (state.transforming) return;
 
   const affirmations = affirmationsClimatiques();
@@ -204,6 +208,7 @@ async function proposerLesZones(root) {
   const { preparerUneProposition } = await import("../../../services/atelier-proposition.js");
   const rendu = await preparerUneProposition({
     projectId: state.projectId,
+    propositionId,
     titre: buildClimateDraftTitle(),
     intro: "La localisation du projet, les deux appels qui en découlent, et ce qu'ils posent. "
       + "Les entrées entrent avec le reste : c'est ce qui permettra de tout refaire le jour où "
@@ -222,10 +227,20 @@ async function proposerLesZones(root) {
     return;
   }
 
+  // La liste des propositions ouvertes vient de changer : celle qu'on vient
+  // d'ouvrir n'y était pas, et celle qu'on vient d'enrichir n'a plus le même
+  // contenu. La garder ferait rouvrir une troisième proposition au clic suivant.
+  oublierLesBranches();
+
   render(root);
   // On va où la signature se donne, **et sur la proposition elle-même** : la
   // liste obligerait à retrouver à la main celle qu'on vient de préparer.
   store.pendingPropositionId = rendu.proposition.id;
+  // Ce qui n'a pas pu être porté se dit là où ces lignes se trouvent, pas ici :
+  // on quitte cet écran à la ligne suivante.
+  store.pendingPropositionTranches = rendu.tranches?.length
+    ? { propositionId: rendu.proposition.id, tranches: rendu.tranches }
+    : null;
   const projet = String(store.currentProjectId || "").trim();
   if (projet) window.location.hash = `#project/${projet}/propositions`;
 }
@@ -293,7 +308,11 @@ function render(root) {
             <span class="settings-card__head-title">
               <h4>Zones et charges climatiques</h4>
               <div class="studio-tool-card__actions">
-                ${renderTransformer({ id: "solidityToolTransform-climate", disabled: !hasResult || state.transforming })}
+                ${renderTransformer({
+                  id: "solidityToolTransform-climate",
+                  disabled: !hasResult || state.transforming,
+                  ouvertes: branchesOuvertes(() => render(root))
+                })}
                 ${renderGhActionButton({ id: "solidityToolCalculate-climate", label: actionLabel, tone: "primary", size: "md", disabled: !!state.loading || !peutCalculer, mainAction: "" })}
               </div>
             </span>

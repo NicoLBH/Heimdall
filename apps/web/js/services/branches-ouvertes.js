@@ -1,0 +1,120 @@
+/**
+ * Les propositions ouvertes d'un projet, telles que les écrans de l'Atelier les
+ * proposent dans « Transformer ».
+ *
+ * ## Pourquoi un magasin, et pas quatre chargements
+ *
+ * Quatre écrans posent le bouton — climat, fondations, spectre, incendie — et il
+ * en viendra d'autres. Quatre chargements écrits quatre fois auraient quatre
+ * moments de rafraîchissement au bout de six mois, et l'un des quatre finirait
+ * par montrer une proposition fusionnée la veille. Une valeur lue à quatre
+ * endroits finit par diverger (règle 4).
+ *
+ * ## Ce qu'un écran a le droit de dire, et quand
+ *
+ * Trois réponses, et elles ne se confondent pas :
+ *
+ * | ce qu'on rend | ce que l'écran en fait |
+ * | --- | --- |
+ * | `[]` avant toute lecture | il n'offre rien, et ne prétend rien |
+ * | `[]` après lecture | ce projet n'a aucune proposition ouverte |
+ * | `null` | la base n'a pas répondu, et le menu le dit |
+ *
+ * Les deux `[]` se ressemblent à l'écran, et c'est voulu : un menu qui n'offre
+ * pas encore et un menu qui n'a rien à offrir affichent la même chose — deux
+ * issues. Ce qu'il ne faut jamais afficher, c'est « aucune proposition ouverte »
+ * alors qu'on n'a pas pu regarder : on en ouvrirait une deuxième à côté de celle
+ * qu'on ne voyait pas (règle 5). D'où le `null`, qui est une réponse à part.
+ *
+ * ## La lecture part de la première demande
+ *
+ * L'écran ne l'ordonne pas : il lit, et la lecture se déclenche si elle n'a pas
+ * eu lieu. C'est ce qui garde le raccordement à **une ligne** dans chaque écran,
+ * là où un chargement explicite aurait demandé de trouver, dans chacun, le
+ * moment où le projet est connu et celui où l'on peut redessiner.
+ *
+ * ## Le projet ne se passe pas : il se résout ici
+ *
+ * L'identifiant qu'attend la base est celui du **serveur**, et il ne se résout
+ * qu'en attendant. Trois écrans sur quatre en ont un sous la main au moment du
+ * dessin ; le quatrième — le spectre — ne l'obtient qu'au moment de proposer.
+ * Le demander aux écrans aurait donc ajouté une attente à chaque dessin, pour
+ * une réponse que ce fichier peut aller chercher lui-même.
+ *
+ * Le cache, lui, se range sous la clé **de l'écran** (`store.currentProjectId`),
+ * qui est immédiate : c'est elle qui dit qu'on a changé de projet, et il faut le
+ * savoir avant d'avoir résolu quoi que ce soit — sinon le menu du projet suivant
+ * proposerait les propositions du précédent.
+ */
+
+import { store } from "../store.js";
+import { branchesQuiAccueillent } from "./proposition-branche.js";
+
+const texte = (valeur) => String(valeur ?? "").trim();
+
+const projetAffiche = () => texte(store.currentProjectId);
+
+/** Ce qu'on sait, pour un projet à la fois. Changer de projet oublie tout. */
+let su = { projet: "", branches: [], lue: false };
+let enCours = null;
+
+/**
+ * Les propositions ouvertes du projet affiché, et la lecture si elle n'a pas eu lieu.
+ *
+ * @param {Function} [quandCharge] rappelé **une fois**, après la lecture, pour
+ *   que l'écran se redessine. Jamais appelé pendant l'appel : un rappel
+ *   synchrone redessinerait pendant le dessin.
+ * @returns {object[]|null}
+ */
+export function branchesOuvertes(quandCharge = null) {
+  const projet = projetAffiche();
+  if (!projet) return [];
+
+  if (su.projet !== projet) {
+    su = { projet, branches: [], lue: false };
+    enCours = null;
+  }
+
+  if (!su.lue && !enCours) enCours = lire(projet, quandCharge);
+  return su.branches;
+}
+
+/**
+ * Oublier ce qu'on sait, pour que la prochaine lecture reparte de la base.
+ *
+ * À appeler quand on vient d'ouvrir une proposition ou d'en enrichir une : la
+ * liste d'il y a trente secondes ne porte pas celle qu'on vient de créer, et un
+ * menu qui ne la propose pas ferait en ouvrir une troisième.
+ */
+export function oublierLesBranches() {
+  su = { projet: "", branches: [], lue: false };
+  enCours = null;
+}
+
+async function lire(projet, quandCharge) {
+  let branches = null;
+
+  try {
+    const [{ resolveCurrentBackendProjectId }, { listPropositions }] = await Promise.all([
+      import("./project-supabase-sync.js"),
+      import("./propositions-supabase.js")
+    ]);
+    const backend = texte(await resolveCurrentBackendProjectId());
+    // Pas de projet en base : il n'y a pas de proposition à y avoir, et ce n'est
+    // pas une lecture ratée. `[]` est la bonne réponse.
+    // `null` traverse, lui : la base n'a pas répondu, et le menu doit le dire.
+    branches = backend ? branchesQuiAccueillent(await listPropositions(backend, { status: "open" })) : [];
+  } catch {
+    branches = null;
+  } finally {
+    enCours = null;
+  }
+
+  // Le projet a pu changer pendant l'attente : la réponse porte alors sur un
+  // projet qu'on n'affiche plus, et l'écrire ferait proposer les propositions du
+  // précédent.
+  if (projetAffiche() !== projet) return;
+
+  su = { projet, branches, lue: true };
+  if (typeof quandCharge === "function") quandCharge();
+}

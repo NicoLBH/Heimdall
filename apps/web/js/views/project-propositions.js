@@ -3245,6 +3245,7 @@ function renderReview(root) {
     ${gele ? renderFrozenNote(proposition, review) : ""}
     ${suite}
     ${avertissement}
+    ${renderEtatDeLaBranche(proposition, review)}
     ${renderLightTabs({
       tabs: reviewTabs(review),
       activeTabId: onglet,
@@ -3257,6 +3258,145 @@ function renderReview(root) {
     })}
     <div class="review-tabpanel${onglet === "changes" ? " review-tabpanel--pleine" : ""}">${panneau}</div>
   `;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Ce qu'une branche dit d'elle-même
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Ce qu'un lot d'Atelier n'a pas porté ici — une fois, à l'arrivée.
+ *
+ * Vidé à la prise : c'est un message de passage, pas un état de la proposition.
+ * Le garder le ferait réapparaître à chaque ouverture, longtemps après que le
+ * lot a été repris.
+ */
+function prendreLesTranchesEnAttente(propositionId) {
+  const attendu = store.pendingPropositionTranches;
+  if (!attendu || attendu.propositionId !== propositionId) return [];
+  store.pendingPropositionTranches = null;
+  return Array.isArray(attendu.tranches) ? attendu.tranches : [];
+}
+
+/**
+ * Ce qu'une autre branche lui dispute, et ce que la mémoire a décidé sous elle.
+ *
+ * Après le premier rendu, pas avant : ces deux phrases valent qu'on les attende
+ * une seconde, pas qu'on retarde l'ouverture de la proposition entière pour
+ * elles. L'écran se redessine quand elles arrivent.
+ *
+ * Une proposition qui n'est plus ouverte n'a rien de tout cela à dire : elle ne
+ * dispute plus rien, et la mémoire a bougé *par* elle, pas dessous.
+ */
+async function lireLEtatDeLaBranche(root, base, proposition, items, assertions) {
+  if (proposition.status !== PROPOSITION.OPEN) return;
+
+  // `view.propositions` est la **liste** ; `base` est le module qui lit. Les
+  // deux se seraient appelées `propositions` dans la même fonction.
+  const autres = (view.propositions ?? [])
+    .filter((entry) => entry.status === PROPOSITION.OPEN && entry.id !== proposition.id);
+
+  const lus = await Promise.all(autres.map((entry) => base.listPropositionItems(entry.id)));
+  if (!view.open || view.open.id !== proposition.id || !view.review) return;
+
+  const { collisionsEntreBranches, laMemoireABougeSousLaBranche } =
+    await import("../services/proposition-branche.js");
+  if (!view.open || view.open.id !== proposition.id || !view.review) return;
+
+  view.review.branche = {
+    collisions: collisionsEntreBranches({
+      items,
+      ailleurs: autres.map((entry, rang) => ({ proposition: entry, items: lus[rang] ?? [] }))
+    }),
+    // Une proposition dont on n'a pas pu lire les lignes ne dit pas « rien à
+    // disputer » : elle dit qu'on n'a pas regardé partout (règle 5).
+    toutLu: lus.every((lot) => Array.isArray(lot)),
+    age: laMemoireABougeSousLaBranche({ proposition, items, assertions })
+  };
+
+  if (root.isConnected) renderContent(root);
+}
+
+/** Les sujets d'une liste, en clair, sans les répéter. */
+const nomsDesSujets = (lignes = []) => lignes.map((ligne) => ligne.nom).filter(Boolean).join(" · ");
+
+/**
+ * Les avertissements d'une branche, au-dessus de ses onglets.
+ *
+ * Au-dessus, et pas dans un onglet : le conflit se **dit avant la fusion**,
+ * jamais résolu en silence, et un onglet qu'on n'ouvre pas ne dit rien.
+ */
+function renderEtatDeLaBranche(proposition, review) {
+  if (proposition?.status !== PROPOSITION.OPEN) return "";
+
+  const dits = [];
+
+  // Ce qu'un lot d'Atelier n'a pas porté : dit ici, où les lignes en question
+  // se trouvent, et non sur l'écran qu'on venait de quitter.
+  const tranches = review?.tranches ?? [];
+  if (tranches.length) {
+    dits.push({
+      ton: "warn",
+      titre: `${tranches.length} ligne${tranches.length > 1 ? "s" : ""} n'${
+        tranches.length > 1 ? "ont" : "a"} pas été portée${tranches.length > 1 ? "s" : ""} ici`,
+      texte: `Quelqu'un les a déjà tranchées dans cette proposition, et les repousser aurait effacé `
+        + `sa décision sans le dire : ${nomsDesSujets(tranches)}. Changez la décision ici, ou `
+        + `faites-en une autre proposition.`
+    });
+  }
+
+  const branche = review?.branche;
+  if (!branche) return renderAvertissementsDeBranche(dits);
+
+  if (branche.collisions.length) {
+    dits.push({
+      ton: "warn",
+      titre: `${branche.collisions.length} sujet${branche.collisions.length > 1 ? "s" : ""} ${
+        branche.collisions.length > 1 ? "sont portés" : "est porté"} par une autre proposition ouverte`,
+      texte: branche.collisions
+        .map((ligne) => `${ligne.nom} — aussi dans ${ligne.numero ? `#${ligne.numero} ` : ""}${
+          ligne.titre || "une autre proposition"}`)
+        .join(" · ")
+        + ". Fusionner les deux dans n'importe quel ordre laisserait la seconde écraser la première."
+    });
+  }
+
+  if (!branche.toutLu) {
+    dits.push({
+      ton: "warn",
+      titre: "Les autres propositions ouvertes n'ont pas toutes pu être lues",
+      texte: "Un sujet peut être porté deux fois sans que cet écran le voie. Rouvrez la "
+        + "proposition pour relire."
+    });
+  }
+
+  if (!branche.age.lue) {
+    dits.push({
+      ton: "warn",
+      titre: "Ce que le projet dit aujourd'hui n'a pas pu être lu",
+      texte: "Cette proposition a peut-être vieilli sans qu'on puisse le dire."
+    });
+  } else if (branche.age.sujets.length) {
+    dits.push({
+      ton: "warn",
+      titre: `Le projet a redécidé ${branche.age.sujets.length} sujet${
+        branche.age.sujets.length > 1 ? "s" : ""} depuis que cette proposition est ouverte`,
+      texte: `${nomsDesSujets(branche.age.sujets)}. Ce que vous liriez dans les Changements est à jour, `
+        + `mais ce que la proposition porte a été préparé avant.`
+    });
+  }
+
+  return renderAvertissementsDeBranche(dits);
+}
+
+function renderAvertissementsDeBranche(dits) {
+  if (!dits.length) return "";
+
+  return dits
+    .map((dit) => `<div class="propositions-empty propositions-empty--${escapeHtml(dit.ton)}">
+        <b>${escapeHtml(dit.titre)}</b><p>${escapeHtml(dit.texte)}</p>
+      </div>`)
+    .join("");
 }
 
 /**
@@ -5028,7 +5168,11 @@ async function openFrozen(root, proposition) {
   try {
     const propositions = await import("../services/propositions-supabase.js");
     const { listProjectAssertions } = await import("../services/project-memory-supabase.js");
-    const [stored, documents, affirmationsDuProjet] = await Promise.all([
+    const [itemsLus, documents, affirmationsDuProjet] = await Promise.all([
+      // `null` si la lecture a échoué. Cet écran l'aplatit en liste vide, comme
+      // il le faisait quand la fonction ne savait pas distinguer les deux — voir
+      // le carnet : une proposition dont les items n'ont pas pu être lus doit le
+      // dire, au lieu de s'afficher vide.
       propositions.listPropositionItems(proposition.id),
       // Les documents restent lisibles : ils disent qui a déposé quoi, et quand.
       // Ce sont des faits, ils ne se recalculent pas.
@@ -5039,6 +5183,8 @@ async function openFrozen(root, proposition) {
     ]);
 
     if (!view.open || view.open.id !== proposition.id) return;
+
+    const stored = itemsLus ?? [];
 
     const { listPropositionComments } = await import("../services/proposition-comments.js");
     const comments = await listPropositionComments(proposition.id);
@@ -5186,7 +5332,8 @@ async function openProposition(root, propositionId) {
     // Ils arrivent donc d'abord, les onglets s'affichent, et l'analyse remplit
     // les siens quand elle aboutit. Son état se lit dans la barre de titre, où
     // il reste visible quel que soit l'onglet ouvert.
-    const [decisions, documents, comments, affirmationsDuProjet] = await Promise.all([
+    const [decisionsLues, documents, comments, affirmationsDuProjet] = await Promise.all([
+      // `null` si la lecture a échoué — aplati ci-dessous, comme ci-dessus.
       propositions.listPropositionItems(proposition.id),
       propositions.listPropositionDocuments(proposition.id),
       listPropositionComments(proposition.id),
@@ -5197,6 +5344,8 @@ async function openProposition(root, propositionId) {
     ]);
 
     if (!view.open || view.open.id !== proposition.id) return;
+
+    const decisions = decisionsLues ?? [];
 
     const names = await propositions.loadAuthors([
       proposition.created_by,
@@ -5233,10 +5382,19 @@ async function openProposition(root, propositionId) {
       // Les affirmations de la proposition, en face de ce que le projet dit
       // aujourd'hui. Elles ne passent pas par `items` : celui-ci porte les
       // mouvements du corpus, qui n'ont pas de valeur d'avant.
-      avantApres: tableauAvantApres({ proposition, items: decisions, assertions: affirmationsDuProjet })
+      avantApres: tableauAvantApres({ proposition, items: decisions, assertions: affirmationsDuProjet }),
+      // Ce qu'une branche doit dire d'elle-même : ce qu'une autre lui dispute,
+      // et ce que la mémoire a décidé sous elle. Vide au premier rendu — la
+      // lecture des autres propositions vient juste après, et la faire attendre
+      // ici retarderait tout l'écran pour deux phrases.
+      branche: null,
+      // Ce qu'un lot d'Atelier n'a pas pu porter ici, dit une fois en arrivant.
+      tranches: prendreLesTranchesEnAttente(proposition.id)
     };
     recalculerLeDiff(view.review);
     renderContent(root);
+
+    void lireLEtatDeLaBranche(root, propositions, proposition, decisions, affirmationsDuProjet);
 
     // ── Ce qui demande de tout relire ───────────────────────────────────────
     const [{ analyzeProposition }, { loadCtAnalysis }, { loadProjectMarkers }] = await Promise.all([

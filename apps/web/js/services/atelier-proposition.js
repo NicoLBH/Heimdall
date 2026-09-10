@@ -358,7 +358,7 @@ export function descriptionDeLaProposition({ intro = "", affirmations = [], sour
 }
 
 /**
- * Ouvrir une proposition à partir d'un résultat d'Atelier.
+ * Ouvrir une proposition à partir d'un résultat d'Atelier — ou en enrichir une.
  *
  * **Elle reste ouverte.** Rien ici ne la fusionne, et c'est le point de tout ce
  * fichier : le système prépare, l'humain signe.
@@ -366,7 +366,30 @@ export function descriptionDeLaProposition({ intro = "", affirmations = [], sour
  * `affirmations` accepte aussi des **items déjà formés** — c'est ce que fait un
  * retrait, qui ne décrit pas une valeur mais un document à sortir du corpus.
  *
- * @returns {Promise<{ok: true, proposition: object, items: number}|{ok: false, raison: string}>}
+ * ## Enrichir une proposition ouverte
+ *
+ * `propositionId` porte le lot dans une proposition qui existe déjà, au lieu
+ * d'en ouvrir une de plus. C'est ce que `docs/a-traiter-plus-tard.md` § 17
+ * appelle une branche : non pas une réalité parallèle, mais une proposition qui
+ * n'est pas mono-action — on l'ouvre, on l'enrichit, et quand elle est complète
+ * on la fusionne.
+ *
+ * La base l'acceptait déjà : `proposition_items` est unique sur
+ * `(proposition_id, item_type, item_key)`, et le versement se fait en
+ * `merge-duplicates`. Un deuxième lot ajoute ce qui est nouveau et remplace ce
+ * qui porte la même clé. Rien à migrer.
+ *
+ * Deux refus, et ils comptent autant que le succès :
+ *
+ *  - **une proposition qui n'est plus ouverte** ne reçoit rien. Y porter un lot
+ *    après la fusion écrirait dans une décision datée ;
+ *  - **une clé déjà tranchée** n'est pas repoussée. Le versement remettrait
+ *    l'item à « proposé » et effacerait qui avait décidé — et un refus effacé
+ *    est un refus qu'on ne pourra pas contester. On la retient et on la rend
+ *    dans `tranches`, à l'appelant de le dire.
+ *
+ * @returns {Promise<{ok: true, proposition: object, items: number, tranches: object[]}
+ *   |{ok: false, raison: string, tranches?: object[]}>}
  */
 export async function preparerUneProposition({
   projectId = "",
@@ -374,6 +397,8 @@ export async function preparerUneProposition({
   intro = "",
   source = "",
   affirmations = [],
+  // La proposition ouverte à enrichir. Vide : on en ouvre une nouvelle.
+  propositionId = "",
   // Une description écrite par l'appelant. Elle sert quand ce qu'il y a à dire
   // n'est pas une liste de valeurs — défaire une proposition raconte ce qu'on
   // remet, ce qu'on écarte et ce qu'on laisse.
@@ -402,21 +427,86 @@ export async function preparerUneProposition({
     : itemsDeProposition(situees);
   if (!items.length) return { ok: false, raison: "Il n'y a rien à proposer." };
 
-  const { createProposition, soumettreDesItems } = await import("./propositions-supabase.js");
+  const base = await import("./propositions-supabase.js");
+  const vise = texte(propositionId);
 
-  const proposition = await createProposition({
+  const { proposition, aPorter, tranches, raison } = vise
+    ? await brancheVisee(base, vise, items)
+    : await propositionNeuve(base, {
+        projet, titre, intro, source, description, affirmations, items
+      });
+
+  if (raison) return { ok: false, raison, ...(tranches?.length ? { tranches } : {}) };
+
+  // Tout le lot heurtait des décisions : il n'y a rien à porter, et ouvrir une
+  // proposition de plus « pour ne pas perdre le travail » contournerait
+  // exactement ce qu'on vient de refuser.
+  if (!aPorter.length) {
+    return {
+      ok: false,
+      raison: "Tout ce lot porte sur des lignes déjà tranchées dans cette proposition.",
+      tranches
+    };
+  }
+
+  const soumis = await base.soumettreDesItems({
+    propositionId: proposition.id, projectId: projet, items: aPorter
+  });
+  if (!soumis) {
+    // La proposition existe et elle n'a rien reçu : le dire vaut mieux que de
+    // laisser croire qu'elle porte ce qu'on vient de préparer.
+    return {
+      ok: false,
+      raison: vise
+        ? "Les lignes n'ont pas pu être portées dans cette proposition."
+        : "La proposition a été ouverte, mais ses lignes n'ont pas pu y être portées."
+    };
+  }
+
+  return { ok: true, proposition, items: aPorter.length, tranches };
+}
+
+/**
+ * Une proposition neuve : elle naît ouverte, et vide de décisions.
+ *
+ * Rien à retenir, donc : le lot entier y entre, et `tranches` est vide — il n'y
+ * a personne à heurter dans une proposition qui vient de naître.
+ */
+async function propositionNeuve(base, { projet, titre, intro, source, description, affirmations, items }) {
+  const proposition = await base.createProposition({
     projectId: projet,
     title: texte(titre) || "Proposition depuis l'Atelier",
     description: texte(description) || descriptionDeLaProposition({ intro, affirmations, source })
   });
-  if (!proposition?.id) return { ok: false, raison: "La proposition n'a pas pu être ouverte." };
+  if (!proposition?.id) return { raison: "La proposition n'a pas pu être ouverte." };
+  return { proposition, aPorter: items, tranches: [] };
+}
 
-  const soumis = await soumettreDesItems({ propositionId: proposition.id, projectId: projet, items });
-  if (!soumis) {
-    // La proposition existe et elle est vide : le dire vaut mieux que de laisser
-    // croire qu'elle porte ce qu'on vient de préparer.
-    return { ok: false, raison: "La proposition a été ouverte, mais ses lignes n'ont pas pu y être portées." };
+/**
+ * La proposition ouverte qu'on enrichit, et ce qu'on a le droit d'y porter.
+ *
+ * On lit ses items avant d'écrire. Une lecture ratée **arrête** : `null` veut
+ * dire « je n'ai pas pu lire les réponses », et le confondre avec « il n'y en a
+ * aucune » ferait repousser le lot par-dessus un refus qu'on n'avait pas vu
+ * (règle 5).
+ */
+async function brancheVisee(base, propositionId, items) {
+  const [{ PROPOSITION }, { itemsPortablesDansLaBranche }] = await Promise.all([
+    import("./proposition-state.js"),
+    import("./proposition-branche.js")
+  ]);
+
+  const proposition = await base.loadProposition(propositionId);
+  if (!proposition?.id) return { raison: "Cette proposition n'a pas pu être lue." };
+  if (proposition.status !== PROPOSITION.OPEN) {
+    return { raison: "Cette proposition n'est plus ouverte : elle ne reçoit plus de lignes." };
   }
 
-  return { ok: true, proposition, items: items.length };
+  const dejaLa = await base.listPropositionItems(propositionId);
+  if (!Array.isArray(dejaLa)) {
+    return { raison: "Ce que cette proposition porte déjà n'a pas pu être lu." };
+  }
+
+  const { portables, tranches } = itemsPortablesDansLaBranche(items, dejaLa);
+  return { proposition, aPorter: portables, tranches };
 }
