@@ -15542,7 +15542,11 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   --carte-marge:280px;
 }
 .carte-pointee__fond{ position:absolute; inset:calc(-1 * var(--carte-marge)); }
-.carte-pointee__carte{ width:100%; height:100%; }
+.carte-pointee__vue{ width:100%; height:100%; border:0; display:block; }
+/* Ce qu'on voit tant que la première vue n'est pas arrivée. Un fond, et rien
+   d'autre : un message qui s'affiche puis disparaît à chaque chargement ferait
+   clignoter la carte autant que l'ancien rechargement. */
+.carte-pointee__attente{ position:absolute; inset:0; background:#0d1117; }
 
 /* Le voile prend tous les gestes : sans lui, ils partiraient dans l'`iframe`,
    qui ne nous dirait jamais ce qu'elle en a fait. */
@@ -15567,9 +15571,6 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
    deux ensemble ferait un endroit qui ne change pas, ce qui est le contraire du
    geste. */
 .carte-pointee.tire-le-marqueur .carte-pointee__fond{ transform:none; }
-.carte-pointee.tire-le-marqueur .carte-pointee__pins .carte-pointee__marqueur--ancien{
-  transform:translate(-50%, -100%) !important;
-}
 .carte-pointee.tire-le-marqueur .carte-pointee__voile{ cursor:grabbing; }
 
 /* La roulette agrandit ce qui est déjà chargé le temps qu'on redemande la vue :
@@ -15610,12 +15611,6 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   transition:color .15s ease, opacity .15s ease;
 }
 .carte-pointee__marqueur .octicon{ width:30px; height:30px; transition:width .15s ease, height .15s ease; }
-/* Deux marqueurs rouges de la même taille, et l'on ne sait plus lequel est le
-   projet. Celui d'avant passe en bleu, plus petit, translucide : on voit d'un
-   coup d'œil ce qui remplace quoi — et qu'il reste un geste à faire. */
-.carte-pointee__marqueur--ancien{ color:#4493f8; opacity:.55; }
-.carte-pointee__marqueur--ancien .octicon{ width:20px; height:20px; }
-
 .carte-pointee__zoom{
   position:absolute; z-index:3; top:12px; right:12px;
   display:flex; flex-direction:column; gap:4px;
@@ -15626,7 +15621,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
    les écrans qui la portent y posent leurs propres cartouches, et la consigne
    passait derrière eux. */
 .carte-pointee__mode{
-  position:absolute; z-index:3; left:50%; bottom:56px;
+  position:absolute; z-index:3; left:50%; bottom:14px;
   transform:translateX(-50%);
   display:flex; align-items:center; gap:8px;
   max-width:min(560px, 80%);
@@ -15638,22 +15633,6 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 /* La couleur est posée ici, pas héritée : le bloc qui porte la carte met son
    texte en gris atténué, et une consigne grise sur fond noir ne se lit pas. */
 .carte-pointee__mode b{ color:#fff; }
-/* Une consigne qui a changé de sens change de couleur : « il reste un geste à
-   faire » ne se lit pas comme « voici comment faire ». */
-/* Le même fond noir que la consigne ordinaire : l'ambre passait derrière un
-   texte en gris atténué, hérité du bloc, et l'on ne lisait plus rien. Ce qui
-   change, c'est le **liseré** et la couleur de l'icône — assez pour dire qu'il
-   reste un geste, sans rendre la phrase illisible. */
-.carte-pointee__mode--attente{
-  border:1px solid #d29922;
-  color:#fff; font-weight:600;
-}
-.carte-pointee__mode--attente b{ color:#f0b429; }
-.carte-pointee__mode--attente .octicon{ color:#f0b429; }
-.carte-pointee__poser{
-  position:absolute; z-index:3; left:50%; bottom:14px;
-  transform:translateX(-50%);
-}
 
 /* ── Le champ d'adresse, partagé ──────────────────────────────────────────
    Un seul champ, trois écrans : Paramètres > Localisation, l'atelier climatique

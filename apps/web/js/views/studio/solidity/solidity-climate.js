@@ -67,7 +67,7 @@ import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embe
 import { renderSaisieAdresse, brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
 import { adresseEnUneLigne, localisationCalculable, localisationDeLAdresse, nombreOuRien } from "../../../services/adresse-saisie.js";
 import { fetchFrenchAltitude, resolveFrenchCoordinates } from "../../../services/georisques-service.js";
-import { renderCarteAPointer, brancherLaCarteAPointer } from "../../ui/carte-a-pointer.js";
+import { creerLaCarteAPointer, brancherLaCarteAPointer, majCarteAPointer } from "../../ui/carte-a-pointer.js";
 import { ZOOM_COMMUNE, ZOOM_PARCELLE, zoomBorne } from "../../../services/carte-pointee.js";
 import { pointDit } from "../../../services/localisation-versement.js";
 import { localisationDeLaMemoire } from "../../../services/localisation-du-projet.js";
@@ -103,9 +103,14 @@ const state = {
   centre: null, zoom: ZOOM_COMMUNE,
   /** Le point posé, tant qu'on n'a pas cliqué « Calculer ». */
   pointe: null, pointeEnCours: false,
-  /** Vrai le temps d'un geste sur la carte : l'écran ne se redessine pas. */
-  geste: false, renduEnRetard: false,
-  results: {}, mapUrl: "", mapLoading: false, mapCle: "",
+  /**
+   * La carte, créée une fois et rattachée à chaque dessin.
+   *
+   * Le redessiner détruisait son `iframe`, que le navigateur rechargeait depuis
+   * zéro : une page blanche s'allumait à chaque relâchement de la souris.
+   */
+  carte: null,
+  results: {}, mapUrl: "", mapCle: "",
   /** Ce que la dernière adresse choisie n'a pas donné, s'il y a lieu. */
   saisieEchec: "",
   /**
@@ -499,13 +504,6 @@ async function releverLAltitude({ latitude, longitude } = {}) {
 }
 
 function render(root) {
-  // Pas pendant un geste sur la carte. Redessiner remplacerait le voile, et le
-  // glissement mourrait sur un nœud détaché : la carte resterait immobile sous
-  // le doigt sans qu'on sache pourquoi. Une lecture différée — les propositions
-  // ouvertes, une vue satellite qui arrive — suffit à le provoquer.
-  if (state.geste) { state.renduEnRetard = true; return; }
-  state.renduEnRetard = false;
-
   const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
 
   root.innerHTML = `
@@ -545,22 +543,7 @@ function render(root) {
             projet: String(store.currentProjectId || "").trim(),
             proposition: state.propositionOuverte
           })}
-          <div data-solidity-climate-map class="studio-tool-map-layer">
-            ${renderCarteAPointer({
-              nom: CARTE_DU_CLIMAT,
-              centre: state.centre,
-              // Le point qu'on vient de poser en rouge ; celui d'où l'on part en
-              // bleu, plus petit. Deux rouges de la même taille et l'on ne sait
-              // plus lequel est le projet — ni qu'il reste « Calculer ici » à
-              // cliquer.
-              point: pointPose() ?? pointDuProjet(),
-              pointAncien: pointPose() ? pointDuProjet() : null,
-              zoom: state.zoom,
-              embedUrl: state.mapUrl,
-              chargement: state.mapLoading,
-              hauteur: "calc(100vh - 260px)"
-            })}
-          </div>
+          <div data-solidity-climate-map class="studio-tool-map-layer"></div>
           <div class="studio-tool-overlay-grid" style="display:grid;grid-template-columns:300px minmax(0px, 1fr);gap:16px;align-items:start;">
             ${renderCards()}
           </div>
@@ -569,24 +552,7 @@ function render(root) {
     </section>
   `;
   brancherLaSaisie(root);
-
-  brancherLaCarteAPointer(root, {
-    nom: CARTE_DU_CLIMAT,
-    // Une fonction, et non l'état capturé : l'écran redessine, et un objet pris
-    // à la liaison porterait le centre d'il y a trois déplacements.
-    // **Le marqueur qui est dessiné**, et non le seul point posé : c'est celui du
-    // projet qu'on saisit la première fois, et ne pas le donner ici rendait le
-    // marqueur impossible à prendre tant qu'on n'en avait pas posé un autre.
-    etat: () => ({ centre: state.centre, point: pointPose() ?? pointDuProjet(), zoom: state.zoom }),
-    quandGeste: (enCours) => {
-      state.geste = enCours;
-      // Ce qu'on a refusé de dessiner pendant le geste se rattrape à sa fin.
-      if (!enCours && state.renduEnRetard) render(root);
-    },
-    quandDeplacee: (centre) => { state.centre = centre; render(root); },
-    quandZoomee: (zoom) => { state.zoom = zoom; render(root); },
-    quandPointee: (point) => { void poserLeProjet(root, point); }
-  });
+  poserLaCarte(root);
 
   root.querySelector('[data-action-id="solidityToolCalculate-climate"]')
     ?.addEventListener("click", () => { void prendreLaLocalisation(root, state.pointe, { zoom: ZOOM_PARCELLE }); });
@@ -594,14 +560,43 @@ function render(root) {
   void refreshMapCard(root);
 }
 
-/** Le point du projet, quand sa localisation en porte un. */
-function pointDuProjet() {
-  return pointDe(state.location);
+/**
+ * Rattacher la carte, et la mettre à jour.
+ *
+ * **Le même nœud à chaque dessin.** Le redessiner détruisait l'`iframe` de la
+ * vue satellite, que le navigateur rechargeait alors depuis zéro : une page
+ * blanche s'allumait à chaque relâchement de la souris. On cassait nous-mêmes le
+ * fonctionnement de la carte, qui sait très bien changer de centre toute seule.
+ */
+function poserLaCarte(root) {
+  if (!state.carte) {
+    state.carte = creerLaCarteAPointer({ nom: CARTE_DU_CLIMAT, hauteur: "calc(100vh - 260px)" });
+    brancherLaCarteAPointer(state.carte, {
+      // Une fonction, et non l'état capturé : l'écran change, et un objet pris à
+      // la liaison porterait le centre d'il y a trois déplacements.
+      etat: () => ({ centre: state.centre, point: leMarqueur(), zoom: state.zoom }),
+      quandDeplacee: (centre) => { state.centre = centre; void refreshMapCard(root); },
+      quandZoomee: (zoom) => { state.zoom = zoom; void refreshMapCard(root); },
+      quandPointee: (point) => { void poserLeProjet(root, point); }
+    });
+  }
+
+  root.querySelector("[data-solidity-climate-map]")?.appendChild(state.carte);
+  majCarteAPointer(state.carte, {
+    centre: state.centre, point: leMarqueur(), zoom: state.zoom, embedUrl: state.mapUrl
+  });
 }
 
-/** Le point qu'on vient de poser, tant que « Calculer ici » ne l'a pas retenu. */
-function pointPose() {
-  return pointDe(state.pointe);
+/**
+ * Le marqueur, et il n'y en a qu'un.
+ *
+ * Celui qu'on vient de poser s'il y en a un, celui du projet sinon. Il y en a eu
+ * deux le temps d'une version — l'ancien en bleu, le nouveau en rouge — et ils
+ * se recouvraient : le marqueur est **déplaçable** maintenant, et un endroit
+ * qu'on déplace n'a pas besoin de son fantôme à côté.
+ */
+function leMarqueur() {
+  return pointDe(state.pointe) ?? pointDe(state.location);
 }
 
 function pointDe(localisation) {
@@ -632,23 +627,16 @@ function renderAddressCard() {
   return `
     <article class="studio-tool-info-card climat-localisation">
       <h4>Localisation</h4>
-      <p class="gh-text-muted climat-localisation__quoi">
-        Ce avec quoi le calcul part. Elle vient du projet ; en choisir une autre ici
-        ne change que ce calcul-ci — et le relance aussitôt.
-      </p>
 
       ${renderSaisieAdresse({
         nom: SAISIE_DU_CLIMAT,
         label: "",
         valeur: adresseEnUneLigne(location),
         placeholder: "Une adresse, ou seulement la commune…",
-        aide: "Un projet qui n'est pas encore construit n'a pas d'adresse : tapez la commune, "
-          + "puis allez reconnaître le terrain sur la carte.",
         desactive: state.loading
       })}
 
       ${state.loading ? `<p class="climat-localisation__attente">${renderSpinnerHtml({ label: "Calcul en cours", size: "sm" })} Calcul en cours…</p>` : ""}
-      ${state.saisieEchec ? `<p class="climat-localisation__manque">${escapeHtml(state.saisieEchec)}</p>` : ""}
 
       ${renderPointPose()}
 
@@ -660,12 +648,14 @@ function renderAddressCard() {
       </dl>
 
       ${
-        localisationCalculable(location)
+        // Sans code INSEE, rien ne se calcule — et il faut le dire. Mais **une
+        // seule fois** : quand un point vient d'être posé, c'est sa ligne à lui
+        // qui porte la phrase, et la répéter ici ferait chercher deux causes.
+        localisationCalculable(location) || state.pointe
           ? ""
           : `<p class="climat-localisation__manque">
               Le code INSEE désigne la commune sans ambiguïté — deux communes peuvent porter le même
               nom. Les tables de zonage se lisent par lui : sans code INSEE, rien ne se calcule.
-              Choisissez une adresse dans la liste : il vient avec.
             </p>`
       }
 
@@ -701,8 +691,14 @@ function renderPointPose() {
           : insee
             ? `<span>${escapeHtml(commune || "commune inconnue")} · INSEE ${escapeHtml(insee)}
                  · ${escapeHtml(mesure(state.pointe.altitude, 2, "m") || "altitude inconnue")}</span>`
-            : `<span class="climat-localisation__manque">Aucune commune trouvée à cet endroit :
-                 rien ne se calcule sans code INSEE.</span>`
+            : `<span class="climat-localisation__manque">${escapeHtml(
+                // **Une seule** alerte, et celle qui dit vrai. Il y en avait deux
+                // — l'une sous le champ, l'autre ici — et toutes deux annonçaient
+                // « aucune commune trouvée à cet endroit », ce qui est faux
+                // partout sauf en mer : on interrogeait la base des **adresses**,
+                // qui n'en trouve aucune au milieu d'un champ.
+                state.saisieEchec || "Ce point n'est dans aucune commune française."
+              )}</span>`
       }
     </div>
   `;
@@ -739,7 +735,10 @@ function brancherLaSaisie(root) {
     }),
     quandEchoue: (motif) => {
       // Se taire laisserait la carte et les zones sur l'adresse précédente,
-      // qu'on croirait être celle qu'on vient de choisir.
+      // qu'on croirait être celle qu'on vient de choisir. La phrase s'affiche
+      // sous le point posé, et **là seulement** : deux alertes pour un échec
+      // font chercher deux causes.
+      state.pointe = { ...(state.pointe ?? {}), codeInsee: "" };
       state.saisieEchec = motif;
       render(root);
     }
@@ -793,32 +792,29 @@ async function refreshMapCard(root) {
   const longitude = nombreOuRien(state.centre?.longitude);
   if (!root || latitude === null || longitude === null) return;
 
-  // Un appel à la fois. Ce garde-fou n'est pas un confort : `render` rappelle
-  // cette fonction, et sans lui l'écran se redessinait sans fin dès que la
-  // première vue satellite ne répondait pas — la clé était posée, l'URL restait
-  // vide, et la condition d'arrêt ne se remplissait jamais.
-  if (state.mapLoading) return;
-
-  // Rien à redemander si c'est déjà ce qu'on affiche : l'`iframe` se recharge à
-  // chaque appel, et le rendu part à chaque déplacement de la carte.
+  // Rien à redemander si c'est déjà ce qu'on affiche.
   const cle = `${latitude.toFixed(6)}|${longitude.toFixed(6)}|${state.zoom}`;
   if (cle === state.mapCle) return;
   state.mapCle = cle;
 
-  state.mapLoading = true;
-  // Le voile porte le marqueur et le viseur : redessiner la seule `iframe`
-  // laisserait le marqueur sur l'endroit d'avant, au-dessus d'une carte qui a
-  // changé — c'est-à-dire montrerait le projet à côté de là où il est.
-  render(root);
+  // **Le marqueur bouge tout de suite**, la vue arrive après : sans cela, on
+  // relâche la souris et le marqueur reste une demi-seconde sur l'endroit
+  // d'avant. La vue précédente reste affichée pendant ce temps — la remplacer
+  // par un vide est exactement ce qui faisait clignoter la carte.
+  poserLaCarte(root);
+
   try {
-    state.mapUrl = await fetchGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: state.zoom, mapType: "satellite" });
+    const vue = await fetchGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: state.zoom, mapType: "satellite" });
+    // Un centre a pu changer pendant l'attente : la vue qui arrive porte alors
+    // sur un endroit qu'on ne regarde plus, et l'afficher ferait sauter la carte.
+    if (cle !== state.mapCle) return;
+    state.mapUrl = vue;
   } catch {
     state.mapUrl = "";
     // La clé s'oublie : sans cela, une panne de réseau figerait la carte sur le
     // dernier endroit qui a répondu, et se déplacer ne ferait plus rien.
     state.mapCle = "";
   } finally {
-    state.mapLoading = false;
-    render(root);
+    poserLaCarte(root);
   }
 }
