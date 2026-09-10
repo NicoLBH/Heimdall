@@ -29,17 +29,30 @@
  * rend la commune, son code INSEE, son code postal et ses coordonnées, dont
  * l'altitude se déduit.
  *
- * ## Et le calcul part tout seul
+ * ## Et le calcul part tout seul — sauf quand on cherche
  *
- * Il y avait un bouton « Calculer », et il ne servait qu'à répéter ce que le
- * choix d'une adresse disait déjà. Le principe de cet écran est d'**explorer** —
- * essayer une adresse, en regarder les zones, en essayer une autre — et un
- * bouton entre les deux ajoute un geste par essai, sans rien décider. Choisir
- * une adresse recalcule ; reprendre celle du projet recalcule ; il n'y a plus
- * rien à cliquer entre les deux.
+ * Choisir une adresse recalcule ; reprendre celle du projet recalcule. C'est ce
+ * qu'on veut quand on **sait** où l'on va : un bouton entre les deux ajouterait
+ * un geste par essai sans rien décider.
+ *
+ * Pointer sur la carte, c'est autre chose. On tâtonne — on déplace, on zoome, on
+ * repose le marqueur trois fois avant de reconnaître la parcelle —, et
+ * recalculer à chaque pose ferait trois appels au serveur pour un seul endroit.
+ * Le bouton **Calculer** est donc là pour ce cas-là, et pour lui seul : il
+ * s'allume dès qu'un point est posé, et c'est lui qui dit « c'est bien ici ».
+ *
+ * ## Le projet qui n'a pas d'adresse
+ *
+ * Il n'est pas construit. Il est dans un champ, et l'on connaît la commune. On
+ * tape donc la commune, on arrive au-dessus du bourg, on se déplace jusqu'à
+ * reconnaître le terrain sur la vue satellite, et l'on pose le point — appui
+ * long, ou bouton qui prend le centre du viseur. Le service d'adresses rend
+ * alors la commune **à l'envers**, depuis les coordonnées, si bien que ce
+ * projet-là a un code INSEE comme les autres. Voir `ui/carte-a-pointer.js`.
  */
 
 import { escapeHtml } from "../../../utils/escape-html.js";
+import { svgIcon } from "../../../ui/icons.js";
 import { store } from "../../../store.js";
 import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.js";
 import { getLastStudioToolResult, resolveStudioClimateTool } from "../../../services/studio-tools-service.js";
@@ -51,10 +64,13 @@ import { avertirAvantDeProposer, renderPropositionOuverte } from "../../ui/avert
 import { demanderLeTitre } from "../../ui/titre-de-la-proposition.js";
 import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
-import { renderProjectLocationMapCard } from "../../shared/project-location-map-card.js";
 import { renderSaisieAdresse, brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
-import { adresseEnUneLigne, localisationCalculable, nombreOuRien } from "../../../services/adresse-saisie.js";
-import { fetchFrenchAltitude } from "../../../services/georisques-service.js";
+import { adresseEnUneLigne, localisationCalculable, localisationDeLAdresse, nombreOuRien } from "../../../services/adresse-saisie.js";
+import { fetchFrenchAltitude, resolveFrenchCoordinates } from "../../../services/georisques-service.js";
+import { renderCarteAPointer, brancherLaCarteAPointer } from "../../ui/carte-a-pointer.js";
+import { ZOOM_COMMUNE, ZOOM_PARCELLE, zoomBorne } from "../../../services/carte-pointee.js";
+import { pointDit } from "../../../services/localisation-versement.js";
+import { renderGhActionButton } from "../../ui/gh-split-button.js";
 import { renderSpinnerHtml } from "../../ui/spinner.js";
 
 const TOOL_KEYS = ["snow", "wind", "frost"];
@@ -76,7 +92,17 @@ const state = {
    * projet passe par une proposition, comme le reste.
    */
   location: null,
-  results: {}, mapUrl: "", mapLoading: false,
+  /**
+   * Où la carte regarde, et à quel zoom.
+   *
+   * **À part de `location`** : on s'éloigne pour se resituer sans que le projet
+   * suive, et l'on revient. Les confondre ferait sauter le marqueur au milieu de
+   * l'écran à chaque déplacement.
+   */
+  centre: null, zoom: ZOOM_COMMUNE,
+  /** Le point posé, tant qu'on n'a pas cliqué « Calculer ». */
+  pointe: null, pointeEnCours: false,
+  results: {}, mapUrl: "", mapLoading: false, mapCle: "",
   /** Ce que la dernière adresse choisie n'a pas donné, s'il y a lieu. */
   saisieEchec: "",
   /**
@@ -89,6 +115,9 @@ const state = {
 
 /** Le nom du champ d'adresse, sur cet écran-ci. */
 const SAISIE_DU_CLIMAT = "climat";
+
+/** Le nom de la carte qu'on pointe, sur cet écran-ci. */
+const CARTE_DU_CLIMAT = "climat";
 
 /**
  * Ce que la localisation résolue montre, une fois choisie.
@@ -376,29 +405,82 @@ async function calculateAll() {
  * choisie ou du bouton qui reprend celle du projet : deux chemins auraient fini
  * par ne pas recalculer les mêmes choses.
  */
-async function prendreLaLocalisation(root, localisation) {
+async function prendreLaLocalisation(root, localisation, { zoom = null } = {}) {
   state.location = localisation;
+  state.pointe = null;
   state.saisieEchec = "";
   state.error = "";
   state.loading = true;
+  // La carte suit ce qu'on vient de retenir. Le zoom aussi : on arrive au-dessus
+  // du bourg quand on a tapé une commune, au-dessus de la parcelle quand on a
+  // pointé — chercher son terrain à l'échelle du département ne se fait pas.
+  recentrer(localisation, zoom);
   render(root);
 
   // L'altitude ne vient pas du service d'adresses : elle se lit sur le relief,
   // aux coordonnées. Ce qu'on ne sait pas reste vide plutôt que de valoir zéro —
   // zéro mètre se calcule très bien jusqu'à une cote hors gel fausse (règle 5).
-  const { latitude, longitude } = localisation ?? {};
-  if (!Number.isFinite(Number(localisation?.altitude)) && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))) {
-    try {
-      const releve = await fetchFrenchAltitude({ latitude: Number(latitude), longitude: Number(longitude) });
-      const metres = Number(releve?.altitude ?? releve);
-      state.location = { ...state.location, altitude: Number.isFinite(metres) ? metres : null };
-    } catch {
-      state.location = { ...state.location, altitude: null };
-    }
+  const latitude = nombreOuRien(localisation?.latitude);
+  const longitude = nombreOuRien(localisation?.longitude);
+  if (nombreOuRien(localisation?.altitude) === null && latitude !== null && longitude !== null) {
+    state.location = { ...state.location, altitude: await releverLAltitude({ latitude, longitude }) };
   }
 
   await calculateAll();
+  recentrer(state.location, zoom);
   render(root);
+}
+
+/** Poser la carte sur une localisation, sans toucher au projet. */
+function recentrer(localisation, zoom = null) {
+  const latitude = nombreOuRien(localisation?.latitude);
+  const longitude = nombreOuRien(localisation?.longitude);
+  if (latitude === null || longitude === null) return;
+
+  state.centre = { latitude, longitude };
+  if (zoom !== null) state.zoom = zoomBorne(zoom);
+}
+
+/**
+ * Poser le projet là où l'on vient d'appuyer.
+ *
+ * Le service d'adresses rend la commune **à l'envers**, depuis les coordonnées :
+ * c'est ce qui donne un code INSEE à un projet qui n'a pas d'adresse. Il ne rend
+ * pas d'adresse — celle du voisin n'est pas celle du projet, et l'écrire ferait
+ * entrer en mémoire un fait que personne n'a constaté (règle 5).
+ *
+ * Rien n'est calculé ici : on tâtonne, on repose le marqueur, et trois appels au
+ * serveur pour un seul endroit ne servent à personne. C'est « Calculer » qui
+ * dit « c'est bien ici ».
+ */
+async function poserLeProjet(root, point) {
+  state.pointe = point;
+  state.pointeEnCours = true;
+  state.saisieEchec = "";
+  render(root);
+
+  try {
+    const commune = localisationDeLAdresse(await resolveFrenchCoordinates(point));
+    const altitude = await releverLAltitude(point);
+    state.pointe = { ...commune, ...point, altitude };
+  } catch (erreur) {
+    // Se taire laisserait un marqueur posé sans commune, et « Calculer » aurait
+    // refusé sans dire pourquoi.
+    state.saisieEchec = erreur instanceof Error ? erreur.message : String(erreur);
+  } finally {
+    state.pointeEnCours = false;
+    render(root);
+  }
+}
+
+/** L'altitude d'un point, ou `null`. Elle se lit sur le relief, aux coordonnées. */
+async function releverLAltitude({ latitude, longitude } = {}) {
+  try {
+    const releve = await fetchFrenchAltitude({ latitude, longitude });
+    return nombreOuRien(releve?.altitude ?? releve);
+  } catch {
+    return null;
+  }
 }
 
 function render(root) {
@@ -417,6 +499,20 @@ function render(root) {
                   disabled: !hasResult || state.transforming,
                   ouvertes: branchesOuvertes(() => render(root))
                 })}
+                ${
+                  // Le bouton n'existe que pour le point posé sur la carte. Une
+                  // adresse choisie recalcule d'elle-même ; un point, on le
+                  // repose trois fois avant de reconnaître la parcelle, et c'est
+                  // ce bouton qui dit « c'est bien ici ».
+                  state.pointe
+                    ? renderGhActionButton({
+                        id: "solidityToolCalculate-climate",
+                        label: state.loading ? "Calcul en cours…" : "Calculer ici",
+                        tone: "primary", size: "md", mainAction: "",
+                        disabled: Boolean(state.loading) || state.pointeEnCours || !localisationCalculable(state.pointe)
+                      })
+                    : ""
+                }
               </div>
             </span>
           </div>
@@ -428,7 +524,17 @@ function render(root) {
             proposition: state.propositionOuverte
           })}
           <div data-solidity-climate-map class="studio-tool-map-layer">
-            ${renderMapCard()}
+            ${renderCarteAPointer({
+              nom: CARTE_DU_CLIMAT,
+              centre: state.centre,
+              // Le point posé s'il y en a un, celui du projet sinon : c'est le
+              // marqueur rouge, et il ne suit pas la carte quand on la déplace.
+              point: state.pointe ?? pointDuProjet(),
+              zoom: state.zoom,
+              embedUrl: state.mapUrl,
+              chargement: state.mapLoading,
+              hauteur: "calc(100vh - 260px)"
+            })}
           </div>
           <div class="studio-tool-overlay-grid" style="display:grid;grid-template-columns:300px minmax(0px, 1fr);gap:16px;align-items:start;">
             ${renderCards()}
@@ -438,7 +544,28 @@ function render(root) {
     </section>
   `;
   brancherLaSaisie(root);
+
+  brancherLaCarteAPointer(root, {
+    nom: CARTE_DU_CLIMAT,
+    // Une fonction, et non l'état capturé : l'écran redessine, et un objet pris
+    // à la liaison porterait le centre d'il y a trois déplacements.
+    etat: () => ({ centre: state.centre, point: state.pointe, zoom: state.zoom }),
+    quandDeplacee: (centre) => { state.centre = centre; render(root); },
+    quandZoomee: (zoom) => { state.zoom = zoom; render(root); },
+    quandPointee: (point) => { void poserLeProjet(root, point); }
+  });
+
+  root.querySelector('[data-action-id="solidityToolCalculate-climate"]')
+    ?.addEventListener("click", () => { void prendreLaLocalisation(root, state.pointe, { zoom: ZOOM_PARCELLE }); });
+
   void refreshMapCard(root);
+}
+
+/** Le point du projet, quand sa localisation en porte un. */
+function pointDuProjet() {
+  const latitude = nombreOuRien(state.location?.latitude);
+  const longitude = nombreOuRien(state.location?.longitude);
+  return latitude === null || longitude === null ? null : { latitude, longitude };
 }
 
 function renderCards() {
@@ -472,12 +599,16 @@ function renderAddressCard() {
         nom: SAISIE_DU_CLIMAT,
         label: "",
         valeur: adresseEnUneLigne(location),
-        placeholder: "Ex. 12 avenue de la Gare, Annecy",
+        placeholder: "Une adresse, ou seulement la commune…",
+        aide: "Un projet qui n'est pas encore construit n'a pas d'adresse : tapez la commune, "
+          + "puis allez reconnaître le terrain sur la carte.",
         desactive: state.loading
       })}
 
       ${state.loading ? `<p class="climat-localisation__attente">${renderSpinnerHtml({ label: "Calcul en cours", size: "sm" })} Calcul en cours…</p>` : ""}
       ${state.saisieEchec ? `<p class="climat-localisation__manque">${escapeHtml(state.saisieEchec)}</p>` : ""}
+
+      ${renderPointPose()}
 
       <dl class="climat-localisation__resolu">
         ${LOCALISATION_RESOLUE.map((champ) => `
@@ -504,6 +635,38 @@ function renderAddressCard() {
 }
 
 /**
+ * Le point posé sur la carte, tant que « Calculer » ne l'a pas retenu.
+ *
+ * Il se montre **à part** de la localisation d'aujourd'hui : ce sont deux
+ * endroits, et les mélanger ferait croire que le projet a déjà bougé alors qu'on
+ * est en train de chercher.
+ */
+function renderPointPose() {
+  if (!state.pointe) return "";
+
+  const commune = String(state.pointe.city || "").trim();
+  const insee = String(state.pointe.codeInsee || "").trim();
+
+  return `
+    <div class="climat-localisation__pointe">
+      <b>${svgIcon("location", { className: "octicon" })} Point posé</b>
+      <span class="climat-localisation__coords">${escapeHtml(pointDit({
+        latitude: state.pointe.latitude, longitude: state.pointe.longitude
+      }) || "—")}</span>
+      ${
+        state.pointeEnCours
+          ? `<span class="climat-localisation__attente">${renderSpinnerHtml({ label: "Recherche de la commune", size: "sm" })} Recherche de la commune…</span>`
+          : insee
+            ? `<span>${escapeHtml(commune || "commune inconnue")} · INSEE ${escapeHtml(insee)}
+                 · ${escapeHtml(mesure(state.pointe.altitude, 2, "m") || "altitude inconnue")}</span>`
+            : `<span class="climat-localisation__manque">Aucune commune trouvée à cet endroit :
+                 rien ne se calcule sans code INSEE.</span>`
+      }
+    </div>
+  `;
+}
+
+/**
  * Ce qu'une colonne résolue affiche. Vide s'affiche « — » et non « 0 ».
  *
  * L'altitude passe par l'écriture de la mémoire — virgule décimale, unité
@@ -526,7 +689,12 @@ function valeurLue(location, champ) {
 function brancherLaSaisie(root) {
   brancherLaSaisieDAdresse(root, {
     nom: SAISIE_DU_CLIMAT,
-    quandChoisie: (localisation) => prendreLaLocalisation(root, localisation),
+    // Le zoom d'arrivée : le bourg quand on a tapé une commune sans numéro, la
+    // parcelle quand l'adresse en portait un. Chercher son terrain à l'échelle
+    // du département ne se fait pas.
+    quandChoisie: (localisation) => prendreLaLocalisation(root, localisation, {
+      zoom: String(localisation?.address || "").trim() ? ZOOM_PARCELLE : ZOOM_COMMUNE
+    }),
     quandEchoue: (motif) => {
       // Se taire laisserait la carte et les zones sur l'adresse précédente,
       // qu'on croirait être celle qu'on vient de choisir.
@@ -536,7 +704,7 @@ function brancherLaSaisie(root) {
   });
 
   root.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
-    void prendreLaLocalisation(root, getEffectiveProjectLocation());
+    void prendreLaLocalisation(root, getEffectiveProjectLocation(), { zoom: ZOOM_PARCELLE });
   });
 }
 
@@ -566,36 +734,43 @@ function renderToolCard(toolKey) {
   `;
 }
 
-function renderMapCard() {
-  return renderProjectLocationMapCard({
-    latitude: state.location?.latitude,
-    longitude: state.location?.longitude,
-    embedUrl: state.mapUrl,
-    isLoading: state.mapLoading,
-    showSpinner: true,
-    iframeTitle: "Carte Google Maps de la localisation du projet",
-    height: "calc(100vh - 210px)",
-    containerClassName: "studio-tool-map-card"
-  });
-}
-
 async function refreshMapCard(root) {
+  // La carte suit le **centre**, qui n'est pas le projet : on s'éloigne pour se
+  // resituer, on revient, et le marqueur ne bouge pas pendant ce temps.
+  //
   // `Number(null)` vaut zéro, et zéro est un point au large du golfe de Guinée :
   // sans coordonnées, la carte reste floue — c'est ce qu'on veut voir quand le
   // projet n'a pas de localisation.
-  const latitude = nombreOuRien(state.location?.latitude);
-  const longitude = nombreOuRien(state.location?.longitude);
+  const latitude = nombreOuRien(state.centre?.latitude);
+  const longitude = nombreOuRien(state.centre?.longitude);
   if (!root || latitude === null || longitude === null) return;
 
+  // Un appel à la fois. Ce garde-fou n'est pas un confort : `render` rappelle
+  // cette fonction, et sans lui l'écran se redessinait sans fin dès que la
+  // première vue satellite ne répondait pas — la clé était posée, l'URL restait
+  // vide, et la condition d'arrêt ne se remplissait jamais.
+  if (state.mapLoading) return;
+
+  // Rien à redemander si c'est déjà ce qu'on affiche : l'`iframe` se recharge à
+  // chaque appel, et le rendu part à chaque déplacement de la carte.
+  const cle = `${latitude.toFixed(6)}|${longitude.toFixed(6)}|${state.zoom}`;
+  if (cle === state.mapCle) return;
+  state.mapCle = cle;
+
   state.mapLoading = true;
-  const host = root.querySelector("[data-solidity-climate-map]");
-  if (host) host.innerHTML = renderMapCard();
+  // Le voile porte le marqueur et le viseur : redessiner la seule `iframe`
+  // laisserait le marqueur sur l'endroit d'avant, au-dessus d'une carte qui a
+  // changé — c'est-à-dire montrerait le projet à côté de là où il est.
+  render(root);
   try {
-    state.mapUrl = await fetchGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: 16, mapType: "satellite" });
+    state.mapUrl = await fetchGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: state.zoom, mapType: "satellite" });
   } catch {
     state.mapUrl = "";
+    // La clé s'oublie : sans cela, une panne de réseau figerait la carte sur le
+    // dernier endroit qui a répondu, et se déplacer ne ferait plus rien.
+    state.mapCle = "";
   } finally {
     state.mapLoading = false;
-    if (host) host.innerHTML = renderMapCard();
+    render(root);
   }
 }

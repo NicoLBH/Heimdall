@@ -2101,3 +2101,76 @@ La 1 est la bonne, et elle demande de toucher au rejeu.
 - **`H0 retenu pour le département` est rangé « à revérifier » sans être
   rejoué**, alors que `agent_d_profondeur_hors_gel_V1` le pose. Sa ligne le cite
   comme lecture avec une valeur vide. À reprendre avec la réponse 1.
+
+---
+
+## 27. Une seule localisation, et un projet qui n'a pas d'adresse
+
+### Ce que l'étape a posé
+
+La **réponse 1** de [§ 26](#26-changer-dadresse-ne-change-pas-de-commune), et ce
+qu'elle a entraîné.
+
+**La localisation a six colonnes.** Les coordonnées entrent dans la ligne versée,
+au même titre que la commune : `commune`, `codeInsee`, `codePostal`, `adresse`,
+`latitude`, `longitude`. Ce n'est pas une colonne de confort — c'est ce qui
+permet à un projet **sans adresse** d'exister en mémoire, et de dire qu'il a
+bougé de cent mètres.
+
+**La variante porte la ligne entière.** Choisir une adresse remplace les six
+colonnes d'un coup, et l'écran les liste avant qu'on calcule. Changer l'adresse
+d'un projet, c'est le déplacer.
+
+**Le déplacement se mesure.** `services/localisation-mouvement.js` : Haversine,
+seuil à 50 m, et quatre issues qui ne se confondent pas — changement de commune,
+déplacement dans la commune, écriture corrigée, ou *on ne sait pas*. Le code
+INSEE ne suffisait pas : Briançon fait vingt-huit kilomètres carrés et mille
+mètres de dénivelé, et deux points de la même commune n'ont ni la même altitude
+ni la même cote hors gel. À l'inverse, corriger « bât. B » dans une adresse ne
+déplace rien, et rejouer toute la chaîne pour cela apprend à ignorer l'écran.
+
+**On peut pointer sur la carte.** `ui/carte-a-pointer.js` : un voile transparent
+sur la vue satellite, un glissement qui recentre, un appui long qui pose le
+projet, un viseur au milieu. Le service d'adresses rend la commune **à l'envers**
+depuis les coordonnées, si bien qu'un terrain au milieu d'un champ a un code
+INSEE comme les autres. Il ne rend pas d'adresse : celle du voisin n'est pas
+celle du projet (règle 5).
+
+Le bouton **Calculer** revient, et pour ce cas seul : on repose le marqueur trois
+fois avant de reconnaître la parcelle, et recalculer à chaque pose ferait trois
+appels au serveur pour un seul endroit. Une adresse choisie, elle, recalcule
+toujours d'elle-même.
+
+**La recherche par les mots qu'on emploie.**
+`services/recherche-de-valeur.js` : « localisation » n'est le nom d'aucune
+colonne — c'est celui du tableau qui les porte —, et « GPS », « ville »,
+« terrain », « où » ne sont écrits nulle part. Le tableau porteur se cherche
+maintenant aussi, et les synonymes sont **déclarés**, pas devinés.
+
+### Le doublon, ce qui en reste
+
+« Une seule localisation doit vivre dans l'application. » La **définition** l'est
+maintenant : une structure, un constructeur (`localisation-versement.js`), un
+lecteur. Deux copies subsistent, et aucune n'a été retirée dans cette étape :
+
+| la copie | où | pourquoi elle n'a pas sauté ici |
+| --- | --- | --- |
+| `projectForm.communeCp` | la fiche du projet | une chaîne « Annecy 74000 » qui redit `city` + `postalCode`, dérivée à deux endroits et **reparsée** à un troisième. Six lecteurs, dont le contexte du copilote et le lanceur d'analyses : la retirer se fait, mais pas au milieu d'une étape qui touche déjà au rejeu |
+| les zonages en `site-constraint` | la mémoire | c'est le bouton « Verser les contraintes du site » de [§ 24](#24-verser-les-contraintes-du-site), qui écrit **directement**. Le doublon est celui des zonages, pas celui de la localisation, et il a son étape |
+
+### Ce qui reste
+
+1. **`communeCp` disparaît.** Les six lecteurs prennent `city` et `postalCode`,
+   et le champ de saisie de la création de projet garde son brouillon à lui.
+2. **L'altitude suit la localisation.** Elle est encore un sujet à part, varié
+   séparément : déplacer un projet de 13 m à 1 035 m demande deux variantes. Le
+   relief se lit aux coordonnées ; l'altitude devrait entrer dans la ligne portée
+   par une adresse choisie, comme le reste.
+3. **`H0 retenu pour le département` ne se rejoue pas.** Il est rangé « à
+   revérifier » alors que `agent_d_profondeur_hors_gel_V1` le pose, et sa lecture
+   est citée avec une valeur vide.
+4. **La carte ne glisse pas sous le doigt.** Elle se repose au relâchement —
+   l'`iframe` se recharge à chaque changement de centre, et un rechargement par
+   pixel donnerait un clignotement continu. Le voile suit le doigt pendant qu'on
+   tire, ce qui rend le geste lisible ; une vraie carte à tuiles ferait mieux, au
+   prix d'une bibliothèque et d'un second fond de carte.

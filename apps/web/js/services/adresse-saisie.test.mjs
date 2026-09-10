@@ -136,7 +136,12 @@ test("chaque colonne déclarée sait ce qu'une adresse choisie y met", () => {
   // Le jour où une cinquième colonne s'ajoute à la structure versée, ce test
   // tombe — plutôt qu'une chaîne vide substituée en silence.
   const choisie = localisationDeLAdresse(RESOLUE);
-  const attendu = { commune: "Annecy", codeInsee: "74010", codePostal: "74000", adresse: RESOLUE.address };
+  const attendu = {
+    commune: "Annecy", codeInsee: "74010", codePostal: "74000", adresse: RESOLUE.address,
+    // Six décimales : le dixième de mètre. C'est ce qui permet de voir qu'un
+    // projet a bougé de cent mètres sans changer de commune.
+    latitude: "45.900000", longitude: "6.130000"
+  };
 
   for (const colonne of STRUCTURE_DE_LA_LOCALISATION) {
     assert.equal(valeurDeLaColonne(choisie, colonne.cle), attendu[colonne.cle],

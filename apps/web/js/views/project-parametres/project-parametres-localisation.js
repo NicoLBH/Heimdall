@@ -1299,6 +1299,20 @@ export function renderLocalisationParametresContent() {
           proposition: parametresUiState.locationProposition
         })}
         <div class="col-span-2">
+          <!-- Le lien n'apparaît **qu'en mode modifier** : hors de ce mode, il
+               proposerait de chercher une localisation qu'on n'a pas demandé à
+               changer, et son bleu attirerait l'œil pour rien.
+
+               Il se dessine toujours et se **montre** par le CSS, parce que
+               « Modifier » ne redessine pas l'écran : il pose une classe sur le
+               champ. Le redessiner d'ici sortirait du mode qu'on vient d'y
+               entrer. -->
+          <p class="settings-lien-approfondi">
+            <button type="button" class="gh-lien" data-localisation-approfondie>
+              ${svgIcon("location", { className: "octicon" })}
+              Ouvrir la recherche approfondie de localisation
+            </button>
+          </p>
           <div class="form-row form-row--settings">
             ${renderSaisieAdresse({
               nom: SAISIE_DU_PROJET,
@@ -1342,6 +1356,35 @@ export function bindLocalisationParametresSection(root) {
   // Le geste de mémoire est **explicite**. L'enregistrement de l'écran range
   // l'adresse dans la fiche du projet ; ce bouton-ci la propose, et quelqu'un
   // signe. Une proposition qui s'ouvrirait à chaque frappe ne se relirait jamais.
+  // La recherche approfondie : le champ ne suffit pas quand le projet n'a pas
+  // d'adresse — un terrain qui n'est pas construit —, ni quand l'adresse ne
+  // désigne pas le bon endroit. On y cherche grossièrement, puis on pointe.
+  document.querySelector("[data-localisation-approfondie]")?.addEventListener("click", () => {
+    void (async () => {
+      const { chercherUneLocalisation } = await import("../ui/recherche-de-localisation.js");
+      const retenue = await chercherUneLocalisation({
+        depart: {
+          address: store.projectForm.address,
+          city: store.projectForm.city,
+          postalCode: store.projectForm.postalCode,
+          codeInsee: store.projectForm.codeInsee,
+          latitude: store.projectForm.latitude,
+          longitude: store.projectForm.longitude,
+          altitude: store.projectForm.altitude
+        }
+      });
+      if (!retenue) return;
+
+      syncProjectLocationFields(retenue);
+      // On sort du mode modifier : la recherche **est** la validation. Y
+      // revenir demanderait de valider une seconde fois ce qu'on vient de
+      // choisir sur une carte.
+      ensureLocalisationUiState().locationEditInProgress = false;
+      rerenderProjectParametres();
+      void proposerLaLocalisation({ avertir: true });
+    })();
+  });
+
   document.querySelector("[data-localisation-proposer]")?.addEventListener("click", () => {
     // Le bouton dit déjà ce qu'il fait — « Proposer à la mémoire » —, et la
     // fenêtre lui sert quand même : c'est elle qui montre ce qui bouge et qui

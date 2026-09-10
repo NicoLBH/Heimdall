@@ -47,6 +47,7 @@ import { enchainementDeLaVariante } from "../../services/variante-enchainement.j
 import { renderEnchainement, SENS } from "../ui/enchainement.js";
 import { renderSaisieAdresse } from "../ui/saisie-adresse.js";
 import { colonneDeLaLocalisation } from "../../services/adresse-saisie.js";
+import { valeursTrouvees } from "../../services/recherche-de-valeur.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -451,21 +452,12 @@ function renderARevoir(ligne) {
 
 /** La colonne de gauche : le socle, cherchable. */
 function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
-  const filtre = texte(cherche).toLowerCase();
-  // On cherche aussi dans le groupe et dans la description : « sol » doit
-  // ramener « contrainte limite à l'ELS », qu'on ne trouvait pas sans connaître
-  // déjà son nom exact.
-  // Le nom et le groupe d'abord, la description ensuite : chercher « vent » doit
-  // ramener les quatre cas de vent avant « c'est souvent ce décalage qui… ».
-  // Chercher dans la description reste utile — c'est ce qui permet de trouver
-  // sans connaître le nom exact —, mais elle ne doit pas passer devant.
-  const nomme = (valeur) => [valeur.sujet, valeur.champ?.groupe]
-    .some((mot) => texte(mot).toLowerCase().includes(filtre));
-  const retenues = filtre
-    ? valeurs
-        .filter((valeur) => nomme(valeur) || texte(valeur.quoi).toLowerCase().includes(filtre))
-        .sort((gauche, droite) => Number(nomme(droite)) - Number(nomme(gauche)))
-    : valeurs;
+  const filtre = texte(cherche);
+  // Le nom de l'entrée, celui du tableau qui la porte, ses synonymes, puis sa
+  // description — dans cet ordre. C'est ce qui fait que « localisation » ramène
+  // les six colonnes d'un endroit dont aucune ne s'appelle ainsi, et que
+  // « GPS » les ramène aussi. Voir `services/recherche-de-valeur.js`.
+  const retenues = valeursTrouvees(valeurs, filtre);
 
   return `
     <section class="variante-colonne">
@@ -478,7 +470,7 @@ function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
       <label class="fichiers-saisie__champ">
         <span>Chercher une valeur</span>
         <input type="text" class="gh-input" data-variante-recherche value="${escapeHtml(cherche)}"
-          placeholder="altitude, classement, hauteur…" autocomplete="off">
+          placeholder="altitude, localisation, classement, hauteur…" autocomplete="off">
       </label>
 
       <div class="impact-liste" data-variante-liste>${
@@ -501,7 +493,7 @@ function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
  * ailleurs : c'est ce que le bouton « Calculer » lit, et lui donner un second
  * chemin de lecture serait une deuxième vérité (règle 4).
  */
-function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", calcule = false } = {}) {
+function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", portees = [], calcule = false } = {}) {
   return `
     <div class="fichiers-saisie__champ variante-saisie__champ variante-saisie__champ--adresse">
       <span>dans la variante</span>
@@ -514,14 +506,27 @@ function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", cal
       })}
       <input type="hidden" data-variante-valeur value="${escapeHtml(saisie)}"
         data-variante-colonne="${escapeHtml(colonne)}">
+      ${
+        // Les six colonnes, telles qu'elles seront remplacées. Sans cette liste,
+        // on choisit une adresse et l'on ne voit pas qu'elle change aussi le
+        // code INSEE — c'est-à-dire tout ce qui se recalcule ensuite.
+        portees.length
+          ? `<ul class="variante-saisie__portees">${portees.map((portee) => `
+              <li>
+                <span class="variante-saisie__colonne">${escapeHtml(portee.nom)}</span>
+                <b class="variante-saisie__essaye">${escapeHtml(portee.valeur)}</b>
+              </li>
+            `).join("")}</ul>`
+          : ""
+      }
       <small>
-        Choisissez une adresse : c'est <b>${escapeHtml(choisie.sujet)}</b> qu'elle remplacera —
         ${
-          // Ce qu'on essaie, écrit noir sur blanc. Sans cette ligne, on choisit
-          // une adresse et l'on ne voit pas ce qui en a été retenu.
-          texte(saisie)
-            ? `aujourd'hui <b>${escapeHtml(choisie.valeur || "—")}</b>, essayé <b class="variante-saisie__essaye">${escapeHtml(saisie)}</b>.`
-            : `les autres colonnes de la localisation ne bougent pas.`
+          portees.length
+            ? `Le projet est <b>déplacé</b> : c'est la ligne entière de sa localisation
+               qu'on remplace, et non la seule colonne « ${escapeHtml(choisie.sujet)} ».`
+            : `Choisissez une adresse : c'est la <b>ligne entière</b> de la localisation qu'elle
+               remplacera — commune, code INSEE, code postal, adresse et point. Changer l'adresse
+               d'un projet, c'est le déplacer.`
         }
       </small>
     </div>
@@ -529,7 +534,7 @@ function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", cal
 }
 
 /** La colonne de droite : l'ancienne valeur, la nouvelle, et le bouton. */
-function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETAPE.CHOIX } = {}) {
+function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETAPE.CHOIX, portees = [] } = {}) {
   if (!choisie) {
     return `
       <section class="variante-colonne variante-colonne--vide">
@@ -572,7 +577,7 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
           // et de l'atelier climatique, et l'on n'en substitue que la colonne
           // choisie. Voir `services/adresse-saisie.js`.
           colonne
-            ? renderSaisieAdresseDeVariante(choisie, { colonne, saisie, calcule })
+            ? renderSaisieAdresseDeVariante(choisie, { colonne, saisie, portees, calcule })
             : `<label class="fichiers-saisie__champ variante-saisie__champ">
                 <span>dans la variante</span>
                 <input type="text" class="gh-input" data-variante-valeur value="${escapeHtml(saisie)}"
@@ -739,7 +744,9 @@ function renderResultat(etat) {
         etapes.length
           ? `<aside class="variante-chaine">
               <h5>${svgIcon("git-branch", { className: "octicon" })} Ce qui a suivi</h5>
-              ${renderEnchainement(etapes, { sens: SENS.HORIZONTAL })}
+              <div class="variante-chaine__vue">
+                ${renderEnchainement(etapes, { sens: SENS.HORIZONTAL })}
+              </div>
             </aside>`
           : ""
       }
@@ -811,14 +818,19 @@ export function varianteEnJson(etat = {}) {
  *          saisie: string, echec: string, cherche: string, rendu: object|null}} etat
  */
 export function renderEcranDeVariante(etat = {}) {
-  const { valeurs = [], etape = ETAPE.CHOIX, choisie = null, saisie = "", echec = "", cherche = "" } = etat;
+  const {
+    valeurs = [], etape = ETAPE.CHOIX, choisie = null, saisie = "", echec = "", cherche = "",
+    // Les colonnes qu'une adresse choisie remplacera, quand la variante porte
+    // une localisation. Vide partout ailleurs.
+    portees = []
+  } = etat;
 
   return `
     <div class="variante-ecran">
 
       <div class="variante-ecran__rang variante-ecran__rang--haut">
         ${renderQuelleValeur(valeurs, { cherche, choisie })}
-        ${renderTesterUneVariante(choisie, { saisie, echec, etape })}
+        ${renderTesterUneVariante(choisie, { saisie, echec, etape, portees })}
       </div>
 
       <div class="variante-ecran__rang">

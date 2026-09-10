@@ -72,6 +72,18 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
  * Deux communes françaises portent le même nom ; aucune ne partage son code
  * INSEE. Le serveur exige donc celui-ci, et l'écran ne calcule pas sans lui —
  * il le dit plutôt que de rendre le zonage d'une homonyme.
+ *
+ * ## Une adresse, ou un point : c'est **une** localisation
+ *
+ * Un projet qui n'est pas construit n'a pas d'adresse. Il est dans un champ, et
+ * ce qui le situe est un couple de coordonnées qu'on est allé pointer sur une
+ * vue satellite. Une localisation qui n'aurait su être qu'une adresse aurait
+ * obligé à en inventer une — « lieu-dit Les Sables, sans numéro » —, c'est-à-dire
+ * à écrire en mémoire quelque chose que personne n'a constaté.
+ *
+ * Les coordonnées sont donc **des colonnes de la même ligne**, au même titre que
+ * la commune. Deux formes d'un même fait, pas deux faits : l'adresse peut
+ * manquer, le point peut manquer, la ligne existe dès que l'un des deux est là.
  */
 export const SUJET_LOCALISATION = "Localisation du projet";
 
@@ -93,7 +105,18 @@ export const STRUCTURE_DE_LA_LOCALISATION = [
   },
   {
     nom: "adresse", cle: "adresse", type: "texte",
-    quoi: "L'adresse du projet. Elle ne décide de rien dans les zonages : elle situe."
+    quoi: "L'adresse du projet, quand il en a une. Elle ne décide de rien dans les zonages : "
+      + "elle situe. Un projet qui n'est pas construit n'en a pas, et c'est le point qui le situe."
+  },
+  {
+    nom: "latitude", cle: "latitude", type: "nombre",
+    quoi: "La latitude du point retenu, en degrés décimaux. C'est elle qui situe le projet "
+      + "au mètre près — une commune fait des kilomètres, et le relief change dedans."
+  },
+  {
+    nom: "longitude", cle: "longitude", type: "nombre",
+    quoi: "La longitude du point retenu, en degrés décimaux. Avec la latitude, elle donne "
+      + "l'altitude, et elle dit qu'un projet a bougé même sans changer de commune."
   }
 ];
 

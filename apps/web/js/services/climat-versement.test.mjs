@@ -44,13 +44,16 @@ test("sans code INSEE, la localisation ne se verse pas", () => {
   assert.equal(localisationVersable({ city: "Sainte-Marie" }, {}), null);
 });
 
-test("la localisation se verse en une ligne, pas en quatre sujets", () => {
+test("la localisation se verse en une ligne, pas en six sujets", () => {
   const ligne = localisationVersable(LOCALISATION, { zone: "batiment-a", ou: ATELIER });
 
   assert.equal(ligne.sujet, SUJET_LOCALISATION);
   assert.equal(ligne.tableau.length, 1);
   assert.deepEqual(ligne.tableau[0], {
-    commune: "Briançon", codeInsee: "05023", codePostal: "05100", adresse: "12 rue des Cordeliers"
+    commune: "Briançon", codeInsee: "05023", codePostal: "05100", adresse: "12 rue des Cordeliers",
+    // Le point vit dans la **même** ligne que l'adresse : c'est un endroit, pas
+    // deux faits. Vide ici, parce que cette localisation-là n'en portait pas.
+    latitude: "", longitude: ""
   });
   // Sa forme est déclarée : « type: tableau » n'apprend rien tant qu'on ignore
   // ce qu'il faut mettre dans une ligne.
@@ -64,6 +67,29 @@ test("la phrase de la localisation nomme la commune et son code", () => {
     phraseDeLaLocalisation(ligneDeLaLocalisation(LOCALISATION)),
     "Briançon (05100, INSEE 05023)"
   );
+});
+
+test("un projet sans adresse se dit par son point : c'est ce qui le situe", () => {
+  // Un projet qui n'est pas construit est dans un champ. Une phrase qui ne
+  // dirait que « Briançon (INSEE 05023) » laisserait croire qu'on ne sait pas où
+  // il est dans la commune — qui fait vingt-huit kilomètres carrés.
+  const sansAdresse = ligneDeLaLocalisation({
+    city: "Briançon", codeInsee: "05023", postalCode: "05100",
+    latitude: 44.8964521, longitude: 6.6350873
+  });
+  assert.equal(sansAdresse.adresse, "");
+  assert.equal(sansAdresse.latitude, "44.896452");
+  assert.equal(phraseDeLaLocalisation(sansAdresse), "Briançon (05100, INSEE 05023) — 44.8965, 6.6351");
+});
+
+test("le point pointé donne quand même un code INSEE, donc une localisation versable", () => {
+  // C'est ce qui rend le cas « champ au milieu de nulle part » possible : le
+  // service d'adresses rend la commune à l'envers, depuis les coordonnées.
+  const pointee = localisationVersable({
+    city: "Briançon", codeInsee: "05023", latitude: 44.8964521, longitude: 6.6350873
+  }, { ou: ATELIER });
+  assert.ok(pointee);
+  assert.equal(pointee.tableau[0].longitude, "6.635087");
 });
 
 test("l'altitude est une entrée, pas un produit des zonages", () => {
