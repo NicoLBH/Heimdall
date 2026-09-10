@@ -28,7 +28,7 @@ import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE } from "./reserves.js";
 import { lecturesDeclarees } from "./lecture-fait.js";
 import { valeurParColonne } from "./lecture-tabulaire.js";
-import { SUJET_LOCALISATION } from "./agents-climatiques.js";
+import { LIT_LA_LOCALISATION } from "./agents-climatiques.js";
 
 const COLONNE_ZONE = /(zone(_?sismi\w*)?|code_?zone|niveau_?zone)/i;
 const COLONNE_LIBELLE = /(libelle|label|intitule|niveau|qualification)/i;
@@ -60,11 +60,17 @@ export const DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1 = {
    * il n'y a pas de `rejeu` à déclarer ici. Elle apparaîtra donc à revérifier,
    * en disant pourquoi. C'est la règle 5 : ne pas savoir rejouer n'autorise pas
    * à prétendre que rien ne dépend de la commune.
+   *
+   * **La déclaration partagée**, et non sa copie. Elle la recopiait, et la copie
+   * avait perdu `champ: "codeInsee"` : quand la localisation varie par ses
+   * quatre colonnes à la fois, cette lecture-ci ne savait plus laquelle elle
+   * lit, et prenait la première venue — le nom de la commune dans le champ du
+   * code INSEE. C'est le défaut même que `champ` existe pour empêcher, revenu
+   * par une recopie (règle 4).
    */
   lit: [
     {
-      sujet: SUJET_LOCALISATION,
-      entree: "code_insee",
+      ...LIT_LA_LOCALISATION,
       lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
     }
   ],

@@ -183,10 +183,9 @@ export function champsDeLAppel(assertion, substituees = new Map()) {
   let bloque = "";
 
   for (const declaree of declarees) {
-    const substituee = substituees.get(cleDuSujet(declaree?.sujet));
-    if (substituee === undefined) continue;
+    const proposees = substituees.get(cleDuSujet(declaree?.sujet));
+    if (proposees === undefined) continue;
 
-    const { valeur, colonne } = substitutionLue(substituee);
     if (!texte(declaree?.entree)) { bloque = REFUS.ENTREE_IMPOSSIBLE; continue; }
 
     // Un sujet versé comme tableau entre par **une** de ses colonnes, et
@@ -194,10 +193,10 @@ export function champsDeLAppel(assertion, substituees = new Map()) {
     // qui « ne décide de rien dans les zonages : elle situe » — envoyait sa
     // valeur dans le champ du code INSEE, et le serveur répondait 400. On le
     // refuse en le disant, plutôt que de faire passer une colonne pour une panne.
-    if (texte(declaree?.champ) && texte(colonne) && texte(colonne) !== texte(declaree.champ)) {
-      bloque = REFUS.AUTRE_COLONNE;
-      continue;
-    }
+    const retenue = colonneRetenue(proposees, declaree);
+    if (!retenue) { bloque = REFUS.AUTRE_COLONNE; continue; }
+
+    const { valeur } = retenue;
 
     // Un champ qui attend un nombre en reçoit un. « 1200 m » se lit ici, et ce
     // qui ne se lit pas est **refusé** plutôt que laissé passer : plus loin, une
@@ -229,6 +228,71 @@ function substitutionLue(substituee) {
 }
 
 /**
+ * Ce qui varie, rangé **par sujet** — et un sujet peut varier par plusieurs
+ * colonnes à la fois.
+ *
+ * ## Le défaut que ce rangement corrige
+ *
+ * Changer l'adresse d'un projet, c'est le déplacer : l'écran remplace donc la
+ * **ligne entière** — commune, code INSEE, code postal, adresse —, ce qui fait
+ * quatre substitutions sur le même sujet. Elles étaient rangées à une entrée par
+ * sujet, si bien que chacune écrasait la précédente : il n'en restait qu'une, la
+ * dernière, l'adresse. Les zonages déclarent lire le code INSEE ; ils recevaient
+ * l'adresse, la refusaient — à juste titre —, et **rien ne se recalculait**. Le
+ * refus disait vrai sur la colonne qu'on lui montrait, et l'on lisait « celle
+ * qu'on fait varier n'entre pas dans son calcul » après avoir changé de commune.
+ *
+ * Une seule construction pour les deux reprises, celle des utilitaires et celle
+ * des fonctions natives : elles l'écrivaient chacune de leur côté, et une valeur
+ * écrite à deux endroits finit par diverger (règle 4).
+ *
+ * @returns {Map<string, {valeur: string, colonne: string}[]>}
+ */
+function sujetsSubstitues(voulues, parId) {
+  const substituees = new Map();
+
+  for (const [id, valeur] of voulues) {
+    // Un identifiant peut viser un **champ** à l'intérieur d'une affirmation —
+    // `…#entrees.contrainteLimite`. Ce qu'une fonction lit reste le sujet qui le
+    // porte : sans cette résolution, changer la contrainte de sol ne rejouerait
+    // rien, et l'écran dirait sans broncher que rien ne dépend d'elle.
+    //
+    // La colonne visée voyage **avec** : c'est elle qui dit si l'utilitaire lit
+    // ce qu'on fait varier, ou une autre colonne du même sujet.
+    const { id: porteur, cle } = champDeLIdentifiant(id);
+    const sujet = cleDuSujet(parId.get(porteur)?.payload?.subject);
+    if (!sujet) continue;
+
+    const lot = substituees.get(sujet) ?? [];
+    lot.push({ valeur: texte(valeur), colonne: texte(cle) });
+    substituees.set(sujet, lot);
+  }
+
+  return substituees;
+}
+
+/**
+ * Celle des colonnes variées qui entre dans ce calcul-ci, ou `null`.
+ *
+ * La colonne que l'utilitaire déclare, quand elle est du lot. À défaut, une
+ * substitution qui ne nomme pas de colonne — c'est ainsi qu'on fait varier un
+ * sujet entier, et ce chemin-là existait avant les colonnes. Sinon rien : le
+ * sujet varie, mais par des colonnes qui n'entrent pas dans ce calcul-ci.
+ */
+function colonneRetenue(proposees, declaree) {
+  const lot = (Array.isArray(proposees) ? proposees : [proposees]).map(substitutionLue);
+  const attendue = texte(declaree?.champ);
+
+  // Sans colonne déclarée, l'utilitaire lit le sujet tel quel : la première
+  // substitution le porte.
+  if (!attendue) return lot[0] ?? null;
+
+  return lot.find((entree) => entree.colonne === attendue)
+    ?? lot.find((entree) => !entree.colonne)
+    ?? null;
+}
+
+/**
  * Les contraintes qu'une variante concerne, et ce qu'il faudrait redemander.
  *
  * Pure : elle ne parle à personne. C'est elle qui décide ce qui est concerné, et
@@ -240,19 +304,7 @@ export function contraintesAReprendre({ enVigueur = [], substitutions = new Map(
 
   // Les sujets variés, par clé : c'est par le sujet que les utilitaires déclarent,
   // et une comparaison sur l'identifiant manquerait la déclaration.
-  const substituees = new Map();
-  for (const [id, valeur] of voulues) {
-    // Un identifiant peut viser un **champ** à l'intérieur d'une affirmation —
-    // `…#entrees.contrainteLimite`. Ce qu'une fonction lit reste le sujet qui le
-    // porte : sans cette résolution, changer la contrainte de sol ne rejouerait
-    // rien, et l'écran dirait sans broncher que rien ne dépend d'elle.
-    //
-    // La colonne visée voyage **avec** : c'est elle qui dit si l'utilitaire lit
-    // ce qu'on fait varier, ou une autre colonne du même sujet.
-    const { id: porteur, cle } = champDeLIdentifiant(id);
-    const sujet = cleDuSujet(parId.get(porteur)?.payload?.subject);
-    if (sujet) substituees.set(sujet, { valeur: texte(valeur), colonne: texte(cle) });
-  }
+  const substituees = sujetsSubstitues(voulues, parId);
   if (!substituees.size) return [];
 
   const reprises = [];
@@ -302,15 +354,7 @@ export function fonctionsAReprendre({ enVigueur = [], substitutions = new Map() 
   const toutes = (Array.isArray(enVigueur) ? enVigueur : []).filter((a) => !texte(a?.superseded_by));
   const parId = new Map(toutes.map((a) => [texte(a?.id), a]));
 
-  const substituees = new Map();
-  for (const [id, valeur] of voulues) {
-    // Comme dans `contraintesAReprendre` : un identifiant peut viser un champ à
-    // l'intérieur d'une affirmation, et c'est le sujet qui le porte qu'une
-    // fonction déclare lire. La colonne voyage avec.
-    const { id: porteur, cle } = champDeLIdentifiant(id);
-    const sujet = cleDuSujet(parId.get(porteur)?.payload?.subject);
-    if (sujet) substituees.set(sujet, { valeur: texte(valeur), colonne: texte(cle) });
-  }
+  const substituees = sujetsSubstitues(voulues, parId);
   if (!substituees.size) return [];
 
   // Les sujets de la mémoire, pour retrouver la sortie d'une fonction par son nom.
