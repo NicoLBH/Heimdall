@@ -133,6 +133,19 @@ const estDeduite = (assertion) => {
   return !outil || typeof outil.deduire === "function";
 };
 
+/**
+ * Ce qui déclare cet appel : un utilitaire, ou un agent.
+ *
+ * Les deux portent un `lit` et un `rejeu` ; ce qui les sépare est ce qu'ils
+ * sont — une lecture d'un côté, un appel de l'autre. Là où seule la déclaration
+ * compte, on prend celle qui existe plutôt que d'écrire deux fois la même
+ * recherche.
+ */
+function declarationDeLAppel(assertion) {
+  const reference = texte(assertion?.payload?.utilitaire);
+  return utilitaireByReference(reference) ?? agentByReference(reference);
+}
+
 /** Les réserves d'un rendu, nettoyées de ce qu'on ne connaît pas. */
 function reservesDe(brutes) {
   return (Array.isArray(brutes) ? brutes : []).map(texte).filter((code) => RESERVES.includes(code));
@@ -149,7 +162,7 @@ function reservesDe(brutes) {
  *   un motif de refus quand le sujet varié ne peut pas y entrer
  */
 export function champsDeLAppel(assertion, substituees = new Map()) {
-  const outil = utilitaireByReference(texte(assertion?.payload?.utilitaire));
+  const outil = declarationDeLAppel(assertion);
   const declarees = Array.isArray(outil?.lit) ? outil.lit : [];
   const champs = {};
   let bloque = "";
@@ -269,16 +282,19 @@ export function fonctionsAReprendre({ enVigueur = [], substitutions = new Map() 
     const native = agentDeLaFonction(fonction);
     if (!native) continue;
 
-    // L'appel d'un **agent déclaré** ne se rejoue pas lui-même : ce qu'il a posé
-    // cite son propre utilitaire, et c'est cette ligne-là que la variante refait
-    // — une par valeur, chacune avec sa version. Le reprendre ici referait le
-    // même appel deux fois ; le refuser afficherait une panne là où tout marche.
-    if (agentByReference(texte(fonction?.payload?.utilitaire))) continue;
+    // Un agent **sans reprise déclarée** ne se rejoue pas lui-même : ce qu'il a
+    // posé cite son propre utilitaire, et c'est cette ligne-là que la variante
+    // refait — une par valeur, chacune avec sa version. Le reprendre ici
+    // referait le même appel deux fois ; le refuser afficherait une panne là où
+    // tout marche. Celui qui déclare un `rejeu` l'a parce que sa sortie ne cite
+    // personne d'autre que lui : c'est le cas du spectre.
+    const agent = agentByReference(texte(fonction?.payload?.utilitaire));
+    if (agent && !agent.rejeu) continue;
 
     const lues = (Array.isArray(native.lit) ? native.lit : []).map(cleDuSujet);
     if (!lues.some((sujet) => substituees.has(sujet))) continue;
 
-    const outil = utilitaireByReference(texte(fonction?.payload?.utilitaire));
+    const outil = declarationDeLAppel(fonction);
     const { champs, refus } = champsDeLAppel(fonction, substituees);
     const sortie = (Array.isArray(native.ecrit) ? native.ecrit : [])
       .map((ecrite) => parSujet.get(cleDuSujet(ecrite?.sujet)))
@@ -322,6 +338,38 @@ const REPRISES = {
     appel: async () => {
       const service = await import("./fondations-service.js");
       return (semelles) => service.calculerLesSemelles(semelles);
+    },
+    /** Ce que la reprise relit du projet, et ce qu'elle en refait. */
+    async refaire(module, { assertions, reprise, calculer }) {
+      const tableau = module.tableauDuProjet(assertions, reprise.zone);
+      if (!tableau) return { refus: REFUS.SANS_ENTREES };
+
+      return module.reprendreLEtude({
+        tableau,
+        profondeurHorsGel: reprise.champs?.profondeurHorsGel,
+        calculer
+      });
+    }
+  },
+  spectre: {
+    module: () => import("./spectre-reprise.js"),
+    /**
+     * Le module du spectre, celui-là même que l'écran emploie pour tracer la
+     * courbe : un seul fichier, copié au build, donc aucune divergence — et pas
+     * de réseau à attendre. Voir `utilitaires/agent-spectre.js`.
+     */
+    appel: async () => {
+      const spectre = await import("../../vendor/utilitaires/seismic-spectrum.js");
+      return (entrees) => spectre.getSeismicSizingValues(entrees);
+    },
+    async refaire(module, { assertions, reprise, calculer }) {
+      const entrees = module.entreesDuProjet(assertions, reprise.zone);
+      // Sans zone de sismicité, il n'y a pas d'accélération de référence : le
+      // projet ne porte pas ses entrées, et le dire vaut mieux que de rendre
+      // une courbe à sept colonnes.
+      if (!entrees) return { refus: REFUS.SANS_ENTREES };
+
+      return module.reprendreLeSpectre({ entrees, champs: reprise.champs, calculer });
     }
   }
 };
@@ -339,15 +387,11 @@ export async function repriseDeLaFonction(reprise, { assertions = [], appeler = 
   if (!branche) return null;
 
   const module = await branche.module();
-  const tableau = module.tableauDuProjet(assertions, reprise.zone);
-  if (!tableau) return { refus: REFUS.SANS_ENTREES };
-
-  const refaite = await module.reprendreLEtude({
-    tableau,
-    profondeurHorsGel: reprise.champs?.profondeurHorsGel,
-    calculer: appeler ?? await branche.appel()
+  const refaite = await branche.refaire(module, {
+    assertions, reprise, calculer: appeler ?? await branche.appel()
   });
   if (!refaite) return null;
+  if (refaite.refus) return refaite;
 
   const avant = texte(reprise?.assertion?.payload?.value);
   // Le tableau compte autant que la phrase qui le résume. Deux tableaux

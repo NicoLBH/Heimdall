@@ -45,7 +45,7 @@ pas après.
 |---|---|---|---|
 | 1 | Les explorations passent dans l'Atelier — *fait* | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
 | 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi — *fait* | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
-| 3 | Neige, vent et gel aux standards — *fait* ; le spectre suit | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
+| 3 | Neige, vent et gel aux standards, puis le spectre — *fait* | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
 | 4 | La localisation et les zones se changent par proposition | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
 | 5 | La cascade parallèle | **la démonstration** | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
 | 6 | La proposition devient une branche | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
@@ -1234,7 +1234,7 @@ valait que pour elle quitte le présent, avec son motif.
 
 ## 20. Neige, vent et gel aux standards, puis le spectre
 
-**État :** neige, vent et gel sont faits. Le spectre reste à faire.
+**État :** fait, spectre compris.
 
 L'utilitaire « Neige, Vent & Gel » était antérieur aux standards actuels —
 entrées déclarées, sorties déclarées, appel à un agent-D, rejeu. Il est découpé
@@ -1296,14 +1296,68 @@ raisonnement.
 
 Les calculs restent au serveur, sans exception.
 
-### Ce qui reste : le spectre
+### Le spectre, aux mêmes standards
 
-Aux mêmes standards. Il lit la zone sismique, la classe de sol et la catégorie
-d'importance — trois champs que la déclaration des fondations nomme déjà — voir
-[`variante-lecture.md`](variante-lecture.md). Son calcul, lui, est aujourd'hui
-dans le **navigateur** (`vendor/utilitaires/seismic-spectrum.js`, copié au build)
-et c'est la première question à trancher : y reste-t-il, puisque la courbe se
-trace à l'écran, ou passe-t-il au serveur comme les autres ?
+Un troisième agent-D — `agent_d_spectre_elastique_ec8_V1` —, qui lit quatre
+sujets et pose une ligne.
+
+| ce qu'il lit | d'où cela vient |
+| --- | --- |
+| **zone de sismicité** | déduite de la commune, par Géorisques |
+| **classe de sol EC8** | un choix du projet |
+| **catégorie d'importance** | un choix du projet |
+| **amortissement visqueux** | un choix du projet |
+
+Il pose **une seule ligne à huit colonnes** — agr, γI, ag, η, S, TB, TC, TD —
+parce que ces huit décrivent une seule courbe et ne se lisent jamais séparément.
+Chacune porte sa clé : une variante peut faire varier `…#S` sans toucher au
+reste.
+
+**La courbe ne se verse pas.** Ses quarante et un couples (T, Se) sont
+entièrement déterminés par la ligne : les écrire serait écrire deux fois la même
+chose, et la seconde copie divergerait au premier arrondi (règle 4). L'écran la
+retrace depuis la ligne.
+
+**La zone de sismicité n'est pas versée non plus.** Elle est *lue* :
+`deduction_zone_sismique_georisques_V1` l'établit depuis la commune, et deux
+écrans qui poseraient le même sujet en feraient deux valeurs concurrentes que
+personne n'arbitrerait. L'appel enregistre en revanche la valeur avec laquelle il
+a calculé — c'est ce qui dira, plus tard, que ce spectre a été tracé sur une zone
+changée depuis.
+
+#### Où le calcul vit — la question, et la réponse
+
+Il reste **dans le navigateur**, et c'est une exception assumée à « les calculs
+restent au serveur ». Trois raisons :
+
+1. **Sa loi est un décret.** L'Eurocode 8 et son annexe nationale sont publics ;
+   les cacher ne protégerait rien, contrairement à un pré-dimensionnement dont la
+   loi *est* le produit (`LOI.SECRETE`).
+2. **L'écran la trace.** La courbe se redessine à chaque frappe sur
+   l'amortissement — un aller-retour réseau par pixel serait absurde. C'est
+   d'ailleurs pourquoi le module figure déjà dans les `PUBLICS` de
+   `scripts/prepare-utilitaires.mjs`.
+3. **Le rejeu n'a donc pas de réseau à attendre.** Une variante de zone sismique
+   recalcule le spectre sur place, immédiatement.
+
+Il n'y a **qu'un fichier** —
+`supabase/functions/_shared/utilitaires/seismic-spectrum.js` —, copié au
+navigateur au moment du build : deux exécutions, aucune divergence possible. Si
+la décision devait s'inverser, elle ne coûterait qu'un déplacement de l'appel :
+la déclaration de l'agent ne changerait pas d'une ligne.
+
+#### Ce que le rejeu a dû apprendre
+
+Un agent peut désormais **déclarer sa propre reprise** (`rejeu: { outil }`), et
+les deux cas se distinguent nettement :
+
+- les agents climatiques n'en déclarent pas — chacune de leurs sorties cite
+  l'utilitaire qui la déduit, et c'est cette ligne-là que la variante refait ;
+- le spectre en déclare une — sa ligne ne cite que lui, et sans cette
+  déclaration une variante de zone l'aurait laissée derrière elle.
+
+La cascade est vérifiée de bout en bout : zone de sismicité 4 → 2 refait la ligne
+et fait passer `ag` de 1,92 à 0,84 m/s².
 
 ---
 

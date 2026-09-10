@@ -1,3 +1,22 @@
+/**
+ * Le spectre élastique : ce que le projet subit, et ce qu'il en retient.
+ *
+ * ## Ce qui a changé
+ *
+ * L'écran calculait juste, et **rien n'en sortait**. Ni entrée ni sortie
+ * n'entrait dans la mémoire : la classe de sol, la catégorie d'importance et
+ * l'amortissement vivaient dans le formulaire du projet ; ag, S, TB, TC, TD se
+ * traçaient à l'écran et mouraient avec lui. Personne ne pouvait dire, six mois
+ * plus tard, avec quelle classe de sol un spectre avait été tracé.
+ *
+ * Il propose maintenant, comme les autres utilitaires de l'Atelier : les trois
+ * choix du projet, l'appel de l'agent-D, et la courbe en une ligne de huit
+ * colonnes. Voir `services/spectre-versement.js` et
+ * `utilitaires/agent-spectre.js`.
+ *
+ * Il ne verse rien lui-même : une proposition le fait, et quelqu'un la signe.
+ */
+
 import { store } from "../../../store.js";
 import { escapeHtml } from "../../../utils/escape-html.js";
 import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.js";
@@ -9,8 +28,87 @@ import {
   computeElasticResponseValue
 } from "../../../../vendor/utilitaires/seismic-spectrum.js";
 import { renderSvgLineChart, getNiceChartTicks } from "../../../utils/svg-line-chart.js";
+import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
+import { lignesVersables, ligneDuSpectre } from "../../../services/spectre-versement.js";
+import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 
 let currentSeismicRoot = null;
+
+/** Vrai le temps qu'une proposition se prépare : le bouton le dit, et ne se reclique pas. */
+let preparation = false;
+
+/**
+ * Ce qu'on met dans un sujet, quand le spectre est à débattre.
+ *
+ * Les entrées d'abord — ce sont elles qui se discutent : une classe de sol
+ * retenue en attendant l'étude géotechnique, une catégorie d'importance qu'on
+ * n'est pas deux à lire pareil. La courbe ensuite, qui n'en est que la
+ * conséquence.
+ */
+function texteDuSujet(form) {
+  const ligne = ligneDuSpectre(getSeismicSizingValues(form));
+  const dit = (nom, valeur) => `- ${nom} : **${String(valeur ?? "—")}**`;
+
+  return [
+    "Le cadre parasismique retenu pour le projet :",
+    "",
+    dit("Zone de sismicité", form.zoneSismique),
+    dit("Classe de sol EC8", form.soilClass),
+    dit("Catégorie d'importance", form.importanceCategory),
+    dit("Amortissement visqueux", `${form.dampingRatio} %`),
+    "",
+    ligne
+      ? `Il en découle **ag = ${ligne.ag} m/s²**, **S = ${ligne.S}**, et les périodes `
+        + `**TB = ${ligne.TB} s**, **TC = ${ligne.TC} s**, **TD = ${ligne.TD} s**.`
+      : "La zone de sismicité n'est pas reconnue : aucun spectre n'a pu être établi."
+  ].join("\n");
+}
+
+/**
+ * Préparer une proposition à partir du spectre affiché.
+ *
+ * Elle reste **ouverte** : quelqu'un la relit, arbitre ce qui contredit ce que
+ * le projet a déjà décidé, et signe. C'est cette signature qui fait entrer le
+ * spectre dans la mémoire, jamais ce bouton.
+ */
+async function proposerLeSpectre() {
+  if (preparation) return;
+
+  const form = store.projectForm ?? {};
+  const lignes = lignesVersables({ saisie: form, dimensionnement: getSeismicSizingValues(form) });
+  if (!lignes.length) return;
+
+  const projectId = String(await resolveCurrentBackendProjectId() || "").trim();
+  if (!projectId) return;
+
+  // Où cela s'applique se demande **avant** d'ouvrir la proposition.
+  const { demanderLesZones } = await import("../../ui/choix-des-zones.js");
+  const zones = await demanderLesZones({ projectId });
+  if (zones === null) return;
+
+  preparation = true;
+  rerenderProjectSeismic();
+
+  const { preparerUneProposition } = await import("../../../services/atelier-proposition.js");
+  const rendu = await preparerUneProposition({
+    projectId,
+    titre: `Spectre élastique de calcul — zone ${String(form.zoneSismique || "").trim() || "inconnue"}, sol ${String(form.soilClass || "").trim() || "—"}`,
+    intro: "Les choix parasismiques du projet, l'appel qui en découle, et le spectre qu'il rend. "
+      + "Les entrées entrent avec le reste : c'est ce qui permettra de tout refaire le jour où "
+      + "la zone de sismicité change.",
+    source: lignes.find((ligne) => ligne.source)?.source || "",
+    affirmations: lignes,
+    zones
+  });
+
+  preparation = false;
+  rerenderProjectSeismic();
+  if (!rendu.ok) return;
+
+  store.pendingPropositionId = rendu.proposition.id;
+  const projet = String(store.currentProjectId || "").trim();
+  if (projet) window.location.hash = `#project/${projet}/propositions`;
+}
 
 function ensureSeismicDefaults() {
   const form = store.projectForm || (store.projectForm = {});
@@ -75,7 +173,7 @@ function renderSelectField({ id, label, value = "", options = [] }) {
   return renderGhSelectMenu({ id, label, value, options, tone: "default", size: "md" });
 }
 
-function renderSectionCard({ title, description = "", badge = "", body = "" }) {
+function renderSectionCard({ title, description = "", badge = "", body = "", actions = "" }) {
   return `
     <div class="settings-card settings-card--param">
       <div class="settings-card__head">
@@ -83,6 +181,7 @@ function renderSectionCard({ title, description = "", badge = "", body = "" }) {
           <span class="settings-card__head-title">
             <h4>${escapeHtml(title)}</h4>
             ${badge ? `<span class="settings-badge mono">${escapeHtml(badge)}</span>` : ""}
+            ${actions ? `<div class="studio-tool-card__actions">${actions}</div>` : ""}
           </span>
           ${description ? `<p>${escapeHtml(description)}</p>` : ""}
         </div>
@@ -90,6 +189,18 @@ function renderSectionCard({ title, description = "", badge = "", body = "" }) {
       ${body}
     </div>
   `;
+}
+
+/**
+ * Y a-t-il quelque chose à proposer ?
+ *
+ * Une courbe se trace toujours — le module a des valeurs par défaut. Ce qui
+ * décide est qu'elle **tienne** : une zone que le zonage ne connaît pas rend une
+ * accélération vide, et proposer sept colonnes sur huit ferait passer une lacune
+ * pour un spectre.
+ */
+function spectreCalculable(form) {
+  return Boolean(ligneDuSpectre(getSeismicSizingValues(form)));
 }
 
 function getGeorisquesRequestKey(city = "", postalCode = "") {
@@ -348,6 +459,9 @@ function renderSeismicCards(form) {
     renderSectionCard({
       title: "Données de dimensionnement",
       description: "Premières données de calcul du spectre de dimensionnement élastique et des accélérations réglementaires du projet.",
+      // « Transformer » : ouvrir un sujet pour en débattre, ou préparer une
+      // proposition à signer. Aucune des deux n'écrit dans la mémoire du projet.
+      actions: renderTransformer({ id: "seismicTransform", disabled: !spectreCalculable(form) }),
       body: `<div class="settings-seismic-sizing-layout">
         <div class="settings-form-grid settings-form-grid--thirds settings-seismic-sizing-layout__controls">
           ${renderInputField({ id: "dampingRatio", label: "ξ coefficient d'amortissement visqueux, exprimé en pourcentage", value: form.dampingRatio || "5", placeholder: "5" })}
@@ -466,6 +580,30 @@ function rerenderProjectSeismic() {
 function bindSeismicEvents() {
   bindGhActionButtons();
   bindInteractiveSvgLineCharts();
+
+  // Une seule fois par montage : `root.innerHTML` remplace le bouton, et
+  // écouter sur la racine évite d'accumuler des abonnements sur un nœud mort.
+  if (currentSeismicRoot && currentSeismicRoot.dataset.seismicBranche !== "true") {
+    currentSeismicRoot.dataset.seismicBranche = "true";
+    currentSeismicRoot.addEventListener("ghaction:action", (event) => {
+      const quoi = event.detail?.action;
+      if (quoi === TRANSFORMER.PROPOSITION) { void proposerLeSpectre(); return; }
+      if (quoi !== TRANSFORMER.SUJET) return;
+
+      const ouvrir = typeof window !== "undefined" ? window.openStudioToolSubjectDraft : null;
+      if (typeof ouvrir !== "function") {
+        console.warn("[studio-tool-subject] open-draft unavailable", { toolKey: "spectre" });
+        return;
+      }
+      const form = store.projectForm ?? {};
+      ouvrir({
+        origin: "studio-spectre",
+        title: `Cadre parasismique du projet — zone ${String(form.zoneSismique || "").trim() || "inconnue"}`,
+        description: texteDuSujet(form),
+        meta: { labels: ["parasismique"] }
+      });
+    });
+  }
 
   bindGhEditableFields(document, {
     onValidate: async (id, value) => {
