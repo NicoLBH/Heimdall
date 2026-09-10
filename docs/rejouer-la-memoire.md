@@ -410,8 +410,11 @@ coûteux sont justement les opaques, ce qui est une raison de plus de les nommer
 
 ## Ce que l'écran montre, à chaque étape
 
-Le bouton **éprouvette › Tester** de la Mémoire porte les trois usages du moteur.
-Ils s'allument à mesure que le plan avance.
+La rubrique **Explorations** de l'Atelier porte les trois usages du moteur —
+au-dessus des utilitaires, parce qu'elles les englobent. Ils s'allument à mesure
+que le plan avance. Le quatrième usage, **le cerveau du projet**, ne pose pas de
+question : il montre la forme de ce qui est là, c'est une lecture, et il vit dans
+la Mémoire. Voir `docs/a-traiter-plus-tard.md`, § 14.
 
 | usage | s'allume à | ce qu'il fera |
 | --- | --- | --- |
@@ -419,7 +422,7 @@ Ils s'allument à mesure que le plan avance.
 | **Auditer la mémoire** | étape 5 — *allumé* | rejouer à blanc, et dire ce qui a dérivé. Rien n'est écrit |
 | **Étude d'impact** | étape 2 — *allumé* | « qu'est-ce qui repose sur cette valeur ? », par strates, avec le compte exact |
 
-Un item qui n'est pas encore servi par le moteur est **désactivé et dit son
+Une entrée qui n'est pas encore servie par le moteur est **désactivée et dit son
 étape**. Un bouton qui prétend faire ce qu'il ne fait pas coûte plus cher que
 l'absence du bouton. Les trois sont servis depuis l'étape 5 ; l'étape 6 a rendu au
 premier ce que les autres avaient déjà — de ne privilégier aucun sujet.

@@ -111,8 +111,6 @@ import { renderLightTabs, bindLightTabs } from "./ui/light-tabs.js";
 import { renderSharedDetailsTitleWrap } from "./ui/detail-header.js";
 import { renderOverlayChromeHead, bindOverlayChromeCompact } from "./ui/overlay-chrome.js";
 import { enClair } from "../services/memoire-en-texte.js";
-import { frappeAvecUnite } from "../services/saisie-unite.js";
-import { champDeLIdentifiant } from "../services/tableau-structure.js";
 import { lignesDeLAssertion, ouChaqueValeurEstEcrite, ouChaqueLigneEstEcrite } from "./project-memoire-fichiers.js";
 import { fichiersDeLaMemoire, zonesLisibles } from "../services/memoire-blame.js";
 import { chaineDuRaisonnement, traceDesLignes, grapheDuRaisonnement } from "../services/memoire-raisonnement.js";
@@ -122,20 +120,12 @@ import {
 } from "./project-memoire-raisonnement.js";
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
-import { renderEcranDeVariante, varianteEnJson, ETAPE } from "./memoire/ecran-variante.js";
-import { ouvrirLEtudeDImpact } from "./ui/fenetre-impact.js";
 import { ouvrirLeCerveau } from "./ui/cerveau-du-projet.js";
 import { ouvrirLePlanDeRecalcul } from "./ui/fenetre-plan.js";
-import { ouvrirLAudit } from "./ui/fenetre-audit.js";
 import { planDeRecalcul } from "../services/memoire-plan.js";
-import { renderBoutonTester } from "./ui/bouton-tester.js";
-import { quandLaVarianteChange, varianteEnCours, essayerLaVariante } from "../services/variante-en-cours.js";
-import {
-  laMemoireABouge, memoireAvecLaVariante, valeursSubstituables,
-  consequencesDeLaVariante, variantePourLEcran
-} from "../services/memoire-variante.js";
-import { emploisParAffirmation } from "../services/memoire-applications.js";
-import { rejouerLesUtilitaires } from "../services/utilitaires-rejeu.js";
+import { OU, estServi, libelleDeLUsage, usagesDe } from "../services/usages-du-rejeu.js";
+import { quandLaVarianteChange, varianteEnCours } from "../services/variante-en-cours.js";
+import { laMemoireABouge, memoireAvecLaVariante } from "../services/memoire-variante.js";
 
 /**
  * Les champs interrogeables de la mémoire.
@@ -252,16 +242,6 @@ function repliRetenu() {
 
 const view = {
   loading: true,
-  /**
-   * L'écran de variante, quand il est ouvert.
-   *
-   * `null` : on est sur la mémoire. Sinon `{etape, choisie, saisie, echec,
-   * cherche, rendu}` — l'état complet de ce qu'on essaie. Il vit ici, dans la
-   * vue, et non dans une fenêtre : cliquer l'onglet Mémoire remonte la vue et
-   * le remet à `null`, donc ramène à l'accueil, ce qui est exactement ce qu'on
-   * attend d'un onglet.
-   */
-  variante: null,
   /**
    * La mémoire telle qu'elle a été lue en base.
    *
@@ -1551,20 +1531,7 @@ export function renderMemoryHead(resume, { busy = false } = {}) {
               ? `<span class="memory-head__variante">Lecture seule : on regarde une variante.</span>`
               : `${renderExportButton(resume, busy)}
                  ${renderVerserButton(busy)}
-                 ${
-                   // Les trois usages du moteur de rejeu, sous un seul bouton :
-                   // essayer une variante, auditer la mémoire, mesurer un
-                   // impact. Ce sont la même chose vue de trois côtés, et trois
-                   // boutons épars laisseraient croire à trois mécanismes.
-                   //
-                   // Un projet dont le socle est vide n'a rien à faire varier :
-                   // l'item s'éteint, le bouton reste. Une lacune du projet et
-                   // une lacune du moteur ne se disent pas de la même façon.
-                   renderBoutonTester({
-                     indisponibles: valeursSubstituables(view.memoire ?? []).length ? [] : ["tester:variante"],
-                     busy
-                   })
-                 }
+                 ${renderBoutonCerveau(busy)}
                  <button type="button" class="gh-btn gh-btn--primary" data-memory-declare ${busy ? "disabled" : ""}>
                    ${svgIcon("plus", { className: "octicon" })} Déclarer une hypothèse
                  </button>`
@@ -1572,6 +1539,32 @@ export function renderMemoryHead(resume, { busy = false } = {}) {
         </div>
       </span>
     </header>
+  `;
+}
+
+/**
+ * Le cerveau du projet, en un bouton.
+ *
+ * C'était un item d'un menu à quatre entrées : essayer une variante, auditer la
+ * mémoire, mesurer un impact, voir le cerveau. Les trois premiers ont déménagé
+ * dans l'Atelier — ils préparent une proposition —, et un menu déroulant à une
+ * seule entrée n'est plus un menu : c'est un bouton, avec un clic de trop.
+ *
+ * Il se lit dans `services/usages-du-rejeu.js` plutôt que d'être écrit ici : la
+ * liste des usages dit déjà lequel vit dans la Mémoire, et le récrire ferait
+ * deux vérités à tenir (règle 4). Un usage que le moteur ne sert pas encore
+ * s'éteint et dit son étape, plutôt que de promettre ce qu'il ne fait pas.
+ */
+function renderBoutonCerveau(busy = false) {
+  const usage = usagesDe(OU.MEMOIRE)[0];
+  if (!usage) return "";
+
+  const servi = estServi(usage);
+  return `
+    <button type="button" class="gh-btn" data-memoire-cerveau
+      title="${escapeHtml(usage.quoi)}" ${busy || !servi ? "disabled" : ""}>
+      ${svgIcon("memoire-vive", { className: "octicon" })} ${escapeHtml(libelleDeLUsage(usage))}
+    </button>
   `;
 }
 
@@ -2108,21 +2101,6 @@ function renderContent(root) {
         </div>
       </section>
     `;
-    return;
-  }
-
-  // La variante a son écran. Il vient avant le détail comme avant l'accueil :
-  // on ne lit pas une variante « par-dessus » autre chose, on la regarde.
-  if (view.variante) {
-    root.innerHTML = `
-      <section class="project-simple-page project-simple-page--memory"
-      style="--project-rail-width:${railWidth(view.navWidth, view.navCollapsed)}px">
-        <div class="propositions-shell">
-          ${renderEcranDeVariante(view.variante)}
-        </div>
-      </section>
-    `;
-    brancherLEcranDeVariante(root);
     return;
   }
 
@@ -2675,7 +2653,7 @@ function bind(root) {
   bindExportButton(root);
   brancherLeBandeauVariante(root);
   brancherLeFiltreDeVariante(root);
-  brancherLeBoutonTester(root);
+  brancherLeCerveau(root);
   brancherLeCompactage(root);
   brancherLEspace(root);
   brancherLesRecherches(root);
@@ -3225,9 +3203,6 @@ function bindTabReset() {
     view.notice = "";
     view.open = null;
     view.page = 1;
-    // Et l'écran de variante se ferme : cliquer l'onglet Mémoire ramène à
-    // l'accueil de la Mémoire, comme n'importe quel onglet ramène chez lui.
-    view.variante = null;
     renderContent(mountedRoot);
   });
 }
@@ -3253,201 +3228,24 @@ function brancherLeFiltreDeVariante(root) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * L'écran de variante
+ * Le cerveau du projet
  * ────────────────────────────────────────────────────────────────────────── */
 
 /**
- * Ouvrir l'écran, sur la liste du socle.
+ * Brancher le seul usage du moteur de rejeu qui reste ici.
  *
- * Rien n'est calculé ici : on pose l'état et on redessine. Le seul moment qui
- * attend le réseau est le calcul lui-même, et il le dit.
+ * Les trois autres — variante, étude d'impact, audit — ont déménagé dans
+ * l'Atelier : ils **préparent une proposition**, et la Mémoire ne montre que ce
+ * que le projet tient pour vrai. Le cerveau, lui, ne prépare rien : il dessine
+ * la forme de ce qui est là, et c'est une lecture. Voir
+ * `docs/a-traiter-plus-tard.md`, § 14, et `services/usages-du-rejeu.js`.
  */
-function ouvrirLaVariante(root) {
-  const emplois = emploisParAffirmation(Array.isArray(view.applications) ? view.applications : []);
-  const valeurs = valeursSubstituables(view.memoire ?? [])
-    // Les emplois se comptent sur l'**affirmation**, pas sur le champ : c'est
-    // elle que les fonctions déclarent lire. Compter sur l'identifiant composite
-    // rendrait zéro, et « aucun emploi connu » s'afficherait sur la valeur même
-    // que le calcul consomme.
-    .map((entree) => ({
-      ...entree,
-      lectures: emplois.get(champDeLIdentifiant(entree.id).id)?.lectures ?? 0
-    }))
-    // Ce que le projet **pose** d'abord, les champs des tableaux ensuite. Un
-    // seul tableau de fondations en offre soixante-deux : mélangés, ils
-    // noieraient les quelques valeurs qu'on vient chercher en premier.
-    .sort((gauche, droite) => {
-      const dansUnTableau = Number(Boolean(gauche.champ)) - Number(Boolean(droite.champ));
-      if (dansUnTableau) return dansUnTableau;
-      // Les champs gardent l'ordre de leur déclaration : c'est celui dans lequel
-      // un ingénieur lit une semelle — géométrie, sol, butée, béton, charges —,
-      // et le trier par ordre alphabétique le perdrait.
-      if (gauche.champ) return 0;
-      return droite.lectures - gauche.lectures || gauche.sujet.localeCompare(droite.sujet, "fr");
-    });
-
-  view.variante = {
-    valeurs, etape: ETAPE.CHOIX, choisie: null,
-    saisie: "", echec: "", cherche: "", rendu: null,
-    projet: view.projectId ?? ""
-  };
-  renderContent(root);
-}
-
-/** Quitter l'écran : on revient à la mémoire, telle qu'elle est. */
-function fermerLaVariante(root) {
-  view.variante = null;
-  renderContent(root);
-}
-
-/**
- * Calculer, en laissant d'abord les utilitaires se rejouer.
- *
- * Le seul moment de tout l'écran qui attend le réseau. Il attend parce qu'il le
- * faut : le référentiel a la table, et lui demander sa réponse vaut mieux que de
- * refaire son calcul de notre côté — deux copies d'une même loi divergent
- * toujours. Rien n'est écrit là-bas : l'outil calcule et se tait.
- */
-async function calculerLaVariante(root) {
-  const etat = view.variante;
-  if (!etat?.choisie) return;
-
-  const saisie = texteDuChamp(root, "[data-variante-valeur]") || etat.saisie;
-  const substitutions = new Map([[etat.choisie.id, saisie]]);
-
-  // Refusé d'entrée — même valeur, valeur vide — : inutile de déranger le
-  // serveur pour une variante qui n'en est pas une.
-  const controle = consequencesDeLaVariante({
-    assertions: view.memoire ?? [], substitutions, applications: view.applications
-  });
-  if (!controle.ok) {
-    view.variante = { ...etat, saisie, echec: controle.raison, etape: ETAPE.SAISIE, rendu: null };
-    renderContent(root);
-    return;
-  }
-
-  view.variante = { ...etat, saisie, echec: "", etape: ETAPE.ATTENTE, rendu: null };
-  renderContent(root);
-
-  const relectures = await rejouerLesUtilitaires({
-    projectId: view.projectId ?? "", enVigueur: view.memoire ?? [], substitutions
-  }).catch(() => null);
-
-  const rendu = consequencesDeLaVariante({
-    assertions: view.memoire ?? [], substitutions, applications: view.applications, relectures
-  });
-
-  view.variante = {
-    ...view.variante,
-    etape: rendu.ok ? ETAPE.RESULTAT : ETAPE.SAISIE,
-    echec: rendu.ok ? "" : rendu.raison,
-    rendu
-  };
-  renderContent(root);
-}
-
-/** La valeur d'un champ, ou `""`. */
-function texteDuChamp(root, selecteur) {
-  return String(root.querySelector(selecteur)?.value ?? "").trim();
-}
-
-/** Emporter la variante en JSON — de quoi refaire le raisonnement sans l'écran. */
-function emporterLaVariante() {
-  const contenu = JSON.stringify(varianteEnJson(view.variante ?? {}), null, 2);
-  const lien = document.createElement("a");
-  lien.href = URL.createObjectURL(new Blob([contenu], { type: "application/json" }));
-  lien.download = `variante-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}.json`;
-  document.body.appendChild(lien);
-  lien.click();
-  lien.remove();
-  setTimeout(() => URL.revokeObjectURL(lien.href), 0);
-}
-
-/** Les gestes de l'écran de variante. */
-function brancherLEcranDeVariante(root) {
-  for (const bouton of root.querySelectorAll("[data-variante-choisir]")) {
-    bouton.addEventListener("click", () => {
-      const id = bouton.getAttribute("data-variante-choisir") || "";
-      const choisie = (view.variante?.valeurs ?? []).find((valeur) => valeur.id === id) ?? null;
-      if (!choisie) return;
-      view.variante = { ...view.variante, choisie, saisie: "", echec: "", etape: ETAPE.SAISIE, rendu: null };
-      renderContent(root);
-      root.querySelector("[data-variante-valeur]")?.focus();
-    });
-  }
-
-  const recherche = root.querySelector("[data-variante-recherche]");
-  if (recherche) {
-    recherche.addEventListener("input", (evenement) => {
-      // La saisie en cours ne se perd pas parce qu'on cherche à côté : les deux
-      // colonnes vivent ensemble, et c'est tout l'intérêt de l'écran.
-      view.variante = {
-        ...view.variante,
-        cherche: evenement.target.value,
-        saisie: texteDuChamp(root, "[data-variante-valeur]") || view.variante?.saisie || ""
-      };
-      renderContent(root);
-      const champ = root.querySelector("[data-variante-recherche]");
-      champ?.focus();
-      champ?.setSelectionRange(champ.value.length, champ.value.length);
-    });
-  }
-
-  root.querySelector("[data-variante-calculer]")?.addEventListener("click", () => {
-    void calculerLaVariante(root);
-  });
-  root.querySelector("[data-variante-valeur]")?.addEventListener("keydown", (evenement) => {
-    if (evenement.key === "Enter") { evenement.preventDefault(); void calculerLaVariante(root); }
-  });
-
-  // L'unité du projet s'écrit à mesure qu'on tape le nombre : « 8 » devient
-  // « 8 m », « 80 » devient « 80 m ». Le champ ne peut donc jamais porter une
-  // valeur dans une autre unité que celle qu'il remplace — ce qui vaut mieux que
-  // de convertir, et bien mieux que de deviner. Voir `services/saisie-unite.js`.
-  const champ = root.querySelector("[data-variante-valeur]");
-  if (champ) {
-    champ.addEventListener("input", () => {
-      const { texte: ecrit, caret } = frappeAvecUnite(champ.value, champ.getAttribute("data-variante-unite") || "");
-      if (ecrit === champ.value) return;
-      champ.value = ecrit;
-      // Le curseur revient devant l'unité : sans cela la frappe suivante
-      // s'écrirait derrière le « m », et le champ se remplirait à l'envers.
-      champ.setSelectionRange(caret, caret);
-    });
-  }
-  root.querySelector("[data-variante-abandonner]")?.addEventListener("click", () => fermerLaVariante(root));
-  root.querySelector("[data-variante-exporter]")?.addEventListener("click", () => emporterLaVariante());
-
-  root.querySelector("[data-variante-lire]")?.addEventListener("click", () => {
-    const rendu = view.variante?.rendu;
-    if (!rendu?.ok) return;
-    essayerLaVariante(variantePourLEcran({ consequences: rendu }));
-    fermerLaVariante(root);
-  });
-}
-
-function brancherLeBoutonTester(root) {
-  const action = root.querySelector('[data-action-id="memoireTester"]');
-  if (!action) return;
-
-  action.addEventListener("ghaction:action", (event) => {
-    const quoi = String(event.detail?.action || "");
-    // Rien à faire en entrant dans une variante : on est déjà sur la mémoire, et
-    // l'abonnement au magasin la redessine.
-    if (quoi === "tester:variante") {
-      ouvrirLaVariante(root);
-    }
-    if (quoi === "tester:impact") {
-      ouvrirLEtudeDImpact({ assertions: view.memoire ?? [], applications: view.applications });
-    }
-    // L'audit se fait sur la mémoire **lue en base**, jamais sur le calque d'une
-    // variante : auditer une lecture qu'on sait fausse ne dirait rien de vrai.
-    if (quoi === "tester:audit") ouvrirLAudit({ assertions: view.memoire ?? [] });
-    // Le cerveau montre la forme du raisonnement du projet, pas celle d'une
-    // lecture qu'on essaie : la mémoire en base, pour la même raison que l'audit.
-    if (quoi === "tester:cerveau") {
-      ouvrirLeCerveau({ assertions: view.memoire ?? [], applications: view.applications });
-    }
+function brancherLeCerveau(root) {
+  // Le cerveau montre la forme du raisonnement du projet, pas celle d'une
+  // lecture qu'on essaie : la mémoire **en base**, jamais le calque d'une
+  // variante — dessiner un raisonnement qu'on sait faux ne dirait rien de vrai.
+  root.querySelector("[data-memoire-cerveau]")?.addEventListener("click", () => {
+    ouvrirLeCerveau({ assertions: view.memoire ?? [], applications: view.applications });
   });
 }
 
@@ -3491,7 +3289,6 @@ export function renderProjectMemory(root) {
   view.notice = "";
   view.open = null;
   view.page = 1;
-  view.variante = null;
   view.navCollapsed = repliRetenu();
   view.navWidth = largeurRetenue();
   view.query = "";

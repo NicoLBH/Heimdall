@@ -19940,24 +19940,11 @@ body.proposition-merge-open{ overflow:hidden; }
 
 
 /* ── L'écran d'une variante ─────────────────────────────────────────────────
-   Deux rangs : ce qu'on essaie, ce que cela change. La couleur de la variante
-   — le cyan — tient la ligne de titre, comme le bandeau qui la suit partout
-   ailleurs : on doit savoir d'un coup d'œil qu'on ne lit pas le projet. */
+   Deux rangs : ce qu'on essaie, ce que cela change. Il portait un bandeau de
+   tête cyan, du temps où il occupait la page de la Mémoire et devait se nommer
+   lui-même ; le panneau de l'Atelier le nomme désormais, et le bandeau — comme
+   sa règle de style — est parti avec. */
 .variante-ecran{ display:flex; flex-direction:column; gap:16px; }
-.variante-ecran__tete{
-  display:flex; align-items:center; gap:12px;
-  padding:10px 14px;
-  border:1px solid var(--variante, #39c5cf);
-  border-radius:var(--radius);
-  background:color-mix(in srgb, var(--variante, #39c5cf) 10%, transparent);
-}
-.variante-ecran__marque{
-  display:inline-flex; align-items:center; gap:6px;
-  color:var(--variante, #39c5cf);
-  font-weight:600; font-size:13px; white-space:nowrap;
-}
-.variante-ecran__titre{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); font-size:13px; }
-.variante-ecran__exporter{ margin-left:auto; flex:0 0 auto; }
 
 /* Deux colonnes tant que l'écran les porte : la question et la réponse doivent
    se lire ensemble — c'est ce que les fenêtres empilées interdisaient. */
@@ -21574,14 +21561,27 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   --variante-bord:rgba(57,197,207,.40);
 }
 
-/* Le bouton « Tester » porte le cyan des variantes, pas le vert de la
+/* Le bouton du cerveau porte le cyan des lectures, pas le vert de la
    déclaration : deux boutons verts côte à côte se liraient comme deux gestes de
    même poids, or l'un écrit en mémoire et l'autre n'ouvre qu'une lecture. */
-.bouton-tester > .gh-btn{
+[data-memoire-cerveau]{
+  flex:0 0 auto; white-space:nowrap;
   border-color:var(--variante-bord); background:var(--variante-fond); color:var(--variante);
 }
-.bouton-tester > .gh-btn:hover{ border-color:var(--variante); background:rgba(57,197,207,.18); }
-.bouton-tester{ flex:0 0 auto; white-space:nowrap; }
+[data-memoire-cerveau]:hover:not(:disabled){ border-color:var(--variante); background:rgba(57,197,207,.18); }
+
+/* Les explorations de l'Atelier : la même fenêtre, posée dans un panneau.
+   Elle ne recouvre plus rien — elle *est* l'écran —, donc ni voile, ni position
+   fixe, ni largeur de boîte de dialogue. Une seule règle, et les deux fenêtres
+   la partagent : deux neutralisations divergeraient à la première retouche. */
+.fichiers-saisie--panneau{
+  position:static; inset:auto; z-index:auto;
+  display:block; padding:0; background:none;
+}
+.fichiers-saisie--panneau > .fichiers-saisie__boite{
+  width:auto; max-width:none; padding:0;
+  border:0; border-radius:0; background:none; box-shadow:none;
+}
 
 /* La fenêtre : une ligne de question, puis trois rangs de conséquences. */
 .variante-boite{ gap:12px; }

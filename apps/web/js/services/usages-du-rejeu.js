@@ -1,10 +1,10 @@
 /**
- * Les trois usages du moteur de rejeu, sous un seul bouton.
+ * Les usages du moteur de rejeu, et où chacun vit.
  *
- * ## Pourquoi trois, et pourquoi ensemble
+ * ## Pourquoi une liste, et pas quatre écrans indépendants
  *
  * Changer une valeur et voir ce qui bouge n'est pas une fonctionnalité : c'est
- * un **moteur**, et une fois qu'on l'a, il sert trois fois.
+ * un **moteur**, et une fois qu'on l'a, il sert quatre fois.
  *
  * - **Tester une variante** — « et si ? ». On change une valeur du socle, on lit
  *   les conséquences, on n'écrit rien.
@@ -16,9 +16,18 @@
  *   question qu'un ingénieur pose vraiment, et c'est le même graphe lu à
  *   l'envers.
  *
- * Les mettre sous un même bouton n'est pas une économie de place : c'est dire
- * qu'ils sont **la même chose**, vue de trois côtés. Trois boutons épars
- * laisseraient croire à trois mécanismes.
+ * Les tenir dans une seule liste n'est pas une économie de place : c'est dire
+ * qu'ils sont **la même chose**, vue de plusieurs côtés. Quatre déclarations
+ * éparses laisseraient croire à quatre mécanismes, et l'une d'elles finirait par
+ * mentir sur ce que le moteur sait faire (règle 4).
+ *
+ * ## Où ils vivent, depuis l'étape 1 du plan
+ *
+ * Les trois premiers **explorent** : ils essaient, ils vérifient, ils
+ * interrogent — et n'écrivent rien. Leur place est donc l'**Atelier**, comme
+ * tout ce qui prépare une proposition. Le quatrième ne pose pas de question : il
+ * montre la forme du raisonnement, c'est une lecture, et il reste dans la
+ * **Mémoire**. Voir `docs/a-traiter-plus-tard.md`, § 14.
  *
  * ## Pourquoi un usage peut être éteint
  *
@@ -29,9 +38,6 @@
  *
  * Avancer le plan, c'est déplacer `ETAPE_ATTEINTE` d'un cran. Le menu suit.
  */
-
-import { svgIcon } from "../../ui/icons.js";
-import { renderGhActionButton } from "./gh-split-button.js";
 
 /**
  * Jusqu'où le moteur de rejeu est construit.
@@ -53,6 +59,21 @@ import { renderGhActionButton } from "./gh-split-button.js";
 export const ETAPE_ATTEINTE = 6;
 
 /**
+ * Les deux endroits où un usage peut vivre.
+ *
+ * Ce n'est pas une préférence de mise en page : c'est le critère du § 14 —
+ * *la Mémoire ne contient que des écrans de lecture ; tout ce qui prépare une
+ * proposition vit dans l'Atelier.* Un usage porte donc sa place, et les deux
+ * écrans lisent la même liste plutôt que d'en tenir chacun la sienne.
+ */
+export const OU = { ATELIER: "atelier", MEMOIRE: "memoire" };
+
+/** Les usages qui vivent à cet endroit-là, dans l'ordre de la liste. */
+export function usagesDe(ou) {
+  return USAGES.filter((usage) => usage.ou === ou);
+}
+
+/**
  * Les usages du moteur, dans l'ordre où on les lit.
  *
  * Les trois premiers **posent une question** — et si ? ça tient encore ? qu'est-ce
@@ -67,24 +88,28 @@ export const ETAPE_ATTEINTE = 6;
 export const USAGES = [
   {
     action: "tester:variante",
+    ou: OU.ATELIER,
     nom: "Tester une variante",
     depuisLEtape: 0,
     quoi: "Changer n'importe quelle valeur du socle, rejouer ce qui en découle, et ne rien écrire."
   },
   {
     action: "tester:audit",
+    ou: OU.ATELIER,
     nom: "Auditer la mémoire",
     depuisLEtape: 5,
     quoi: "Rejouer le raisonnement sur les valeurs d'aujourd'hui, et dire ce qui a dérivé. Rien n'est écrit."
   },
   {
     action: "tester:impact",
+    ou: OU.ATELIER,
     nom: "Étude d'impact",
     depuisLEtape: 2,
     quoi: "Dire ce qui repose sur une valeur, avec le compte exact et les zones."
   },
   {
     action: "tester:cerveau",
+    ou: OU.MEMOIRE,
     nom: "Le cerveau du projet",
     depuisLEtape: 6,
     quoi: "Voir le raisonnement en entier, en strates, et faire courir une onde depuis une valeur."
@@ -104,47 +129,4 @@ export function estServi(usage) {
  */
 export function libelleDeLUsage(usage) {
   return estServi(usage) ? usage.nom : `${usage.nom} — étape ${usage.depuisLEtape}`;
-}
-
-/**
- * Le bouton et son menu.
- *
- * Le clic principal **ouvre le menu** : on ne « teste » pas en général, on
- * choisit ce qu'on teste. Sans cela, la moitié gauche du bouton ne ferait rien.
- *
- * @param {object} [options]
- * @param {Set<string>|string[]} [options.indisponibles] les actions que l'écran
- *   ne peut pas servir maintenant — un projet sans altitude n'a pas de variante
- *   à essayer. Distinct de « pas encore construit » : l'une est une lacune du
- *   moteur, l'autre un état du projet.
- * @param {boolean} [options.busy]
- */
-export function renderBoutonTester({ indisponibles = [], busy = false } = {}) {
-  const hors = new Set(indisponibles);
-
-  return renderGhActionButton({
-    id: "memoireTester",
-    label: "Tester",
-    icon: svgIcon("beaker", { className: "octicon" }),
-    size: "md",
-    // Rien ne se déclenche au clic principal : le menu s'ouvre, et l'on choisit.
-    menuOnMain: true,
-    disabled: busy,
-    className: "bouton-tester",
-    items: USAGES.map((usage) => {
-      const servi = estServi(usage);
-      const dispo = servi && !hors.has(usage.action);
-
-      return {
-        action: usage.action,
-        label: libelleDeLUsage(usage),
-        disabled: !dispo,
-        // La phrase entière au survol : le menu dit quoi, l'infobulle dit
-        // pourquoi. Un item éteint sans raison se lit comme une panne.
-        title: servi
-          ? (dispo ? usage.quoi : `${usage.quoi} — rien à faire varier dans ce projet pour l'instant.`)
-          : `${usage.quoi} Le moteur de rejeu ne le sert pas encore : étape ${usage.depuisLEtape} du plan (docs/rejouer-la-memoire.md).`
-      };
-    })
-  });
 }

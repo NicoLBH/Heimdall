@@ -40,6 +40,11 @@ import { renderCtContinuityLab } from "./studio/dev/ct-continuity-lab.js";
 import { copierDansLePressePapiers } from "./ui/bouton-copier.js";
 import { renderVariablesMutualisees } from "./studio/dev/variables-mutualisees.js";
 import { renderResolutionConflits } from "./studio/conflits/resolution-conflits.js";
+import {
+  renderPanneauVariante,
+  renderPanneauImpact,
+  renderPanneauAudit
+} from "./studio/explorations/explorations.js";
 
 /**
  * L'historique des discussions, sous l'entrée Copilote.
@@ -121,6 +126,31 @@ function renderStudioNav() {
       ]
     }),
     renderCopiloteHistorique(),
+    renderNavListDivider(),
+    // Les explorations viennent avant les utilitaires parce qu'elles les
+    // englobent : une variante rejoue *tout* le projet, utilitaires compris.
+    // Les ranger sous Solidité ou sous Incendie en ferait un outil de domaine,
+    // ce qu'elles ne sont pas.
+    renderNavListGroup({
+      label: "Explorations",
+      items: [
+        renderNavListItem({
+          label: "Tester une variante",
+          dataAttributes: { "data-side-nav-target": "exploration-variante" },
+          iconHtml: svgIcon("beaker", { className: "octicon octicon-beaker" })
+        }),
+        renderNavListItem({
+          label: "Étude d'impact",
+          dataAttributes: { "data-side-nav-target": "exploration-impact" },
+          iconHtml: svgIcon("graph", { className: "octicon octicon-graph" })
+        }),
+        renderNavListItem({
+          label: "Auditer la mémoire",
+          dataAttributes: { "data-side-nav-target": "exploration-audit" },
+          iconHtml: svgIcon("checklist", { className: "octicon octicon-checklist" })
+        })
+      ]
+    }),
     renderNavListDivider(),
     renderNavListGroup({
       label: "Solidité",
@@ -250,6 +280,15 @@ function getRouterHtml() {
               <section class="project-studio-router__panel is-active" data-side-nav-panel="studio-copilote">
                 <div id="projectStudioCopilotePanel"></div>
               </section>
+              <section class="project-studio-router__panel" data-side-nav-panel="exploration-variante">
+                <div id="projectStudioVariantePanel"></div>
+              </section>
+              <section class="project-studio-router__panel" data-side-nav-panel="exploration-impact">
+                <div id="projectStudioImpactPanel"></div>
+              </section>
+              <section class="project-studio-router__panel" data-side-nav-panel="exploration-audit">
+                <div id="projectStudioAuditPanel"></div>
+              </section>
               <section class="project-studio-router__panel" data-side-nav-panel="solidity-climate">
                 <div id="projectStudioSolidityClimatePanel"></div>
               </section>
@@ -312,6 +351,29 @@ export function renderProjectStudio(root) {
   const variablesRoot = root.querySelector("#projectStudioVariablesPanel");
   const conflitsRoot = root.querySelector("#projectStudioConflitsPanel");
 
+  /**
+   * Les trois explorations, dessinées seulement quand on y va.
+   *
+   * Les autres panneaux se dessinent tous au montage : c'est sans conséquence,
+   * ils n'attendent rien. Les explorations, elles, **lisent la mémoire** — trois
+   * requêtes à l'ouverture de l'Atelier pour des écrans que personne ne regarde
+   * — et l'étude d'impact pose le curseur dans son champ de recherche, ce qui
+   * volerait le clavier au Copilote. Elles attendent donc leur tour.
+   */
+  const explorations = {
+    "exploration-variante": [root.querySelector("#projectStudioVariantePanel"), renderPanneauVariante],
+    "exploration-impact": [root.querySelector("#projectStudioImpactPanel"), renderPanneauImpact],
+    "exploration-audit": [root.querySelector("#projectStudioAuditPanel"), renderPanneauAudit]
+  };
+
+  /** Vrai si la cible est une exploration, et alors elle est dessinée. */
+  const rendreLExploration = (targetId, { force = false } = {}) => {
+    const [panneau, rendre] = explorations[targetId] ?? [];
+    if (!panneau) return false;
+    rendre(panneau, { force });
+    return true;
+  };
+
   if (copiloteRoot) renderCopilote(copiloteRoot);
   if (solidityClimateRoot) renderSolidityClimate(solidityClimateRoot, { force: true });
   if (solidityGeorisksRoot) renderSolidityGeorisks(solidityGeorisksRoot);
@@ -336,6 +398,10 @@ export function renderProjectStudio(root) {
     scrollContainer: getScrollSource()
   });
 
+  // Le panneau retenu peut être une exploration : replier le rail depuis
+  // « Tester une variante » ne doit pas rendre le panneau vide.
+  rendreLExploration(panneauCourant);
+
   root.querySelectorAll("[data-side-nav-target]").forEach((button) => {
     button.addEventListener("click", () => {
       registerProjectPrimaryScrollSource(getScrollSource());
@@ -353,6 +419,10 @@ export function renderProjectStudio(root) {
       // Les variables se relisent à chaque venue : la mémoire a pu bouger, et
       // un nom qui n'existe plus se chercherait longtemps.
       if (targetId === "dev-variables" && variablesRoot) renderVariablesMutualisees(variablesRoot, { force: true });
+      // Les explorations se relisent à chaque venue : la mémoire a pu bouger
+      // dans un autre onglet, et essayer une valeur sur un socle périmé
+      // donnerait un raisonnement juste sur un projet qui n'existe plus.
+      rendreLExploration(targetId, { force: true });
 
       panneauCourant = targetId || panneauCourant;
       marquerActif(root, targetId);

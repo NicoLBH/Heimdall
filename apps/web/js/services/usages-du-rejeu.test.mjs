@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ETAPE_ATTEINTE, USAGES, estServi, libelleDeLUsage } from "./bouton-tester.js";
+import { ETAPE_ATTEINTE, OU, USAGES, estServi, libelleDeLUsage, usagesDe } from "./usages-du-rejeu.js";
 
 test("les usages du moteur sont nommés, et dans l'ordre où on les lit", () => {
   // Les trois premiers posent une question ; le quatrième montre la forme du
@@ -24,6 +24,20 @@ test("tous les usages sont servis, et portent leur nom sans étape", () => {
     assert.equal(estServi(usage), true, usage.action);
     assert.equal(libelleDeLUsage(usage), usage.nom);
   }
+});
+
+test("chaque usage dit où il vit, et les deux écrans lisent la même liste", () => {
+  // Le critère du § 14 de `docs/a-traiter-plus-tard.md` : la Mémoire ne contient
+  // que des écrans de lecture ; tout ce qui prépare une proposition vit dans
+  // l'Atelier. Les trois explorations sont donc à l'Atelier, le cerveau reste.
+  assert.deepEqual(usagesDe(OU.ATELIER).map((usage) => usage.action), [
+    "tester:variante", "tester:audit", "tester:impact"
+  ]);
+  assert.deepEqual(usagesDe(OU.MEMOIRE).map((usage) => usage.action), ["tester:cerveau"]);
+
+  // Aucun usage sans place : un usage qu'aucun écran ne lit serait un bouton
+  // que personne ne voit, et rien ne le dirait.
+  assert.equal(usagesDe(OU.ATELIER).length + usagesDe(OU.MEMOIRE).length, USAGES.length);
 });
 
 test("avancer le plan allume les usages, sans toucher au menu", () => {

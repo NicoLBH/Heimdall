@@ -19,9 +19,12 @@ test("l'écran pose la question et la réponse sur le même écran", () => {
 
   assert.match(html, /Quelle valeur essaie-t-on/);
   assert.match(html, /Tester une variante/);
-  assert.match(html, /data-variante-exporter/);
   // Et rien de modal : plus de `role="dialog"`, plus de croix de fermeture.
   assert.doesNotMatch(html, /aria-modal/);
+  // Ni de bandeau de tête : le panneau de l'Atelier porte le titre et l'export.
+  // Deux boutons « Exporter » à trois centimètres l'un de l'autre se liraient
+  // comme deux exports différents.
+  assert.doesNotMatch(html, /variante-ecran__tete|data-variante-exporter/);
 });
 
 test("la portée s'affiche sur la valeur choisie", () => {
