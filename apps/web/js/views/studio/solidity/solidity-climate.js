@@ -66,8 +66,10 @@ import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
 import { renderSaisieAdresse, brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
 import { adresseEnUneLigne, localisationCalculable, localisationDeLAdresse, nombreOuRien } from "../../../services/adresse-saisie.js";
-import { fetchFrenchAltitude, resolveFrenchCoordinates } from "../../../services/georisques-service.js";
-import { renderCarteAPointer, brancherLaCarteAPointer } from "../../ui/carte-a-pointer.js";
+import {
+  fetchFrenchAltitude, resolveFrenchCoordinates, centreDeLaCommune
+} from "../../../services/georisques-service.js";
+import { creerLaCarteAPointer, brancherLaCarteAPointer, majCarteAPointer } from "../../ui/carte-a-pointer.js";
 import { ZOOM_COMMUNE, ZOOM_PARCELLE, zoomBorne } from "../../../services/carte-pointee.js";
 import { pointDit } from "../../../services/localisation-versement.js";
 import { localisationDeLaMemoire } from "../../../services/localisation-du-projet.js";
@@ -103,9 +105,14 @@ const state = {
   centre: null, zoom: ZOOM_COMMUNE,
   /** Le point posé, tant qu'on n'a pas cliqué « Calculer ». */
   pointe: null, pointeEnCours: false,
-  /** Vrai le temps d'un geste sur la carte : l'écran ne se redessine pas. */
-  geste: false, renduEnRetard: false,
-  results: {}, mapUrl: "", mapLoading: false, mapCle: "",
+  /**
+   * La carte, créée une fois et rattachée à chaque dessin.
+   *
+   * Le redessiner détruisait son `iframe`, que le navigateur rechargeait depuis
+   * zéro : une page blanche s'allumait à chaque relâchement de la souris.
+   */
+  carte: null,
+  results: {}, mapUrl: "", mapCle: "",
   /** Ce que la dernière adresse choisie n'a pas donné, s'il y a lieu. */
   saisieEchec: "",
   /**
@@ -196,7 +203,7 @@ export async function renderSolidityClimate(root, { force = false } = {}) {
   if (!force && root.dataset.solidityClimateMounted === "true") return;
   root.dataset.solidityClimateMounted = "true";
 
-  await hydrateState();
+  await hydrateState(root);
   render(root);
 
 
@@ -353,7 +360,7 @@ async function memoireDuProjet() {
   }
 }
 
-async function hydrateState() {
+async function hydrateState(root) {
   state.loading = true;
   state.error = "";
   try {
@@ -368,7 +375,10 @@ async function hydrateState() {
     // serait parti sur celle-là. Voir `services/localisation-du-projet.js`.
     state.location = localisationDeLaMemoire(await memoireDuProjet()) ?? getEffectiveProjectLocation();
     state.pointe = null;
-    recentrer(state.location, ZOOM_PARCELLE);
+    // Le projet quand il a un point ; sa commune sinon. L'écran restait noir
+    // pour toute localisation enregistrée avant que la ligne ne porte ses
+    // coordonnées — c'est-à-dire pour tous les projets d'avant.
+    if (!recentrer(state.location, ZOOM_PARCELLE)) void regarderLaCommune(root, state.location);
 
     const rows = await Promise.all(TOOL_KEYS.map((toolKey) => getLastStudioToolResult({ projectId: state.projectId, toolKey })));
     state.results = Object.fromEntries(rows.map((row, index) => [TOOL_KEYS[index], row]));
@@ -442,14 +452,46 @@ async function prendreLaLocalisation(root, localisation, { zoom = null } = {}) {
   render(root);
 }
 
-/** Poser la carte sur une localisation, sans toucher au projet. */
+/**
+ * Poser la carte sur une localisation, sans toucher au projet.
+ *
+ * Rend `false` quand la localisation n'a pas de point : l'appelant sait alors
+ * qu'il n'y a rien à regarder, et peut aller chercher la commune.
+ */
 function recentrer(localisation, zoom = null) {
   const latitude = nombreOuRien(localisation?.latitude);
   const longitude = nombreOuRien(localisation?.longitude);
-  if (latitude === null || longitude === null) return;
+  if (latitude === null || longitude === null) return false;
 
   state.centre = { latitude, longitude };
   if (zoom !== null) state.zoom = zoomBorne(zoom);
+  return true;
+}
+
+/**
+ * Regarder la commune, quand le projet n'a pas de point.
+ *
+ * Une localisation enregistrée avant que la ligne ne porte ses coordonnées n'a
+ * qu'une adresse et un code INSEE. La carte n'avait alors rien à centrer et
+ * l'écran restait noir — alors qu'on sait très bien où est la commune, et que
+ * c'est de là qu'on part pour aller reconnaître le terrain.
+ *
+ * Le centre d'une commune n'est **pas** le projet : aucun marqueur ne s'y pose,
+ * et rien n'entre nulle part. C'est un endroit d'où regarder (règle 5).
+ */
+async function regarderLaCommune(root, localisation, zoom = ZOOM_COMMUNE) {
+  // Déjà quelque part : une seconde venue sur l'écran n'a rien à redemander.
+  if (state.centre) return;
+
+  const point = await centreDeLaCommune(localisation?.codeInsee);
+  if (!point) return;
+
+  // Quelqu'un a pu poser un point ou choisir une adresse pendant l'attente : la
+  // commune arrive alors trop tard, et recentrer ferait sauter la carte.
+  if (state.centre) return;
+
+  recentrer(point, zoom);
+  render(root);
 }
 
 /**
@@ -498,15 +540,31 @@ async function releverLAltitude({ latitude, longitude } = {}) {
   }
 }
 
+/**
+ * L'écran, redessiné — **sauf la carte**.
+ *
+ * La coquille se pose une fois : elle porte le cadre, la couche de la carte, et
+ * les trois zones qui changent. Réécrire tout l'écran détachait la carte de son
+ * conteneur, et un navigateur qui réinsère une vue satellite la **recharge
+ * depuis zéro** : l'image disparaissait, l'écran devenait noir, et il fallait
+ * attendre. On la rattachait bien après, mais le mal était fait — c'est le
+ * détachement lui-même qui coûte, pas l'oubli.
+ */
 function render(root) {
-  // Pas pendant un geste sur la carte. Redessiner remplacerait le voile, et le
-  // glissement mourrait sur un nœud détaché : la carte resterait immobile sous
-  // le doigt sans qu'on sache pourquoi. Une lecture différée — les propositions
-  // ouvertes, une vue satellite qui arrive — suffit à le provoquer.
-  if (state.geste) { state.renduEnRetard = true; return; }
-  state.renduEnRetard = false;
+  poserLaCoquille(root);
+  repeindre(root);
+}
 
-  const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
+/**
+ * Le cadre, posé une fois par montage.
+ *
+ * `data-climat-coquille` dit qu'elle est là. Une nouvelle venue sur l'écran rend
+ * une racine vide — le marqueur disparaît avec elle —, et la carte se refait
+ * alors pour se rebrancher sur **cette** racine-ci : celle d'avant n'existe plus,
+ * et ses gestes ne mèneraient nulle part.
+ */
+function poserLaCoquille(root) {
+  if (root.dataset.climatCoquille === "posee" && root.querySelector("[data-solidity-climate-map]")) return;
 
   root.innerHTML = `
     <section class="settings-section is-active" data-solidity-tool-card="climate">
@@ -515,93 +573,120 @@ function render(root) {
           <div>
             <span class="settings-card__head-title">
               <h4>Zones et charges climatiques</h4>
-              <div class="studio-tool-card__actions">
-                ${renderTransformer({
-                  id: "solidityToolTransform-climate",
-                  disabled: !hasResult || state.transforming,
-                  ouvertes: branchesOuvertes(() => render(root))
-                })}
-                ${
-                  // Le bouton n'existe que pour le point posé sur la carte. Une
-                  // adresse choisie recalcule d'elle-même ; un point, on le
-                  // repose trois fois avant de reconnaître la parcelle, et c'est
-                  // ce bouton qui dit « c'est bien ici ».
-                  state.pointe
-                    ? renderGhActionButton({
-                        id: "solidityToolCalculate-climate",
-                        label: state.loading ? "Calcul en cours…" : "Calculer ici",
-                        tone: "primary", size: "md", mainAction: "",
-                        disabled: Boolean(state.loading) || state.pointeEnCours || !localisationCalculable(state.pointe)
-                      })
-                    : ""
-                }
-              </div>
+              <div class="studio-tool-card__actions" data-climat-actions></div>
             </span>
           </div>
         </div>
         <div class="settings-card__body studio-tool-card__body">
-          ${state.error ? `<p class="gh-text-muted" style="color:var(--danger);">${escapeHtml(state.error)}</p>` : ""}
-          ${renderPropositionOuverte({
-            projet: String(store.currentProjectId || "").trim(),
-            proposition: state.propositionOuverte
-          })}
-          <div data-solidity-climate-map class="studio-tool-map-layer">
-            ${renderCarteAPointer({
-              nom: CARTE_DU_CLIMAT,
-              centre: state.centre,
-              // Le point qu'on vient de poser en rouge ; celui d'où l'on part en
-              // bleu, plus petit. Deux rouges de la même taille et l'on ne sait
-              // plus lequel est le projet — ni qu'il reste « Calculer ici » à
-              // cliquer.
-              point: pointPose() ?? pointDuProjet(),
-              pointAncien: pointPose() ? pointDuProjet() : null,
-              zoom: state.zoom,
-              embedUrl: state.mapUrl,
-              chargement: state.mapLoading,
-              hauteur: "calc(100vh - 260px)"
-            })}
-          </div>
-          <div class="studio-tool-overlay-grid" style="display:grid;grid-template-columns:300px minmax(0px, 1fr);gap:16px;align-items:start;">
-            ${renderCards()}
-          </div>
+          <div data-climat-bandeau></div>
+          <div data-solidity-climate-map class="studio-tool-map-layer"></div>
+          <div class="studio-tool-overlay-grid" style="display:grid;grid-template-columns:300px minmax(0px, 1fr);gap:16px;align-items:start;"
+            data-climat-cartes></div>
         </div>
       </div>
     </section>
   `;
-  brancherLaSaisie(root);
+  root.dataset.climatCoquille = "posee";
 
-  brancherLaCarteAPointer(root, {
-    nom: CARTE_DU_CLIMAT,
-    // Une fonction, et non l'état capturé : l'écran redessine, et un objet pris
-    // à la liaison porterait le centre d'il y a trois déplacements.
-    // **Le marqueur qui est dessiné**, et non le seul point posé : c'est celui du
-    // projet qu'on saisit la première fois, et ne pas le donner ici rendait le
-    // marqueur impossible à prendre tant qu'on n'en avait pas posé un autre.
-    etat: () => ({ centre: state.centre, point: pointPose() ?? pointDuProjet(), zoom: state.zoom }),
-    quandGeste: (enCours) => {
-      state.geste = enCours;
-      // Ce qu'on a refusé de dessiner pendant le geste se rattrape à sa fin.
-      if (!enCours && state.renduEnRetard) render(root);
-    },
-    quandDeplacee: (centre) => { state.centre = centre; render(root); },
-    quandZoomee: (zoom) => { state.zoom = zoom; render(root); },
-    quandPointee: (point) => { void poserLeProjet(root, point); }
-  });
+  // La carte appartenait à la racine d'avant : ses gestes rafraîchissaient un
+  // écran qui n'est plus affiché.
+  state.carte = null;
+}
 
-  root.querySelector('[data-action-id="solidityToolCalculate-climate"]')
-    ?.addEventListener("click", () => { void prendreLaLocalisation(root, state.pointe, { zoom: ZOOM_PARCELLE }); });
+/** Les trois zones qui changent, repeintes l'une après l'autre. */
+function repeindre(root) {
+  const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
 
+  const actions = root.querySelector("[data-climat-actions]");
+  if (actions) {
+    actions.innerHTML = `
+      ${renderTransformer({
+        id: "solidityToolTransform-climate",
+        disabled: !hasResult || state.transforming,
+        ouvertes: branchesOuvertes(() => render(root))
+      })}
+      ${
+        // Le bouton n'existe que pour le point posé sur la carte. Une adresse
+        // choisie recalcule d'elle-même ; un point, on le repose trois fois
+        // avant de reconnaître la parcelle, et c'est ce bouton qui dit
+        // « c'est bien ici ».
+        state.pointe
+          ? renderGhActionButton({
+              id: "solidityToolCalculate-climate",
+              label: state.loading ? "Calcul en cours…" : "Calculer ici",
+              tone: "primary", size: "md", mainAction: "",
+              disabled: Boolean(state.loading) || state.pointeEnCours || !localisationCalculable(state.pointe)
+            })
+          : ""
+      }
+    `;
+    actions.querySelector('[data-action-id="solidityToolCalculate-climate"]')
+      ?.addEventListener("click", () => { void prendreLaLocalisation(root, state.pointe, { zoom: ZOOM_PARCELLE }); });
+  }
+
+  const bandeau = root.querySelector("[data-climat-bandeau]");
+  if (bandeau) {
+    bandeau.innerHTML = `
+      ${state.error ? `<p class="gh-text-muted" style="color:var(--danger);">${escapeHtml(state.error)}</p>` : ""}
+      ${renderPropositionOuverte({
+        projet: String(store.currentProjectId || "").trim(),
+        proposition: state.propositionOuverte
+      })}
+    `;
+  }
+
+  const cartes = root.querySelector("[data-climat-cartes]");
+  if (cartes) {
+    cartes.innerHTML = renderCards();
+    brancherLaSaisie(cartes, root);
+  }
+
+  poserLaCarte(root);
   void refreshMapCard(root);
 }
 
-/** Le point du projet, quand sa localisation en porte un. */
-function pointDuProjet() {
-  return pointDe(state.location);
+/**
+ * Rattacher la carte, et la mettre à jour.
+ *
+ * **Le même nœud à chaque dessin.** Le redessiner détruisait l'`iframe` de la
+ * vue satellite, que le navigateur rechargeait alors depuis zéro : une page
+ * blanche s'allumait à chaque relâchement de la souris. On cassait nous-mêmes le
+ * fonctionnement de la carte, qui sait très bien changer de centre toute seule.
+ */
+function poserLaCarte(root) {
+  if (!state.carte) {
+    state.carte = creerLaCarteAPointer({ nom: CARTE_DU_CLIMAT, hauteur: "calc(100vh - 260px)" });
+    brancherLaCarteAPointer(state.carte, {
+      // Une fonction, et non l'état capturé : l'écran change, et un objet pris à
+      // la liaison porterait le centre d'il y a trois déplacements.
+      etat: () => ({ centre: state.centre, point: leMarqueur(), zoom: state.zoom }),
+      quandDeplacee: (centre) => { state.centre = centre; void refreshMapCard(root); },
+      quandZoomee: (zoom) => { state.zoom = zoom; void refreshMapCard(root); },
+      quandPointee: (point) => { void poserLeProjet(root, point); }
+    });
+  }
+
+  // Rattachée **seulement si elle ne l'est pas déjà** : réinsérer un nœud qu'on
+  // possède déjà revient à le retirer puis à le remettre, et une vue satellite
+  // qu'on remet se recharge.
+  const couche = root.querySelector("[data-solidity-climate-map]");
+  if (couche && state.carte.parentNode !== couche) couche.appendChild(state.carte);
+
+  majCarteAPointer(state.carte, {
+    centre: state.centre, point: leMarqueur(), zoom: state.zoom, embedUrl: state.mapUrl
+  });
 }
 
-/** Le point qu'on vient de poser, tant que « Calculer ici » ne l'a pas retenu. */
-function pointPose() {
-  return pointDe(state.pointe);
+/**
+ * Le marqueur, et il n'y en a qu'un.
+ *
+ * Celui qu'on vient de poser s'il y en a un, celui du projet sinon. Il y en a eu
+ * deux le temps d'une version — l'ancien en bleu, le nouveau en rouge — et ils
+ * se recouvraient : le marqueur est **déplaçable** maintenant, et un endroit
+ * qu'on déplace n'a pas besoin de son fantôme à côté.
+ */
+function leMarqueur() {
+  return pointDe(state.pointe) ?? pointDe(state.location);
 }
 
 function pointDe(localisation) {
@@ -632,23 +717,16 @@ function renderAddressCard() {
   return `
     <article class="studio-tool-info-card climat-localisation">
       <h4>Localisation</h4>
-      <p class="gh-text-muted climat-localisation__quoi">
-        Ce avec quoi le calcul part. Elle vient du projet ; en choisir une autre ici
-        ne change que ce calcul-ci — et le relance aussitôt.
-      </p>
 
       ${renderSaisieAdresse({
         nom: SAISIE_DU_CLIMAT,
         label: "",
         valeur: adresseEnUneLigne(location),
         placeholder: "Une adresse, ou seulement la commune…",
-        aide: "Un projet qui n'est pas encore construit n'a pas d'adresse : tapez la commune, "
-          + "puis allez reconnaître le terrain sur la carte.",
         desactive: state.loading
       })}
 
       ${state.loading ? `<p class="climat-localisation__attente">${renderSpinnerHtml({ label: "Calcul en cours", size: "sm" })} Calcul en cours…</p>` : ""}
-      ${state.saisieEchec ? `<p class="climat-localisation__manque">${escapeHtml(state.saisieEchec)}</p>` : ""}
 
       ${renderPointPose()}
 
@@ -660,12 +738,14 @@ function renderAddressCard() {
       </dl>
 
       ${
-        localisationCalculable(location)
+        // Sans code INSEE, rien ne se calcule — et il faut le dire. Mais **une
+        // seule fois** : quand un point vient d'être posé, c'est sa ligne à lui
+        // qui porte la phrase, et la répéter ici ferait chercher deux causes.
+        localisationCalculable(location) || state.pointe
           ? ""
           : `<p class="climat-localisation__manque">
               Le code INSEE désigne la commune sans ambiguïté — deux communes peuvent porter le même
               nom. Les tables de zonage se lisent par lui : sans code INSEE, rien ne se calcule.
-              Choisissez une adresse dans la liste : il vient avec.
             </p>`
       }
 
@@ -701,8 +781,14 @@ function renderPointPose() {
           : insee
             ? `<span>${escapeHtml(commune || "commune inconnue")} · INSEE ${escapeHtml(insee)}
                  · ${escapeHtml(mesure(state.pointe.altitude, 2, "m") || "altitude inconnue")}</span>`
-            : `<span class="climat-localisation__manque">Aucune commune trouvée à cet endroit :
-                 rien ne se calcule sans code INSEE.</span>`
+            : `<span class="climat-localisation__manque">${escapeHtml(
+                // **Une seule** alerte, et celle qui dit vrai. Il y en avait deux
+                // — l'une sous le champ, l'autre ici — et toutes deux annonçaient
+                // « aucune commune trouvée à cet endroit », ce qui est faux
+                // partout sauf en mer : on interrogeait la base des **adresses**,
+                // qui n'en trouve aucune au milieu d'un champ.
+                state.saisieEchec || "Ce point n'est dans aucune commune française."
+              )}</span>`
       }
     </div>
   `;
@@ -728,8 +814,16 @@ function valeurLue(location, champ) {
  * « Calculer » a disparu — il ne faisait que répéter ce que le choix disait
  * déjà, en ajoutant un geste par essai à un écran fait pour essayer.
  */
-function brancherLaSaisie(root) {
-  brancherLaSaisieDAdresse(root, {
+/**
+ * Le champ d'adresse et le bouton de reprise, branchés sur la zone repeinte.
+ *
+ * Deux racines, et c'est voulu : `zone` est le morceau qu'on vient de réécrire,
+ * `root` est l'écran entier — celui qu'on redessine et sur lequel la carte est
+ * posée. Brancher sur l'écran entier chercherait les champs dans un HTML qui
+ * n'existe plus.
+ */
+function brancherLaSaisie(zone, root) {
+  brancherLaSaisieDAdresse(zone, {
     nom: SAISIE_DU_CLIMAT,
     // Le zoom d'arrivée : le bourg quand on a tapé une commune sans numéro, la
     // parcelle quand l'adresse en portait un. Chercher son terrain à l'échelle
@@ -739,13 +833,16 @@ function brancherLaSaisie(root) {
     }),
     quandEchoue: (motif) => {
       // Se taire laisserait la carte et les zones sur l'adresse précédente,
-      // qu'on croirait être celle qu'on vient de choisir.
+      // qu'on croirait être celle qu'on vient de choisir. La phrase s'affiche
+      // sous le point posé, et **là seulement** : deux alertes pour un échec
+      // font chercher deux causes.
+      state.pointe = { ...(state.pointe ?? {}), codeInsee: "" };
       state.saisieEchec = motif;
       render(root);
     }
   });
 
-  root.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
+  zone.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
     // Relue, jamais reprise d'un cache : c'est le geste qui dit « remets-moi ce
     // que le projet tient pour vrai », et une photo d'il y a dix minutes n'est
     // pas cela.
@@ -793,32 +890,29 @@ async function refreshMapCard(root) {
   const longitude = nombreOuRien(state.centre?.longitude);
   if (!root || latitude === null || longitude === null) return;
 
-  // Un appel à la fois. Ce garde-fou n'est pas un confort : `render` rappelle
-  // cette fonction, et sans lui l'écran se redessinait sans fin dès que la
-  // première vue satellite ne répondait pas — la clé était posée, l'URL restait
-  // vide, et la condition d'arrêt ne se remplissait jamais.
-  if (state.mapLoading) return;
-
-  // Rien à redemander si c'est déjà ce qu'on affiche : l'`iframe` se recharge à
-  // chaque appel, et le rendu part à chaque déplacement de la carte.
+  // Rien à redemander si c'est déjà ce qu'on affiche.
   const cle = `${latitude.toFixed(6)}|${longitude.toFixed(6)}|${state.zoom}`;
   if (cle === state.mapCle) return;
   state.mapCle = cle;
 
-  state.mapLoading = true;
-  // Le voile porte le marqueur et le viseur : redessiner la seule `iframe`
-  // laisserait le marqueur sur l'endroit d'avant, au-dessus d'une carte qui a
-  // changé — c'est-à-dire montrerait le projet à côté de là où il est.
-  render(root);
+  // **Le marqueur bouge tout de suite**, la vue arrive après : sans cela, on
+  // relâche la souris et le marqueur reste une demi-seconde sur l'endroit
+  // d'avant. La vue précédente reste affichée pendant ce temps — la remplacer
+  // par un vide est exactement ce qui faisait clignoter la carte.
+  poserLaCarte(root);
+
   try {
-    state.mapUrl = await fetchGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: state.zoom, mapType: "satellite" });
+    const vue = await fetchGoogleMapsPlaceEmbedUrl({ latitude, longitude, zoom: state.zoom, mapType: "satellite" });
+    // Un centre a pu changer pendant l'attente : la vue qui arrive porte alors
+    // sur un endroit qu'on ne regarde plus, et l'afficher ferait sauter la carte.
+    if (cle !== state.mapCle) return;
+    state.mapUrl = vue;
   } catch {
     state.mapUrl = "";
     // La clé s'oublie : sans cela, une panne de réseau figerait la carte sur le
     // dernier endroit qui a répondu, et se déplacer ne ferait plus rien.
     state.mapCle = "";
   } finally {
-    state.mapLoading = false;
-    render(root);
+    poserLaCarte(root);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * La carte qu'on déplace, et le point qu'on y pose.
+ * La carte qu'on déplace, et le marqueur qu'on y tire.
  *
  * ## Ce qu'elle sert à faire
  *
@@ -8,29 +8,37 @@
  * vue satellite — la haie, le chemin, la forme de la parcelle. Puis on **tire le
  * marqueur** jusqu'à l'endroit exact.
  *
- * Il a d'abord fallu un appui long, et c'était une mauvaise idée : rien à
- * l'écran ne dit qu'un appui long existe, et l'on ne découvre un geste caché que
- * si quelqu'un vous le montre. Un marqueur qu'on déplace se voit — c'est ce
- * qu'on fait sur toutes les cartes du monde.
+ * ## Un nœud qu'on garde, jamais un nœud qu'on refait
  *
- * ## Pourquoi un voile par-dessus la carte
+ * C'est la règle de ce fichier, et elle vient d'un défaut qu'on voyait à l'œil
+ * nu : à chaque relâchement, l'écran se redessinait, l'`iframe` de la vue
+ * satellite était **détruite et recréée**, et le navigateur affichait une page
+ * blanche le temps de la recharger. On cassait nous-mêmes le fonctionnement de
+ * la carte, qui sait très bien changer de centre toute seule.
+ *
+ * D'où le partage en trois :
+ *
+ * | ce que c'est | quand |
+ * | --- | --- |
+ * | `creerLaCarteAPointer` | **une fois** : elle rend un élément, que l'écran garde et rattache |
+ * | `brancherLaCarteAPointer` | une fois, sur cet élément |
+ * | `majCarteAPointer` | à chaque changement : elle **patche** ce qui a bougé |
+ *
+ * La mise à jour ne touche à l'`iframe` que lorsque son adresse change, et elle
+ * déplace le marqueur en réécrivant sa transformation. Rien n'est recréé, donc
+ * rien ne clignote.
+ *
+ * ## Le voile, et pourquoi il faut bien un voile
  *
  * La vue satellite est servie dans une `iframe` : on ne peut ni lui demander où
  * elle est centrée, ni écouter ses clics. On pose donc un voile transparent
  * par-dessus, on écoute les gestes **dessus**, et l'on recalcule le centre
  * nous-mêmes — `services/carte-pointee.js` fait les mathématiques.
  *
- * ## Elle suit le doigt, et se repose au relâchement
- *
- * Pendant qu'on tire, la vue satellite et les marqueurs sont **déplacés en
- * bloc** par une transformation CSS : l'image suit la souris, comme sur
- * n'importe quelle carte. C'est un déplacement de ce qui est déjà chargé — les
- * bords découvrent du vide, et c'est visible.
- *
- * Au relâchement, le centre est recalculé et la vue redemandée. On ne peut pas
- * faire autrement : une `iframe` se recharge à chaque changement de centre, et
- * un rechargement par pixel donnerait un clignotement continu. Le viseur, lui,
- * ne bouge jamais : il marque le centre de l'écran, pas un endroit.
+ * Pendant qu'on tire, la vue et le marqueur sont déplacés en bloc par une
+ * transformation ; au relâchement, on redemande la vue au bon centre. C'est un
+ * déplacement de ce qui est déjà chargé, et l'on charge volontairement plus
+ * large que le cadre pour que les bords ne découvrent pas du vide.
  *
  * ## Ce qu'elle ne fait pas
  *
@@ -41,7 +49,6 @@
 
 import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
-import { renderProjectLocationMapCard } from "../shared/project-location-map-card.js";
 import {
   ZOOM_MIN, ZOOM_MAX, zoomBorne, pointADistance, centreApresGlissement, pixelsDepuisLeCentre
 } from "../../services/carte-pointee.js";
@@ -62,135 +69,145 @@ const PRISE_DU_MARQUEUR = 26;
 const REPOS_DE_LA_ROULETTE = 220;
 
 /**
- * Un marqueur, posé **par la pointe** au décalage donné.
+ * La carte, créée **une fois**.
  *
- * `null` quand le point sort du cadre ou n'existe pas : le coller au bord ferait
- * croire que le projet est là.
- */
-function renderMarqueur(decalage, { ancien = false } = {}) {
-  if (!decalage) return "";
-
-  return `
-    <div class="carte-pointee__marqueur${ancien ? " carte-pointee__marqueur--ancien" : ""}"
-      style="transform:translate(calc(-50% + ${decalage.dx.toFixed(1)}px), calc(-100% + ${decalage.dy.toFixed(1)}px));">
-      ${svgIcon("location", { className: "octicon" })}
-    </div>
-  `;
-}
-
-/**
- * La carte, en HTML.
+ * L'écran garde l'élément rendu et le rattache à chaque dessin ; il ne le
+ * réécrit jamais. C'est ce qui empêche l'`iframe` de se recharger, donc la page
+ * blanche entre deux vues.
  *
  * @param {object} options
- * @param {string} options.nom l'identité de la carte, celle qu'on rebranche
- * @param {{latitude: number, longitude: number}|null} options.centre où l'on regarde
- * @param {{latitude: number, longitude: number}|null} [options.point] le point posé
- * @param {number} [options.zoom]
- * @param {string} [options.embedUrl] la vue satellite, déjà résolue
- * @param {boolean} [options.chargement]
+ * @param {string} options.nom l'identité de la carte
  * @param {string} [options.hauteur]
+ * @returns {HTMLElement}
  */
-export function renderCarteAPointer({
-  nom, centre = null, point = null, pointAncien = null, zoom = 14,
-  embedUrl = "", chargement = false, hauteur = "420px"
-} = {}) {
+export function creerLaCarteAPointer({ nom, hauteur = "420px" } = {}) {
   const cle = escapeHtml(String(nom ?? ""));
-  const niveau = zoomBorne(zoom);
+  const carte = document.createElement("div");
+  carte.className = "carte-pointee";
+  carte.dataset.cartePointee = String(nom ?? "");
+  carte.style.height = String(hauteur);
 
-  // Les marqueurs se dessinent **où ils sont**, pas au milieu de l'écran : c'est
-  // ce qui permet de s'éloigner pour se resituer sans croire que le projet suit.
-  const decalage = pixelsDepuisLeCentre(centre, point, { zoom: niveau });
-  const ancien = pixelsDepuisLeCentre(centre, pointAncien, { zoom: niveau });
-
-  // Deux marqueurs rouges de la même taille, et l'on ne sait plus lequel est le
-  // projet. Celui d'avant passe donc en **bleu, plus petit, translucide**, et
-  // celui qu'on vient de poser prend le rouge et la taille : on voit d'un coup
-  // d'œil ce qui remplace quoi, et qu'il reste un geste à faire.
-  const enAttente = Boolean(decalage && ancien);
-
-  return `
-    <div class="carte-pointee" data-carte-pointee="${cle}" style="height:${escapeHtml(hauteur)};">
-      <div class="carte-pointee__fond">
-        ${renderProjectLocationMapCard({
-          latitude: centre?.latitude ?? null,
-          longitude: centre?.longitude ?? null,
-          embedUrl,
-          isLoading: chargement,
-          showSpinner: true,
-          iframeTitle: "Vue satellite, à déplacer pour pointer le projet",
-          height: "100%",
-          containerClassName: "carte-pointee__carte"
-        })}
-      </div>
-
-      <div class="carte-pointee__voile" data-carte-voile="${cle}" role="application"
-        aria-label="Déplacer la carte, appui long pour poser le projet">
-        <div class="carte-pointee__viseur" aria-hidden="true">
-          ${svgIcon("viseur", { className: "octicon" })}
-        </div>
-        <!-- Les marqueurs vivent dans une couche qui **suit le doigt** pendant
-             qu'on tire, comme le fond. Le viseur, lui, reste au centre de
-             l'écran : c'est son rôle. -->
-        <div class="carte-pointee__pins" aria-hidden="true">
-          ${renderMarqueur(ancien, { ancien: true })}
-          ${renderMarqueur(decalage, { ancien: false })}
-        </div>
-      </div>
-
-      <div class="carte-pointee__zoom">
-        <button type="button" class="gh-btn gh-btn--sm" data-carte-zoom="+"
-          ${niveau >= ZOOM_MAX ? "disabled" : ""} aria-label="Zoomer">+</button>
-        <button type="button" class="gh-btn gh-btn--sm" data-carte-zoom="-"
-          ${niveau <= ZOOM_MIN ? "disabled" : ""} aria-label="Dézoomer">−</button>
-      </div>
-
-      <p class="carte-pointee__mode${enAttente ? " carte-pointee__mode--attente" : ""}">
-        ${svgIcon(enAttente ? "alert" : "location", { className: "octicon" })}
-        <!-- La phrase dans un span : sans lui, chaque nœud devient un élément
-             de la boîte flexible, et « appuyez longuement » se retrouve dans sa
-             propre colonne au milieu du reste. -->
-        <span>${
-          // Une fois le point posé, la consigne d'avant ne sert plus : elle
-          // décrit un geste qu'on vient de faire, pendant que celui qui reste à
-          // faire n'est écrit nulle part.
-          enAttente
-            ? `Nouvel endroit posé. Cliquez sur <b>« Calculer ici »</b> pour actualiser les valeurs.`
-            : `<b>Tirez le marqueur</b> jusqu'au terrain. Glissez ailleurs pour déplacer la carte,
-               la roulette pour zoomer.`
-        }</span>
-      </p>
-
-      <button type="button" class="gh-btn gh-btn--sm carte-pointee__poser" data-carte-poser>
-        ${svgIcon("location", { className: "octicon" })} Poser le projet au centre
-      </button>
+  carte.innerHTML = `
+    <div class="carte-pointee__fond">
+      <iframe
+        class="carte-pointee__vue"
+        data-carte-vue
+        title="Vue satellite, à déplacer pour situer le projet"
+        loading="eager"
+        allowfullscreen
+        referrerpolicy="no-referrer-when-downgrade"
+        hidden
+      ></iframe>
+      <div class="carte-pointee__attente" data-carte-attente aria-hidden="true"></div>
     </div>
+
+    <div class="carte-pointee__voile" data-carte-voile role="application"
+      aria-label="Déplacer la carte, tirer le marqueur pour situer le projet">
+      <div class="carte-pointee__viseur" aria-hidden="true">
+        ${svgIcon("viseur", { className: "octicon" })}
+      </div>
+      <div class="carte-pointee__pins" aria-hidden="true">
+        <div class="carte-pointee__marqueur" data-carte-marqueur hidden>
+          ${svgIcon("location", { className: "octicon" })}
+        </div>
+      </div>
+    </div>
+
+    <div class="carte-pointee__zoom">
+      <button type="button" class="gh-btn gh-btn--sm" data-carte-zoom="+" aria-label="Zoomer">+</button>
+      <button type="button" class="gh-btn gh-btn--sm" data-carte-zoom="-" aria-label="Dézoomer">−</button>
+    </div>
+
+    <p class="carte-pointee__mode">
+      ${svgIcon("location", { className: "octicon" })}
+      <!-- La phrase dans un span : sans lui, chaque nœud devient un élément de
+           la boîte flexible, et « Tirez le marqueur » se retrouve dans sa propre
+           colonne au milieu du reste. -->
+      <span data-carte-consigne></span>
+    </p>
   `;
+
+  void cle;
+  return carte;
 }
 
 /**
- * Les gestes de la carte.
+ * Mettre la carte à jour, **sans rien recréer**.
  *
- * @param {Element} racine où chercher la carte
+ * L'`iframe` ne bouge que si son adresse change ; le marqueur se déplace par sa
+ * transformation ; les boutons de zoom s'allument ou s'éteignent. Une vue qui
+ * n'est pas encore arrivée laisse la précédente à l'écran : la remplacer par un
+ * vide ferait clignoter la carte à chaque déplacement.
+ *
+ * @param {HTMLElement} carte l'élément rendu par `creerLaCarteAPointer`
+ * @param {object} etat
+ * @param {{latitude: number, longitude: number}|null} etat.centre où l'on regarde
+ * @param {{latitude: number, longitude: number}|null} [etat.point] le marqueur
+ * @param {number} [etat.zoom]
+ * @param {string} [etat.embedUrl] la vue satellite, déjà résolue
+ */
+export function majCarteAPointer(carte, { centre = null, point = null, zoom = 14, embedUrl = "" } = {}) {
+  if (!carte) return;
+
+  const niveau = zoomBorne(zoom);
+  const vue = carte.querySelector("[data-carte-vue]");
+  const attente = carte.querySelector("[data-carte-attente]");
+  const marqueur = carte.querySelector("[data-carte-marqueur]");
+
+  // L'adresse ne se réécrit que si elle a changé. La réécrire à l'identique
+  // recharge l'`iframe` — c'est exactement la page blanche qu'on veut éviter.
+  if (vue && embedUrl && vue.getAttribute("src") !== embedUrl) {
+    vue.setAttribute("src", embedUrl);
+    vue.hidden = false;
+  }
+  if (attente) attente.hidden = Boolean(vue && !vue.hidden);
+
+  // Le marqueur se dessine **où il est**, pas au milieu de l'écran : c'est ce
+  // qui permet de s'éloigner pour se resituer sans croire que le projet suit.
+  const decalage = pixelsDepuisLeCentre(centre, point, { zoom: niveau });
+  if (marqueur) {
+    marqueur.hidden = !decalage;
+    if (decalage) {
+      marqueur.style.transform =
+        `translate(calc(-50% + ${decalage.dx.toFixed(1)}px), calc(-100% + ${decalage.dy.toFixed(1)}px))`;
+    }
+  }
+
+  for (const bouton of carte.querySelectorAll("[data-carte-zoom]")) {
+    const plus = bouton.getAttribute("data-carte-zoom") === "+";
+    bouton.disabled = plus ? niveau >= ZOOM_MAX : niveau <= ZOOM_MIN;
+  }
+
+  // La consigne dit le geste **qui existe**. Sans marqueur, « tirez le
+  // marqueur » demande de tirer quelque chose qu'on ne voit nulle part.
+  const consigne = carte.querySelector("[data-carte-consigne]");
+  if (consigne) consigne.innerHTML = decalage ? CONSIGNE.tirer : CONSIGNE.poser;
+}
+
+/** Ce que la carte demande, selon qu'un marqueur y est posé ou non. */
+const CONSIGNE = {
+  poser: "<b>Cliquez sur le terrain</b> pour poser le projet. Glissez pour déplacer la carte, "
+    + "la roulette pour zoomer.",
+  tirer: "<b>Tirez le marqueur</b> jusqu'au terrain. Glissez ailleurs pour déplacer la carte, "
+    + "la roulette pour zoomer."
+};
+
+/**
+ * Les gestes de la carte, branchés **une fois** sur son élément.
+ *
+ * @param {HTMLElement} carte l'élément rendu par `creerLaCarteAPointer`
  * @param {object} options
- * @param {string} options.nom l'identité passée au rendu
  * @param {Function} options.etat rend `{centre, point, zoom}` au moment du geste —
- *   une fonction et non un objet : l'écran redessine, et un objet capturé à la
+ *   une fonction et non un objet : l'écran change, et un objet capturé à la
  *   liaison porterait le centre d'il y a trois déplacements
  * @param {Function} options.quandDeplacee reçoit le nouveau centre
- * @param {Function} options.quandPointee reçoit le point posé
+ * @param {Function} options.quandPointee reçoit le point où le marqueur a été posé
  * @param {Function} [options.quandZoomee] reçoit le nouveau zoom
- * @param {Function} [options.quandGeste] `true` quand un geste commence, `false`
- *   quand il finit. **À écouter** : un écran qui se redessine au milieu d'un
- *   glissement remplace le voile, et le geste meurt sur un nœud détaché — la
- *   carte reste alors immobile sous le doigt sans qu'on sache pourquoi. Une
- *   lecture différée qui rappelle son écran suffit à le provoquer.
  */
-export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quandPointee, quandZoomee, quandGeste } = {}) {
-  const cle = String(nom ?? "");
-  const voile = racine?.querySelector(`[data-carte-voile="${cle}"]`);
-  const carte = racine?.querySelector(`[data-carte-pointee="${cle}"]`);
-  if (!voile || !carte || voile.dataset.carteBranchee === "true") return;
-  voile.dataset.carteBranchee = "true";
+export function brancherLaCarteAPointer(carte, { etat, quandDeplacee, quandPointee, quandZoomee } = {}) {
+  const voile = carte?.querySelector("[data-carte-voile]");
+  if (!carte || !voile || carte.dataset.carteBranchee === "true") return;
+  carte.dataset.carteBranchee = "true";
 
   const ou = () => (typeof etat === "function" ? etat() : {}) ?? {};
 
@@ -213,11 +230,11 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
    */
   const saisitLeMarqueur = (vise) => {
     const { centre, point, zoom } = ou();
-    const ou_ = pixelsDepuisLeCentre(centre, point, { zoom });
-    if (!ou_) return false;
+    const pose = pixelsDepuisLeCentre(centre, point, { zoom });
+    if (!pose) return false;
 
-    const dx = vise.dx - ou_.dx;
-    const dy = vise.dy - ou_.dy;
+    const dx = vise.dx - pose.dx;
+    const dy = vise.dy - pose.dy;
     return Math.abs(dx) <= PRISE_DU_MARQUEUR && dy <= PRISE_DU_MARQUEUR / 2 && dy >= -PRISE_DU_MARQUEUR * 1.6;
   };
 
@@ -226,13 +243,12 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
   /** Ce qu'on tire : le marqueur, ou la carte. Décidé à l'appui, tenu jusqu'au bout. */
   let tireLeMarqueur = false;
   let roulette = null;
+  let zoomVise = null;
 
   const relacher = () => {
     carte.style.removeProperty("--carte-glissement-x");
     carte.style.removeProperty("--carte-glissement-y");
-    carte.classList.remove("est-tiree");
-    carte.classList.remove("tire-le-marqueur");
-    quandGeste?.(false);
+    carte.classList.remove("est-tiree", "tire-le-marqueur");
   };
 
   voile.addEventListener("pointerdown", (evenement) => {
@@ -247,9 +263,6 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     aGlisse = false;
     tireLeMarqueur = saisitLeMarqueur(vise);
     carte.classList.toggle("tire-le-marqueur", tireLeMarqueur);
-    // L'écran est prévenu **dès l'appui** : c'est à partir de là qu'un rendu
-    // détacherait le voile et tuerait le geste.
-    quandGeste?.(true);
   });
 
   voile.addEventListener("pointermove", (evenement) => {
@@ -259,12 +272,9 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     if (!aGlisse && Math.hypot(dx, dy) < GLISSEMENT_MINIMAL) return;
 
     aGlisse = true;
-    // La vue et les marqueurs suivent le doigt ; la vue se **repose** au
-    // relâchement. Sans ce retour, on tire dans le vide et l'on croit que le
-    // geste n'est pas pris.
-    //
-    // Quand on tire le marqueur, c'est **lui seul** qui bouge : déplacer la
-    // carte avec lui ferait un endroit qui ne bouge pas, ce qui est exactement
+    // La vue et le marqueur suivent le doigt ; la vue se **repose** au
+    // relâchement. Quand on tire le marqueur, c'est **lui seul** qui bouge :
+    // déplacer la carte avec lui ferait un endroit qui ne change pas, ce qui est
     // le contraire du geste.
     carte.classList.add("est-tiree");
     carte.style.setProperty("--carte-glissement-x", `${dx}px`);
@@ -282,9 +292,19 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     depart = null;
     relacher();
 
-    if (!glisse) return;
+    const { centre, zoom, point } = ou();
 
-    const { centre, zoom } = ou();
+    // **Un clic pose le premier marqueur.** Tant qu'il n'y en a aucun, il n'y a
+    // rien à tirer : la consigne le dit, et sans ce clic un projet sans point
+    // n'aurait aucun moyen d'en recevoir un. Une fois posé, il se déplace — un
+    // clic ailleurs ne le téléporte pas par mégarde.
+    if (!glisse) {
+      if (point) return;
+      const pose = pointADistance(centre, { dx: vise.dx, dy: vise.dy, zoom });
+      if (pose) quandPointee?.(pose);
+      return;
+    }
+
     if (marqueur) {
       const pose = pointADistance(centre, { dx: vise.dx, dy: vise.dy, zoom });
       if (pose) quandPointee?.(pose);
@@ -305,8 +325,6 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
    * crans en une seconde feraient douze appels dont onze pour rien. On attend
    * que la main s'arrête.
    */
-  let zoomVise = null;
-
   voile.addEventListener("wheel", (evenement) => {
     evenement.preventDefault();
 
@@ -317,8 +335,7 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     zoomVise = zoomBorne((zoomVise ?? depuis) + pas);
 
     // Le retour est immédiat, même si la vue arrive après : la vue déjà chargée
-    // est agrandie le temps qu'on redemande la bonne. Sans cela, on tourne la
-    // roulette et rien ne bouge pendant un quart de seconde.
+    // est agrandie le temps qu'on redemande la bonne.
     carte.style.setProperty("--carte-echelle", String(2 ** (zoomVise - depuis)));
     carte.classList.add("est-zoomee");
 
@@ -335,14 +352,8 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
 
   for (const bouton of carte.querySelectorAll("[data-carte-zoom]")) {
     bouton.addEventListener("click", () => {
-      const { zoom } = ou();
       const pas = bouton.getAttribute("data-carte-zoom") === "+" ? 1 : -1;
-      quandZoomee?.(zoomBorne(zoomBorne(zoom) + pas));
+      quandZoomee?.(zoomBorne(zoomBorne(ou().zoom) + pas));
     });
   }
-
-  carte.querySelector("[data-carte-poser]")?.addEventListener("click", () => {
-    const { centre } = ou();
-    if (centre) quandPointee?.({ latitude: centre.latitude, longitude: centre.longitude });
-  });
 }

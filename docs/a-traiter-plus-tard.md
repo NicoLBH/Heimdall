@@ -2275,3 +2275,97 @@ encore. L'ignorer lui ferait perdre sa commune.
    mieux, au prix d'une bibliothèque.
 3. **Les zonages en `site-constraint`** restent le doublon de
    [§ 24](#24-verser-les-contraintes-du-site).
+
+## 29. Une carte qu'on ne recrée pas
+
+Le défaut se voyait à l'œil nu : on tirait la carte, on relâchait, et **une page
+blanche s'allumait** avant que la vue satellite ne revienne. « Ça pique les
+yeux. » L'API Google fonctionne pourtant très bien toute seule — c'est nous qui
+cassions son fonctionnement.
+
+### D'où venait le clignotement
+
+L'écran redessinait son HTML à chaque changement d'état, et la carte était
+dessinée *dans* ce HTML. Réécrire l'écran détruisait donc l'`iframe` de la vue
+satellite ; le navigateur en recréait une, vide, et la rechargeait depuis zéro.
+Trois quarts de seconde de blanc, à chaque relâchement de la souris.
+
+Réinsérer le **même** nœud ne suffit pas : un navigateur recharge une `iframe`
+qu'on détache et rattache. Il fallait donc qu'elle ne soit **jamais** détachée.
+
+### Ce que ça change dans le composant
+
+`views/ui/carte-a-pointer.js` ne rend plus une chaîne de caractères. Il se lit en
+trois temps :
+
+| ce que c'est | quand |
+| --- | --- |
+| `creerLaCarteAPointer` | **une fois** : elle rend un élément, que l'écran garde |
+| `brancherLaCarteAPointer` | une fois, sur cet élément |
+| `majCarteAPointer` | à chaque changement : elle **patche** ce qui a bougé |
+
+La mise à jour ne touche à l'adresse de l'`iframe` **que lorsqu'elle change** :
+la réécrire à l'identique la rechargerait tout autant. Le marqueur se déplace en
+réécrivant sa transformation, les boutons de zoom s'allument ou s'éteignent, et
+rien d'autre n'est recréé.
+
+Les deux écrans qui la portent ont suivi la même règle : la coquille se dessine
+une fois, et les zones qui changent se repeignent l'une après l'autre autour
+d'une carte qui, elle, ne bouge pas de son conteneur. Réattacher **le même
+nœud** ne suffit pas non plus : la carte n'est rattachée que si elle ne l'est
+pas déjà, parce qu'un `appendChild` sur un enfant qu'on a déjà revient à le
+retirer puis à le remettre.
+
+### Une carte qu'on ne voyait pas, et un marqueur qu'on ne pouvait pas poser
+
+Trois défauts sont sortis du même changement, et tous les trois se voyaient dès
+l'ouverture de l'agent-d climatique.
+
+| ce qu'on voyait | pourquoi |
+| --- | --- |
+| pas de carte du tout | la localisation d'un projet enregistré **avant** la ligne à six colonnes n'a pas de coordonnées, et la carte n'avait rien à centrer |
+| deux marqueurs superposés | la vue était demandée en mode `place`, qui plante le marqueur de Google au point demandé — le sien, plus le nôtre |
+| l'écran noir après un glissement | l'écran se redessinait entièrement, ce qui détachait la carte |
+
+Le premier a demandé un appel de plus : le **centre de la commune**, d'après son
+code INSEE. C'est un endroit d'où regarder, et rien d'autre — aucun marqueur ne
+s'y pose, parce que le centre d'une commune n'est pas le projet (règle 5).
+
+Ce qui a fait apparaître le quatrième : sans marqueur, « tirez le marqueur » est
+une consigne qu'on ne peut pas suivre. Un **clic pose le premier**, et la
+consigne le dit ; une fois posé, il se déplace, et un clic ailleurs ne le
+téléporte plus par mégarde.
+
+### La commune, résolue depuis un point
+
+L'alerte « aucune commune trouvée à cet endroit » s'affichait presque toujours,
+et elle était fausse : à part en mer, un point français est dans une commune.
+On interrogeait la base **d'adresses** à l'envers — elle ne rend rien au milieu
+d'un champ, ce qui est exactement le cas qu'on voulait couvrir.
+
+La question se pose maintenant à la base des **communes**
+(`geo.api.gouv.fr/communes?lat=…&lon=…`), qui répond par le découpage
+administratif et non par le voisin le plus proche. Un projet dans un pré a donc
+son code INSEE, donc ses zonages.
+
+L'alerte, elle, n'est plus qu'une : elle s'affichait à la fois sur la carte, sous
+le champ et dans le bandeau, pour un seul et même échec.
+
+### Ce qui a été retiré
+
+Les phrases d'explication que l'écran répétait — « ce avec quoi le calcul
+part… », « un projet qui n'est pas encore construit n'a pas d'adresse… »,
+« Nouvel endroit posé. Cliquez sur Calculer ici… » —, le bouton « Poser le
+projet au centre », le marqueur bleu de l'ancien emplacement et la consigne
+d'attente qui lui allait avec. Le geste est devenu assez direct pour se passer
+de son mode d'emploi : on tire le marqueur, et le calcul suit.
+
+### Ce qui reste
+
+1. **La carte se repose toujours au relâchement.** Elle suit le doigt pendant
+   qu'on tire, et la vue est redemandée à la fin. Ce n'est plus visible — la
+   vue précédente reste à l'écran jusqu'à ce que la suivante soit prête —, mais
+   c'est encore une image fixe qu'on déplace, avec ses 280 px de marge. Une
+   vraie carte à tuiles ferait mieux, au prix d'une bibliothèque.
+2. **La hauteur du bâtiment**, toujours, comme au
+   [§ 28](#28-ce-qui-reste-en-cache-finit-par-mentir).

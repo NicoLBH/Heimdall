@@ -56,9 +56,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const embedUrl = new URL("https://www.google.com/maps/embed/v1/place");
+    // `view` et non `place` : le mode `place` plante le marqueur de Google au
+    // point demandé, et l'écran en montrait alors deux — le sien et le nôtre,
+    // superposés. La carte est une vue ; le marqueur appartient à l'application.
+    const embedUrl = new URL("https://www.google.com/maps/embed/v1/view");
     embedUrl.searchParams.set("key", googleMapsEmbedApiKey);
-    embedUrl.searchParams.set("q", `${latitude},${longitude}`);
+    embedUrl.searchParams.set("center", `${latitude},${longitude}`);
     embedUrl.searchParams.set("zoom", String(zoom));
     embedUrl.searchParams.set("maptype", mapType);
 

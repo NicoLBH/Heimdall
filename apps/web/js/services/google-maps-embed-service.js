@@ -32,9 +32,13 @@ export function buildGoogleMapsPlaceEmbedUrl({ latitude = null, longitude = null
 
   if (!key || !Number.isFinite(lat) || !Number.isFinite(lon)) return "";
 
-  const url = new URL("https://www.google.com/maps/embed/v1/place");
+  // **`view`, et non `place`.** Le mode `place` plante le marqueur de Google au
+  // point demandé : on en avait donc deux à l'écran, le sien et le nôtre, l'un
+  // sur l'autre. Le mode `view` ne montre que la carte — le marqueur est à nous,
+  // c'est nous qui le déplaçons, et lui seul dit où est le projet.
+  const url = new URL("https://www.google.com/maps/embed/v1/view");
   url.searchParams.set("key", key);
-  url.searchParams.set("q", `${lat},${lon}`);
+  url.searchParams.set("center", `${lat},${lon}`);
   url.searchParams.set("zoom", String(safeZoom));
   url.searchParams.set("maptype", String(mapType || "roadmap"));
   return url.toString();

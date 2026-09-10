@@ -1,6 +1,5 @@
 const COMMUNES_API_URL = "https://geo.api.gouv.fr/communes";
 const ADDRESS_API_URL = "https://api-adresse.data.gouv.fr/search/";
-const REVERSE_API_URL = "https://api-adresse.data.gouv.fr/reverse/";
 const IGN_COMPLETION_API_URL = "https://data.geopf.fr/geocodage/completion/";
 const IGN_ELEVATION_API_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
 const GEORISQUES_API_BASE = "https://www.georisques.gouv.fr/api/v1";
@@ -374,6 +373,44 @@ export async function resolveFrenchAddress(query = "") {
 }
 
 /**
+ * Le centre d'une commune, d'après son code INSEE.
+ *
+ * ## À quoi il sert
+ *
+ * À **regarder** une commune dont on n'a pas le point. Un projet enregistré
+ * avant que la localisation ne porte ses coordonnées n'a qu'une adresse et un
+ * code INSEE ; la carte n'avait alors rien à centrer, et l'écran restait noir —
+ * alors qu'on sait parfaitement où est la commune.
+ *
+ * ## Ce qu'il n'est pas
+ *
+ * Ce n'est **pas** le projet. Le centre d'une commune est un point de
+ * commodité — souvent le chef-lieu, parfois un champ —, et l'écrire comme
+ * localisation ferait entrer en mémoire un endroit que personne n'a désigné
+ * (règle 5). Il sert à poser le regard, et le marqueur reste absent tant que
+ * quelqu'un n'a pas dit où était le terrain.
+ *
+ * @returns {Promise<{latitude: number, longitude: number}|null>}
+ */
+export async function centreDeLaCommune(codeInsee = "") {
+  const code = safeString(codeInsee);
+  if (!code) return null;
+
+  try {
+    const url = `${COMMUNES_API_URL}/${encodeURIComponent(code)}?fields=centre&format=json`;
+    const commune = await fetchJson(url);
+    const coords = toCoordsFromGeometry(commune?.centre);
+    return Number.isFinite(coords?.lat) && Number.isFinite(coords?.lon)
+      ? { latitude: coords.lat, longitude: coords.lon }
+      : null;
+  } catch {
+    // Une carte qu'on ne sait pas centrer n'est pas une panne : l'écran s'en
+    // passe, et le reste du calcul ne dépend pas d'elle.
+    return null;
+  }
+}
+
+/**
  * La commune d'un point, à l'envers : des coordonnées vers un code INSEE.
  *
  * ## Pourquoi il fallait ce sens-là
@@ -384,11 +421,19 @@ export async function resolveFrenchAddress(query = "") {
  * sans code INSEE, aucune table de zonage ne se lit : il n'aurait eu ni neige,
  * ni vent, ni cote hors gel.
  *
- * Le service rend l'adresse la plus proche. On garde sa commune, son code INSEE
- * et son code postal — pas son adresse : la maison d'à côté n'est pas le projet,
- * et l'écrire reviendrait à inventer une adresse que personne n'a constatée
- * (règle 5). Les coordonnées rendues sont **celles qu'on a demandées**, pas
- * celles de l'adresse trouvée.
+ * ## Pourquoi la base des communes, et non celle des adresses
+ *
+ * Le premier essai interrogeait le service d'**adresses** à l'envers. Il rend
+ * l'adresse la plus proche — et au milieu d'un champ, il n'y en a aucune dans
+ * son rayon de recherche : il répondait donc « aucune commune trouvée à cet
+ * endroit », ce qui est faux partout sauf en mer. C'était le cas d'usage même
+ * pour lequel cet appel existe.
+ *
+ * La base des communes, elle, répond par **découpage administratif** : tout
+ * point de terre française tombe dans une commune, et il n'y en a qu'une. Elle
+ * ne rend pas d'adresse, et c'est très bien : la maison d'à côté n'est pas le
+ * projet, et l'écrire reviendrait à inventer un fait que personne n'a constaté
+ * (règle 5).
  */
 export async function resolveFrenchCoordinates({ latitude = null, longitude = null } = {}) {
   const lat = toNumber(latitude);
@@ -398,24 +443,30 @@ export async function resolveFrenchCoordinates({ latitude = null, longitude = nu
     throw new Error("Coordonnées latitude / longitude requises.");
   }
 
-  const searchParams = new URLSearchParams({ lat: String(lat), lon: String(lon), limit: "1" });
-  const url = `${REVERSE_API_URL}?${searchParams.toString()}`;
+  const searchParams = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    fields: "nom,code,codesPostaux",
+    format: "json"
+  });
+
+  const url = `${COMMUNES_API_URL}?${searchParams.toString()}`;
   const results = await fetchJson(url);
-  const feature = Array.isArray(results?.features) ? results.features[0] : null;
+  const commune = Array.isArray(results) ? results[0] : null;
 
-  if (!feature) {
-    throw new Error("Aucune commune trouvée à cet endroit.");
+  if (!commune) {
+    // Hors de France, ou en mer. Le dire ainsi plutôt que « aucune commune
+    // trouvée » : la phrase précédente laissait croire à une panne du service.
+    throw new Error("Ce point n'est dans aucune commune française.");
   }
-
-  const properties = feature.properties || {};
 
   return {
     // Vide, et non l'adresse voisine : le projet n'en a pas, et lui en prêter
     // une ferait entrer en mémoire un fait que personne n'a constaté.
     address: "",
-    city: safeString(properties.city),
-    postalCode: safeString(properties.postcode),
-    codeInsee: safeString(properties.citycode),
+    city: safeString(commune?.nom),
+    postalCode: safeString(commune?.codesPostaux?.[0]),
+    codeInsee: safeString(commune?.code),
     lat,
     lon,
     sourceUrl: url
