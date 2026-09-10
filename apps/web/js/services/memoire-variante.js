@@ -229,10 +229,58 @@ export function valeursSubstituables(assertions = []) {
       // qu'elle-même : sa valeur est « 12 lignes », et faire varier « 12 lignes »
       // ne veut rien dire. C'est ce qui rend la contrainte de sol atteignable.
       const champs = champsDunTableau(assertion);
-      return champs.length
-        ? champs.map((champ) => entreeDunChamp(assertion, champ))
-        : [entreeDuneValeur(assertion)];
+      if (!champs.length) return [entreeDuneValeur(assertion)];
+
+      const entrees = champs.map((champ) => entreeDunChamp(assertion, champ));
+
+      // Sauf quand le tableau se déclare **en bloc** : ses colonnes ne sont pas
+      // des faits indépendants. La localisation en est le cas — personne ne veut
+      // « faire varier une latitude », on veut déplacer le projet —, et l'écran
+      // offrait six choix dont cinq n'ont aucun sens seuls. On ajoute alors la
+      // ligne entière, et l'écran ne montre qu'elle.
+      //
+      // Les colonnes restent dans la liste : ce sont **elles** qu'on substitue,
+      // toutes ensemble, et le rejeu refuserait un identifiant qu'il n'a pas
+      // proposé. Voir `views/memoire/ecran-variante.js`, qui les replie.
+      return varieEnBloc(assertion) ? [entreeDuBloc(assertion, entrees), ...entrees] : entrees;
     });
+}
+
+/**
+ * Vrai quand un tableau se fait varier d'un seul tenant.
+ *
+ * Lu sur la **structure**, jamais sur le nom du sujet : la déclaration voyage
+ * avec la ligne versée, et l'écran n'a aucun nom à connaître. Toutes les
+ * colonnes doivent le dire — une seule qui ne le dirait pas serait un fait
+ * indépendant, et le tableau se choisirait alors colonne par colonne.
+ */
+export function varieEnBloc(assertion = null) {
+  const structure = structureDuTableau(assertion);
+  const colonnes = Array.isArray(structure) ? champsAvecCle(structure) : [];
+  return colonnes.length > 0 && colonnes.every((colonne) => colonne?.enBloc === true);
+}
+
+/**
+ * La ligne entière d'un tableau qui se fait varier d'un bloc.
+ *
+ * Elle porte l'identifiant de l'affirmation — sans `#colonne` —, ce qui la
+ * distingue de ses colonnes sans rien inventer. Sa valeur est la phrase que la
+ * mémoire écrit : « Saint-Michel-Chef-Chef (44730, INSEE 44182) », qui se lit,
+ * là où « 47,194756 » ne se lit pas.
+ */
+function entreeDuBloc(assertion, colonnes = []) {
+  return {
+    id: idDe(assertion),
+    assertion,
+    // Le marqueur que l'écran lit pour replier les colonnes sous cette ligne.
+    enBloc: true,
+    colonnes: colonnes.map((entree) => entree.id),
+    sujet: texte(assertion?.payload?.subject),
+    valeur: mesureEnFrancais(assertion?.payload?.value),
+    zones: zonesLisibles(assertion),
+    quoi: descriptionDeLaValeur(assertion),
+    nature: classifyAssertion(assertion).nature
+  };
 }
 
 /** Une valeur du socle, telle que l'écran la propose. */

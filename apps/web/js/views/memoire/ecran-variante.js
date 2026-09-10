@@ -46,7 +46,8 @@ import { colonneNommee, sensDeLaValeur, pireEcart, margeDeclaree } from "../../s
 import { enchainementDeLaVariante } from "../../services/variante-enchainement.js";
 import { renderEnchainement, SENS } from "../ui/enchainement.js";
 import { renderSaisieAdresse } from "../ui/saisie-adresse.js";
-import { colonneDeLaLocalisation } from "../../services/adresse-saisie.js";
+import { estLaLocalisation } from "../../services/adresse-saisie.js";
+import { champDeLIdentifiant } from "../../services/tableau-structure.js";
 import { valeursTrouvees } from "../../services/recherche-de-valeur.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -450,6 +451,20 @@ function renderARevoir(ligne) {
  * Le premier rang : ce qu'on essaie
  * ────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Vrai quand cette entrée est une colonne repliée sous sa ligne.
+ *
+ * On ne la reconnaît pas à son nom : on regarde si une **ligne en bloc** de la
+ * même affirmation est offerte à côté. Sans cette précaution, un tableau dont la
+ * ligne entière n'aurait pas été proposée verrait ses colonnes disparaître, et
+ * l'on ne pourrait plus rien y faire varier du tout.
+ */
+function colonneRepliee(valeur, toutes) {
+  if (!valeur?.champ) return false;
+  const porteuse = champDeLIdentifiant(texte(valeur.id)).id;
+  return toutes.some((autre) => autre?.enBloc && texte(autre.id) === porteuse);
+}
+
 /** La colonne de gauche : le socle, cherchable. */
 function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
   const filtre = texte(cherche);
@@ -457,7 +472,11 @@ function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
   // description — dans cet ordre. C'est ce qui fait que « localisation » ramène
   // les six colonnes d'un endroit dont aucune ne s'appelle ainsi, et que
   // « GPS » les ramène aussi. Voir `services/recherche-de-valeur.js`.
-  const retenues = valeursTrouvees(valeurs, filtre);
+  // Les colonnes d'un tableau qui varie **en bloc** ne se proposent pas : c'est
+  // la ligne entière qui se choisit. On offrait six valeurs pour la localisation
+  // — commune, code INSEE, code postal, adresse, latitude, longitude —, dont
+  // cinq n'ont aucun sens seules. Voir `services/memoire-variante.js`.
+  const retenues = valeursTrouvees(valeurs, filtre).filter((valeur) => !colonneRepliee(valeur, valeurs));
 
   return `
     <section class="variante-colonne">
@@ -501,9 +520,18 @@ function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", por
         nom: SAISIE_DE_LA_VARIANTE,
         label: "",
         valeur: "",
-        placeholder: "Ex. 12 avenue de la Gare, Annecy",
+        placeholder: "Une adresse, ou seulement la commune…",
         desactive: calcule
       })}
+      <!-- Le même lien, la même fenêtre que dans Paramètres > Localisation :
+           un terrain qui n'est pas construit n'a pas d'adresse, et c'est sur une
+           vue satellite qu'on le reconnaît. -->
+      <p class="settings-lien-approfondi settings-lien-approfondi--variante">
+        <button type="button" class="gh-lien" data-variante-carte ${calcule ? "disabled" : ""}>
+          ${svgIcon("location", { className: "octicon" })}
+          <span>Ouvrir la recherche approfondie de localisation</span>
+        </button>
+      </p>
       <input type="hidden" data-variante-valeur value="${escapeHtml(saisie)}"
         data-variante-colonne="${escapeHtml(colonne)}">
       ${
@@ -522,11 +550,11 @@ function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", por
       <small>
         ${
           portees.length
-            ? `Le projet est <b>déplacé</b> : c'est la ligne entière de sa localisation
-               qu'on remplace, et non la seule colonne « ${escapeHtml(choisie.sujet)} ».`
-            : `Choisissez une adresse : c'est la <b>ligne entière</b> de la localisation qu'elle
-               remplacera — commune, code INSEE, code postal, adresse et point. Changer l'adresse
-               d'un projet, c'est le déplacer.`
+            ? `Le projet est <b>déplacé</b> : commune, code INSEE, code postal, adresse et point
+               se remplacent ensemble. Un endroit ne se change pas par morceaux.`
+            : `Choisissez une adresse, ou allez pointer le terrain sur la carte. C'est
+               <b>l'endroit entier</b> qui se remplace — changer l'adresse d'un projet, c'est le
+               déplacer.`
         }
       </small>
     </div>
@@ -551,7 +579,7 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
   const unite = uniteImposee(choisie.valeur);
   // Vide dès que ce n'est pas une colonne de la localisation, c'est-à-dire
   // presque toujours : le champ ordinaire reste le champ ordinaire.
-  const colonne = colonneDeLaLocalisation(choisie);
+  const colonne = estLaLocalisation(choisie) ? "localisation" : "";
 
   return `
     <section class="variante-colonne">

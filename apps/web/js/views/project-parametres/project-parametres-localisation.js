@@ -1310,7 +1310,7 @@ export function renderLocalisationParametresContent() {
           <p class="settings-lien-approfondi">
             <button type="button" class="gh-lien" data-localisation-approfondie>
               ${svgIcon("location", { className: "octicon" })}
-              Ouvrir la recherche approfondie de localisation
+              <span>Ouvrir la recherche approfondie de localisation</span>
             </button>
           </p>
           <div class="form-row form-row--settings">

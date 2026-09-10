@@ -16,10 +16,17 @@
  * par-dessus, on écoute les gestes **dessus**, et l'on recalcule le centre
  * nous-mêmes — `services/carte-pointee.js` fait les mathématiques.
  *
- * La conséquence est visible et assumée : la carte ne glisse pas sous le doigt.
- * Elle se **repose** au relâchement, parce qu'un `iframe` se recharge à chaque
- * changement de centre et qu'un rechargement par pixel donnerait un clignotement
- * continu. Le voile, lui, suit le doigt : on voit où l'on va pendant qu'on tire.
+ * ## Elle suit le doigt, et se repose au relâchement
+ *
+ * Pendant qu'on tire, la vue satellite et les marqueurs sont **déplacés en
+ * bloc** par une transformation CSS : l'image suit la souris, comme sur
+ * n'importe quelle carte. C'est un déplacement de ce qui est déjà chargé — les
+ * bords découvrent du vide, et c'est visible.
+ *
+ * Au relâchement, le centre est recalculé et la vue redemandée. On ne peut pas
+ * faire autrement : une `iframe` se recharge à chaque changement de centre, et
+ * un rechargement par pixel donnerait un clignotement continu. Le viseur, lui,
+ * ne bouge jamais : il marque le centre de l'écran, pas un endroit.
  *
  * ## Ce qu'elle ne fait pas
  *
@@ -42,6 +49,23 @@ const APPUI_LONG = 500;
 const GLISSEMENT_MINIMAL = 6;
 
 /**
+ * Un marqueur, posé **par la pointe** au décalage donné.
+ *
+ * `null` quand le point sort du cadre ou n'existe pas : le coller au bord ferait
+ * croire que le projet est là.
+ */
+function renderMarqueur(decalage, { ancien = false } = {}) {
+  if (!decalage) return "";
+
+  return `
+    <div class="carte-pointee__marqueur${ancien ? " carte-pointee__marqueur--ancien" : ""}"
+      style="transform:translate(calc(-50% + ${decalage.dx.toFixed(1)}px), calc(-100% + ${decalage.dy.toFixed(1)}px));">
+      ${svgIcon("location", { className: "octicon" })}
+    </div>
+  `;
+}
+
+/**
  * La carte, en HTML.
  *
  * @param {object} options
@@ -54,16 +78,22 @@ const GLISSEMENT_MINIMAL = 6;
  * @param {string} [options.hauteur]
  */
 export function renderCarteAPointer({
-  nom, centre = null, point = null, zoom = 14,
+  nom, centre = null, point = null, pointAncien = null, zoom = 14,
   embedUrl = "", chargement = false, hauteur = "420px"
 } = {}) {
   const cle = escapeHtml(String(nom ?? ""));
   const niveau = zoomBorne(zoom);
 
-  // Le marqueur se dessine **où il est**, pas au milieu de l'écran : c'est ce
-  // qui permet de s'éloigner pour se resituer sans croire que le projet suit.
+  // Les marqueurs se dessinent **où ils sont**, pas au milieu de l'écran : c'est
+  // ce qui permet de s'éloigner pour se resituer sans croire que le projet suit.
   const decalage = pixelsDepuisLeCentre(centre, point, { zoom: niveau });
-  const memeQueLeCentre = decalage && Math.abs(decalage.dx) < 0.5 && Math.abs(decalage.dy) < 0.5;
+  const ancien = pixelsDepuisLeCentre(centre, pointAncien, { zoom: niveau });
+
+  // Deux marqueurs rouges de la même taille, et l'on ne sait plus lequel est le
+  // projet. Celui d'avant passe donc en **bleu, plus petit, translucide**, et
+  // celui qu'on vient de poser prend le rouge et la taille : on voit d'un coup
+  // d'œil ce qui remplace quoi, et qu'il reste un geste à faire.
+  const enAttente = Boolean(decalage && ancien);
 
   return `
     <div class="carte-pointee" data-carte-pointee="${cle}" style="height:${escapeHtml(hauteur)};">
@@ -85,21 +115,13 @@ export function renderCarteAPointer({
         <div class="carte-pointee__viseur" aria-hidden="true">
           ${svgIcon("plus", { className: "octicon" })}
         </div>
-        ${
-          decalage && !memeQueLeCentre
-            ? `<div class="carte-pointee__marqueur" aria-hidden="true"
-                 style="transform:translate(calc(-50% + ${decalage.dx.toFixed(1)}px), calc(-100% + ${decalage.dy.toFixed(1)}px));">
-                 ${svgIcon("location", { className: "octicon" })}
-               </div>`
-            : ""
-        }
-        ${
-          memeQueLeCentre
-            ? `<div class="carte-pointee__marqueur carte-pointee__marqueur--centre" aria-hidden="true">
-                 ${svgIcon("location", { className: "octicon" })}
-               </div>`
-            : ""
-        }
+        <!-- Les marqueurs vivent dans une couche qui **suit le doigt** pendant
+             qu'on tire, comme le fond. Le viseur, lui, reste au centre de
+             l'écran : c'est son rôle. -->
+        <div class="carte-pointee__pins" aria-hidden="true">
+          ${renderMarqueur(ancien, { ancien: true })}
+          ${renderMarqueur(decalage, { ancien: false })}
+        </div>
       </div>
 
       <div class="carte-pointee__zoom">
@@ -109,13 +131,20 @@ export function renderCarteAPointer({
           ${niveau <= ZOOM_MIN ? "disabled" : ""} aria-label="Dézoomer">−</button>
       </div>
 
-      <p class="carte-pointee__mode">
-        ${svgIcon("beaker", { className: "octicon" })}
+      <p class="carte-pointee__mode${enAttente ? " carte-pointee__mode--attente" : ""}">
+        ${svgIcon(enAttente ? "alert" : "beaker", { className: "octicon" })}
         <!-- La phrase dans un span : sans lui, chaque nœud devient un élément
              de la boîte flexible, et « appuyez longuement » se retrouve dans sa
              propre colonne au milieu du reste. -->
-        <span>Déplacez la carte, puis <b>appuyez longuement</b> sur le terrain — ou posez le
-        projet au centre du viseur.</span>
+        <span>${
+          // Une fois le point posé, la consigne d'avant ne sert plus : elle
+          // décrit un geste qu'on vient de faire, pendant que celui qui reste à
+          // faire n'est écrit nulle part.
+          enAttente
+            ? `Nouvel endroit posé. Cliquez sur <b>« Calculer ici »</b> pour actualiser les valeurs.`
+            : `Déplacez la carte, puis <b>appuyez longuement</b> sur le terrain — ou posez le
+               projet au centre du viseur.`
+        }</span>
       </p>
 
       <button type="button" class="gh-btn gh-btn--sm carte-pointee__poser" data-carte-poser>
@@ -137,8 +166,13 @@ export function renderCarteAPointer({
  * @param {Function} options.quandDeplacee reçoit le nouveau centre
  * @param {Function} options.quandPointee reçoit le point posé
  * @param {Function} [options.quandZoomee] reçoit le nouveau zoom
+ * @param {Function} [options.quandGeste] `true` quand un geste commence, `false`
+ *   quand il finit. **À écouter** : un écran qui se redessine au milieu d'un
+ *   glissement remplace le voile, et le geste meurt sur un nœud détaché — la
+ *   carte reste alors immobile sous le doigt sans qu'on sache pourquoi. Une
+ *   lecture différée qui rappelle son écran suffit à le provoquer.
  */
-export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quandPointee, quandZoomee } = {}) {
+export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quandPointee, quandZoomee, quandGeste } = {}) {
   const cle = String(nom ?? "");
   const voile = racine?.querySelector(`[data-carte-voile="${cle}"]`);
   const carte = racine?.querySelector(`[data-carte-pointee="${cle}"]`);
@@ -151,11 +185,16 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
   let minuterie = null;
   let aGlisse = false;
 
+  // La transformation se pose sur la **carte**, et non sur le voile : c'est le
+  // fond et les marqueurs qui doivent suivre le doigt, pas le viseur, qui marque
+  // le centre de l'écran. Les poser sur le voile faisait glisser le viseur avec
+  // eux, et l'on ne savait plus où l'on allait poser.
   const relacher = () => {
     if (minuterie) { clearTimeout(minuterie); minuterie = null; }
-    voile.style.removeProperty("--carte-glissement-x");
-    voile.style.removeProperty("--carte-glissement-y");
-    voile.classList.remove("est-tiree");
+    carte.style.removeProperty("--carte-glissement-x");
+    carte.style.removeProperty("--carte-glissement-y");
+    carte.classList.remove("est-tiree");
+    quandGeste?.(false);
   };
 
   voile.addEventListener("pointerdown", (evenement) => {
@@ -174,6 +213,9 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
       dy: evenement.clientY - (cadre.top + cadre.height / 2)
     };
     aGlisse = false;
+    // L'écran est prévenu **dès l'appui** : c'est à partir de là qu'un rendu
+    // détacherait le voile et tuerait le geste.
+    quandGeste?.(true);
 
     minuterie = setTimeout(() => {
       minuterie = null;
@@ -199,11 +241,12 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
 
     aGlisse = true;
     if (minuterie) { clearTimeout(minuterie); minuterie = null; }
-    // Le voile suit le doigt pendant qu'on tire : la carte, elle, se repose au
-    // relâchement. Sans ce retour, on ne sait pas si le geste est pris.
-    voile.classList.add("est-tiree");
-    voile.style.setProperty("--carte-glissement-x", `${dx}px`);
-    voile.style.setProperty("--carte-glissement-y", `${dy}px`);
+    // La vue et les marqueurs suivent le doigt ; la vue se **repose** au
+    // relâchement. Sans ce retour, on tire dans le vide et l'on croit que le
+    // geste n'est pas pris.
+    carte.classList.add("est-tiree");
+    carte.style.setProperty("--carte-glissement-x", `${dx}px`);
+    carte.style.setProperty("--carte-glissement-y", `${dy}px`);
   });
 
   const finir = (evenement) => {

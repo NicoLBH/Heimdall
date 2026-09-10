@@ -73,9 +73,11 @@ function renderFenetre(etat) {
 
         ${renderCarteAPointer({
           nom: CARTE, centre, zoom, embedUrl: mapUrl, chargement: mapLoading,
-          point: retenue && nombreOuRien(retenue.latitude) !== null
-            ? { latitude: nombreOuRien(retenue.latitude), longitude: nombreOuRien(retenue.longitude) }
-            : null,
+          point: pointDe(retenue),
+          // Celui d'où l'on part, en bleu et plus petit — mais seulement quand
+          // il n'est plus celui qu'on retient : deux marqueurs au même endroit
+          // se recouvrent et l'on n'en voit qu'un.
+          pointAncien: pointDe(retenue) ? pointDe(depart) : null,
           hauteur: "380px"
         })}
 
@@ -128,7 +130,9 @@ export async function chercherUneLocalisation({ depart = null } = {}) {
     retenue: depart && localisationCalculable(depart) ? { ...depart } : null,
     centre: pointDe(depart),
     zoom: pointDe(depart) ? ZOOM_PARCELLE : ZOOM_COMMUNE,
-    mapUrl: "", mapCle: "", mapLoading: false, echec: "", occupee: false
+    mapUrl: "", mapCle: "", mapLoading: false, echec: "", occupee: false,
+    /** Vrai le temps d'un geste sur la carte : la fenêtre ne se redessine pas. */
+    geste: false, renduEnRetard: false
   };
 
   return new Promise((resoudre) => {
@@ -149,6 +153,11 @@ export async function chercherUneLocalisation({ depart = null } = {}) {
     document.addEventListener("keydown", auClavier);
 
     const dessiner = () => {
+      // Pas pendant un geste sur la carte : redessiner remplacerait le voile, et
+      // le glissement mourrait sur un nœud détaché.
+      if (etat.geste) { etat.renduEnRetard = true; return; }
+      etat.renduEnRetard = false;
+
       hote.innerHTML = renderFenetre(etat);
 
       for (const bouton of hote.querySelectorAll("[data-recherche-annuler]")) {
@@ -175,6 +184,10 @@ export async function chercherUneLocalisation({ depart = null } = {}) {
       brancherLaCarteAPointer(hote, {
         nom: CARTE,
         etat: () => ({ centre: etat.centre, point: pointDe(etat.retenue), zoom: etat.zoom }),
+        quandGeste: (enCours) => {
+          etat.geste = enCours;
+          if (!enCours && etat.renduEnRetard) dessiner();
+        },
         quandDeplacee: (centre) => { etat.centre = centre; dessiner(); void rafraichirLaCarte(etat, dessiner); },
         quandZoomee: (zoom) => { etat.zoom = zoomBorne(zoom); dessiner(); void rafraichirLaCarte(etat, dessiner); },
         quandPointee: (point) => { void poser(etat, point, dessiner); }

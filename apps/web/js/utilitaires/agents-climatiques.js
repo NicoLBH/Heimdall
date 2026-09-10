@@ -84,37 +84,54 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
  * Les coordonnées sont donc **des colonnes de la même ligne**, au même titre que
  * la commune. Deux formes d'un même fait, pas deux faits : l'adresse peut
  * manquer, le point peut manquer, la ligne existe dès que l'un des deux est là.
+ *
+ * ## `enBloc` : six colonnes, **une** valeur
+ *
+ * Un tableau offre d'ordinaire ses colonnes une par une : c'est ce qui rend la
+ * contrainte de sol d'un tableau de fondations atteignable, et c'est juste —
+ * chaque colonne y est un fait indépendant.
+ *
+ * La localisation ne marche pas comme cela. Personne ne veut « faire varier une
+ * latitude » : on veut *déplacer le projet*. L'écran de variante offrait donc
+ * six valeurs pour un seul choix, dont cinq n'ont aucun sens seules — un code
+ * INSEE sans sa commune, une longitude sans sa latitude. Et changer l'une sans
+ * les autres décrit un endroit qui n'existe pas.
+ *
+ * `enBloc` le dit : ces colonnes ne se font pas varier séparément. Elles se
+ * proposent comme **une** valeur, qui se remplace d'un coup. La déclaration vit
+ * dans la structure, donc elle voyage avec la ligne versée, et l'écran n'a aucun
+ * nom de sujet à connaître.
  */
 export const SUJET_LOCALISATION = "Localisation du projet";
 
 export const STRUCTURE_DE_LA_LOCALISATION = [
   {
-    nom: "commune", cle: "commune", type: "texte",
+    nom: "commune", enBloc: true, cle: "commune", type: "texte",
     quoi: "Le nom de la commune, tel qu'on le lit. Il sert à relire ce qui a été calculé ; "
       + "ce n'est pas lui qui décide — deux communes peuvent le partager."
   },
   {
-    nom: "code INSEE", cle: "codeInsee", type: "texte",
+    nom: "code INSEE", enBloc: true, cle: "codeInsee", type: "texte",
     quoi: "Les cinq chiffres qui désignent la commune sans ambiguïté. C'est par lui que les "
       + "tables de zonage se lisent, et rien ne se calcule sans lui."
   },
   {
-    nom: "code postal", cle: "codePostal", type: "texte",
+    nom: "code postal", enBloc: true, cle: "codePostal", type: "texte",
     quoi: "Le code postal. Ses deux premiers chiffres donnent le département, dont dépend le "
       + "H0 de la table du NF DTU 13.1."
   },
   {
-    nom: "adresse", cle: "adresse", type: "texte",
+    nom: "adresse", enBloc: true, cle: "adresse", type: "texte",
     quoi: "L'adresse du projet, quand il en a une. Elle ne décide de rien dans les zonages : "
       + "elle situe. Un projet qui n'est pas construit n'en a pas, et c'est le point qui le situe."
   },
   {
-    nom: "latitude", cle: "latitude", type: "nombre",
+    nom: "latitude", enBloc: true, cle: "latitude", type: "nombre",
     quoi: "La latitude du point retenu, en degrés décimaux. C'est elle qui situe le projet "
       + "au mètre près — une commune fait des kilomètres, et le relief change dedans."
   },
   {
-    nom: "longitude", cle: "longitude", type: "nombre",
+    nom: "longitude", enBloc: true, cle: "longitude", type: "nombre",
     quoi: "La longitude du point retenu, en degrés décimaux. Avec la latitude, elle donne "
       + "l'altitude, et elle dit qu'un projet a bougé même sans changer de commune."
   }
