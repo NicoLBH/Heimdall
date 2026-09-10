@@ -22271,6 +22271,37 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
   border-right:1px solid rgba(139,148,158,.16);
 }
 .cerveau__rail[hidden]{ display:none; }
+/* Deux rendus d'une même sélection : la liste, et le cerveau. Accolés, parce
+   qu'ils ne sont pas deux actions mais deux façons de regarder la même chose —
+   séparés, on aurait lu le second comme un outil de plus, et l'on n'aurait pas
+   su que le dessin obéit au même filtre. */
+.memory-bascule{ display:inline-flex; }
+.memory-bascule__part{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 12px; border:1px solid var(--border);
+  background:var(--btn-bg, transparent); color:var(--text);
+  font:inherit; font-size:12px; font-weight:500; cursor:pointer;
+}
+.memory-bascule__part:first-child{ border-radius:6px 0 0 6px; }
+.memory-bascule__part:last-child{ border-radius:0 6px 6px 0; margin-left:-1px; }
+.memory-bascule__part:hover:not(:disabled){ background:rgba(110,118,129,.12); }
+/* Celle qu'on regarde. Enfoncée, et non colorée : ce n'est pas un état
+   d'alerte, c'est « vous êtes ici ». */
+.memory-bascule__part.is-active{
+  background:rgba(110,118,129,.18); color:var(--text); font-weight:600; cursor:default;
+}
+.memory-bascule__part:disabled:not(.is-active){ opacity:.5; cursor:not-allowed; }
+
+/* Ce que le cerveau montre, quand il ne montre pas tout. Ambre, comme tout ce
+   qui restreint : un dessin filtré n'est pas le projet, et le lire pour le
+   projet ferait chercher longtemps ce qui manque. */
+.cerveau__selection{
+  display:flex; gap:6px; margin:0;
+  color:#d29922; font-size:12px; line-height:1.5;
+}
+.cerveau__selection b{ color:var(--text); font-weight:600; }
+.cerveau__selection .octicon{ flex:0 0 auto; margin-top:2px; }
+
 .cerveau__filet{ margin:2px 0; border:0; border-top:1px solid rgba(139,148,158,.14); }
 .cerveau__tete > b{ display:inline-flex; align-items:center; gap:8px; font-size:15px; }
 .cerveau__compte{ color:var(--muted); font-size:12.5px; }

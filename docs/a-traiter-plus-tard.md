@@ -52,10 +52,20 @@ pas après.
 | 7 | Un modèle rédige le titre et le corps d'une proposition — *fait* | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
 | 8 | Le modèle des décisions — *fait* | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
 | 9 | Le modèle des raisonnements — *le rejeu s'arrête sur un choix* | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
-| 10 | Le cerveau, requalifié et filtré | la mémoire et les raisonnements, vus ensemble | [§ 22](#22-le-cerveau-requalifié) |
+| 10 | Le cerveau, requalifié et filtré — *fait* | la mémoire et les raisonnements, vus ensemble | [§ 22](#22-le-cerveau-requalifié) |
 
 [§ 23](#23-incendie-habitation-finir) — *incendie habitation* — ne dépend de rien
 et ne bloque rien : elle se glisse entre deux étapes, quand on veut souffler.
+
+**Les dix sont passées.** Chacune porte son **État** et, sous lui, ce qu'elle a
+posé et **ce qui reste** — nommé, jamais tu. Ce qui reste n'est pas un reliquat
+qu'on aurait laissé filer : ce sont les endroits où finir demandait une décision
+qu'on n'avait pas encore prise, et chacun dit laquelle. Les plus gros, pour
+mémoire : le copilote ne repère pas encore les décisions dans les comptes rendus
+([§ 15](#15-ce-quest-une-décision)) ; un raisonnement ne se verse pas
+([§ 16](#16-ce-quest-un-raisonnement)) ; la branche sismique ne se rejoue pas
+([§ 21](#21-la-cascade-parallèle-la-démonstration)) ; et « verser les contraintes
+du site » écrit encore directement ([§ 24](#24-verser-les-contraintes-du-site)).
 
 ---
 
@@ -1796,6 +1806,9 @@ retranché le jour où le schéma s'élargit.
 
 ## 22. Le cerveau, requalifié
 
+**État :** fait pour le filtre et la bascule. Le cerveau ne connaît toujours pas
+les natures — voir « Ce qui reste ».
+
 Le cerveau a bien sa place dans la Mémoire, mais il est mal nommé dans les têtes :
 ce n'est pas une vue de la mémoire, c'est **le cerveau du projet — mémoire plus
 raisonnements**. Il prendra tout son sens quand les décisions et les
@@ -1813,6 +1826,65 @@ Deux manques, et ils vont ensemble :
 
 **Un seul état de filtrage, deux rendus.** Deux filtres finiraient par diverger
 (règle 4), et l'on croirait voir la même chose sans la voir.
+
+### Ce que l'étape a posé
+
+**L'état unique existait déjà, et le cerveau l'ignorait.** `view.query` porte
+tout le filtrage — `nature:`, `domaine:`, `provenance:`, `etat:`, le texte
+libre —, et le rail de gauche n'est pas un second état : il **écrit** dans la
+requête et se rallume en la relisant. Le cerveau, lui, recevait la mémoire
+entière pendant que la liste juste derrière n'en montrait que douze lignes.
+Deux rendus, deux contenus, et rien à l'écran pour dire lequel disait vrai.
+
+`services/memoire-selection.js` écrit la sélection **une fois** ; la liste et le
+cerveau la lisent. Le calque d'une variante reste dehors et se pose avant, sur la
+liste qu'on donne en entrée : la liste lit une mémoire avec calque, le cerveau
+lit la mémoire réelle — dessiner un raisonnement qu'on sait faux ne dirait rien
+de vrai.
+
+**Un champ mort est parti avec.** `view.reader` était déclaré, jamais lu, jamais
+écrit : exactement le second état de filtrage que cette section interdit. Il
+n'attendait qu'une main pour être « réutilisé ».
+
+**Le cerveau dit ce qu'il montre.** Un dessin de douze nœuds sans prévenir qu'un
+filtre est posé ferait croire à un projet de douze affirmations, et l'on
+chercherait longtemps ce qui manque (règle 5). Les mots sont ceux de la barre de
+recherche — une deuxième façon de nommer les mêmes filtres finirait par ne plus
+dire la même chose.
+
+**Le vide ne ment plus.** « Ce projet ne porte encore aucune affirmation » était
+vrai tant que le cerveau recevait tout ; la même phrase sous un filtre aurait
+fait chercher le défaut dans le projet plutôt que dans la requête. Il dit
+maintenant à quoi rien ne répond.
+
+**La bascule est une bascule, et non un bouton de plus.** Deux moitiés accolées,
+celle qu'on regarde marquée : la liste pour lire, le cerveau pour voir. Un bouton
+isolé entre Exporter et Verser le faisait lire comme un outil, et l'on ne
+pouvait pas deviner que le dessin obéit au même filtre.
+
+**Une phrase de l'usage était devenue fausse** : « voir le raisonnement **en
+entier** » ne décrit plus ce que le bouton fait. Elle vit à un seul endroit —
+`services/usages-du-rejeu.js` —, et c'est ce qui a permis de la corriger une
+fois.
+
+### Ce qui reste
+
+**Le cerveau ne connaît pas les natures.** Il colore par `NOEUD.SOCLE /
+REJOUABLE / OPAQUE` — la **provenance** d'une valeur — et sépare par
+`GENRE.VALEUR / FONCTION`. Il n'a jamais entendu parler de `NATURE.DECISION` ni
+de `NATURE.RAISONNEMENT` : un filtre les lui donne, il les dessine comme des
+nœuds ordinaires. Ce que § 22 annonce — *« une décision y sera un nœud d'un genre
+nouveau, celui où la chaîne s'arrête et où quelqu'un a tranché »* — demande de
+faire entrer `classifyAssertion` dans le constructeur de nœuds, et **deux `nature`
+s'y croiseraient** : celle du nœud et celle de la taxonomie. Il faut d'abord
+renommer l'une des deux ; le faire au passage aurait mêlé une correction de
+vocabulaire à une correction de filtrage.
+
+**Le filtre ne se change pas depuis le cerveau.** Il se change dans la liste, et
+le cerveau le dit. Y ajouter un rail de natures rouvrirait la porte au second
+état que cette étape vient de fermer : il faudrait que ce rail écrive dans
+`view.query`, ce qui suppose un rappel du cerveau vers l'écran — faisable, et
+c'est un travail distinct.
 
 ---
 

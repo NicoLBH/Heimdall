@@ -112,7 +112,7 @@ export const USAGES = [
     ou: OU.MEMOIRE,
     nom: "Le cerveau du projet",
     depuisLEtape: 6,
-    quoi: "Voir le raisonnement en entier, en strates, et faire courir une onde depuis une valeur."
+    quoi: "Voir en strates ce que la liste montre en lignes, et faire courir une onde depuis une valeur."
   }
 ];
 
