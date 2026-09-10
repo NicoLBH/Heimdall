@@ -28,7 +28,8 @@
 
 import { normalizeSubjectKey } from "./project-memory.js";
 import { normalizeZoneKey } from "./project-zones.js";
-import { BASE_DATUM_KIND } from "./assertion-taxonomy.js";
+import { BASE_DATUM_KIND, NATURE } from "./assertion-taxonomy.js";
+import { decisionRetenue } from "./decision-versement.js";
 import { OPERATEURS, PROVENANCES, STATUTS, AGENT, AGENTS } from "./memoire-en-texte.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
@@ -187,7 +188,14 @@ export function cleDAffirmation(affirmation) {
   // Une règle et la contrainte qu'elle produit portent le même sujet. Sans
   // préfixe, elles partageraient la même clé, et verser l'une périmerait
   // l'autre — la règle effacerait sa propre conclusion.
-  return affirmation?.referentiel === true ? `regle:${cle}` : cle;
+  if (affirmation?.referentiel === true) return `regle:${cle}`;
+
+  // Une décision porte **le même sujet** que la valeur qu'elle fixe — c'est ce
+  // qui permet de les relier par le nom. Sans préfixe elles partageraient un
+  // `item_key`, et verser l'une supprimerait l'autre.
+  if (affirmation?.nature === NATURE.DECISION) return `decision:${cle}`;
+
+  return cle;
 }
 
 /**
@@ -295,6 +303,10 @@ export function itemsDeProposition(affirmations = []) {
           // vers rien, le graphe ne se reconstruirait pas, et un arrêté modifié
           // six mois plus tard réécrirait l'histoire en silence.
           referentiel: affirmation.referentiel === true ? true : null,
+      // Ce qui fait la décision : la question, les écartés, le motif. Le pendant
+      // de `regle` pour une règle — et, comme elle, filtré plutôt que recopié :
+      // ce qu'on n'a pas déclaré ne voyage pas.
+      decision: decisionRetenue(affirmation.decision),
           regle: regleRetenue(affirmation.regle),
           // L'**agent** qu'une fonction appelle, quand elle en appelle un : un
           // tiers dont la loi ne s'écrit pas. Ce qui se conserve est ce qui

@@ -234,6 +234,11 @@ export function tableauAvantApres({ proposition = null, items = [], assertions =
         agent: agentDeLaFonction(avantPorteur)
       }, domiciles),
       regle: item?.payload?.regle ?? apresPorteur?.payload?.regle ?? null,
+      // Ce qu'une décision tranche, et ce qu'elle écarte. Le pendant de `regle`,
+      // et pour la même raison : sans lui, changer les possibles écartés
+      // n'apparaîtrait nulle part dans le tableau.
+      decision: item?.payload?.decision ?? apresPorteur?.payload?.decision ?? null,
+      decisionAvant: avantPorteur?.payload?.decision ?? null,
       regleAvant: avantPorteur?.payload?.regle ?? null,
       provenance: item?.payload?.provenance ?? apresPorteur?.payload?.provenance ?? null,
       provenanceAvant: avantPorteur?.payload?.provenance ?? null,

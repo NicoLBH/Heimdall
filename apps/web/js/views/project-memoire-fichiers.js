@@ -1946,6 +1946,9 @@ export function lignesDeLAssertion(assertion = {}, profondeur = 0, {
     provenance: provenanceDeLAssertion(assertion, { auteurs }),
     preuve: texte(payload.citation),
     statut: statutDeLAssertion(assertion),
+    // Ce qui fait une décision : sa question, et ce qu'elle a écarté. Absent
+    // partout ailleurs — une contrainte ne tranche rien, elle s'impose.
+    decision: payload.decision ?? null,
     // Dans un tableau de valeurs, la tête porte la zone : le sujet est écrit
     // une fois, au-dessus.
     zone,

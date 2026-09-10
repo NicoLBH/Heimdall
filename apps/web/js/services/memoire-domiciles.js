@@ -41,6 +41,7 @@
  */
 
 import { cheminDeRangement, extensionDeRangement } from "./memoire-rangement.js";
+import { NATURE, classifyAssertion } from "./assertion-taxonomy.js";
 import { cheminDeFichier } from "./memoire-en-texte.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
 
@@ -72,9 +73,22 @@ export function nomDeLAffirmation(assertion = {}) {
  * jour où l'on corrige son ancienne valeur.
  */
 function declareUnNom(assertion) {
-  if (!assertion || assertion?.payload?.referentiel === true) return false;
+  if (!assertion || neePorteLaValeur(assertion)) return false;
   if (texte(assertion?.superseded_by)) return false;
   return Boolean(nomDeLAffirmation(assertion));
+}
+
+/**
+ * Vrai d'une ligne qui **produit** une valeur sans la porter.
+ *
+ * Une règle et une décision partagent le sujet de la valeur qu'elles fixent, et
+ * ce n'est pas un accident : c'est ce qui permet de les relier par le nom. Mais
+ * ni l'une ni l'autre n'est cette valeur — la laisser fixer le domicile du nom
+ * emmènerait toutes ses valeurs dans le `.ref` ou le `.dec` de son domaine.
+ */
+function neePorteLaValeur(assertion) {
+  return assertion?.payload?.referentiel === true
+    || classifyAssertion(assertion).nature === NATURE.DECISION;
 }
 
 /**
@@ -121,11 +135,12 @@ export function domicilesDesNoms(assertions = []) {
  * alors elle qui vient de le fixer.
  *
  * Une règle garde son propre rangement : elle n'est pas la valeur, elle en
- * explique une, et elle vit dans le `.ref` de son domaine.
+ * explique une, et elle vit dans le `.ref` de son domaine. Une décision de
+ * même, dans son `.dec` — elle tranche la valeur, elle ne la porte pas.
  */
 export function rangementDuVersement(assertion = {}, domiciles = null) {
   const vise = rangementVise(assertion);
-  if (!(domiciles instanceof Map) || assertion?.payload?.referentiel === true) return vise;
+  if (!(domiciles instanceof Map) || neePorteLaValeur(assertion)) return vise;
 
   const cle = nomDeLAffirmation(assertion);
   const chezLui = cle ? domiciles.get(cle) : null;

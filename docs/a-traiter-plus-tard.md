@@ -50,7 +50,7 @@ pas après.
 | 5 | La cascade parallèle — *faite pour la branche climatique* | l'arbre fourche : une valeur changée, plusieurs branches | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
 | 6 | La proposition devient une branche — *faite* | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
 | 7 | Un modèle rédige le titre et le corps d'une proposition — *fait* | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
-| 8 | Le modèle des décisions | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
+| 8 | Le modèle des décisions — *fait* | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
 | 9 | Le modèle des raisonnements | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
 | 10 | Le cerveau, requalifié et filtré | la mémoire et les raisonnements, vus ensemble | [§ 22](#22-le-cerveau-requalifié) |
 
@@ -950,6 +950,9 @@ des lectures.
 
 ## 15. Ce qu'est une décision
 
+**État :** fait. Le modèle, le `.dec`, et la fermeture d'un sujet qui demande ce
+qu'on a tranché. Le repérage par le copilote reste — voir « Ce qui reste ».
+
 *C'est l'essentiel qu'on avait oublié. La réflexion tient en trois questions :
 qu'est-ce qu'une décision, où vit-elle, comment la rend-on explicite.*
 
@@ -1075,6 +1078,97 @@ l'information qu'on cherche. La fermeture doit demander : **qu'a-t-on tranché ?
 **C'est acquis** : la question a été posée et la réponse est oui. Reste à
 l'implémenter avec le modèle, à l'étape 8 — et à respecter la consigne
 permanente : aucun sujet réel ne s'ouvre ni ne se ferme automatiquement.
+
+### Ce que l'étape 8 a posé
+
+**Une décision est une ligne, et la valeur la cite.** C'est le modèle (b), et il
+n'a rien réinventé : chaque pièce est celle qu'une **règle** utilise déjà.
+
+| la règle | la décision |
+| --- | --- |
+| `referentiel: true` | `nature: "decision"` |
+| `regle: { conditions, sinon, sauf }` | `decision: { question, ecartes, motif }` |
+| clé préfixée `regle:` | clé préfixée `decision:` |
+| range en `.ref`, par domaine | range en `.dec`, par domaine |
+| la conclusion cite `provenance: règle` | la valeur cite `provenance: décision` |
+| ne fixe pas le domicile du nom | ne fixe pas le domicile du nom |
+
+Les deux dernières lignes ne sont pas décoratives. Le **préfixe de clé** :
+décision et valeur portent le même sujet — c'est ce qui permet de les relier par
+le nom —, et sans lui elles partageraient un `item_key`, donc verser l'une
+supprimerait l'autre. Le **domicile** : une décision produit la valeur sans la
+porter, et la laisser fixer le domicile du nom emmènerait toutes ses valeurs
+dans le `.dec` de son domaine. Un test le prouve dans le pire cas, celui où la
+décision est plus ancienne que la valeur.
+
+**Le `.dec` est décrit**, et il ne l'était pas : `extensions.md` réservait le
+suffixe en disant qu'« écrire sa forme au jugé reviendrait à graver un choix
+qu'on n'a pas fait ». Le choix est fait, la page est passée de six extensions à
+sept, et `.rai` reste seul réservé.
+
+**Deux lignes de langage nouvelles**, et rien de plus : `question:` ouvre le
+bloc — c'est par elle qu'on lit une décision —, et `écarté:` se répète, une
+ligne par possible, avec son `parce que:` optionnel dessous. La grammaire des
+preuves est celle qui existait ; une décision énonce, elle ne s'exécute pas.
+
+**Ce qui manque se nomme.** `lacunes()` dit ce qu'une décision ne dit pas — les
+écartés d'abord, parce que c'est pour eux que la ligne existe. Une décision sans
+écartés notés n'est pas une décision sans écartés, et les deux ne se relisent pas
+pareil (règle 5).
+
+**Une décision peut ne poser aucune valeur.** « On ne fera pas de sous-sol » a
+une question, des écartés et un motif, et rien à écrire dans un `.ddb`. Lui
+inventer une valeur pour respecter une symétrie ferait entrer en mémoire une
+affirmation que personne n'a prise.
+
+### Fermer un sujet demande ce qu'on a tranché — *fait*
+
+La fenêtre s'ouvre **avant** la fermeture, pré-remplie du titre du sujet. Trois
+issues, et chacune compte :
+
+- **fermer et proposer la décision** — le sujet se ferme comme il se fermait, et
+  ce qu'on a écrit part en proposition, que quelqu'un signera ;
+- **fermer sans décision** — délibéré. Forcer une décision à chaque fermeture
+  ferait écrire des décisions inventées pour passer l'écran, et une décision
+  fabriquée après coup est pire qu'une décision absente ;
+- **renoncer** — on renonce **à fermer**, pas seulement à la décision : on n'a
+  encore rien fait, et fermer quand même agirait sur un geste annulé.
+
+**Seulement « fermé comme réalisé ».** Un sujet fermé comme non pertinent ou
+comme doublon ne tranche rien du projet : il dit que ce fil n'avait pas lieu
+d'être. Y poser la question ferait entrer en mémoire des décisions sur l'outil
+plutôt que sur l'ouvrage.
+
+**La fermeture n'a pas changé d'un octet** — mêmes colonnes, même RPC, même
+événement d'historique. La question s'ajoute avant, la proposition après, et une
+proposition qui échoue laisse un sujet fermé sans sa décision : c'est l'état
+d'avant cette étape, et on le **dit** plutôt que de rouvrir le sujet dans le dos
+de quelqu'un. **Aucun sujet ne s'ouvre ni ne se ferme automatiquement**, à aucun
+moment.
+
+### Ce qui reste
+
+**Le copilote ne repère pas encore les décisions.** Le chemin décrit plus haut —
+compte rendu → candidates → atelier → proposition — demande un appel de modèle
+sur des documents versés, avec ses garde-fous propres : ce que le modèle
+souligne est une **lecture proposée**, jamais une valeur, et chacune des trois
+choses qu'il avance doit rester corrigeable. C'est un travail distinct de la
+mécanique posée ici, qui l'attendait sans en dépendre.
+
+**Rien d'autre n'écrit de décision.** La fermeture d'un sujet est la seule porte
+ouverte. Un écran d'Atelier « enregistrer une décision », sans sujet à fermer,
+n'existe pas encore.
+
+**Une décision ne porte pas encore de zone à la fermeture.** La portée d'une
+décision prise dans un fil n'est presque jamais connue de celui qui ferme, et
+une question de plus à ce moment ferait renoncer : elle vaut partout, et se
+restreint dans la proposition.
+
+**Les erreurs de l'écran des sujets ne se voient pas.** Le `showError` que cette
+vue s'injecte ne fait qu'un `console.error` : une proposition de décision qui
+échoue après une fermeture réussie ne le dit qu'à la console. Le défaut est
+ancien et vaut pour toute la vue, pas seulement pour ce chemin ; il mérite un
+vrai bandeau.
 
 ### Questions ouvertes, à trancher avant d'écrire du code
 

@@ -1,4 +1,4 @@
-# Les six extensions de la mémoire
+# Les sept extensions de la mémoire
 
 **À quoi sert cette page :** on n'ouvre pas un fichier de mémoire par curiosité,
 on l'ouvre pour y verser quelque chose ou pour y chercher une réponse. Dans les
@@ -24,23 +24,27 @@ c'est dangereux : on ouvre l'un en croyant l'autre.
 | **`.hyp`** | les hypothèses | « qu'est-ce qu'on suppose en attendant ? » | rien de confirmé |
 | **`.cst`** | les constats | « qu'a-t-on observé, et quand ? » | un constat sans date |
 | **`.crp`** | le corpus | « qu'est-ce qui est entré au dossier ? » | une pièce qu'on n'a pas reçue |
+| **`.dec`** | les décisions | « qu'a-t-on tranché, et écarté ? » | une décision que personne n'assume |
 
-Et une septième, qui ne devrait pas exister : **`.mdall`**. Elle marque ce dont
+Et une huitième, qui ne devrait pas exister : **`.mdall`**. Elle marque ce dont
 personne n'a dit la nature. Un fichier `.mdall` qui se remplit est un signal :
 un utilitaire a oublié de se prononcer.
 
-### Deux suffixes réservés, et rien ne les écrit encore
+### Un suffixe réservé, et rien ne l'écrit encore
 
-**`.dec`** pour les décisions, **`.rai`** pour les raisonnements. Ils sont
-nommés ici et nulle part ailleurs, pour une seule raison : que personne n'en
-invente d'autres le jour où l'on s'y mettra.
+**`.rai`** pour les raisonnements. Il est nommé ici et nulle part ailleurs,
+pour une seule raison : que personne n'en invente un autre le jour où l'on s'y
+mettra.
 
-Ce qu'ils contiendront n'est **pas** décrit sur cette page, et c'est délibéré —
-on ne connaît pas encore la forme d'un fichier de décisions, et l'écrire au
-jugé reviendrait à graver un choix qu'on n'a pas fait. Les deux **natures**,
-elles, existent déjà dans le vocabulaire de la mémoire, et la barre latérale
-porte leurs deux entrées : vides, et qui disent pourquoi. Voir
-[`a-traiter-plus-tard.md`](a-traiter-plus-tard.md), § 15 et § 16.
+Ce qu'il contiendra n'est **pas** décrit sur cette page, et c'est délibéré — on
+ne connaît pas encore la forme d'un fichier de raisonnements, et l'écrire au
+jugé reviendrait à graver un choix qu'on n'a pas fait. La **nature**, elle,
+existe déjà dans le vocabulaire de la mémoire, et la barre latérale porte son
+entrée : vide, et qui dit pourquoi. Voir
+[`a-traiter-plus-tard.md`](a-traiter-plus-tard.md), § 16.
+
+`.dec` était réservé à côté de lui jusqu'à ce qu'on sache ce qu'une décision
+contient. On le sait : il a sa section, plus bas.
 
 ---
 
@@ -254,6 +258,52 @@ exigence, donc d'une discipline.
 
 ---
 
+## `.dec` — les décisions
+
+Ce que des humains ont tranché, et **ce qu'ils ont écarté en le faisant**. Une
+décision ne porte pas la valeur : la valeur la cite.
+
+```
+Quelle couverture pour le bâtiment A ? = "bac acier" {
+   question: Quelle couverture pour le bâtiment A ?
+   décision: Couverture du bâtiment A — tranché par Nicolas LE BIHAN, le 12 mars 2026
+      parce que: "arbitrage du maître d'œuvre, réunion du 12 mars"
+   écarté: ardoise
+      parce que: "surcoût de charpente"
+   écarté: membrane EPDM
+   statut: retenu
+}
+```
+
+- **Ce n'est pas une valeur.** « Toiture en bac acier » est une valeur ; elle ne
+  devient une décision que si l'ardoise et la membrane étaient sur la table.
+- **Ce n'est pas une proposition fusionnée.** Une proposition est l'acte
+  d'enregistrement ; la décision a eu lieu avant, dans une réunion, et personne
+  ne l'écrivait. Confondre les deux revient à ne connaître que les décisions que
+  Mdall a lui-même provoquées.
+- **Les écartés sont la raison d'être du fichier.** C'est ce que personne ne
+  retrouve six mois plus tard, quand quelqu'un demande « pourquoi pas de
+  l'ardoise ? ». Une ligne par possible, jamais une phrase qui les énumère : le
+  jour où l'un d'eux revient sur la table, on veut pouvoir le désigner.
+- **Un écarté sans son motif vaut mieux que rien.** On se rappelle souvent qu'on
+  a écarté l'ardoise sans se rappeler l'argument.
+- **Un motif, ou l'aveu qu'il n'y en a pas.** Certaines décisions sont
+  arbitraires — une couleur, une trame, un nom. « Choix du maître d'œuvre, sans
+  justification technique » est plus honnête, et plus utile, qu'une
+  justification fabriquée après coup.
+- **La valeur vit dans son propre fichier**, et cite la décision par une ligne
+  `décision:` — exactement comme une contrainte cite la `règle:` dont elle sort.
+  La décision n'est pas recopiée là-bas ; elle a son fichier, à côté.
+- **Elle se range par domaine**, comme une règle, parce qu'elle appartient à la
+  discipline sur laquelle elle tranche. Ce n'est pas une mesure du bâtiment.
+- **Elle se révise en versant par-dessus** (règle 11), et la première reste
+  lisible avec sa date. Une décision révisée est une information de premier
+  ordre.
+- **Une décision peut ne poser aucune valeur.** « On ne fera pas de sous-sol » a
+  une question, des écartés et un motif, et rien à écrire ailleurs.
+
+---
+
 ## `.crp` — le corpus
 
 Ce qui est entré au dossier : documents, pièces jointes, avis. Le fichier ne
@@ -270,14 +320,15 @@ Mémoire/
    Hypothèses/       hypotheses.hyp
    Corpus/           corpus.crp
    Incendie/         incendie.ref  incendie.ctr  incendie.cst
-   Structure/        structure.ref  structure.ctr
+   Structure/        structure.ref  structure.ctr  structure.dec
 Documents/
    … rangés comme l'utilisateur veut
 ```
 
 **Ce qui est observé est transversal, ce qui est déduit est par domaine.** Une
-règle, une contrainte et un constat viennent d'un corpus, donc d'une discipline.
-Une donnée de base, une hypothèse et le corpus appartiennent au bâtiment.
+règle, une contrainte, un constat et une décision viennent d'un corpus ou d'un
+arbitrage, donc d'une discipline. Une donnée de base, une hypothèse et le corpus
+appartiennent au bâtiment.
 
 La **zone** n'est pas un répertoire : c'est une section dans le fichier, parce
 que l'unité de production est le domaine — une étude incendie touche plusieurs
@@ -291,7 +342,7 @@ zone: Bâtiment A {
 
 ---
 
-## Trois langages, pas six
+## Trois langages, pas sept
 
 Ce qui distingue deux fichiers n'est pas leur suffixe, c'est **ce que leurs
 lignes font**. C'est ce que la coloration montre :
@@ -300,10 +351,14 @@ lignes font**. C'est ce que la coloration montre :
 | --- | --- | --- |
 | `.ref` | une **fonction** | les couleurs du JavaScript |
 | `.ddb` `.hyp` | une **déclaration** | celles d'un `const` |
-| `.ctr` `.cst` `.crp` | un **énoncé** | celles du JSON |
+| `.ctr` `.cst` `.crp` `.dec` | un **énoncé** | celles du JSON |
 
-Une palette par extension ferait croire à six langages là où il y en a trois, et
-raterait le point : distinguer un nom **posé** d'un nom **cité**.
+Une palette par extension ferait croire à sept langages là où il y en a trois,
+et raterait le point : distinguer un nom **posé** d'un nom **cité**.
+
+Une décision **énonce** : elle ne s'exécute pas, contrairement à la règle dont
+elle est le pendant humain. Ce qu'elle ajoute — la question, les écartés — sont
+des champs de plus dans l'accolade, pas une grammaire de plus.
 
 ---
 
