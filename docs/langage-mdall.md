@@ -970,6 +970,8 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/utilitaires/agent-spectre.js` | l'agent-D du spectre élastique : ce qu'il lit, et la ligne qu'il pose |
 | `apps/web/js/services/spectre-versement.js` | ce qu'une étude de spectre propose : les choix du projet, l'appel, la courbe |
 | `apps/web/js/services/spectre-reprise.js` | refait le spectre quand la zone, le sol ou l'importance changent |
+| `apps/web/js/services/localisation-versement.js` | la ligne de la localisation et celle de l'altitude — deux écrans les posent, une seule construction |
+| `apps/web/js/services/zones-versement.js` | définir, renommer ou retirer une zone : les lignes qu'une proposition porte |
 | `apps/web/js/services/fondations-reprise.js` | refait l'étude quand la profondeur hors gel change — pur, le calcul lui est passé |
 | `apps/web/js/services/memoire-recherche-texte.js` | chercher un mot et le montrer où il est — surlignage, voisinage, va-et-vient |
 | `apps/web/js/services/zip.js` | emporter la mémoire en un fichier, sans dépendance |

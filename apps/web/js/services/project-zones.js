@@ -37,6 +37,14 @@
  * Repérer « Zone A » parce que l'énoncé commence par ces deux mots fabriquerait
  * des zones que personne n'a voulues, et ferait disparaître dans l'une d'elles
  * des affirmations qui valaient pour tout l'ouvrage.
+ *
+ * ## Et elle se retire de la même façon
+ *
+ * Par une définition de plus, marquée `retiree`, qui périme la précédente. La
+ * zone reste dans l'histoire — avec son auteur, sa date et son motif — et quitte
+ * les listes. C'est ce qui permet de la retirer par une **proposition signée**
+ * plutôt que par une écriture directe, et c'est la règle 11 : on ne corrige pas
+ * la mémoire, on verse par-dessus.
  */
 
 /**
@@ -113,6 +121,12 @@ export function definedZones(assertions = []) {
     if (String(assertion?.status ?? "").trim() === "rejected") continue;
     const marque = assertion?.payload?.zoneDefinition;
     if (!marque) continue;
+    // Une zone **retirée** ne définit plus rien. Le retrait se verse comme une
+    // définition de plus, marquée, qui périme la précédente : la zone garde son
+    // histoire et quitte les listes. C'est ce qui permet de la retirer par une
+    // proposition signée plutôt que par une écriture directe — voir
+    // `services/zones-versement.js`.
+    if (assertion?.payload?.retiree === true) continue;
 
     const label = texte(assertion?.payload?.subject);
     const cle = normalizeZoneKey(assertion?.payload?.zoneKey ?? label);

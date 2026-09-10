@@ -370,62 +370,18 @@ export function declaredBaseDatum({
 }
 
 /**
- * La définition d'une zone.
+ * La définition d'une zone : **plus ici**.
  *
- * Une zone existe parce que quelqu'un a écrit ce qu'elle recouvre — « Zone A :
- * RDC, ERP type M ». C'est une donnée de base comme une autre : le projet la
- * pose, et elle peut changer. Elle porte `zoneDefinition` dans son `payload`,
- * qui est la seule façon pour l'écran de la reconnaître : deviner une zone à
- * partir d'un libellé fabriquerait des zones que personne n'a voulues.
+ * Elle vivait là parce qu'une zone s'écrivait directement en mémoire — l'écran
+ * du découpage appelait, la ligne partait en base, personne ne signait. C'était
+ * une exception à la règle 1 sur ce qui structure tout le reste : une valeur qui
+ * ne vaut que pour le bâtiment A n'a de sens que si le bâtiment A existe.
  *
- * Elle ne porte pas de zone elle-même : une définition vaut pour l'ouvrage, pas
- * pour la partie qu'elle décrit — sans quoi elle disparaîtrait de toute lecture
- * autre que la sienne, y compris de celle où on la cherche.
- *
- * @returns {{ok: true, row: object}|{ok: false, reason: string}}
+ * Une zone se définit, se renomme et se retire désormais par une **proposition**
+ * — `services/zones-versement.js` la construit, `atelier-proposition.js`
+ * l'ouvre, quelqu'un la signe. Ce qui reste ici est ce qui vaut pour toutes les
+ * lignes de la mémoire, quel que soit le chemin qui les y amène.
  */
-export function declaredZone({
-  projectId = "",
-  label = "",
-  definition = "",
-  declaredBy = null,
-  at = ""
-} = {}) {
-  const projet = texte(projectId);
-  const nom = texte(label);
-
-  if (!projet) return { ok: false, reason: "Aucun projet." };
-  if (!nom) return { ok: false, reason: "Une zone a besoin d'un nom : « Zone A », « Rez-de-chaussée »." };
-
-  const cle = normalizeZoneKey(nom);
-  if (!cle) return { ok: false, reason: "Ce nom de zone ne donne aucune clé lisible." };
-
-  const quand = texte(at) || new Date().toISOString();
-  const texteDefinition = texte(definition);
-
-  return {
-    ok: true,
-    row: {
-      project_id: projet,
-      kind: BASE_DATUM_KIND,
-      subject_key: `zone:${cle}`,
-      statement: texteDefinition ? `${nom} : ${texteDefinition}` : nom,
-      detail: null,
-      status: MEMORY.ASSUMED,
-      nature: NATURE.DONNEE_BASE,
-      domain: null,
-      // Une définition de zone ne porte pas de zone : elle vaut pour l'ensemble,
-      // sans quoi elle disparaîtrait de toute lecture autre que la sienne.
-      zones: null,
-      payload: { subject: nom, value: texteDefinition, zoneDefinition: true, zoneKey: cle, declared: true },
-      proposition_id: null,
-      proposition_number: null,
-      source_document_id: null,
-      decided_by: declaredBy ?? null,
-      decided_at: quand
-    }
-  };
-}
 
 /**
  * La clé d'un sujet d'hypothèse.

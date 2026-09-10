@@ -9,18 +9,28 @@
  *
  * ## Un paramétrage qui est aussi une donnée de base
  *
- * Le découpage se règle ici, mais il n'est pas rangé ici : chaque zone est
- * versée dans la mémoire comme donnée de base. C'est ce qui lui donne une
- * histoire — quelle définition, quand, par qui — et c'est ce que Mémoire →
- * Données de base montre. Un paramètre qui ne vit que dans un formulaire ne se
- * relit pas six mois plus tard, quand il faut comprendre sur quoi un calcul a
- * été fait.
+ * Le découpage se règle ici, mais il n'est pas rangé ici : chaque zone est une
+ * donnée de base de la mémoire. C'est ce qui lui donne une histoire — quelle
+ * définition, quand, par qui — et c'est ce que Mémoire → Données de base montre.
+ * Un paramètre qui ne vit que dans un formulaire ne se relit pas six mois plus
+ * tard, quand il faut comprendre sur quoi un calcul a été fait.
+ *
+ * ## Cet écran **propose**, il n'écrit pas
+ *
+ * Il écrivait directement, et c'était une exception à la règle 1 — *rien
+ * n'entre jamais directement dans la mémoire* — dont on ne s'apercevait pas.
+ * Pas la moindre : le découpage porte tout le reste, et retirer une zone sort du
+ * présent tout ce qu'elle portait. Un acte pareil se relit avant d'avoir lieu.
+ *
+ * Définir, renommer, retirer ouvrent donc une **proposition**, que quelqu'un
+ * signe. Voir `services/zones-versement.js`.
  *
  * ## Retirer n'est pas effacer
  *
- * Une zone retirée est **écartée**, pas supprimée. Effacer la ligne ferait
- * disparaître le fait qu'une zone a existé, et rendrait incompréhensibles les
- * affirmations qui la portent encore. Un refus est une information.
+ * Une zone retirée quitte les listes et **reste dans l'histoire**, avec son
+ * auteur, sa date et son motif. Effacer la ligne ferait disparaître le fait
+ * qu'une zone a existé, et rendrait incompréhensibles les affirmations qui la
+ * portent encore.
  */
 
 import { store } from "../../store.js";
@@ -28,10 +38,8 @@ import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { definedZones, normalizeZoneKey } from "../../services/project-zones.js";
 import { resolveCurrentBackendProjectId } from "../../services/project-supabase-sync.js";
-import {
-  ecarteDefinitionDeZone,
-  versDefinitionDeZone
-} from "../../services/base-data-supabase.js";
+import { definitionVersable, renommageVersable, retraitVersable } from "../../services/zones-versement.js";
+import { preparerUneProposition } from "../../services/atelier-proposition.js";
 import { renderSectionCard, rerenderProjectParametres } from "./project-parametres-core.js";
 
 /**
@@ -213,12 +221,31 @@ function renderDecoupageParametresContent() {
     description:
       "Les parties de l'ouvrage auxquelles une donnée de base peut s'appliquer. " +
       "Ce qui n'est rattaché à aucune zone vaut pour l'ouvrage entier. " +
-      "Chaque zone est versée dans la mémoire : sa définition y garde une date et un auteur.",
+      "Définir, renommer ou retirer une zone ouvre une proposition : rien n'entre dans la " +
+      "mémoire sans que quelqu'un l'ait signé.",
     body: `<div class="settings-card__body">${renderCorps()}</div>`
   });
 }
 
-async function agir(action) {
+/**
+ * Ouvrir une proposition pour ce que l'écran vient de demander.
+ *
+ * Elle reste **ouverte** : quelqu'un la relit, voit ce qu'elle change au
+ * découpage, et signe. C'est cette signature qui fait entrer la zone dans la
+ * mémoire, jamais ce bouton.
+ *
+ * On va ensuite **sur la proposition elle-même** : la laisser dans une liste
+ * qu'il faudrait retrouver ferait croire que rien ne s'est passé — c'est
+ * exactement ce qu'on reprochait à l'écriture directe, en sens inverse.
+ */
+async function proposer({ titre, intro, lignes }) {
+  const dites = (Array.isArray(lignes) ? lignes : []).filter(Boolean);
+  if (!dites.length) {
+    state.notice = "Rien à proposer.";
+    rerenderProjectParametres();
+    return;
+  }
+
   state.busy = true;
   state.notice = "";
   rerenderProjectParametres();
@@ -226,12 +253,21 @@ async function agir(action) {
   try {
     const projectId = await resolveCurrentBackendProjectId();
     if (!projectId) throw new Error("Projet introuvable.");
-    const resultat = await action(projectId);
-    if (!resultat.versee && resultat.raison && resultat.raison !== "inchangée") {
-      state.notice = `Rien n'a été enregistré : ${resultat.raison}.`;
-    }
-    if (resultat.versee) state.exemple += 1;
+
+    const rendu = await preparerUneProposition({
+      projectId, titre, intro, affirmations: dites,
+      // Pas de portée : une définition de zone vaut pour l'ouvrage, pas pour la
+      // partie qu'elle décrit — sans quoi elle disparaîtrait de toute lecture
+      // autre que la sienne, y compris de celle où on la cherche.
+      zones: []
+    });
+    if (!rendu.ok) throw new Error(rendu.raison);
+
+    state.exemple += 1;
     state.assertions = null;
+    store.pendingPropositionId = rendu.proposition.id;
+    const projet = String(store.currentProjectId || "").trim();
+    if (projet) window.location.hash = `#project/${projet}/propositions`;
   } catch (error) {
     state.notice = error instanceof Error ? error.message : String(error);
   } finally {
@@ -275,14 +311,12 @@ function bindDecoupageParametresSection(root) {
       return;
     }
 
-    void agir((projectId) =>
-      versDefinitionDeZone({
-        projectId,
-        label: state.brouillon.label,
-        definition: state.brouillon.definition,
-        declaredBy: store.user?.id ?? null
-      })
-    );
+    void proposer({
+      titre: `Découpage du projet — ajouter « ${nom} »`,
+      intro: "Une partie de l'ouvrage de plus, et ce qu'elle recouvre. Ce qui la portera ne "
+        + "vaudra que pour elle.",
+      lignes: [definitionVersable({ label: state.brouillon.label, definition: state.brouillon.definition })]
+    });
   });
 
   for (const bouton of root.querySelectorAll("[data-decoupage-open]")) {
@@ -322,20 +356,23 @@ function bindDecoupageParametresSection(root) {
         return;
       }
 
-      void agir(async (projectId) => {
-        // La clé d'une zone vient de son nom : la renommer revient à en définir
-        // une autre. On écarte l'ancienne, sinon les deux vaudraient à la fois.
-        const renommee = zone && zone.label !== nouveauNom;
-        const rendu = await versDefinitionDeZone({
-          projectId,
+      // La clé d'une zone vient de son nom : la renommer revient à en définir
+      // une autre, et à retirer la première — sinon les deux vaudraient à la
+      // fois, et le projet aurait un bâtiment de trop.
+      const renommee = Boolean(zone) && zone.label !== nouveauNom;
+
+      void proposer({
+        titre: renommee
+          ? `Découpage du projet — renommer « ${zone.label} » en « ${nouveauNom} »`
+          : `Découpage du projet — préciser « ${nouveauNom} »`,
+        intro: renommee
+          ? "Une zone renommée est une zone de plus et une zone qui part : la clé vient du nom."
+          : "Ce que cette partie de l'ouvrage recouvre.",
+        lignes: renommageVersable({
+          ancien: zone?.label ?? "",
           label: nouveauNom,
-          definition: state.brouillon.definition,
-          declaredBy: store.user?.id ?? null
-        });
-        if (renommee) {
-          await ecarteDefinitionDeZone({ projectId, label: zone.label, declaredBy: store.user?.id ?? null });
-        }
-        return rendu;
+          definition: state.brouillon.definition
+        })
       });
     });
   }
@@ -345,9 +382,12 @@ function bindDecoupageParametresSection(root) {
       const cle = bouton.getAttribute("data-decoupage-remove");
       const zone = definedZones(state.assertions ?? []).find((entry) => entry.key === cle);
       if (!zone) return;
-      void agir((projectId) =>
-        ecarteDefinitionDeZone({ projectId, label: zone.label, declaredBy: store.user?.id ?? null })
-      );
+      void proposer({
+        titre: `Découpage du projet — retirer « ${zone.label} »`,
+        intro: "Cette partie ne fait plus partie du projet. Ce qui ne valait que pour elle "
+          + "quitte le présent, avec son motif — et reste lisible dans l'histoire.",
+        lignes: [retraitVersable({ label: zone.label })]
+      });
     });
   }
 }
