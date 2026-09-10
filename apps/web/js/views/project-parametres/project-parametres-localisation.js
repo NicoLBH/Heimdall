@@ -10,13 +10,15 @@ import {
 import {
   fetchGeorisquesForCommune,
   fetchFrenchAltitude,
-  searchFrenchCommunes,
-  searchFrenchPostalCodes,
-  searchIgnAddresses,
   resolveFrenchAddress,
   resolveFrenchCommune,
   resolveFrenchPostalCode
 } from "../../services/georisques-service.js";
+// Le champ d'adresse vit dans `views/ui/saisie-adresse.js`. Il était écrit ici,
+// à la main, avec deux branches — commune, code postal — qu'aucun champ
+// n'appelait plus, pendant que deux autres écrans en avaient chacun une copie.
+import { renderSaisieAdresse, brancherLaSaisieDAdresse } from "../ui/saisie-adresse.js";
+import { localisationDeLAdresse, nombreOuRien } from "../../services/adresse-saisie.js";
 import { persistCurrentProjectState } from "../../services/project-state-storage.js";
 import { saveProjectLocationToSupabase, loadProjectLocationFromSupabase } from "../../services/project-location-supabase.js";
 import { upsertProjectContextFact } from "../../services/project-context-facts-service.js";
@@ -35,6 +37,9 @@ import { renderProjectLocationMapCard } from "../shared/project-location-map-car
 
 /** L'écran d'où la localisation vient, quand elle est proposée d'ici. */
 const ECRAN = "Localisation du projet";
+
+/** Le nom du champ d'adresse partagé, sur cet écran-ci. */
+const SAISIE_DU_PROJET = "projet";
 
 /**
  * Proposer la localisation à la mémoire du projet.
@@ -129,16 +134,6 @@ function ensureLocalisationUiState() {
   if (typeof parametresUiState.altitudeIsLoading !== "boolean") {
     parametresUiState.altitudeIsLoading = false;
   }
-  if (!parametresUiState.locationAutocomplete || typeof parametresUiState.locationAutocomplete !== "object") {
-    parametresUiState.locationAutocomplete = {
-      address: { items: [], loading: false, open: false, activeIndex: -1 },
-      city: { items: [], loading: false, open: false, activeIndex: -1 },
-      postalCode: { items: [], loading: false, open: false, activeIndex: -1 }
-    };
-  }
-  if (typeof parametresUiState.locationAutocompleteDocumentBound !== "boolean") {
-    parametresUiState.locationAutocompleteDocumentBound = false;
-  }
   if (typeof parametresUiState.locationEditBaseSignature !== "string") {
     parametresUiState.locationEditBaseSignature = "";
   }
@@ -224,60 +219,6 @@ async function refreshProjectLocationMapEmbedUrl({ latitude, longitude, zoom = 1
       renderProjectLocationMapBlockIntoDom();
     }
   }
-}
-
-function renderLocationAutocompleteField({ id, label, value = "", placeholder = "", width = "", fieldKey = "city", inputMode = "text", placeholderStrong = false }) {
-  const pencil = svgIcon("pencil", { className: "octicon" });
-  const check = svgIcon("check", { className: "octicon" });
-  const dropdownId = `${id}AutocompleteList`;
-
-  return `
-    <div class="${width}">
-      <div class="form-row form-row--settings">
-        ${label ? `<label for="${escapeHtml(id)}">${escapeHtml(label)}</label>` : ""}
-        <div class="gh-editable-field gh-editable-field--autocomplete" data-editable-field>
-          <div class="gh-editable-field__control">
-            <input
-              id="${escapeHtml(id)}"
-              type="text"
-              inputmode="${escapeHtml(inputMode)}"
-              class="gh-input gh-editable-field__input${placeholderStrong ? " gh-input--placeholder-strong" : ""}"
-              value="${escapeHtml(value)}"
-              placeholder="${escapeHtml(placeholder)}"
-              autocomplete="off"
-              readonly
-              data-editable-input
-              data-location-autocomplete-input="${escapeHtml(fieldKey)}"
-              aria-autocomplete="list"
-              aria-expanded="false"
-              aria-controls="${escapeHtml(dropdownId)}"
-            >
-            <div
-              class="gh-autocomplete gh-autocomplete--cities"
-              id="${escapeHtml(dropdownId)}"
-              data-location-autocomplete-suggestions="${escapeHtml(fieldKey)}"
-              role="listbox"
-              hidden
-            ></div>
-          </div>
-          <button
-            type="button"
-            class="gh-btn gh-btn--ghost gh-editable-field__btn"
-            data-editable-toggle
-            aria-label="Modifier"
-            data-edit-label="Modifier"
-            data-validate-label="Valider"
-          >
-            <span class="gh-editable-field__btn-icon" data-editable-icon>${pencil}</span>
-            <span class="gh-editable-field__btn-text" data-editable-text>Modifier</span>
-          </button>
-
-          <template data-icon-edit>${pencil}</template>
-          <template data-icon-validate>${check}</template>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 function ensureGeorisquesState() {
@@ -428,6 +369,10 @@ function renderProjectLocationMapBlockIntoDom() {
 }
 
 function ensureProjectLocationMapEmbedUrl({ latitude = null, longitude = null, zoom = 16, mapType = "satellite" } = {}) {
+  // Le dernier garde-fou, quel que soit l'appelant : sans coordonnées, la carte
+  // reste floue plutôt que de montrer l'océan Atlantique.
+  if (nombreOuRien(latitude) === null || nombreOuRien(longitude) === null) return;
+
   const uiState = ensureLocalisationUiState();
   const mapEmbedState = uiState.locationMapEmbed;
   const requestKey = getLocationMapRequestKey({ latitude, longitude, zoom, mapType, nonce: Number(uiState.locationMapRefreshNonce || 0) });
@@ -1178,77 +1123,7 @@ async function loadGeorisquesForCurrentProject({ force = false } = {}) {
   }
 }
 
-function getLocationAutocompleteState(fieldKey) {
-  const parametresUiState = ensureLocalisationUiState();
-
-  if (!parametresUiState.locationAutocomplete[fieldKey]) {
-    parametresUiState.locationAutocomplete[fieldKey] = {
-      items: [],
-      loading: false,
-      open: false,
-      activeIndex: -1
-    };
-  }
-
-  return parametresUiState.locationAutocomplete[fieldKey];
-}
-
-function resetLocationAutocompleteState(fieldKey) {
-  const state = getLocationAutocompleteState(fieldKey);
-  state.items = [];
-  state.loading = false;
-  state.open = false;
-  state.activeIndex = -1;
-}
-
-function renderLocationAutocompleteDropdown(fieldKey, container, input) {
-  if (!container || !input) return;
-
-  const state = getLocationAutocompleteState(fieldKey);
-  const items = Array.isArray(state.items) ? state.items : [];
-  const isOpen = state.open && (state.loading || items.length > 0);
-
-  input.setAttribute("aria-expanded", isOpen ? "true" : "false");
-  container.hidden = !isOpen;
-
-  if (!isOpen) {
-    container.innerHTML = "";
-    return;
-  }
-
-  if (state.loading) {
-    container.innerHTML = `<div class="gh-autocomplete__status">Recherche…</div>`;
-    return;
-  }
-
-  container.innerHTML = items.map((item, index) => {
-    const primary = fieldKey === "postalCode"
-      ? (item.postalCode || item.label || "")
-      : (item.label || item.name || item.postalCode || "");
-    const meta = fieldKey === "address"
-      ? [item.city, item.postalCode].filter(Boolean).join(" · ")
-      : fieldKey === "postalCode"
-        ? [item.name, item.codeInsee ? `INSEE ${item.codeInsee}` : ""].filter(Boolean).join(" · ")
-        : [item.postalCodes?.join(", ") || item.postalCode || "", item.codeInsee ? `INSEE ${item.codeInsee}` : ""].filter(Boolean).join(" · ");
-    const isActive = index === state.activeIndex;
-
-    return `
-      <button
-        type="button"
-        class="gh-autocomplete__item ${isActive ? "is-active" : ""}"
-        data-location-option-field="${escapeHtml(fieldKey)}"
-        data-location-option-index="${index}"
-        role="option"
-        aria-selected="${isActive ? "true" : "false"}"
-      >
-        <span class="gh-autocomplete__item-main">${escapeHtml(primary || "—")}</span>
-        ${meta ? `<span class="gh-autocomplete__item-meta">${escapeHtml(meta)}</span>` : ""}
-      </button>
-    `;
-  }).join("");
-}
-
-function syncProjectLocationFields({ address, city, postalCode, latitude, longitude, altitude } = {}) {
+function syncProjectLocationFields({ address, city, postalCode, codeInsee, latitude, longitude, altitude } = {}) {
   if (address !== undefined) {
     store.projectForm.address = String(address || "").trim();
   }
@@ -1259,6 +1134,14 @@ function syncProjectLocationFields({ address, city, postalCode, latitude, longit
 
   if (postalCode !== undefined) {
     store.projectForm.postalCode = String(postalCode || "").trim();
+  }
+
+  // Le code INSEE vient **avec** l'adresse résolue, et il n'entrait pas : la
+  // fiche l'attendait de l'enrichissement Géorisques, qui part plus tard. Entre
+  // les deux, « Proposer à la mémoire » refusait une localisation qu'on venait
+  // pourtant de choisir dans la liste.
+  if (codeInsee !== undefined) {
+    store.projectForm.codeInsee = String(codeInsee || "").trim();
   }
 
   if (latitude !== undefined) {
@@ -1277,215 +1160,46 @@ function syncProjectLocationFields({ address, city, postalCode, latitude, longit
   syncLocationDerivedStaleUi();
 }
 
-function applyLocationSelection(fieldKey, item) {
-  if (!item) return Promise.resolve();
+/**
+ * Brancher le champ d'adresse partagé sur la fiche du projet.
+ *
+ * Ce qu'il rend est posé dans le formulaire, **et rien de plus** : la fiche
+ * dessine la carte et pré-remplit les utilitaires. L'entrée en mémoire reste le
+ * geste explicite d'à côté — « Proposer à la mémoire » —, parce qu'une
+ * proposition qui s'ouvrirait à chaque adresse choisie ne se relirait jamais
+ * (`docs/fondamentaux.md`, règle 1).
+ *
+ * La promesse est conservée : « Valider » l'attend. Sans cela, valider juste
+ * après un clic dans la liste enregistrait l'adresse d'avant.
+ */
+function bindProjectLocationAutocomplete() {
   const uiState = ensureLocalisationUiState();
 
-  const addressInput = document.getElementById("projectAddress");
-  const cityInput = document.getElementById("projectCity");
-  const postalCodeInput = document.getElementById("projectPostalCode");
-
-  if (fieldKey === "address") {
-    console.info("[project-location] selection.apply.start", { fieldKey, query: item.label || item.name || "" });
-    const selectionPromise = resolveFrenchAddress(item.label || item.name || "")
-      .then((resolved) => {
-        if (addressInput) addressInput.value = resolved.address || item.label || "";
-        if (cityInput) cityInput.value = resolved.city || "";
-        if (postalCodeInput) postalCodeInput.value = resolved.postalCode || "";
-        syncProjectLocationFields({
-          address: resolved.address || item.label || "",
-          city: resolved.city,
-          postalCode: resolved.postalCode,
-          latitude: resolved.lat,
-          longitude: resolved.lon
-        });
-        resetLocationAutocompleteState(fieldKey);
-        renderLocationAutocompleteDropdown(fieldKey, document.querySelector('[data-location-autocomplete-suggestions="address"]'), addressInput);
+  brancherLaSaisieDAdresse(document, {
+    nom: SAISIE_DU_PROJET,
+    quandTapee: (tape) => {
+      // Ce qui découlait de l'adresse précédente ne vaut plus : le garder
+      // afficherait une altitude et une commune qui ne sont plus les siennes.
+      syncProjectLocationFields({ address: tape, city: "", postalCode: "", codeInsee: "", altitude: null });
+    },
+    quandChoisie: (localisation) => {
+      const pose = Promise.resolve().then(() => {
+        syncProjectLocationFields(localisation);
         console.info("[project-location] selection.apply.success", {
           address: store.projectForm.address,
           city: store.projectForm.city,
           postalCode: store.projectForm.postalCode,
+          codeInsee: store.projectForm.codeInsee,
           latitude: store.projectForm.latitude,
           longitude: store.projectForm.longitude
         });
-      })
-      .catch(() => {});
-    uiState.locationPendingSelectionPromise = selectionPromise;
-    return selectionPromise.finally(() => {
-      if (uiState.locationPendingSelectionPromise === selectionPromise) uiState.locationPendingSelectionPromise = null;
-    });
-  }
-
-  if (fieldKey === "city") {
-    if (cityInput) cityInput.value = item.name || item.label || "";
-    if (postalCodeInput) postalCodeInput.value = item.postalCode || item.postalCodes?.[0] || "";
-    syncProjectLocationFields({
-      address: "",
-      city: item.name || item.label || "",
-      postalCode: item.postalCode || item.postalCodes?.[0] || "",
-      latitude: item.lat,
-      longitude: item.lon
-    });
-    resetLocationAutocompleteState(fieldKey);
-    renderLocationAutocompleteDropdown(fieldKey, document.querySelector('[data-location-autocomplete-suggestions="city"]'), cityInput);
-    return Promise.resolve();
-  }
-
-  if (fieldKey === "postalCode") {
-    if (postalCodeInput) postalCodeInput.value = item.postalCode || item.label || "";
-    if (cityInput) cityInput.value = item.name || item.city || "";
-    syncProjectLocationFields({
-      address: "",
-      city: item.name || item.city || "",
-      postalCode: item.postalCode || item.label || "",
-      latitude: item.lat,
-      longitude: item.lon
-    });
-    resetLocationAutocompleteState(fieldKey);
-    renderLocationAutocompleteDropdown(fieldKey, document.querySelector('[data-location-autocomplete-suggestions="postalCode"]'), postalCodeInput);
-  }
-  return Promise.resolve();
-}
-
-function bindLocationAutocompleteField(fieldKey) {
-  const input = document.querySelector(`[data-location-autocomplete-input="${fieldKey}"]`);
-  const dropdown = document.querySelector(`[data-location-autocomplete-suggestions="${fieldKey}"]`);
-
-  if (!input || !dropdown || input.dataset.autocompleteBound === "true") return;
-  input.dataset.autocompleteBound = "true";
-
-  let requestSequence = 0;
-  let debounceTimer = null;
-
-  const closeDropdown = () => {
-    resetLocationAutocompleteState(fieldKey);
-    renderLocationAutocompleteDropdown(fieldKey, dropdown, input);
-  };
-
-  const openWithLoading = () => {
-    const state = getLocationAutocompleteState(fieldKey);
-    state.loading = true;
-    state.open = true;
-    state.items = [];
-    state.activeIndex = -1;
-    renderLocationAutocompleteDropdown(fieldKey, dropdown, input);
-  };
-
-  input.addEventListener("input", () => {
-    const query = String(input.value || "").trim();
-
-    if (fieldKey === "address") {
-      syncProjectLocationFields({ address: query, city: store.projectForm.city, postalCode: store.projectForm.postalCode, altitude: null });
-    } else if (fieldKey === "city") {
-      syncProjectLocationFields({ address: "", city: query, postalCode: store.projectForm.postalCode, altitude: null });
-    } else if (fieldKey === "postalCode") {
-      syncProjectLocationFields({ address: "", city: store.projectForm.city, postalCode: query.replace(/\D+/g, ""), altitude: null });
-      input.value = store.projectForm.postalCode;
-    }
-
-    if (debounceTimer) clearTimeout(debounceTimer);
-
-    const minLength = fieldKey === "postalCode" ? 2 : (fieldKey === "address" ? 3 : 2);
-    if (query.length < minLength) {
-      closeDropdown();
-      return;
-    }
-
-    openWithLoading();
-    const currentRequestId = ++requestSequence;
-
-    debounceTimer = setTimeout(async () => {
-      try {
-        const items = fieldKey === "address"
-          ? await searchIgnAddresses({ query, limit: 6 })
-          : fieldKey === "postalCode"
-            ? await searchFrenchPostalCodes({ query, limit: 6 })
-            : await searchFrenchCommunes({ query, postalCode: String(store.projectForm.postalCode || "").trim(), limit: 6 });
-
-        if (currentRequestId !== requestSequence) return;
-
-        const state = getLocationAutocompleteState(fieldKey);
-        state.items = items;
-        state.loading = false;
-        state.open = items.length > 0;
-        state.activeIndex = items.length ? 0 : -1;
-        renderLocationAutocompleteDropdown(fieldKey, dropdown, input);
-      } catch {
-        if (currentRequestId !== requestSequence) return;
-        closeDropdown();
-      }
-    }, 180);
-  });
-
-  input.addEventListener("keydown", (event) => {
-    const state = getLocationAutocompleteState(fieldKey);
-    if (!state.open || !state.items.length) return;
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      state.activeIndex = (state.activeIndex + 1) % state.items.length;
-      renderLocationAutocompleteDropdown(fieldKey, dropdown, input);
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      state.activeIndex = (state.activeIndex - 1 + state.items.length) % state.items.length;
-      renderLocationAutocompleteDropdown(fieldKey, dropdown, input);
-      return;
-    }
-
-    if (event.key === "Enter") {
-      const selected = state.items[state.activeIndex] || state.items[0];
-      if (!selected) return;
-      event.preventDefault();
-      void applyLocationSelection(fieldKey, selected);
-      return;
-    }
-
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeDropdown();
+      });
+      uiState.locationPendingSelectionPromise = pose;
+      return pose.finally(() => {
+        if (uiState.locationPendingSelectionPromise === pose) uiState.locationPendingSelectionPromise = null;
+      });
     }
   });
-
-  dropdown.addEventListener("mousedown", (event) => {
-    const option = event.target.closest('[data-location-option-field]');
-    if (!option || option.getAttribute("data-location-option-field") !== fieldKey) return;
-    event.preventDefault();
-    const index = Number(option.getAttribute("data-location-option-index"));
-    const selected = getLocationAutocompleteState(fieldKey).items[index];
-    void applyLocationSelection(fieldKey, selected);
-  });
-
-  input.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (!document.activeElement || !dropdown.contains(document.activeElement)) {
-        closeDropdown();
-      }
-    }, 120);
-  });
-
-  const parametresUiState = ensureLocalisationUiState();
-  if (!parametresUiState.locationAutocompleteDocumentBound) {
-    document.addEventListener("click", (event) => {
-      if (!event.target.closest(".gh-editable-field--autocomplete")) {
-        ["address", "city", "postalCode"].forEach((key) => {
-          resetLocationAutocompleteState(key);
-          const activeDropdown = document.querySelector(`[data-location-autocomplete-suggestions="${key}"]`);
-          const activeInput = document.querySelector(`[data-location-autocomplete-input="${key}"]`);
-          if (activeDropdown && activeInput) {
-            renderLocationAutocompleteDropdown(key, activeDropdown, activeInput);
-          }
-        });
-      }
-    });
-    parametresUiState.locationAutocompleteDocumentBound = true;
-  }
-}
-
-function bindProjectLocationAutocomplete() {
-  bindLocationAutocompleteField("address");
 }
 
 export function renderLocalisationParametresContent() {
@@ -1515,7 +1229,19 @@ export function renderLocalisationParametresContent() {
         body: `${parametresUiState.locationProposalNotice
           ? `<div class="settings-inline-notice">${escapeHtml(parametresUiState.locationProposalNotice)}</div>`
           : ""}
-        ${renderLocationAutocompleteField({ id: "projectAddress", width: "col-span-2", fieldKey: "address", label: "Adresse", value: form.address || "", placeholder: getLocationFieldPlaceholder("address", "Ex. 12 avenue de la Gare, Annecy"), placeholderStrong: hasStrongPlaceholder("address") })}
+        <div class="col-span-2">
+          <div class="form-row form-row--settings">
+            ${renderSaisieAdresse({
+              nom: SAISIE_DU_PROJET,
+              id: "projectAddress",
+              label: "Adresse",
+              valeur: form.address || "",
+              placeholder: getLocationFieldPlaceholder("address", "Ex. 12 avenue de la Gare, Annecy"),
+              placeholderFort: hasStrongPlaceholder("address"),
+              modifiable: true
+            })}
+          </div>
+        </div>
         ${(ensureGeorisquesState().commune || Number.isFinite(form.latitude) || Number.isFinite(form.longitude)) ? `
           <div class="settings-auto-fields">
             ${renderAutoResolvedField("Commune résolue", ensureGeorisquesState().commune?.name || form.city || "—", "Données de localisation résolues automatiquement.", { muted: hasStaleLocationDerivedData() })}
@@ -1556,22 +1282,22 @@ export function bindLocalisationParametresSection(root) {
 
   bindGhEditableFields(document, {
     onEditStart: (id) => {
-      const addressInput = document.getElementById("projectAddress");
-      const cityInput = document.getElementById("projectCity");
-      const postalCodeInput = document.getElementById("projectPostalCode");
-      const parametresUiState = ensureLocalisationUiState();
+      if (id !== "projectAddress") return;
 
-      if (id === "projectAddress") {
-        parametresUiState.locationEditInProgress = true;
-        parametresUiState.locationEditBaseSignature = getProjectLocationSignature();
-        console.info("[project-location] edit.start", { signature: parametresUiState.locationEditBaseSignature });
-      }
-      if (id === "projectAddress") {
-        syncProjectLocationFields({ address: store.projectForm.address, city: "", postalCode: "", latitude: null, longitude: null, altitude: null });
-        if (cityInput) cityInput.value = "";
-        if (postalCodeInput) postalCodeInput.value = "";
-        syncLocationDerivedStaleUi();
-      }
+      const parametresUiState = ensureLocalisationUiState();
+      parametresUiState.locationEditInProgress = true;
+      parametresUiState.locationEditBaseSignature = getProjectLocationSignature();
+      console.info("[project-location] edit.start", { signature: parametresUiState.locationEditBaseSignature });
+
+      // Ce que l'ancienne adresse avait résolu ne vaut plus. Il n'y a plus de
+      // champs « commune » et « code postal » à vider : ils n'existaient plus
+      // dans l'écran depuis longtemps, et on continuait de les chercher.
+      syncProjectLocationFields({
+        address: store.projectForm.address,
+        city: "", postalCode: "", codeInsee: "",
+        latitude: null, longitude: null, altitude: null
+      });
+      syncLocationDerivedStaleUi();
     },
     onValidate: async (id, value) => {
       switch (id) {
@@ -1598,11 +1324,13 @@ export function bindLocalisationParametresSection(root) {
           parametresUiState.locationSaveInProgress = true;
           try {
             if (String(store.projectForm.address || "").trim() !== inputValue) {
-              const resolved = await resolveFrenchAddress(inputValue);
-              syncProjectLocationFields({ address: resolved.address, city: resolved.city, postalCode: resolved.postalCode, latitude: resolved.lat, longitude: resolved.lon });
+              // La même traduction que le champ partagé : `lat`/`lon` deviennent
+              // `latitude`/`longitude` à un seul endroit, sinon la carte reste
+              // floue selon le chemin qu'on a pris pour saisir la même adresse.
+              syncProjectLocationFields(localisationDeLAdresse(await resolveFrenchAddress(inputValue)) ?? {});
             }
           } catch {
-            syncProjectLocationFields({ address: inputValue, altitude: null });
+            syncProjectLocationFields({ address: inputValue, codeInsee: "", altitude: null });
           }
 
           const locationHasChanged = hasProjectLocationChanged(previousLocationSignature);
@@ -1620,8 +1348,8 @@ export function bindLocalisationParametresSection(root) {
           try {
             await refreshLocationDerivedData({ runEnrichment: locationHasChanged && shouldAutoRunProjectBaseDataEnrichment(), triggerType: "automatic", triggerLabel: "Validation d’une modification de la localisation projet" });
             ensureProjectLocationMapEmbedUrl({
-              latitude: Number(store.projectForm.latitude),
-              longitude: Number(store.projectForm.longitude),
+              latitude: nombreOuRien(store.projectForm.latitude),
+              longitude: nombreOuRien(store.projectForm.longitude),
               zoom: 16,
               mapType: "satellite"
             });
@@ -1645,9 +1373,12 @@ export function bindLocalisationParametresSection(root) {
 
   bindProjectLocationAutocomplete();
   syncLocationDerivedStaleUi();
-  const latitude = Number(store.projectForm.latitude);
-  const longitude = Number(store.projectForm.longitude);
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  // `Number(null)` vaut zéro, et zéro est un point au large du golfe de Guinée :
+  // un projet sans coordonnées demandait une carte satellite de l'Atlantique au
+  // lieu de montrer qu'il n'avait pas de localisation.
+  const latitude = nombreOuRien(store.projectForm.latitude);
+  const longitude = nombreOuRien(store.projectForm.longitude);
+  if (latitude !== null && longitude !== null) {
     ensureProjectLocationMapEmbedUrl({ latitude, longitude, zoom: 16, mapType: "satellite" });
   }
 

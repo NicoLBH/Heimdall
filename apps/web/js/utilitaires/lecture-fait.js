@@ -28,8 +28,20 @@ const texte = (valeur) => String(valeur ?? "").trim();
  * C'est la règle 4 des fondamentaux appliquée à la forme : une valeur écrite à
  * deux endroits finit par diverger, et une valeur écrite de deux **façons**
  * diverge tout de suite.
+ *
+ * ## `null` n'est pas zéro
+ *
+ * `Number(null)` vaut `0`, et une altitude qu'on ne connaît pas s'écrivait donc
+ * « 0,00 m ». Ce n'était pas qu'un affichage : `altitudeVersable` ne verse une
+ * ligne que si l'écriture n'est pas vide, si bien qu'un projet dont l'altitude
+ * était inconnue **proposait à la mémoire** une altitude de zéro mètre — et un
+ * site au niveau de la mer devenait indistinguable d'un site qu'on n'a pas
+ * relevé. Ce qu'on ne sait pas ne s'écrit pas (règle 5).
  */
 export function mesureEcrite(valeur, decimales = 2, unite = "") {
+  // `null`, `undefined` et la chaîne vide se rejettent **avant** la conversion :
+  // les trois valent zéro pour `Number`, et zéro se calcule très bien.
+  if (valeur === null || valeur === undefined || String(valeur).trim() === "") return "";
   const n = Number(valeur);
   if (!Number.isFinite(n)) return "";
   const dit = n.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });

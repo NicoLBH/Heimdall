@@ -1945,3 +1945,75 @@ ces deux-là.
 Laisser les deux chemins coexister « en attendant ». C'est ainsi qu'on se
 retrouve avec deux mémoires, et le jour où elles divergent personne ne sait
 laquelle fait foi.
+
+---
+
+## 25. Une seule saisie d'adresse, et la popup qui manque encore
+
+### Ce que l'étape a posé
+
+Trois écrans demandaient une adresse, et chacun la demandait à sa façon.
+
+| où | ce que c'était | ce qu'il en coûtait |
+| --- | --- | --- |
+| Paramètres > Localisation | une auto-complétion d'adresse écrite à la main, avec deux branches mortes (commune, code postal) | 280 lignes qu'aucun champ n'appelait plus |
+| Atelier > Neige, Vent & Gel | quatre champs nus : commune, code INSEE, code postal, altitude | personne ne connaît le code INSEE de sa commune ; le taper de mémoire, c'est calculer la neige d'une homonyme |
+| Atelier > Tester une variante | quatre entrées séparées, une par colonne de la localisation versée | on tapait « 05023 » à la main dans un champ libre |
+| Atelier > ENR - PV hangar neuf | une **seconde** auto-complétion, recopiée, qui cherche des **communes** et non des adresses | ni rue, ni numéro, ni coordonnées de parcelle |
+
+Le champ vit maintenant à un seul endroit — `views/ui/saisie-adresse.js` pour le
+champ, `services/adresse-saisie.js` pour ce qui se teste — et les trois premiers
+écrans l'emploient. L'écran climatique a perdu son bouton « Calculer » : choisir
+une adresse recalcule, reprendre celle du projet recalcule, et il n'y a plus rien
+à cliquer entre deux essais sur un écran fait pour essayer.
+
+### Ce que l'exploration a trouvé au passage
+
+Deux fois la même faute, et c'est celle qui coûte le plus cher dans ce dépôt :
+**`Number(null)` vaut zéro.**
+
+- `mesureEcrite(null, 2, "m")` rendait `"0,00 m"`. Ce n'était pas qu'un
+  affichage : `altitudeVersable` ne verse une ligne que si l'écriture n'est pas
+  vide, si bien qu'un projet dont l'altitude était inconnue **proposait à la
+  mémoire** une altitude de zéro mètre. Un site au niveau de la mer et un site
+  qu'on n'a pas relevé devenaient la même ligne.
+- `getEffectiveProjectLocation` et la carte des Paramètres convertissaient de
+  même. Un projet sans coordonnées demandait une carte satellite du point
+  0°N 0°E — au large du golfe de Guinée — au lieu de montrer qu'il n'avait pas
+  de localisation.
+
+Les deux sont refermées. `nombreOuRien` rejette `null`, `undefined` et la chaîne
+vide **avant** la conversion, et zéro dit reste zéro : il y a des projets au
+niveau de la mer.
+
+### Ce qui reste
+
+**La popup d'avertissement, et elle vaut son étape.** Trois écrans modifient
+aujourd'hui quelque chose que la mémoire devra apprendre, et les trois s'y
+prennent différemment :
+
+| l'écran | ce qu'il fait au clic |
+| --- | --- |
+| Paramètres > Localisation | « Valider » range dans la fiche ; un **second** bouton, « Proposer à la mémoire », ouvre la proposition |
+| Paramètres > Découpage | « Ajouter » / « Retirer » part **directement** sur une nouvelle proposition |
+| Atelier > Neige, Vent & Gel | « Transformer › Faire une proposition » ouvre la proposition, puis **quitte l'écran** pour l'onglet Propositions |
+
+Ce qu'il faut, et qui vaut pour les trois :
+
+1. au clic sur Valider — localisation, ajout ou retrait d'une zone — une popup
+   qui explique que la modification entrera dans une **proposition**, et qu'elle
+   ne sera effective en mémoire **qu'après fusion** ;
+2. Annuler / Continuer ;
+3. si Continuer : créer une proposition, **ou** verser dans une proposition déjà
+   ouverte et non fusionnée — le choix des branches existe déjà
+   (`services/branches-ouvertes.js`, `views/ui/transformer.js`) ;
+4. le compteur « Propositions » de la barre d'onglets se rafraîchit ;
+5. **on reste sur l'écran d'origine.** Basculer vers Propositions > détail fait
+   perdre le fil de ce qu'on était en train de régler, et c'est ce que fait
+   l'atelier climatique aujourd'hui.
+
+### Ce qu'on ne fera pas
+
+Écrire une quatrième popup à côté des trois gestes. C'est exactement l'histoire
+du champ d'adresse : trois copies d'une même question, qui avaient déjà divergé
+avant qu'on les regarde.
