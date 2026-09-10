@@ -230,6 +230,14 @@ export function bindGhActionButtons() {
       for (const bouton of root.querySelectorAll("[data-action-toggle], [aria-haspopup='menu']")) {
         bouton.setAttribute("aria-expanded", !isOpen ? "true" : "false");
       }
+
+      // **Le menu vient de s'ouvrir**, et ce qu'il propose peut dater. Une liste
+      // de propositions ouvertes lue il y a dix minutes ne porte pas celle qu'un
+      // collègue vient de fusionner — et l'on ajouterait un lot à une
+      // proposition fermée. Qui remplit le menu écoute et relit.
+      if (!isOpen) {
+        root.dispatchEvent(new CustomEvent("ghaction:menu-ouvert", { bubbles: true, detail: { id } }));
+      }
       return;
     }
 

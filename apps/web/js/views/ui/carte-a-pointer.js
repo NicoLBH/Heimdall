@@ -5,9 +5,13 @@
  *
  * Situer un projet **qui n'a pas d'adresse**. On tape la commune, on arrive
  * au-dessus du bourg, et l'on se déplace jusqu'à reconnaître le terrain sur la
- * vue satellite — la haie, le chemin, la forme de la parcelle. Puis on pose le
- * point : appui long à l'endroit exact, ou bouton qui prend le centre du
- * viseur.
+ * vue satellite — la haie, le chemin, la forme de la parcelle. Puis on **tire le
+ * marqueur** jusqu'à l'endroit exact.
+ *
+ * Il a d'abord fallu un appui long, et c'était une mauvaise idée : rien à
+ * l'écran ne dit qu'un appui long existe, et l'on ne découvre un geste caché que
+ * si quelqu'un vous le montre. Un marqueur qu'on déplace se voit — c'est ce
+ * qu'on fait sur toutes les cartes du monde.
  *
  * ## Pourquoi un voile par-dessus la carte
  *
@@ -42,11 +46,20 @@ import {
   ZOOM_MIN, ZOOM_MAX, zoomBorne, pointADistance, centreApresGlissement, pixelsDepuisLeCentre
 } from "../../services/carte-pointee.js";
 
-/** Le temps d'un appui long. En deçà, c'est un clic, et l'on ne pose rien. */
-const APPUI_LONG = 500;
-
 /** En deçà, un déplacement du doigt n'est pas un glissement : c'est un tremblement. */
 const GLISSEMENT_MINIMAL = 6;
+
+/**
+ * Le rayon, en pixels, où l'on considère qu'on a saisi le marqueur.
+ *
+ * Généreux, et volontairement : le marqueur fait trente pixels de haut mais sa
+ * pointe est un point. Demander de viser le point exact ferait rater la prise
+ * une fois sur deux, et l'on déplacerait la carte en croyant tirer le marqueur.
+ */
+const PRISE_DU_MARQUEUR = 26;
+
+/** Le temps qu'on laisse à la roulette avant de redemander la vue. */
+const REPOS_DE_LA_ROULETTE = 220;
 
 /**
  * Un marqueur, posé **par la pointe** au décalage donné.
@@ -113,7 +126,7 @@ export function renderCarteAPointer({
       <div class="carte-pointee__voile" data-carte-voile="${cle}" role="application"
         aria-label="Déplacer la carte, appui long pour poser le projet">
         <div class="carte-pointee__viseur" aria-hidden="true">
-          ${svgIcon("plus", { className: "octicon" })}
+          ${svgIcon("viseur", { className: "octicon" })}
         </div>
         <!-- Les marqueurs vivent dans une couche qui **suit le doigt** pendant
              qu'on tire, comme le fond. Le viseur, lui, reste au centre de
@@ -132,7 +145,7 @@ export function renderCarteAPointer({
       </div>
 
       <p class="carte-pointee__mode${enAttente ? " carte-pointee__mode--attente" : ""}">
-        ${svgIcon(enAttente ? "alert" : "beaker", { className: "octicon" })}
+        ${svgIcon(enAttente ? "alert" : "location", { className: "octicon" })}
         <!-- La phrase dans un span : sans lui, chaque nœud devient un élément
              de la boîte flexible, et « appuyez longuement » se retrouve dans sa
              propre colonne au milieu du reste. -->
@@ -142,8 +155,8 @@ export function renderCarteAPointer({
           // faire n'est écrit nulle part.
           enAttente
             ? `Nouvel endroit posé. Cliquez sur <b>« Calculer ici »</b> pour actualiser les valeurs.`
-            : `Déplacez la carte, puis <b>appuyez longuement</b> sur le terrain — ou posez le
-               projet au centre du viseur.`
+            : `<b>Tirez le marqueur</b> jusqu'au terrain. Glissez ailleurs pour déplacer la carte,
+               la roulette pour zoomer.`
         }</span>
       </p>
 
@@ -181,19 +194,44 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
 
   const ou = () => (typeof etat === "function" ? etat() : {}) ?? {};
 
-  let depart = null;
-  let minuterie = null;
-  let aGlisse = false;
+  /** Le point visé, dans le repère du voile — son centre pour origine. */
+  const viseAu = (evenement) => {
+    const cadre = voile.getBoundingClientRect();
+    return {
+      dx: evenement.clientX - (cadre.left + cadre.width / 2),
+      dy: evenement.clientY - (cadre.top + cadre.height / 2)
+    };
+  };
 
-  // La transformation se pose sur la **carte**, et non sur le voile : c'est le
-  // fond et les marqueurs qui doivent suivre le doigt, pas le viseur, qui marque
-  // le centre de l'écran. Les poser sur le voile faisait glisser le viseur avec
-  // eux, et l'on ne savait plus où l'on allait poser.
+  /**
+   * Vrai quand on vient de saisir le marqueur, et non la carte.
+   *
+   * Le marqueur est posé **par sa pointe** : sa forme s'étend vers le haut. La
+   * zone de prise suit donc cette forme — un peu au-dessus, très peu en dessous
+   * — au lieu d'un cercle centré sur la pointe, qui obligerait à viser sous le
+   * dessin qu'on voit.
+   */
+  const saisitLeMarqueur = (vise) => {
+    const { centre, point, zoom } = ou();
+    const ou_ = pixelsDepuisLeCentre(centre, point, { zoom });
+    if (!ou_) return false;
+
+    const dx = vise.dx - ou_.dx;
+    const dy = vise.dy - ou_.dy;
+    return Math.abs(dx) <= PRISE_DU_MARQUEUR && dy <= PRISE_DU_MARQUEUR / 2 && dy >= -PRISE_DU_MARQUEUR * 1.6;
+  };
+
+  let depart = null;
+  let aGlisse = false;
+  /** Ce qu'on tire : le marqueur, ou la carte. Décidé à l'appui, tenu jusqu'au bout. */
+  let tireLeMarqueur = false;
+  let roulette = null;
+
   const relacher = () => {
-    if (minuterie) { clearTimeout(minuterie); minuterie = null; }
     carte.style.removeProperty("--carte-glissement-x");
     carte.style.removeProperty("--carte-glissement-y");
     carte.classList.remove("est-tiree");
+    carte.classList.remove("tire-le-marqueur");
     quandGeste?.(false);
   };
 
@@ -204,33 +242,14 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     evenement.preventDefault();
     voile.setPointerCapture(evenement.pointerId);
 
-    const cadre = voile.getBoundingClientRect();
-    depart = {
-      x: evenement.clientX, y: evenement.clientY,
-      // Le point visé, dans le repère du voile : c'est là que l'appui long
-      // posera le projet, et non au centre.
-      dx: evenement.clientX - (cadre.left + cadre.width / 2),
-      dy: evenement.clientY - (cadre.top + cadre.height / 2)
-    };
+    const vise = viseAu(evenement);
+    depart = { x: evenement.clientX, y: evenement.clientY, ...vise };
     aGlisse = false;
+    tireLeMarqueur = saisitLeMarqueur(vise);
+    carte.classList.toggle("tire-le-marqueur", tireLeMarqueur);
     // L'écran est prévenu **dès l'appui** : c'est à partir de là qu'un rendu
     // détacherait le voile et tuerait le geste.
     quandGeste?.(true);
-
-    minuterie = setTimeout(() => {
-      minuterie = null;
-      // Un appui long qui a glissé est un glissement lent, pas un appui : poser
-      // le projet là ferait sauter le marqueur au milieu d'un déplacement.
-      if (aGlisse || !depart) return;
-
-      const { centre, zoom } = ou();
-      const pose = pointADistance(centre, { dx: depart.dx, dy: depart.dy, zoom });
-      if (pose) {
-        depart = null;
-        relacher();
-        quandPointee?.(pose);
-      }
-    }, APPUI_LONG);
   });
 
   voile.addEventListener("pointermove", (evenement) => {
@@ -240,10 +259,13 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     if (!aGlisse && Math.hypot(dx, dy) < GLISSEMENT_MINIMAL) return;
 
     aGlisse = true;
-    if (minuterie) { clearTimeout(minuterie); minuterie = null; }
     // La vue et les marqueurs suivent le doigt ; la vue se **repose** au
     // relâchement. Sans ce retour, on tire dans le vide et l'on croit que le
     // geste n'est pas pris.
+    //
+    // Quand on tire le marqueur, c'est **lui seul** qui bouge : déplacer la
+    // carte avec lui ferait un endroit qui ne bouge pas, ce qui est exactement
+    // le contraire du geste.
     carte.classList.add("est-tiree");
     carte.style.setProperty("--carte-glissement-x", `${dx}px`);
     carte.style.setProperty("--carte-glissement-y", `${dy}px`);
@@ -255,18 +277,61 @@ export function brancherLaCarteAPointer(racine, { nom, etat, quandDeplacee, quan
     const dx = evenement.clientX - depart.x;
     const dy = evenement.clientY - depart.y;
     const glisse = aGlisse;
+    const marqueur = tireLeMarqueur;
+    const vise = { dx: depart.dx + dx, dy: depart.dy + dy };
     depart = null;
     relacher();
 
     if (!glisse) return;
 
     const { centre, zoom } = ou();
+    if (marqueur) {
+      const pose = pointADistance(centre, { dx: vise.dx, dy: vise.dy, zoom });
+      if (pose) quandPointee?.(pose);
+      return;
+    }
+
     const nouveau = centreApresGlissement(centre, { dx, dy, zoom });
     if (nouveau) quandDeplacee?.(nouveau);
   };
 
   voile.addEventListener("pointerup", finir);
   voile.addEventListener("pointercancel", () => { depart = null; relacher(); });
+
+  /**
+   * La roulette zoome, comme sur toutes les cartes.
+   *
+   * Elle est **retenue** : chaque cran redemande une vue satellite, et douze
+   * crans en une seconde feraient douze appels dont onze pour rien. On attend
+   * que la main s'arrête.
+   */
+  let zoomVise = null;
+
+  voile.addEventListener("wheel", (evenement) => {
+    evenement.preventDefault();
+
+    const depuis = zoomBorne(ou().zoom);
+    const pas = evenement.deltaY < 0 ? 1 : -1;
+    // Les crans **s'accumulent** : sans cette mémoire, chaque cran repartirait du
+    // zoom de l'état — qui n'a pas encore bougé —, et douze crans en feraient un.
+    zoomVise = zoomBorne((zoomVise ?? depuis) + pas);
+
+    // Le retour est immédiat, même si la vue arrive après : la vue déjà chargée
+    // est agrandie le temps qu'on redemande la bonne. Sans cela, on tourne la
+    // roulette et rien ne bouge pendant un quart de seconde.
+    carte.style.setProperty("--carte-echelle", String(2 ** (zoomVise - depuis)));
+    carte.classList.add("est-zoomee");
+
+    if (roulette) clearTimeout(roulette);
+    roulette = setTimeout(() => {
+      roulette = null;
+      const demande = zoomVise;
+      zoomVise = null;
+      carte.style.removeProperty("--carte-echelle");
+      carte.classList.remove("est-zoomee");
+      if (demande !== null && demande !== depuis) quandZoomee?.(demande);
+    }, REPOS_DE_LA_ROULETTE);
+  }, { passive: false });
 
   for (const bouton of carte.querySelectorAll("[data-carte-zoom]")) {
     bouton.addEventListener("click", () => {

@@ -2207,3 +2207,71 @@ d'adresse, et le lien bleu vers la recherche approfondie — carte comprise.
 5. **`enBloc` n'a qu'un usage.** La localisation. Le mécanisme est général — il
    se lit sur la structure, sans nom de sujet —, mais tant qu'un seul tableau le
    déclare, on ne sait pas s'il tiendra pour un autre.
+
+---
+
+## 28. Ce qui reste en cache finit par mentir
+
+### Deux fraîcheurs, deux mensonges
+
+**Le menu « Transformer » proposait une proposition fusionnée.** Le magasin des
+propositions ouvertes gardait sa liste pour la vie de la page : un cache qui ne
+se rafraîchit qu'au rechargement n'est pas un cache, c'est une photo. Sur un
+projet où deux personnes travaillent en même temps — le cas ordinaire —, cela
+veut dire offrir d'ajouter un lot à une branche qu'un collègue vient de fermer.
+
+Le bouton scindé annonce maintenant l'ouverture de son menu
+(`ghaction:menu-ouvert`), et le magasin relit à ce moment-là. C'est le seul
+instant où la fraîcheur compte : un appel par clic, pas un par rendu.
+
+**L'Atelier climatique affichait l'ancienne adresse.** On corrigeait la
+localisation dans les Paramètres, on signait la proposition, on ouvrait
+« Neige, Vent & Gel » — et l'adresse d'avant était encore dans le champ. Le
+calcul serait parti sur celle-là. C'est le genre de chose qui coûte plus cher
+qu'une panne franche : rien ne dit que c'est faux.
+
+La cause était double : l'écran gardait sa localisation d'un montage à l'autre
+« pour ne pas perdre une saisie en cours », et il la prenait de la **fiche** du
+projet, qui n'est mise à jour qu'à l'entrée dans le projet. Il la relit
+maintenant **dans la mémoire**, à chaque venue et sur « Reprendre la
+localisation du projet » — voir `services/localisation-du-projet.js`. La mémoire
+est la seule qui dise où le projet est aujourd'hui : c'est ce que quelqu'un a
+signé.
+
+### `communeCp` n'existe plus
+
+Le doublon nommé en [§ 27](#27-une-seule-localisation-et-un-projet-qui-na-pas-dadresse) est
+retiré. « Annecy 74000 » était écrit à côté de `city` et `postalCode`, dérivé à
+deux endroits et **reparsé** à un troisième. Il se calcule là où on en a besoin
+(`communeEtCodePostal`), et ne se range plus nulle part.
+
+Une seule lecture reste, et c'est voulu : les Paramètres reprennent le champ
+d'un projet enregistré **avant** ce changement, dont l'état local le porte
+encore. L'ignorer lui ferait perdre sa commune.
+
+### La carte, telle qu'on s'en sert
+
+| ce qui a changé | pourquoi |
+| --- | --- |
+| on **tire le marqueur** au lieu d'appuyer longuement | rien à l'écran ne dit qu'un appui long existe, et l'on ne découvre un geste caché que si quelqu'un vous le montre |
+| la roulette zoome, les crans s'accumulent | sans mémoire des crans, chacun repartirait du zoom de l'état — qui n'a pas encore bougé — et douze crans en feraient un |
+| on charge 280 px **au-delà** du cadre | tirer la carte découvrait du vide : on ne voyait pas où l'on allait, ce qui est précisément ce qu'on cherche en la déplaçant |
+| le viseur devient une lunette de 72 px | le `+` se confondait avec le bouton de zoom et disparaissait sur une parcelle claire |
+| la consigne d'attente garde son fond noir | l'ambre passait derrière un texte en gris atténué, hérité du bloc porteur, et l'on ne lisait plus rien |
+| les cartes d'information tiennent dans la hauteur de la vue | quatre cartes suffisaient à les faire déborder sous le bas, où elles flottaient sur le fond de l'écran |
+| l'altitude ne s'écrit plus sous le code postal | la carte « Neige » la porte déjà, et deux fois la même mesure à trente centimètres l'une de l'autre fait chercher la différence |
+
+### Ce qui reste
+
+1. **La hauteur du bâtiment, et les coefficients qui en découlent.** L'objectif
+   dit : une hauteur, une orientation des vents dominants, et les coefficients
+   de rugosité et de direction qui s'en déduisent. Rien n'en est fait ici ; la
+   carte a été dessinée en sachant qu'elle devra un jour porter un secteur
+   angulaire par-dessus la parcelle.
+2. **La carte se repose au relâchement.** Elle suit le doigt pendant qu'on tire,
+   mais la vue est redemandée à la fin : une `iframe` se recharge à chaque
+   changement de centre. La marge de 280 px repousse le problème, elle ne le
+   supprime pas — au-delà, on tire dans du vide. Une vraie carte à tuiles ferait
+   mieux, au prix d'une bibliothèque.
+3. **Les zonages en `site-constraint`** restent le doublon de
+   [§ 24](#24-verser-les-contraintes-du-site).

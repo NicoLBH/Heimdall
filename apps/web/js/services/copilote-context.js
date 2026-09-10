@@ -20,6 +20,7 @@
 
 import { store } from "../store.js";
 import { buildMemoryBriefing } from "./memory-briefing.js";
+import { communeEtCodePostal } from "./adresse-saisie.js";
 
 function parseHash() {
   const hash = String(location.hash || "").replace(/^#/, "").trim();
@@ -250,7 +251,7 @@ function buildSelectionContext() {
 function buildProjectFormContext() {
   const form = store.projectForm || {};
   return {
-    commune_cp: form.communeCp || "",
+    commune_cp: communeEtCodePostal(form),
     importance: form.importance || "",
     soil_class: form.soilClass || "",
     liquefaction: form.liquefaction || "",

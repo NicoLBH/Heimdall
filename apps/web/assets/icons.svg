@@ -598,4 +598,16 @@
   <symbol id="compare" viewBox="0 0 16 16">
     <path d="M9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM6 12v-1.646a.25.25 0 0 1 .427-.177l2.396 2.396a.25.25 0 0 1 0 .354l-2.396 2.396A.25.25 0 0 1 6 15.146V13.5H5A2.5 2.5 0 0 1 2.5 11V5.372a2.25 2.25 0 1 1 1.5 0V11a1 1 0 0 0 1 1ZM4 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0ZM12.75 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"></path>
   </symbol>
+  <!-- Un viseur : cercle fin, quatre traits qui s'arrêtent avant le centre, et
+       un point au milieu. Le `+` d'avant se confondait avec le bouton de zoom
+       et disparaissait sur une vue satellite claire ; celui-ci se voit, et son
+       trou central laisse regarder ce qu'on vise. -->
+  <symbol id="viseur" viewBox="0 0 48 48">
+    <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <circle cx="24" cy="24" r="17"></circle>
+      <circle cx="24" cy="24" r="6.5" stroke-width="1"></circle>
+      <path d="M24 1.5V15M24 33v13.5M1.5 24H15M33 24h13.5"></path>
+    </g>
+    <circle cx="24" cy="24" r="1.6" fill="currentColor"></circle>
+  </symbol>
 </svg>

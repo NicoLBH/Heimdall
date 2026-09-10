@@ -134,7 +134,6 @@ export const store = {
     address: "",
     city: "Annecy",
     postalCode: "74000",
-    communeCp: "Annecy 74000",
     latitude: null,
     longitude: null,
     altitude: null,

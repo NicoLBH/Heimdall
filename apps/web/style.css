@@ -15403,13 +15403,25 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   z-index:2;
   padding:16px;
   pointer-events:none;
+  /* La grille occupe la carte, pas plus : sans cette hauteur, `max-height:100%`
+     sur la colonne ne se réfère à rien et les cartes débordent. */
+  height:calc(100vh - 210px);
 }
 .studio-tool-cards-column{
   display:grid;
   grid-template-columns:minmax(0,1fr);
   gap:8px;
   pointer-events:auto;
-  padding-top:16px;
+  /* Collée en haut, et **tenue** dans la hauteur de la carte. Elle démarrait
+     seize pixels plus bas et n'avait pas de limite : quatre cartes suffisaient
+     à la faire déborder sous le bas de la vue satellite, où elles flottaient
+     sur le fond de l'écran. Ce qui dépasse se parcourt maintenant. */
+  padding-top:0;
+  align-content:start;
+  max-height:100%;
+  overflow-y:auto;
+  /* La barre de défilement ne mange pas la colonne : elle se pose par-dessus. */
+  scrollbar-width:thin;
 }
 .studio-tool-info-card{
   padding:10px;
@@ -15521,8 +15533,15 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
    son centre, ni écouter ses clics. Un voile transparent par-dessus capte les
    gestes, et le centre se recalcule. Voir `views/ui/carte-a-pointer.js`. */
 
-.carte-pointee{ position:relative; width:100%; border-radius:var(--radius); overflow:hidden; }
-.carte-pointee__fond{ position:absolute; inset:0; }
+.carte-pointee{
+  position:relative; width:100%; border-radius:var(--radius); overflow:hidden;
+  /* Ce qu'on charge **au-delà** du cadre visible. Sans cette marge, tirer la
+     carte découvrait du vide : on ne voyait pas où l'on allait, ce qui est
+     précisément ce qu'on cherche en la déplaçant. La vue satellite est demandée
+     à cette taille-là et rognée par le cadre. */
+  --carte-marge:280px;
+}
+.carte-pointee__fond{ position:absolute; inset:calc(-1 * var(--carte-marge)); }
 .carte-pointee__carte{ width:100%; height:100%; }
 
 /* Le voile prend tous les gestes : sans lui, ils partiraient dans l'`iframe`,
@@ -15544,21 +15563,44 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
 .carte-pointee.est-tiree .carte-pointee__pins{
   transform:translate(var(--carte-glissement-x, 0px), var(--carte-glissement-y, 0px));
 }
+/* Quand c'est le **marqueur** qu'on tire, la carte ne bouge pas : déplacer les
+   deux ensemble ferait un endroit qui ne change pas, ce qui est le contraire du
+   geste. */
+.carte-pointee.tire-le-marqueur .carte-pointee__fond{ transform:none; }
+.carte-pointee.tire-le-marqueur .carte-pointee__pins .carte-pointee__marqueur--ancien{
+  transform:translate(-50%, -100%) !important;
+}
+.carte-pointee.tire-le-marqueur .carte-pointee__voile{ cursor:grabbing; }
+
+/* La roulette agrandit ce qui est déjà chargé le temps qu'on redemande la vue :
+   sans cela, on tourne et rien ne bouge pendant un quart de seconde. */
+.carte-pointee.est-zoomee .carte-pointee__fond{
+  transform:scale(var(--carte-echelle, 1));
+  transition:transform .12s ease-out;
+}
+
 .carte-pointee__fond,
 .carte-pointee__pins{ will-change:transform; }
-.carte-pointee__pins{ position:absolute; inset:0; pointer-events:none; }
+/* Les marqueurs vivent dans la **même** boîte agrandie que le fond : leur centre
+   coïncide donc avec celui du cadre visible, et ils restent dessinés quand ils
+   sortent — c'est ce qui les fait réapparaître quand on ramène la carte. */
+.carte-pointee__pins{ position:absolute; inset:calc(-1 * var(--carte-marge)); pointer-events:none; }
 
 .carte-pointee__viseur,
 .carte-pointee__marqueur{
   position:absolute; left:50%; top:50%;
   pointer-events:none; line-height:0;
 }
+/* Le viseur ne bouge jamais : il marque le centre de l'écran, pas un endroit.
+   Le `+` d'avant se confondait avec le bouton de zoom et disparaissait sur une
+   parcelle claire. */
 .carte-pointee__viseur{
   transform:translate(-50%, -50%);
-  color:#fff; opacity:.85;
-  filter:drop-shadow(0 0 2px rgba(0,0,0,.9));
+  color:#fff; opacity:.7;
+  filter:drop-shadow(0 0 3px rgba(0,0,0,.95));
   z-index:2;
 }
+.carte-pointee__viseur .octicon{ width:72px; height:72px; }
 /* Rouge, et posé par la pointe : un marqueur centré sur son milieu montre le
    projet vingt mètres au nord de là où il est. */
 .carte-pointee__marqueur{
@@ -15589,17 +15631,25 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   display:flex; align-items:center; gap:8px;
   max-width:min(560px, 80%);
   margin:0; padding:6px 10px; border-radius:var(--radius);
-  background:rgba(0,0,0,.62); color:#fff;
+  background:rgba(0,0,0,.72); color:#fff;
   font-size:12px; line-height:1.4;
 }
 .carte-pointee__mode .octicon{ flex:0 0 auto; }
+/* La couleur est posée ici, pas héritée : le bloc qui porte la carte met son
+   texte en gris atténué, et une consigne grise sur fond noir ne se lit pas. */
+.carte-pointee__mode b{ color:#fff; }
 /* Une consigne qui a changé de sens change de couleur : « il reste un geste à
    faire » ne se lit pas comme « voici comment faire ». */
+/* Le même fond noir que la consigne ordinaire : l'ambre passait derrière un
+   texte en gris atténué, hérité du bloc, et l'on ne lisait plus rien. Ce qui
+   change, c'est le **liseré** et la couleur de l'icône — assez pour dire qu'il
+   reste un geste, sans rendre la phrase illisible. */
 .carte-pointee__mode--attente{
-  background:#d29922; color:#14171c; font-weight:600;
+  border:1px solid #d29922;
+  color:#fff; font-weight:600;
 }
-.carte-pointee__mode--attente b{ color:inherit; }
-.carte-pointee__mode--attente .octicon{ color:#14171c; }
+.carte-pointee__mode--attente b{ color:#f0b429; }
+.carte-pointee__mode--attente .octicon{ color:#f0b429; }
 .carte-pointee__poser{
   position:absolute; z-index:3; left:50%; bottom:14px;
   transform:translateX(-50%);
