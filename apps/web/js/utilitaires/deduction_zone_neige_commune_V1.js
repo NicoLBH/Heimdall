@@ -16,7 +16,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
 import { lecturesDeclarees, reservesConservees, entreesDe } from "./lecture-fait.js";
-import { SUJET_ALTITUDE } from "./agents-climatiques.js";
+import { SUJET_ALTITUDE, SUJET_LOCALISATION } from "./agents-climatiques.js";
 
 export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
   nom: "deduction_zone_neige_commune",
@@ -31,13 +31,20 @@ export const DEDUCTION_ZONE_NEIGE_COMMUNE_V1 = {
   /**
    * L'altitude, et rien d'autre du projet.
    *
-   * La commune est lue par l'**agent**, pas ici : c'est lui qui fait l'appel, et
-   * c'est sa déclaration qui porte la localisation du projet — voir
-   * `agents-climatiques.js`. Ce fichier-ci est la *lecture* du fait produit, et
-   * ce qu'elle lit du projet est l'altitude : c'est elle qui décide de la réserve
-   * au-delà de 900 m, et un projet qui la corrige doit voir cette zone bouger.
+   * **La commune et l'altitude.** L'agent porte la même déclaration — c'est lui
+   * qui fait l'appel —, et cette lecture-ci la porte aussi : c'est par elle que
+   * le rejeu sait quoi redemander quand la localisation du projet change. Sans
+   * elle, la chaîne s'arrêtait avant son premier maillon.
+   *
+   * L'altitude ne change pas la zone : elle décide de la réserve au-delà de
+   * 900 m, et un projet qui la corrige doit voir cette zone bouger.
    */
   lit: [
+    {
+      sujet: SUJET_LOCALISATION,
+      entree: "code_insee",
+      lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
+    },
     {
       sujet: SUJET_ALTITUDE,
       entree: "altitude",

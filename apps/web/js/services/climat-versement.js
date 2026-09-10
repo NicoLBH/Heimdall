@@ -161,11 +161,16 @@ export function sortiesVersables(agent, { resultats = {}, localisation = null, a
     if (!valeur) return null;
 
     const outil = sortie.utilitaire;
+    // Ce que **cet utilitaire-là** a déclaré lire, avec la valeur qu'il a lue.
+    // Un sujet déclaré dont on n'a pas la valeur reste déclaré : c'est le trou
+    // du raisonnement, et le taire ferait passer pour complet un calcul qui ne
+    // l'était pas (règle 5).
+    const lues = {
+      [SUJET_LOCALISATION]: texte(localisation?.codeInsee),
+      [SUJET_ALTITUDE]: texte(altitude)
+    };
     const lectures = (Array.isArray(outil?.lit) ? outil.lit : [])
-      .map((lue) => ({
-        sujet: texte(lue?.sujet),
-        valeur: texte(lue?.sujet) === SUJET_ALTITUDE ? texte(altitude) : ""
-      }))
+      .map((lue) => ({ sujet: texte(lue?.sujet), valeur: texte(lues[texte(lue?.sujet)]) }))
       .filter((lue) => lue.sujet);
 
     return {

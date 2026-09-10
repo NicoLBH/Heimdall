@@ -16182,6 +16182,57 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   transform:translate(-50%, 0) rotate(135deg);
 }
 
+/* ── L'arbre : une valeur changée fourche ─────────────────────────────────
+   Changer la commune change la zone de neige **et** la cote hors gel — deux
+   branches du même rang —, et la cote hors gel change ensuite les fondations,
+   un rang plus loin. Dessiné en file, cela se lirait « neige, puis hors gel,
+   puis fondations », ce qui est faux : la neige ne commande pas la cote.
+
+   L'indentation plutôt que des colonnes de front : le schéma vit dans une bande
+   étroite à droite d'un tableau, et deux boîtes côte à côte y seraient
+   illisibles. C'est aussi la forme qu'on lit déjà ailleurs — un journal de
+   branches. */
+.run-graph__canvas--arbre{ --run-graph-indent:18px; --run-graph-ecart:6px; gap:var(--run-graph-ecart); }
+.run-graph__canvas--arbre .run-graph__node{
+  position:relative;
+  /* Le décalage vient du rang, une fois : deux règles pour deux profondeurs
+     finiraient par ne plus s'accorder. */
+  margin-left:calc(var(--run-graph-rang, 0) * var(--run-graph-indent));
+}
+/* Le crochet : un trait court dans la gouttière, et la barre qui rejoint la
+   boîte. Il n'existe que pour ce qui découle de quelque chose — le tronc n'a
+   rien au-dessus de lui.
+
+   Court, et de longueur fixe. Un trait continu du haut de la colonne au coude
+   serait plus joli, mais il devrait remonter jusqu'à la sœur précédente, dont
+   la hauteur n'est pas connue d'ici : il se romprait sous chaque boîte un peu
+   haute, et un tronc rompu se lit comme une branche qui s'arrête. Un crochet
+   franc ne prétend rien : l'indentation dit la profondeur, il dit l'attache. */
+.run-graph__canvas--arbre .run-graph__node[data-run-graph-rang="0"]::before,
+.run-graph__canvas--arbre .run-graph__node[data-run-graph-rang="0"]::after{ display:none; }
+.run-graph__canvas--arbre .run-graph__node::before{
+  content:"";
+  position:absolute;
+  /* Au milieu de la gouttière : les crochets de deux sœurs s'alignent donc
+     dans la même colonne, sous la boîte dont elles découlent. */
+  left:calc(var(--run-graph-indent) / -2);
+  top:calc(var(--run-graph-ecart) * -1);
+  /* L'écart au-dessus, puis jusqu'à la barre. */
+  height:calc(var(--run-graph-ecart) + 14px);
+  width:1px;
+  background:var(--border);
+}
+.run-graph__canvas--arbre .run-graph__node::after{
+  content:"";
+  position:absolute;
+  left:calc(var(--run-graph-indent) / -2);
+  /* À hauteur du titre, qu'il désigne. */
+  top:14px;
+  width:calc(var(--run-graph-indent) / 2);
+  height:1px;
+  background:var(--border);
+}
+
 /* Une exécution sans mesure le dit. Un graphe muet laisse croire que les phases
    ont été instantanées, ou que l'écran a cessé de fonctionner — deux lectures
    fausses, là où l'information est simplement « non enregistrée ». */

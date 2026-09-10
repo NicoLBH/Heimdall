@@ -18,13 +18,30 @@
  * ## Ce qu'une étape porte
  *
  * ```js
- * { id, label, detail, tone, icon, duration, entrees: [], sorties: [] }
+ * { id, label, detail, tone, icon, duration, rang, entrees: [], sorties: [] }
  * ```
  *
  * `entrees` et `sorties` sont ce qu'une étape **lit** et ce qu'elle **écrit** :
  * sans elles, on voit une suite de boîtes sans voir pourquoi elles se suivent.
  * Elles sont facultatives — le chemin d'une exécution n'en a pas — et une étape
  * qui n'en déclare pas n'affiche pas de rubrique vide.
+ *
+ * ## Une file, ou un arbre
+ *
+ * `rang` est la profondeur de propagation : 0 pour ce qu'on change, 1 pour ce
+ * qui en découle directement, 2 pour ce qui découle de cela. **Deux étapes du
+ * même rang sont sœurs** — elles ne se suivent pas, elles partent ensemble.
+ *
+ * Sans rang, le dessin reste une file, et c'est le bon dessin pour le chemin
+ * d'une exécution : décision, corpus, lecture, avis se suivent vraiment. Avec
+ * rang, la colonne s'indente comme un journal de branches, et l'on voit la
+ * fourche — laquelle est l'information principale d'une variante : changer la
+ * commune change la neige **et** la cote hors gel, et la neige ne commande pas
+ * la cote.
+ *
+ * L'indentation plutôt que des colonnes côte à côte : le schéma vit dans une
+ * bande étroite à droite d'un tableau, et deux boîtes de front y seraient
+ * illisibles. C'est aussi la forme qu'on lit déjà ailleurs — `git log --graph`.
  *
  * ## Ce que le composant ne décide pas
  *
@@ -41,6 +58,20 @@ const texte = (valeur) => String(valeur ?? "").trim();
 
 /** Les deux sens de lecture. Un enchaînement se lit toujours dans l'un des deux. */
 export const SENS = { HORIZONTAL: "horizontal", VERTICAL: "vertical" };
+
+/**
+ * Le rang d'une étape, ou `null` quand elle n'en déclare pas.
+ *
+ * `null`, `undefined` et `""` d'abord, avant toute conversion : `Number(null)`
+ * vaut **0**, et une étape sans rang se serait rangée au tronc — un rang qu'elle
+ * n'a pas revendiqué, et qui aurait suffi à faire passer une file pour un arbre.
+ */
+function rangDe(etape) {
+  const declare = etape?.rang;
+  if (declare === null || declare === undefined || declare === "") return null;
+  const rang = Number(declare);
+  return Number.isFinite(rang) ? Math.max(0, rang) : null;
+}
 
 /** Ce qu'une étape lit, ou ce qu'elle écrit. Rien quand elle ne le déclare pas. */
 function renderFlux(titre, noms = []) {
@@ -65,9 +96,14 @@ function renderFlux(titre, noms = []) {
 function renderEtape(noeud, { attributDuLien = "", consultables = null } = {}) {
   const id = texte(noeud?.id);
   const ouvrable = Boolean(attributDuLien) && (consultables ? consultables.has(id) : true);
+  // Le rang décale la boîte, et la feuille de style trace le crochet. Une étape
+  // sans rang ne décale rien : c'est une file, et c'est le bon dessin pour elle.
+  const rang = rangDe(noeud);
 
   return `
-    <div class="run-graph__node run-graph__node--${escapeHtml(texte(noeud?.tone) || "neutral")}">
+    <div class="run-graph__node run-graph__node--${escapeHtml(texte(noeud?.tone) || "neutral")}"${
+      rang === null ? "" : ` data-run-graph-rang="${rang}" style="--run-graph-rang:${rang}"`
+    }>
       <span class="run-graph__head">
         <span class="run-graph__icon">${svgIcon(texte(noeud?.icon) || "dot-fill-pending", { className: "octicon" })}</span>
         ${
@@ -110,13 +146,23 @@ export function renderEnchainement(noeuds = [], {
   if (!etapes.length) return "";
 
   const vertical = sens === SENS.VERTICAL;
+  // Un arbre dès qu'une étape est plus profonde qu'une autre. Des étapes toutes
+  // du même rang n'ont pas fourché : c'est une file, et on la dessine ainsi.
+  const rangs = etapes.map(rangDe).filter((rang) => rang !== null);
+  const arbre = vertical && rangs.length === etapes.length && new Set(rangs).size > 1;
 
   return `
-    <div class="run-graph__canvas${vertical ? " run-graph__canvas--vertical" : ""}"${
-      attributDuCanevas ? ` ${attributDuCanevas}` : ""
-    }>
-      ${etapes.map((noeud, rang) => `
-        ${rang > 0 ? `<span class="run-graph__link" aria-hidden="true"></span>` : ""}
+    <div class="run-graph__canvas${vertical ? " run-graph__canvas--vertical" : ""}${
+      arbre ? " run-graph__canvas--arbre" : ""
+    }"${attributDuCanevas ? ` ${attributDuCanevas}` : ""}>
+      ${etapes.map((noeud, position) => `
+        ${
+          // Le trait qui relie deux boîtes n'a de sens que dans une file : dans
+          // un arbre, la boîte suivante n'est pas forcément la suite de la
+          // précédente, et un trait entre elles dirait le contraire de ce qui
+          // s'est passé. C'est le coude de l'indentation qui relie, à la place.
+          position > 0 && !arbre ? `<span class="run-graph__link" aria-hidden="true"></span>` : ""
+        }
         ${renderEtape(noeud, { attributDuLien, consultables })}
       `).join("")}
     </div>

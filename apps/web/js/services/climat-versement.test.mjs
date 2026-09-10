@@ -135,8 +135,12 @@ test("chaque valeur cite l'utilitaire qui la déduit, pas l'agent", () => {
   assert.equal(posees[1].utilitaire, "deduction_zone_vent_commune_V1");
   // Une zone est tranchée par un tiers : un texte la fixe.
   assert.equal(posees[0].nature, "contrainte");
-  // Et elle dit ce que son utilitaire a lu, pour que la chaîne se referme.
-  assert.deepEqual(posees[0].lectures, [{ sujet: SUJET_ALTITUDE, valeur: "1 326,00 m" }]);
+  // Et elle dit ce que son utilitaire a lu, pour que la chaîne se referme : la
+  // commune d'abord — c'est elle qui donne la zone —, l'altitude ensuite.
+  assert.deepEqual(posees[0].lectures, [
+    { sujet: SUJET_LOCALISATION, valeur: "05023" },
+    { sujet: SUJET_ALTITUDE, valeur: "1 326,00 m" }
+  ]);
 });
 
 test("la cote et son H0 sortent du même appel, chacun avec son sujet", () => {

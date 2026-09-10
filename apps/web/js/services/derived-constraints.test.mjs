@@ -245,10 +245,14 @@ test("l'argile entre comme contrainte du sol, lue au point du projet", () => {
 test("une déduction déclare les sujets qu'elle lit, avec la valeur lue", () => {
   const [contrainte] = constraintsFromContextFacts([neige()]);
 
-  // Elle lit l'altitude — c'est elle qui décide de la réserve au-delà de 900 m.
-  // Elle ne déclare pas la commune : la mémoire ne la porte pas comme sujet, et
-  // déclarer un sujet que rien ne verse ferait un lien vers rien.
-  assert.deepEqual(contrainte.lectures, [{ sujet: "Altitude du site", valeur: "450" }]);
+  // La commune d'abord — c'est elle qui donne la zone —, l'altitude ensuite, qui
+  // décide de la réserve au-delà de 900 m. La localisation est un sujet de la
+  // mémoire depuis qu'un écran la propose : la déclarer est ce qui fait qu'un
+  // projet déplacé voit sa zone de neige bouger.
+  assert.deepEqual(contrainte.lectures, [
+    { sujet: "Localisation du projet", valeur: "74010" },
+    { sujet: "Altitude du site", valeur: "450" }
+  ]);
 });
 
 test("la profondeur hors gel déclare les deux termes de sa formule, dans l'ordre", () => {
@@ -261,6 +265,7 @@ test("la profondeur hors gel déclare les deux termes de sa formule, dans l'ordr
   // `H = H0 + (altitude − 150) / 4000` : l'ordre est celui de la formule, et
   // c'est lui qu'on retrouvera dans le rang des lectures enregistrées.
   assert.deepEqual(contrainte.lectures, [
+    { sujet: "Localisation du projet", valeur: "" },
     { sujet: "H0 retenu pour le département", valeur: "0.5" },
     { sujet: "Altitude du site", valeur: "450" }
   ]);
@@ -275,6 +280,7 @@ test("une lecture sans valeur reste déclarée : c'est le trou du raisonnement",
 
   const [contrainte] = constraintsFromContextFacts([gel]);
   assert.deepEqual(contrainte.lectures.map((l) => [l.sujet, l.valeur]), [
+    ["Localisation du projet", ""],
     ["H0 retenu pour le département", "0.5"],
     ["Altitude du site", ""]
   ]);
@@ -289,15 +295,25 @@ test("la contrainte versée porte ses lectures, valeur comprise", () => {
 
   // La valeur reste dans le payload : c'est elle qui permettra de dire, plus
   // tard, que ce calcul a été fait sur une altitude que le projet a changée.
-  assert.deepEqual(ligne.payload.lectures, [{ sujet: "Altitude du site", valeur: "450" }]);
+  assert.deepEqual(ligne.payload.lectures, [
+    { sujet: "Localisation du projet", valeur: "74010" },
+    { sujet: "Altitude du site", valeur: "450" }
+  ]);
 });
 
-test("une déduction qui ne lit rien du projet ne déclare rien", () => {
-  // Le zonage sismique se lit sur des coordonnées, que la mémoire ne porte pas
-  // comme sujets. Déclarer « latitude » ferait un lien vers rien.
+test("le zonage sismique déclare lire la commune, qu'il ne sache pas se rejouer ou non", () => {
+  // Il l'a longtemps déclarée vide, au motif qu'elle se lisait « sur des
+  // coordonnées, que la mémoire ne porte pas comme sujets ». Ce n'était pas
+  // vrai : le zonage est réglementairement **communal**, et depuis que la
+  // localisation est un sujet de la mémoire il n'y a plus rien à contourner.
+  //
+  // Sa valeur vient de Géorisques et il ne sait pas se rejouer — mais se taire
+  // pour autant laissait la zone de sismicité hors de la chaîne quand on change
+  // la commune, comme si rien n'en dépendait. Règle 5 : ne pas savoir rejouer
+  // n'autorise pas à prétendre que rien ne dépend de la commune.
   const sismique = fait("seismic_zone", { value: "3", codeInsee: "74010", commune: "—" },
     { source_ref: "georisques" });
 
   const [contrainte] = constraintsFromContextFacts([sismique]);
-  assert.deepEqual(contrainte.lectures, []);
+  assert.deepEqual(contrainte.lectures, [{ sujet: "Localisation du projet", valeur: "74010" }]);
 });

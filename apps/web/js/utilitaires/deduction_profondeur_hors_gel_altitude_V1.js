@@ -20,7 +20,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
 import { lecturesDeclarees, reservesConservees, entreesDe, mesureEcrite } from "./lecture-fait.js";
-import { SUJET_ALTITUDE, SUJET_H0 } from "./agents-climatiques.js";
+import { SUJET_ALTITUDE, SUJET_H0, SUJET_LOCALISATION } from "./agents-climatiques.js";
 
 export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   nom: "deduction_profondeur_hors_gel_altitude",
@@ -35,10 +35,12 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   /**
    * Les deux termes de la formule, dans l'ordre où elle les écrit.
    *
-   * `H = H0 + (altitude − 150) / 4000` : les deux sont des sujets que le projet
-   * verse, et les deux sont donc déclarés. Le département et le canton, non —
-   * ils servent à choisir H0 au serveur, mais la mémoire ne les porte pas, et
-   * déclarer un sujet que rien ne verse ferait un lien vers rien.
+   * `H = H0 + (altitude − 150) / 4000` : les deux termes sont des sujets que le
+   * projet verse, et les deux sont donc déclarés. **La localisation aussi** :
+   * c'est elle qui donne le département dont dépend H0, et sans elle changer la
+   * commune ne rejouait pas cette cote. Le canton, non — il sert à choisir H0 au
+   * serveur, mais la mémoire ne le porte pas, et déclarer un sujet que rien ne
+   * verse ferait un lien vers rien.
    *
    * `entree` dit **par quel champ de l'appel** ce sujet entre dans le calcul.
    * L'altitude en a un : le serveur la reçoit et recalcule. H0 n'en a pas — le
@@ -48,6 +50,11 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
    * rendre un chiffre.
    */
   lit: [
+    {
+      sujet: SUJET_LOCALISATION,
+      entree: "code_insee",
+      lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
+    },
     { sujet: SUJET_H0, lire: (fait) => fait?.fact_value?.h0_selected_m },
     {
       sujet: SUJET_ALTITUDE,

@@ -10,7 +10,8 @@
 import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVES } from "./reserves.js";
-import { reservesConservees, entreesDe } from "./lecture-fait.js";
+import { lecturesDeclarees, reservesConservees, entreesDe } from "./lecture-fait.js";
+import { SUJET_LOCALISATION } from "./agents-climatiques.js";
 
 export const DEDUCTION_ZONE_VENT_COMMUNE_V1 = {
   nom: "deduction_zone_vent_commune",
@@ -23,13 +24,25 @@ export const DEDUCTION_ZONE_VENT_COMMUNE_V1 = {
   cleDonnee: "wind_zone",
 
   /**
-   * Le même outil serveur, en mode « calcule sans écrire ».
+   * Ce qu'elle lit du projet : la commune, et elle seule.
    *
-   * Elle ne déclare aucune lecture — la zone vient d'une table communale que la
-   * mémoire ne porte pas —, et elle est donc rejouable sans être concernée par
-   * quoi que ce soit qu'on fasse varier aujourd'hui. Le jour où le projet posera
-   * sa commune comme une donnée de base, il n'y aura qu'une ligne à ajouter.
+   * Elle ne déclarait **rien**, et le commentaire disait pourquoi : « le jour où
+   * le projet posera sa commune comme une donnée de base, il n'y aura qu'une
+   * ligne à ajouter ». Ce jour est venu — la localisation est un sujet de la
+   * mémoire —, et voici la ligne. Sans elle, changer la commune laissait la zone
+   * de vent derrière, sans un mot.
+   *
+   * L'altitude, non : elle ne décide de rien dans le zonage du vent.
    */
+  lit: [
+    {
+      sujet: SUJET_LOCALISATION,
+      entree: "code_insee",
+      lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
+    }
+  ],
+
+  /** Le même outil serveur, en mode « calcule sans écrire ». */
   rejeu: { outil: "wind" },
 
   deduire(fait = {}) {
@@ -39,6 +52,7 @@ export const DEDUCTION_ZONE_VENT_COMMUNE_V1 = {
     return {
       valeur,
       entrees: entreesDe(fait),
+      lectures: lecturesDeclarees(DEDUCTION_ZONE_VENT_COMMUNE_V1, fait),
       reserves: [...reservesConservees(fait)].filter((code) => RESERVES.includes(code)).sort()
     };
   }
