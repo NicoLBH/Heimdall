@@ -37,6 +37,7 @@ import { DEDUCTION_RETRAIT_GONFLEMENT_ARGILES_GEORISQUES_V1 } from "./deduction_
 import { EXTRACTION_AVIS_RAPPORTS_SOCOTEC_V1 } from "./extraction_avis_rapports_socotec_V1.js";
 import { DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 } from "./dimensionnement_fondations_superficielles_V1.js";
 import { PRODUIT } from "./vocabulaire.js";
+import { AGENTS_CLIMATIQUES } from "./agents-climatiques.js";
 import { cleDuSujet } from "../services/memoire-identifiants.js";
 
 export { PRODUIT };
@@ -99,8 +100,11 @@ export function declarationDuSujet(sujet = "") {
   const cherche = cleDuSujet(sujet);
   if (!cherche) return null;
 
-  for (const outil of UTILITAIRES) {
-    const declarations = [...(Array.isArray(outil.lit) ? outil.lit : []), outil.rend].filter(Boolean);
+  // Les agents d'abord : ce qu'ils lisent est l'**entrée** d'une chaîne, et
+  // c'est ce qu'un lecteur cherche en premier. Un sujet déclaré des deux côtés
+  // serait un désaccord à trancher, pas un cas à gérer.
+  for (const porteur of [...AGENTS, ...UTILITAIRES]) {
+    const declarations = [...(Array.isArray(porteur.lit) ? porteur.lit : []), porteur.rend].filter(Boolean);
     const trouvee = declarations.find((declaration) => cleDuSujet(declaration?.sujet) === cherche);
     if (!trouvee) continue;
 
@@ -109,11 +113,85 @@ export function declarationDuSujet(sujet = "") {
       quoi: texte(trouvee.quoi),
       utilisation: texte(trouvee.utilisation),
       structure: Array.isArray(trouvee.structure) && trouvee.structure.length ? trouvee.structure : null,
-      utilitaire: outil
+      utilitaire: porteur
     };
   }
 
   return null;
+}
+
+/**
+ * Les agents-D déclarés, dans l'ordre où la chaîne les traverse.
+ *
+ * Un **agent** n'est pas un utilitaire : c'est un appel au serveur, et il pose
+ * en général plusieurs sujets d'un coup. L'utilitaire, lui, est la **lecture**
+ * d'un de ces sujets — son fichier, sa version, sa source. Les deux existent, et
+ * les confondre reviendrait soit à perdre l'appel — c'est ce qui se passait —,
+ * soit à ne plus pouvoir monter la version d'un seul zonage.
+ */
+export const AGENTS = [...AGENTS_CLIMATIQUES];
+
+/** Un agent par sa référence complète, ou `null`. Rien n'est approché. */
+export function agentByReference(reference = "") {
+  const cle = texte(reference);
+  return AGENTS.find((agent) => referenceOf(agent) === cle) ?? null;
+}
+
+/**
+ * Ce qu'un agent pose, sortie par sortie, dans l'ordre où il les déclare.
+ *
+ * Une sortie qui renvoie à un outil — `{ outil: "snow" }` — est **résolue par le
+ * catalogue** : son sujet, sa source et sa version viennent de l'utilitaire qui
+ * la déduit, jamais d'une copie faite dans l'agent. Le jour où un zonage change
+ * de nom, il n'y a qu'un fichier à toucher (règle 4).
+ *
+ * Une sortie déclarée en entier — le H0 de la table départementale — se rend
+ * telle quelle : aucun utilitaire ne la déduit, le serveur la donne.
+ *
+ * @returns {{sujet: string, cle: string, quoi: string, utilitaire: object|null,
+ *            decimales: number|null, unite: string}[]}
+ */
+export function sortiesDeLAgent(agent = null) {
+  const dites = Array.isArray(agent?.rend) ? agent.rend : [];
+
+  return dites.map((sortie) => {
+    // `outil` dit **dans quel résultat** la valeur se lit — c'est la clé que le
+    // serveur connaît. La sortie prend le sujet de l'utilitaire de cet outil,
+    // sauf si elle déclare le sien : le H0 se lit dans le résultat du gel, mais
+    // ce n'est pas la cote hors gel.
+    const cleOutil = texte(sortie?.outil);
+    const propre = texte(sortie?.sujet);
+    const outil = propre
+      ? null
+      : UTILITAIRES.find((candidat) => texte(candidat?.rejeu?.outil) === cleOutil) ?? null;
+
+    return {
+      sujet: propre || texte(outil?.sujet),
+      outil: cleOutil,
+      // Le champ du résultat de l'outil où cette valeur se lit. **Toujours
+      // déclaré** : la clé du fait de contexte que porte l'utilitaire
+      // (`frost_depth`) n'est pas celle du résultat (`frost_depth_m`), et
+      // retomber sur elle lirait un champ absent sans le dire.
+      cle: texte(sortie?.cle),
+      quoi: texte(sortie?.quoi),
+      decimales: Number.isFinite(Number(sortie?.decimales)) ? Number(sortie.decimales) : null,
+      unite: texte(sortie?.unite),
+      utilitaire: outil
+    };
+  }).filter((sortie) => sortie.sujet);
+}
+
+/**
+ * L'agent qui pose ce sujet, ou `null`.
+ *
+ * C'est par là qu'une valeur remonte à l'appel qui l'a produite, et de l'appel à
+ * ce qu'il a lu. Sans ce lien, une zone de neige ne dit pas d'où elle vient.
+ */
+export function agentDuSujet(sujet = "") {
+  const cherche = cleDuSujet(sujet);
+  if (!cherche) return null;
+  return AGENTS.find((agent) =>
+    sortiesDeLAgent(agent).some((sortie) => cleDuSujet(sortie.sujet) === cherche)) ?? null;
 }
 
 /**

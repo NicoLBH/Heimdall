@@ -1,3 +1,28 @@
+/**
+ * Neige, vent et gel : deux appels, et la localisation qui les nourrit.
+ *
+ * ## Ce qui a changé, et pourquoi
+ *
+ * L'écran calculait bien — les tables sont au serveur — mais il versait cinq
+ * valeurs solitaires : aucune ne disait par quel appel elle avait été obtenue,
+ * ni à partir de quelle commune, ni comment la refaire. Le raisonnement
+ * climatique s'arrêtait donc à sa première ligne, et une variante d'altitude
+ * rangeait tout ce qui en découlait « à revérifier ».
+ *
+ * Il verse maintenant ce qu'il faut pour **refaire** : la localisation et
+ * l'altitude comme entrées, les deux appels d'agent-D comme raisonnement, les
+ * zones et la cote comme ce que le projet retient. Voir
+ * `services/climat-versement.js` et `utilitaires/agents-climatiques.js`.
+ *
+ * ## La localisation se saisit
+ *
+ * Elle venait en silence du formulaire du projet. Un projet dont l'adresse
+ * n'avait pas de code INSEE recevait une erreur du serveur sans savoir laquelle,
+ * et personne ne pouvait voir avec quelle commune un zonage avait été calculé.
+ * Elle est donc à l'écran, modifiable, et le calcul refuse de partir sans le
+ * code INSEE — en le disant.
+ */
+
 import { escapeHtml } from "../../../utils/escape-html.js";
 import { store } from "../../../store.js";
 import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.js";
@@ -6,8 +31,7 @@ import { getEffectiveProjectLocation } from "./solidity-climate-tool-common.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 import { renderGhActionButton } from "../../ui/gh-split-button.js";
 import { renderTransformer, TRANSFORMER } from "../../ui/transformer.js";
-import { NATURE, DOMAIN } from "../../../services/assertion-taxonomy.js";
-import { PROVENANCE, STATUT } from "../../../services/memoire-en-texte.js";
+import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
 import { renderProjectLocationMapCard } from "../../shared/project-location-map-card.js";
 
@@ -21,7 +45,29 @@ const TOOL_LABELS = {
 const state = {
   // Vrai le temps qu'une proposition se prépare : le bouton le dit, et ne se
   // reclique pas.
-  transforming: false, loading: false, error: "", projectId: "", location: null, results: {}, mapUrl: "", mapLoading: false };
+  transforming: false, loading: false, error: "", projectId: "",
+  /**
+   * La localisation **saisie**, celle avec laquelle on calcule.
+   *
+   * Elle part de celle du projet et s'en détache dès qu'on y touche : c'est une
+   * saisie d'Atelier, elle n'écrit rien nulle part. Ce qu'elle deviendra pour le
+   * projet passe par une proposition, comme le reste.
+   */
+  location: null,
+  results: {}, mapUrl: "", mapLoading: false };
+
+/** Les champs de la localisation, dans l'ordre où on les lit. */
+const CHAMPS_DE_LOCALISATION = [
+  { cle: "city", nom: "Commune", exemple: "Briançon" },
+  { cle: "codeInsee", nom: "Code INSEE", exemple: "05023" },
+  { cle: "postalCode", nom: "Code postal", exemple: "05100" },
+  { cle: "altitude", nom: "Altitude", exemple: "1326", unite: "m" }
+];
+
+/** Vrai quand le serveur a de quoi répondre. Sans code INSEE, il ne peut pas. */
+function saisieSuffisante() {
+  return String(state.location?.codeInsee || "").trim().length > 0;
+}
 
 function buildClimateDraftDescription() {
   const projectName = String(store.projectForm?.projectName || store.currentProject?.name || "").trim() || "Nom_du projet";
@@ -54,112 +100,22 @@ avec H0 retenu: **${h0SelectedText}**`;
 }
 
 /**
- * Ce que ces résultats affirment du projet.
+ * Ce que ces résultats proposent au projet.
  *
- * Des **contraintes** : une zone de neige n'est ni choisie ni mesurée, elle est
- * fixée par un texte. La taxonomie les nomme en premier — « zones neige, vent et
- * sismique ». Le fait qu'elles se déduisent de la commune n'en fait pas des
- * suppositions : la déduction fait partie de leur définition.
+ * Huit lignes, et elles ne se valent pas : deux entrées — la localisation et
+ * l'altitude —, deux appels d'agent-D, quatre valeurs posées. C'est cette forme
+ * qui rend la chaîne rejouable, et le fichier qui la construit vit à part parce
+ * qu'il ne parle à personne : `services/climat-versement.js`.
  *
  * Ce qui n'a pas de valeur n'entre pas : une zone qu'on n'a pas su lire ne
  * s'affirme pas « — ».
  */
-function affirmationsClimatiques() {
-  const neige = state.results?.snow?.result_payload || {};
-  const vent = state.results?.wind?.result_payload || {};
-  const gel = state.results?.frost?.result_payload || {};
-
-  const nombre = (valeur, chiffres, unite) => {
-    const n = Number(valeur);
-    return Number.isFinite(n) ? `${n.toFixed(chiffres)} ${unite}`.trim() : "";
-  };
-
-  const commune = [state.location?.city, state.location?.postalCode].filter(Boolean).join(" ");
-  const source = commune ? `Zonages réglementaires — ${commune}` : "Zonages réglementaires";
-
-  const altitude = nombre(neige?.altitude ?? state.location?.altitude, 2, "m");
-  const h0 = nombre(gel?.h0_selected_m, 1, "m");
-
-  // Cet utilitaire produit **deux natures**, et les confondre range de travers.
-  //
-  // Une zone lue sur une carte est une **donnée de base** : elle est relevée,
-  // elle ne se calcule pas, et personne ne la négocie. Une profondeur hors gel
-  // est une **contrainte déduite** : elle s'impose comme si elle sortait d'un
-  // texte, mais elle ne tient que tant que ses entrées tiennent — d'où la
-  // double flèche qui nomme le calcul, sur sa propre ligne.
-  // Un calcul nomme ses entrées : c'est ce qui permettra, le jour où l'une
-  // change, de savoir quoi refaire sans chercher.
-  const entreesDuGel = [
-    h0 ? `H0 du département = ${h0}` : "",
-    altitude ? `altitude du site = ${altitude}` : ""
-  ].filter(Boolean);
-  const calculHorsGel = `hors gel${entreesDuGel.length ? ` (${entreesDuGel.join(" ; ")})` : ""}`;
-
-  // Chaque valeur dit d'où elle vient, et le **type** de la provenance dit
-  // comment elle a été obtenue : une carte se lit, une formule se calcule, une
-  // fourchette se tranche. Rien de plus à déclarer — un champ « origine » à
-  // côté redirait la même chose et finirait par la contredire.
-  return [
-    {
-      sujet: "Zone de neige", valeur: String(neige?.snow_zone || "").trim(),
-      nature: NATURE.DONNEE_BASE,
-      source: `${source} (NF EN 1991-1-3 / annexe nationale)`,
-      provenance: { type: PROVENANCE.DOCUMENT, quoi: `carte annexée à la NF EN 1991-1-3 — ${commune || "commune inconnue"}` },
-      citation: "La zone se lit sur la carte annexée à la NF EN 1991-1-3."
-    },
-    {
-      sujet: "Zone de vent", valeur: String(vent?.wind_zone || "").trim(),
-      nature: NATURE.DONNEE_BASE,
-      source: `${source} (NF EN 1991-1-4 / annexe nationale)`,
-      provenance: { type: PROVENANCE.DOCUMENT, quoi: `carte annexée à la NF EN 1991-1-4 — ${commune || "commune inconnue"}` },
-      citation: "La zone se lit sur la carte annexée à la NF EN 1991-1-4."
-    },
-    {
-      sujet: "Altitude du site", valeur: altitude, nature: NATURE.DONNEE_BASE, source,
-      provenance: { type: PROVENANCE.DOCUMENT, quoi: `zonages réglementaires — ${commune || "commune inconnue"}` }
-    },
-    {
-      sujet: "Profondeur hors gel", valeur: nombre(gel?.frost_depth_m, 3, "m"),
-      nature: NATURE.CONTRAINTE,
-      source: `${source} (NF DTU 13.1)`,
-      // La formule est écrite dans le DTU ; elle ne se discute pas. Ce qui se
-      // discute, c'est l'altitude : sans elle, la cote a été calculée à 150 m,
-      // ce qui n'est vrai nulle part en particulier. La ligne le dit — une
-      // hypothèse écrite comme un fait est l'erreur que cette mémoire existe
-      // pour éviter.
-      provenance: { type: PROVENANCE.CALCUL, quoi: calculHorsGel },
-      citation: altitude
-        ? "NF DTU 13.1 : H = H0 + (altitude − 150) / 4000"
-        : "NF DTU 13.1 : H = H0 + (altitude − 150) / 4000. L'altitude du site n'est pas connue : la cote a été calculée à 150 m.",
-      statut: altitude ? STATUT.RETENU : STATUT.SUPPOSE
-    },
-    {
-      sujet: "H0 retenu pour le département", valeur: h0,
-      nature: NATURE.CONTRAINTE,
-      source: `${source} (NF DTU 13.1)`,
-      // Quand le département offre une fourchette, quelqu'un a **tranché**.
-      // Une décision n'est pas un relevé, et les écrire pareil fait rediscuter
-      // six mois plus tard un chiffre qu'on croyait mesuré.
-      provenance: {
-        type: PROVENANCE.DECISION,
-        quoi: `table départementale du NF DTU 13.1 — département ${departementDe(state.location) || "inconnu"}`
-      },
-      citation: "La table départementale du NF DTU 13.1 donne H0."
-    }
-  ]
-    .filter((affirmation) => affirmation.valeur)
-    .map((affirmation) => ({
-      ...affirmation,
-      domain: DOMAIN.STRUCTURE,
-      domaine: DOMAIN.STRUCTURE,
-      atelier: "Neige, Vent & Gel"
-    }));
-}
-
-/** Le département, tel qu'on le nomme dans l'abaque. */
-function departementDe(location) {
-  const code = String(location?.postalCode || "").trim().slice(0, 2);
-  return code || "";
+function affirmationsClimatiques(zone = "") {
+  return lignesVersables({
+    localisation: state.location ?? {},
+    resultats: state.results ?? {},
+    zone
+  });
 }
 
 function buildClimateDraftTitle() {
@@ -249,8 +205,12 @@ async function proposerLesZones(root) {
   const rendu = await preparerUneProposition({
     projectId: state.projectId,
     titre: buildClimateDraftTitle(),
-    intro: "Zonages réglementaires applicables au projet, tels que les référentiels les fixent.",
-    source: affirmations[0]?.source || "",
+    intro: "La localisation du projet, les deux appels qui en découlent, et ce qu'ils posent. "
+      + "Les entrées entrent avec le reste : c'est ce qui permettra de tout refaire le jour où "
+      + "l'une d'elles change.",
+    // La première ligne qui cite un texte : les deux premières sont des
+    // entrées, et une entrée n'a pas de source réglementaire.
+    source: affirmations.find((ligne) => ligne.source)?.source || "",
     affirmations,
     zones
   });
@@ -276,7 +236,9 @@ async function hydrateState() {
   try {
     const projectId = await resolveCurrentBackendProjectId();
     state.projectId = String(projectId || "").trim();
-    state.location = getEffectiveProjectLocation();
+    // Celle du projet au premier montage seulement : une saisie en cours ne se
+    // perd pas parce qu'on est passé sur un autre panneau et revenu.
+    if (!state.location) state.location = getEffectiveProjectLocation();
     if (!state.projectId) throw new Error("Projet introuvable.");
     const rows = await Promise.all(TOOL_KEYS.map((toolKey) => getLastStudioToolResult({ projectId: state.projectId, toolKey })));
     state.results = Object.fromEntries(rows.map((row, index) => [TOOL_KEYS[index], row]));
@@ -293,8 +255,11 @@ async function calculateAll() {
   try {
     const projectId = state.projectId || await resolveCurrentBackendProjectId();
     state.projectId = String(projectId || "").trim();
-    state.location = getEffectiveProjectLocation();
     if (!state.projectId) throw new Error("Projet introuvable.");
+    // La localisation **saisie**, pas celle du formulaire : c'est elle qu'on
+    // vient de corriger, et recharger l'autre annulerait la correction sans
+    // qu'un mot le dise.
+    if (!saisieSuffisante()) throw new Error("Il manque le code INSEE de la commune : les tables de zonage se lisent par lui.");
 
     const responses = await Promise.all(TOOL_KEYS.map((toolKey) => resolveStudioClimateTool({
       projectId: state.projectId,
@@ -316,6 +281,9 @@ async function calculateAll() {
 function render(root) {
   const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
   const actionLabel = state.loading ? "Calcul en cours..." : hasResult ? "Recalculer" : "Calculer";
+  // Sans code INSEE, le serveur répond 400 et l'écran affichait son message
+  // brut. On refuse avant, et l'on dit pourquoi à côté du champ.
+  const peutCalculer = saisieSuffisante();
 
   root.innerHTML = `
     <section class="settings-section is-active" data-solidity-tool-card="climate">
@@ -326,7 +294,7 @@ function render(root) {
               <h4>Zones et charges climatiques</h4>
               <div class="studio-tool-card__actions">
                 ${renderTransformer({ id: "solidityToolTransform-climate", disabled: !hasResult || state.transforming })}
-                ${renderGhActionButton({ id: "solidityToolCalculate-climate", label: actionLabel, tone: "primary", size: "md", disabled: !!state.loading, mainAction: "" })}
+                ${renderGhActionButton({ id: "solidityToolCalculate-climate", label: actionLabel, tone: "primary", size: "md", disabled: !!state.loading || !peutCalculer, mainAction: "" })}
               </div>
             </span>
           </div>
@@ -343,6 +311,7 @@ function render(root) {
       </div>
     </section>
   `;
+  brancherLaSaisie(root);
   void refreshMapCard(root);
 }
 
@@ -350,22 +319,96 @@ function renderCards() {
   return `<div class="studio-tool-cards-column">${renderAddressCard()}${TOOL_KEYS.map((toolKey) => renderToolCard(toolKey)).join("")}</div><div></div>`;
 }
 
+/**
+ * La localisation, saisissable.
+ *
+ * Pré-remplie par celle du projet, et modifiable : c'est une saisie d'Atelier,
+ * elle n'écrit rien. Ce qu'elle deviendra pour le projet passe par la
+ * proposition, comme le reste.
+ *
+ * Le code INSEE porte sa propre phrase parce qu'il est le seul qui **bloque** :
+ * le serveur lit ses tables par lui, et deux communes homonymes ne se
+ * distinguent pas autrement. Un bouton grisé sans raison se reclique dix fois.
+ */
 function renderAddressCard() {
   const location = state.location || {};
-  const address = [location.address, location.postalCode, location.city].filter(Boolean).join(", ");
-  return `<article class="studio-tool-info-card"><h4>Adresse</h4><ul><li>${escapeHtml(address || "—")}</li></ul></article>`;
+
+  return `
+    <article class="studio-tool-info-card climat-localisation">
+      <h4>Localisation</h4>
+      <p class="gh-text-muted climat-localisation__quoi">
+        Ce avec quoi le calcul part. Elle vient du projet ; la corriger ici ne change
+        que ce calcul-ci.
+      </p>
+      ${CHAMPS_DE_LOCALISATION.map((champ) => `
+        <label class="climat-localisation__champ">
+          <span>${escapeHtml(champ.nom)}${champ.unite ? ` <i>(${escapeHtml(champ.unite)})</i>` : ""}</span>
+          <input type="text" class="gh-input" data-climat-champ="${escapeHtml(champ.cle)}"
+            value="${escapeHtml(String(location[champ.cle] ?? ""))}"
+            placeholder="${escapeHtml(champ.exemple)}" autocomplete="off">
+        </label>
+      `).join("")}
+      ${
+        saisieSuffisante()
+          ? ""
+          : `<p class="climat-localisation__manque">
+              Le code INSEE désigne la commune sans ambiguïté — deux communes peuvent porter le même
+              nom. Les tables de zonage se lisent par lui : sans code INSEE, rien ne se calcule.
+            </p>`
+      }
+      <button type="button" class="gh-btn gh-btn--sm" data-climat-reprendre>
+        Reprendre celle du projet
+      </button>
+    </article>
+  `;
 }
 
+/**
+ * Les gestes de la saisie.
+ *
+ * L'écran ne se redessine **pas** à la frappe : il perdrait le curseur à chaque
+ * lettre. Seul l'état change, et le bouton « Calculer » suit — c'est le seul
+ * élément dont l'apparence dépende de ce qu'on tape.
+ */
+function brancherLaSaisie(root) {
+  for (const champ of root.querySelectorAll("[data-climat-champ]")) {
+    champ.addEventListener("input", () => {
+      const cle = champ.getAttribute("data-climat-champ") || "";
+      const dit = champ.value.trim();
+      state.location = {
+        ...(state.location ?? {}),
+        [cle]: cle === "altitude" ? (dit === "" ? null : Number(dit.replace(",", "."))) : dit
+      };
+      const bouton = root.querySelector('[data-action-id="solidityToolCalculate-climate"] button');
+      if (bouton) bouton.disabled = state.loading || !saisieSuffisante();
+      const manque = root.querySelector(".climat-localisation__manque");
+      if (manque) manque.hidden = saisieSuffisante();
+    });
+  }
+
+  root.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
+    state.location = getEffectiveProjectLocation();
+    render(root);
+  });
+}
+
+/**
+ * La carte d'un outil.
+ *
+ * Les nombres s'y écrivent **comme la mémoire les écrira** : virgule décimale,
+ * unité collée. La carte affichait « 0.894 » là où la ligne versée dira
+ * « 0,89 m », et l'on aurait cherché longtemps d'où venait la différence.
+ */
 function renderToolCard(toolKey) {
   const result = state.results?.[toolKey]?.result_payload || null;
   const title = TOOL_LABELS[toolKey] || toolKey;
-  const altitudeValue = Number(result?.altitude ?? state.location?.altitude);
-  const altitudeLabel = Number.isFinite(altitudeValue) ? `${Math.round(altitudeValue)} m` : "—";
+  const altitudeLabel = mesure(result?.altitude ?? state.location?.altitude, 2, "m") || "—";
   const details = toolKey === "snow"
     ? `<li>Région: <strong>${escapeHtml(result?.snow_zone || "—")}</strong></li><li>Altitude: <strong>${escapeHtml(altitudeLabel)}</strong></li>`
     : toolKey === "wind"
       ? `<li>Région: <strong>${escapeHtml(result?.wind_zone || "—")}</strong></li>`
-      : `<li>Profondeur hors gel: <strong>${escapeHtml(String(result?.frost_depth_m ?? "—"))}</strong></li><li>H0: <strong>${escapeHtml(String(result?.h0_selected_m ?? "—"))}</strong></li>`;
+      : `<li>Profondeur hors gel: <strong>${escapeHtml(mesure(result?.frost_depth_m, 2, "m") || "—")}</strong></li>`
+        + `<li>H0: <strong>${escapeHtml(mesure(result?.h0_selected_m, 1, "m") || "—")}</strong></li>`;
 
   return `
     <article class="studio-tool-info-card">

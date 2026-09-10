@@ -45,7 +45,7 @@ pas après.
 |---|---|---|---|
 | 1 | Les explorations passent dans l'Atelier — *fait* | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
 | 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi — *fait* | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
-| 3 | Neige, vent et gel aux standards, puis le spectre | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
+| 3 | Neige, vent et gel aux standards — *fait* ; le spectre suit | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
 | 4 | La localisation et les zones se changent par proposition | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
 | 5 | La cascade parallèle | **la démonstration** | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
 | 6 | La proposition devient une branche | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
@@ -1066,11 +1066,15 @@ souligne un paragraphe et dit « ceci ressemble à une décision : voici la
 question, voici ce qui semble avoir été écarté, voici qui semble avoir tranché ».
 Chacune de ces trois choses est **corrigeable**, et rien n'entre sans signature.
 
-### Fermer un sujet est une décision
+### Fermer un sujet est une décision — *tranché*
 
 Aujourd'hui, fermer un sujet ne laisse qu'un état. C'est perdre exactement
 l'information qu'on cherche. La fermeture doit demander : **qu'a-t-on tranché ?**
 — et ce qu'on répond devient une décision, avec sa question et ses écartés.
+
+**C'est acquis** : la question a été posée et la réponse est oui. Reste à
+l'implémenter avec le modèle, à l'étape 8 — et à respecter la consigne
+permanente : aucun sujet réel ne s'ouvre ni ne se ferme automatiquement.
 
 ### Questions ouvertes, à trancher avant d'écrire du code
 
@@ -1230,21 +1234,76 @@ valait que pour elle quitte le présent, avec son motif.
 
 ## 20. Neige, vent et gel aux standards, puis le spectre
 
-L'utilitaire « Neige, Vent & Gel » est antérieur aux standards actuels — entrées
-déclarées, sorties déclarées, appel à un agent-D, rejeu. Il se découpe en
-**deux** :
+**État :** neige, vent et gel sont faits. Le spectre reste à faire.
 
-- **un agent-D neige et vent** — même carte, même saisie : la commune ;
-- **un agent-D gel** — département et altitude. La déduction existe déjà
-  (`deduction_profondeur_hors_gel_altitude_V1`) ; elle doit devenir une fonction
-  native déclarée comme les autres, avec son `lit`, son `rend` et sa `structure`.
+L'utilitaire « Neige, Vent & Gel » était antérieur aux standards actuels —
+entrées déclarées, sorties déclarées, appel à un agent-D, rejeu. Il est découpé
+en **deux agents**, et pas trois :
 
-Une **localisation** se saisit pour calculer. Les calculs restent au serveur,
-sans exception.
+| agent | ce qu'il lit | ce qu'il pose |
+| --- | --- | --- |
+| **zones climatiques** | la localisation | zone de neige, zone de vent |
+| **profondeur hors gel** | la localisation, l'altitude | la cote hors gel, le H0 retenu |
 
-Le **spectre** suit, aux mêmes standards. Il lit la zone sismique, la classe de
-sol et la catégorie d'importance — trois champs que la déclaration des fondations
-nomme déjà — voir [`variante-lecture.md`](variante-lecture.md).
+Le premier ne lit qu'une commune ; le second lit une altitude, et c'est lui seul
+qu'une variante d'altitude concerne. Les tenir ensemble aurait rejoué les tables
+communales à chaque mètre essayé, pour rien.
+
+Le serveur, lui, garde ses **trois** clés — `snow`, `wind`, `frost` — et c'est
+juste : les zonages neige et vent ne sont pas révisés ensemble, chacun a son
+fichier et sa version. Un **agent** est un appel ; un **utilitaire** est la
+lecture d'un des sujets que cet appel pose. Les confondre revenait soit à perdre
+l'appel — c'est ce qui se passait —, soit à ne plus pouvoir monter la version
+d'un seul zonage.
+
+### Ce qui manquait, et que l'étape referme
+
+L'écran calculait bien ; rien de ce qu'il faisait ne s'écrivait comme un
+raisonnement.
+
+- **L'appel n'existait nulle part.** Cinq valeurs entraient dans la mémoire,
+  chacune seule, sans que rien dise qu'un même calcul les avait posées ensemble.
+- **Son entrée non plus.** La commune vivait dans le formulaire du projet, pas
+  dans sa mémoire : on ne pouvait ni la relire, ni la faire varier, ni savoir
+  laquelle avait servi.
+- **Rien ne se rejouait.** La reprise ne reconnaissait qu'un `kind` — celui du
+  versement automatique depuis les faits de contexte — et laissait de côté tout
+  ce qui entre par une **proposition**, c'est-à-dire le chemin normal. Une zone
+  de neige signée citait pourtant son utilitaire, sa version et ce qu'elle avait
+  lu : tout était là, et rien ne la reprenait. Ce qui décide est désormais ce
+  dont on a besoin pour refaire — l'utilitaire cité, et ce qu'il sait faire.
+
+### Ce que l'étape a posé
+
+- `utilitaires/agents-climatiques.js` — les deux agents, leurs entrées, leurs
+  sorties. Une sortie qui renvoie à un outil (`{ outil: "snow" }`) prend le sujet
+  de l'utilitaire qui la déduit ; celles qu'aucun utilitaire ne déduit — le H0 de
+  la table départementale — se déclarent en entier. **Chaque sortie déclare aussi
+  la clé du résultat où elle se lit** : `frost_depth_m` n'est pas `frost_depth`,
+  et deviner l'une depuis l'autre lisait un champ absent sans le dire.
+- `services/climat-versement.js` — huit lignes, dans l'ordre de la chaîne : la
+  localisation, l'altitude, l'appel des zones, ce qu'il pose, l'appel du gel, ce
+  qu'il pose. C'est cette forme qui rend la chaîne rejouable.
+- **La localisation se saisit**, sur l'écran, pré-remplie par le projet et
+  modifiable. Le calcul refuse de partir sans le code INSEE et le dit à côté du
+  champ : « code_insee is required » n'était une phrase pour personne.
+- L'altitude cesse d'être versée comme un **produit** des zonages. Le serveur ne
+  la calcule pas, il la reçoit ; l'écrire comme une sortie faisait de la chaîne
+  climatique une boucle sur elle-même.
+- Les cartes de l'écran écrivent leurs nombres **comme la mémoire les écrira** —
+  virgule, unité : « 0.894 » d'un côté et « 0,89 m » de l'autre auraient fait
+  chercher longtemps d'où venait la différence.
+
+Les calculs restent au serveur, sans exception.
+
+### Ce qui reste : le spectre
+
+Aux mêmes standards. Il lit la zone sismique, la classe de sol et la catégorie
+d'importance — trois champs que la déclaration des fondations nomme déjà — voir
+[`variante-lecture.md`](variante-lecture.md). Son calcul, lui, est aujourd'hui
+dans le **navigateur** (`vendor/utilitaires/seismic-spectrum.js`, copié au build)
+et c'est la première question à trancher : y reste-t-il, puisque la courbe se
+trace à l'écran, ou passe-t-il au serveur comme les autres ?
 
 ---
 

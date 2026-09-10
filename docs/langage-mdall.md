@@ -965,6 +965,8 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/incendie-en-texte.js` | branche l'utilitaire incendie sur le tout |
 | `apps/web/js/utilitaires/dimensionnement_fondations_superficielles_V1.js` | déclare la fonction native des fondations — ce qu'elle lit, jamais comment |
 | `apps/web/js/services/fondations-versement.js` | ce qu'une étude de fondations propose : ses entrées, l'appel, son résultat |
+| `apps/web/js/utilitaires/agents-climatiques.js` | les deux agents-D du climat : ce qu'ils lisent, ce qu'ils posent, et la localisation |
+| `apps/web/js/services/climat-versement.js` | ce qu'une étude climatique propose : la localisation, les deux appels, les zones |
 | `apps/web/js/services/fondations-reprise.js` | refait l'étude quand la profondeur hors gel change — pur, le calcul lui est passé |
 | `apps/web/js/services/memoire-recherche-texte.js` | chercher un mot et le montrer où il est — surlignage, voisinage, va-et-vient |
 | `apps/web/js/services/zip.js` | emporter la mémoire en un fichier, sans dépendance |

@@ -9,6 +9,11 @@ import {
   describeProvenance,
   numeroDeVersion,
   referenceOf,
+  AGENTS,
+  agentByReference,
+  agentDuSujet,
+  declarationDuSujet,
+  sortiesDeLAgent,
   utilitaireByReference
 } from "./catalogue.js";
 import { RESERVE, RESERVES, phraseDeReserve } from "./reserves.js";
@@ -191,4 +196,81 @@ test("un fait écrit avant qu'on conserve les entrées se dit inconnu", () => {
   const rendu = outil.deduire({ fact_value: { zone: "A2", department_code: "74" } });
 
   assert.deepEqual(rendu.reserves, [RESERVE.ENTREES_INCONNUES]);
+});
+
+/* ── Les agents : ce qu'ils lisent, ce qu'ils posent ─────────────────────── */
+
+test("chaque agent porte un nom, une version, une source et ce qu'il lit", () => {
+  for (const agent of AGENTS) {
+    assert.ok(agent.nom.length > 0);
+    assert.match(agent.version, /^V\d+$/);
+    assert.ok(agent.source.length > 0, agent.nom);
+    // Un agent qui ne dit pas ce qu'il lit ne se rejoue pas, et sa chaîne
+    // s'arrête à lui sans qu'on sache pourquoi.
+    assert.ok(agent.lit.length > 0, agent.nom);
+    assert.ok(agent.quoi.length > 20, agent.nom);
+  }
+});
+
+test("deux agents ne partagent pas une référence", () => {
+  const references = AGENTS.map(referenceOf);
+  assert.equal(new Set(references).size, references.length);
+  assert.equal(agentByReference("agent_d_zones_climatiques_commune_V1").nom, "agent_d_zones_climatiques_commune");
+  // Rien n'est approché : un agent qu'on ne connaît pas n'existe pas.
+  assert.equal(agentByReference("agent_d_zones_climatiques"), null);
+});
+
+test("une sortie qui renvoie à un outil prend le sujet de son utilitaire", () => {
+  // Le sujet n'est écrit qu'à un endroit : le jour où un zonage change de nom,
+  // il n'y a qu'un fichier à toucher.
+  const [neige, vent] = sortiesDeLAgent(agentByReference("agent_d_zones_climatiques_commune_V1"));
+
+  assert.equal(neige.sujet, "Zone de neige");
+  assert.equal(neige.utilitaire.nom, "deduction_zone_neige_commune");
+  assert.equal(vent.sujet, "Zone de vent");
+});
+
+test("une sortie que nul utilitaire ne déduit se déclare en entier", () => {
+  // Le H0 se lit dans le résultat du gel, mais ce n'est pas la cote hors gel :
+  // il déclare son propre sujet, et c'est ce qui empêche de les confondre.
+  const [cote, h0] = sortiesDeLAgent(agentByReference("agent_d_profondeur_hors_gel_V1"));
+
+  assert.equal(cote.sujet, "Profondeur hors gel");
+  assert.equal(cote.cle, "frost_depth_m");
+  assert.equal(h0.sujet, "H0 retenu pour le département");
+  assert.equal(h0.outil, "frost");
+  assert.equal(h0.utilitaire, null);
+});
+
+test("chaque sortie déclare où sa valeur se lit dans le résultat", () => {
+  // La clé du fait de contexte (`frost_depth`) n'est pas celle du résultat
+  // (`frost_depth_m`). Retomber de l'une sur l'autre lirait un champ absent, et
+  // rendrait une valeur vide sans un mot.
+  for (const agent of AGENTS) {
+    for (const sortie of sortiesDeLAgent(agent)) {
+      assert.ok(sortie.cle.length > 0, `${agent.nom} → ${sortie.sujet}`);
+      assert.ok(sortie.outil.length > 0, `${agent.nom} → ${sortie.sujet}`);
+    }
+  }
+});
+
+test("on remonte d'une valeur à l'appel qui l'a posée", () => {
+  assert.equal(agentDuSujet("Zone de vent").nom, "agent_d_zones_climatiques_commune");
+  assert.equal(agentDuSujet("Profondeur hors gel").nom, "agent_d_profondeur_hors_gel");
+  assert.equal(agentDuSujet("Altitude du site"), null);
+});
+
+test("la localisation se déclare une fois, et les deux agents la partagent", () => {
+  const declaration = declarationDuSujet("Localisation du projet");
+
+  assert.ok(declaration.quoi.length > 20);
+  assert.ok(declaration.structure.some((champ) => champ.cle === "codeInsee"));
+
+  // Le même objet dans les deux `lit` : ce que ce sujet est ne change pas selon
+  // qui le lit.
+  const [zones, gel] = AGENTS;
+  assert.equal(
+    zones.lit.find((lue) => lue.sujet === "Localisation du projet"),
+    gel.lit.find((lue) => lue.sujet === "Localisation du projet")
+  );
 });
