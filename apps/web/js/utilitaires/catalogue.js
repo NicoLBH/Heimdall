@@ -38,6 +38,7 @@ import { EXTRACTION_AVIS_RAPPORTS_SOCOTEC_V1 } from "./extraction_avis_rapports_
 import { DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 } from "./dimensionnement_fondations_superficielles_V1.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { AGENTS_CLIMATIQUES } from "./agents-climatiques.js";
+import { AGENT_D_SPECTRE_ELASTIQUE_EC8_V1 } from "./agent-spectre.js";
 import { cleDuSujet } from "../services/memoire-identifiants.js";
 
 export { PRODUIT };
@@ -129,7 +130,7 @@ export function declarationDuSujet(sujet = "") {
  * les confondre reviendrait soit à perdre l'appel — c'est ce qui se passait —,
  * soit à ne plus pouvoir monter la version d'un seul zonage.
  */
-export const AGENTS = [...AGENTS_CLIMATIQUES];
+export const AGENTS = [...AGENTS_CLIMATIQUES, AGENT_D_SPECTRE_ELASTIQUE_EC8_V1];
 
 /** Un agent par sa référence complète, ou `null`. Rien n'est approché. */
 export function agentByReference(reference = "") {
@@ -174,8 +175,14 @@ export function sortiesDeLAgent(agent = null) {
       // retomber sur elle lirait un champ absent sans le dire.
       cle: texte(sortie?.cle),
       quoi: texte(sortie?.quoi),
+      utilisation: texte(sortie?.utilisation),
       decimales: Number.isFinite(Number(sortie?.decimales)) ? Number(sortie.decimales) : null,
       unite: texte(sortie?.unite),
+      // Une sortie peut être une **ligne** plutôt qu'une valeur : le spectre en
+      // est une, huit colonnes qui décrivent une seule courbe. Sa forme est
+      // déclarée, comme celle du tableau des massifs.
+      tableau: sortie?.tableau === true,
+      structure: Array.isArray(sortie?.structure) && sortie.structure.length ? sortie.structure : null,
       utilitaire: outil
     };
   }).filter((sortie) => sortie.sujet);

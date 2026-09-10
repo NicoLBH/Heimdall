@@ -242,14 +242,22 @@ test("une sortie que nul utilitaire ne déduit se déclare en entier", () => {
   assert.equal(h0.utilitaire, null);
 });
 
-test("chaque sortie déclare où sa valeur se lit dans le résultat", () => {
-  // La clé du fait de contexte (`frost_depth`) n'est pas celle du résultat
-  // (`frost_depth_m`). Retomber de l'une sur l'autre lirait un champ absent, et
-  // rendrait une valeur vide sans un mot.
+test("chaque sortie dit où elle se lit, ou quelle forme elle a", () => {
+  // Deux formes, et une seule règle par forme.
+  //
+  // Une **valeur** déclare la clé du résultat où elle se lit : celle du fait de
+  // contexte (`frost_depth`) n'est pas celle du résultat (`frost_depth_m`), et
+  // retomber de l'une sur l'autre lirait un champ absent sans un mot.
+  //
+  // Une **ligne** — le spectre, huit colonnes d'une seule courbe — déclare sa
+  // structure : « type: tableau » n'apprend rien tant qu'on ignore ce qu'il
+  // faut mettre dedans.
   for (const agent of AGENTS) {
     for (const sortie of sortiesDeLAgent(agent)) {
-      assert.ok(sortie.cle.length > 0, `${agent.nom} → ${sortie.sujet}`);
-      assert.ok(sortie.outil.length > 0, `${agent.nom} → ${sortie.sujet}`);
+      const ou = `${agent.nom} → ${sortie.sujet}`;
+      assert.ok(sortie.outil.length > 0, ou);
+      if (sortie.tableau) assert.ok(sortie.structure?.length > 0, ou);
+      else assert.ok(sortie.cle.length > 0, ou);
     }
   }
 });
