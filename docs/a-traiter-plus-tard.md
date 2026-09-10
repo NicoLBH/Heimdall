@@ -6,11 +6,56 @@ décidé de ne pas faire maintenant** — avec la raison, ce qu'ils débloquerai
 et ce qui se passe si on les laisse.
 
 Il ne remplace pas le plan : [`rejouer-la-memoire.md`](rejouer-la-memoire.md)
-porte une suite d'étapes qu'on fait. Ici, ce sont des sujets **à côté** de cette
-suite.
+portait une suite d'étapes qu'on a faite, jusqu'au bout. Elle est close. **Le
+plan qui vient est donc écrit ici**, en tête, et les sections numérotées qui
+suivent gardent leur rôle : le détail, et ce qu'on a mis de côté en chemin.
 
 Une ligne quitte cette page quand elle est faite, ou quand on décide qu'elle ne
 se fera pas — et alors on écrit pourquoi.
+
+---
+
+# Le plan qui vient
+
+## L'ordre, et pourquoi celui-là
+
+Trois principes ont décidé de cet ordre, et ils valent d'être dits parce qu'ils
+trancheront les hésitations à venir.
+
+**On rend l'application lisible avant de l'agrandir.** Le premier besoin n'est
+pas une fonction de plus : c'est de voir le parcours entier — copilote, atelier,
+proposition, mémoire — et de se l'approprier. Les déplacements coûtent peu et
+changent tout ce qu'on comprend de l'outil. Ils passent donc en premier.
+
+**On finit une démonstration avant d'en commencer une autre.** La cascade
+`localisation → altitude → hors gel → fondations` **et** `localisation → zone
+sismique → spectre` est le meilleur argument que le produit possède. Elle demande
+trois choses — la localisation versée, les utilitaires climatiques aux
+standards, l'écran qui dessine un arbre plutôt qu'une file — et rien d'autre. On
+les fait à la suite, on la montre, et on s'en sert pour juger le reste.
+
+**On change le geste avant de changer le modèle.** Verser des décisions une par
+une, dans une proposition par décision, referait exactement le défaut qu'on veut
+corriger. La proposition-branche vient donc **avant** le modèle des décisions,
+pas après.
+
+## Les dix étapes
+
+| # | Étape | Ce qu'elle débloque | Section |
+|---|---|---|---|
+| 1 | Les explorations passent dans l'Atelier | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
+| 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
+| 3 | Neige, vent et gel aux standards, puis le spectre | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
+| 4 | La localisation et les zones se changent par proposition | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
+| 5 | La cascade parallèle | **la démonstration** | [§ 21](#21-la-cascade-parallèle-la-démonstration) |
+| 6 | La proposition devient une branche | on peut enfin proposer plusieurs choses à la fois | [§ 17](#17-la-proposition-devient-une-branche) |
+| 7 | Un modèle rédige le titre et le corps d'une proposition | l'historique redevient lisible six mois plus tard | [§ 18](#18-le-titre-et-le-corps-dune-proposition) |
+| 8 | Le modèle des décisions | ce que Mdall avait oublié de garder | [§ 15](#15-ce-quest-une-décision) |
+| 9 | Le modèle des raisonnements | ce qu'une donnée nouvelle remet en cause, nommément | [§ 16](#16-ce-quest-un-raisonnement) |
+| 10 | Le cerveau, requalifié et filtré | la mémoire et les raisonnements, vus ensemble | [§ 22](#22-le-cerveau-requalifié) |
+
+[§ 23](#23-incendie-habitation-finir) — *incendie habitation* — ne dépend de rien
+et ne bloque rien : elle se glisse entre deux étapes, quand on veut souffler.
 
 ---
 
@@ -162,6 +207,12 @@ redécouvre pas comme un bug.
 
 **État :** ouvert · **Nature :** produit, puis client. **Débloque :** le dernier
 barreau de l'échelle.
+
+> **Repris par le plan.** Ce qui manque ici est désormais l'étape 6 :
+> [§ 17 — la proposition devient une branche](#17-la-proposition-devient-une-branche).
+> La sortie d'une variante n'est plus « créer une proposition » mais « ajouter
+> cet essai à une proposition ouverte », ce qui est mieux et plus simple. La
+> variante elle-même a changé de place : [§ 14](#14-les-explorations-passent-dans-latelier).
 
 ### Ce qui manque
 
@@ -812,3 +863,371 @@ Ce qui reste :
   **déduit** des numéros de version. C'est juste, et c'est fragile : un
   utilitaire qui changerait de lignée en changeant de nom ne reprendrait rien.
   Le dire explicitement vaudrait mieux que de le calculer.
+
+---
+
+## 14. Les explorations passent dans l'Atelier
+
+**Décision : on revient sur une décision.** La variante avait été mise dans
+l'onglet Mémoire. C'était une erreur, et elle se nomme : **une variante est une
+exploration, pas une mémoire**. On essaie, on ajuste, on recommence — puis on en
+fait une proposition, et c'est la proposition qui devient de la mémoire. Rien de
+ce qu'on essaie n'a sa place dans ce qui est tranché.
+
+Le même raisonnement vaut pour **Auditer la mémoire** et pour l'**Étude
+d'impact** : les deux explorent, aucune ne verse.
+
+### Le critère, pour ne plus se tromper
+
+> **La Mémoire ne contient que des écrans de lecture. Tout ce qui prépare une
+> proposition vit dans l'Atelier.**
+
+Il est net, il se vérifie sans discuter, et il donne la réponse d'avance pour les
+écrans qu'on n'a pas encore écrits.
+
+### Ce que ça donne
+
+L'Atelier, de haut en bas — les trois explorations sont **au-dessus** des
+utilitaires parce qu'elles les englobent : elles portent sur tout le projet,
+alors qu'un utilitaire porte sur un sujet.
+
+```
+Copilote
+Variante
+Étude d'impact
+Auditer la mémoire
+──────────────
+Solidité
+  Neige, Vent & Gel
+  Risques Naturels & Technologiques
+  Fondations superficielles
+  Spectre
+Sécurité incendie
+  …
+```
+
+La Mémoire garde : les fichiers, la recherche, le cerveau, et la barre latérale
+des lectures.
+
+### Ce qu'il faut surveiller
+
+- La variante en cours vit en portée de module et **meurt au rechargement**
+  (`services/variante-en-cours.js`). Le bandeau qui la signale doit continuer de
+  s'afficher **dans la Mémoire** quand on y retourne : c'est là qu'on lit sous
+  variante, même si c'est dans l'Atelier qu'on la fabrique.
+- L'entrée « Tester » de la Mémoire disparaît ; ce qui la remplace est un renvoi
+  vers l'Atelier, pas un doublon.
+
+---
+
+## 15. Ce qu'est une décision
+
+*C'est l'essentiel qu'on avait oublié. La réflexion tient en trois questions :
+qu'est-ce qu'une décision, où vit-elle, comment la rend-on explicite.*
+
+### Ce qu'une décision n'est pas
+
+**Ce n'est pas une proposition fusionnée.** Une proposition est l'**acte
+d'enregistrement** ; la décision, elle, a eu lieu avant, dans une réunion, et
+personne ne l'a écrite. Confondre les deux revient à ne connaître que les
+décisions que Mdall a lui-même provoquées — une fraction minuscule de celles qui
+font le projet.
+
+**Ce n'est pas une valeur.** « Toiture en bac acier » est une valeur. Elle ne
+devient une décision que si l'ardoise et la membrane étaient sur la table.
+
+### Ce qu'une décision est : quatre parties, et l'une manque partout
+
+1. **Une question.** Ce sur quoi on a tranché. Sans elle, il reste une valeur,
+   et une valeur n'engage personne.
+2. **Les possibles écartés.** C'est ce qui distingue une décision de tout le
+   reste, et c'est exactement ce que personne ne retrouve six mois plus tard.
+   *Le plus grand service que Mdall peut rendre est de garder ce qui a été
+   écarté.* Quand quelqu'un demande « pourquoi pas de l'ardoise ? », la réponse
+   existe quelque part dans la tête de trois personnes — ou nulle part.
+3. **Un auteur et une date.** Déjà là, pour tout ce que Mdall garde.
+4. **Un motif — ou l'aveu qu'il n'y en a pas.** Certaines décisions sont
+   arbitraires : le choix d'une couleur, d'une trame, d'un nom. Écrire « choix du
+   maître d'œuvre, sans justification technique » est plus honnête, et plus
+   utile, qu'une justification fabriquée après coup (règle 5).
+
+### Où elle vit : une ligne à part, et la valeur la cite
+
+Deux façons de la modéliser, et il faut trancher.
+
+- **(a) Une marque sur une affirmation** — « cette valeur a été choisie par un
+  humain ». Simple, mais la question et les écartés n'y tiennent pas : ce ne sont
+  pas des attributs d'une valeur, c'est le contenu même de la décision.
+- **(b) Une nature à part entière**, qui **produit** des valeurs. La décision est
+  sa propre ligne ; la valeur reste une donnée de base ou une hypothèse, et elle
+  **cite** la décision qui l'a fixée.
+
+**Recommandation : (b).** Et pour une raison qui n'est pas seulement esthétique :
+c'est exactement ce que Mdall fait déjà pour les **règles**. Une règle est une
+ligne, sa conclusion en est une autre, et la seconde cite la première. Une
+décision est le pendant humain d'une règle — même forme, même lien, même écran
+de raisonnement. On ne réinvente rien, on étend.
+
+Conséquences à écrire : une septième extension — `.dec` — dans
+[`extensions.md`](extensions.md), et une entrée « Décisions » dans la barre
+latérale, dans l'ordre demandé :
+
+```
+Tout · Contraintes · Décisions · Raisonnements · Constats · Hypothèses · Données de base
+```
+
+### Premier temps, tout de suite : l'entrée vide qui dit pourquoi
+
+Avant tout modèle, les deux entrées entrent dans la barre latérale et affichent
+la vérité du moment : *« Le projet n'a encore enregistré aucune décision. Ce
+n'est pas qu'il n'en a pas pris — c'est que Mdall ne savait pas encore les
+garder. »* Une lacune nommée vaut mieux qu'une absence silencieuse (règle 5), et
+c'est ce qui rendra l'étape suivante évidente à tout le monde.
+
+### Comment la rendre explicite : le copilote propose, un humain signe
+
+Les décisions se cachent dans les comptes rendus de réunion de conception et de
+chantier, dans les fils de sujets, dans les courriels. Le copilote sait les y
+**repérer** ; il ne sait pas les trancher.
+
+Le mécanisme respecte la règle 1 sans exception :
+
+```
+compte rendu → copilote propose des décisions candidates
+             → l'atelier les met en forme (question, écartés, motif)
+             → une proposition
+             → la mémoire
+```
+
+Ce que le modèle produit est une **lecture proposée**, jamais une valeur. Il
+souligne un paragraphe et dit « ceci ressemble à une décision : voici la
+question, voici ce qui semble avoir été écarté, voici qui semble avoir tranché ».
+Chacune de ces trois choses est **corrigeable**, et rien n'entre sans signature.
+
+### Fermer un sujet est une décision
+
+Aujourd'hui, fermer un sujet ne laisse qu'un état. C'est perdre exactement
+l'information qu'on cherche. La fermeture doit demander : **qu'a-t-on tranché ?**
+— et ce qu'on répond devient une décision, avec sa question et ses écartés.
+
+### Questions ouvertes, à trancher avant d'écrire du code
+
+- Une décision peut-elle être **révisée** ? Oui — mais alors elle se reverse
+  par-dessus (règle 11), et la première reste lisible avec sa date. Une décision
+  révisée est une information de premier ordre.
+- Une décision porte-t-elle une **zone** ? Oui, comme tout le reste.
+- Que fait-on des décisions **anciennes** d'un projet en cours ? On ne les
+  invente pas. Le copilote les propose à partir des documents versés, et le reste
+  reste inconnu — et se dit.
+
+---
+
+## 16. Ce qu'est un raisonnement
+
+### Ce qu'il n'est pas
+
+Mdall sait deux choses aujourd'hui : la **règle** (`.ref`, conditions →
+conclusion) et la **fonction native** (agent-D). Les deux sont **déterministes** :
+mêmes entrées, même sortie, toujours. Un enchaînement de fonctions dépendantes
+l'est aussi.
+
+Or un raisonnement de projet ne l'est pas, et c'est tout le sujet.
+
+### Ce qu'il est : une chaîne qui traverse des décisions
+
+> **Un raisonnement est une suite d'étapes dont certaines sont des décisions
+> humaines.**
+
+Il avance logiquement, il bute sur un choix que rien ne détermine — une couleur,
+une trame, une valeur retenue dans une fourchette —, quelqu'un tranche, et il
+repart. C'est exactement la forme de l'enchaînement qu'on vient de dessiner pour
+la variante, mais **versé** et **relu**, pas seulement affiché pour un essai.
+
+### Le point dur, et c'est là que le produit vaut cher
+
+**Un raisonnement qui traverse une décision ne se rejoue pas tout seul.**
+
+Si l'altitude change, la chaîne se rejoue jusqu'à la décision — puis elle
+s'arrête et dit :
+
+> Ici, le 12 mars, Marie a retenu **H0 = 0,50 m** entre 0,45 et 0,55.
+> Ce choix tenait sous une altitude de 13 m. Tient-il encore à 800 m ?
+
+C'est le « à revérifier » d'aujourd'hui, mais avec **un nom, une date, une
+question précise et les possibles d'origine**, au lieu d'un doute général. Savoir
+quelles décisions humaines une donnée nouvelle remet en cause est probablement ce
+que Mdall a de plus à offrir à un projet — et personne d'autre ne le fait.
+
+### Ce qu'un raisonnement porte
+
+- ses **étapes**, dans l'ordre : règle, fonction native, décision ;
+- ses **liens** : ce que chaque étape lit et écrit — le composant
+  `views/ui/enchainement.js` le dessine déjà ;
+- pour chaque décision : **la question, les écartés, qui, quand** ;
+- **où il s'est arrêté** la dernière fois qu'on l'a rejoué, et pourquoi.
+
+Une huitième extension — `.rai` — et une entrée « Raisonnements » dans la barre
+latérale.
+
+### Ce qu'on ne fera pas
+
+Deviner les raisonnements à partir du graphe de dépendances. Le graphe donne les
+chaînes **déterministes** ; il ne saura jamais qu'entre deux d'entre elles
+quelqu'un a choisi. Un raisonnement se **verse**, comme le reste.
+
+---
+
+## 17. La proposition devient une branche
+
+### Ce qu'on cherchait vraiment
+
+L'idée de branche revient — et le débat d'alors partait d'une mauvaise analogie.
+**On n'a pas besoin de deux réalités parallèles** comme dans le développement
+logiciel : une seule mémoire, une seule vérité, c'est le principe.
+
+Ce dont on a besoin est plus simple et plus utile : **une proposition qui ne soit
+pas mono-action**. On l'ouvre, on l'enrichit d'une modification, puis d'une
+autre, et quand elle est complète on la fusionne. Une branche est donc **une
+proposition ouverte à laquelle on attache des modifications**. Plusieurs peuvent
+vivre en même temps.
+
+### Le geste
+
+Le bouton « Faire une proposition » se dédouble :
+
+```
+Faire une proposition ▾
+  ├── Créer une proposition
+  └── Ajouter à une proposition ouverte ▸  #58 Reprise des fondations
+                                           #61 Mise à jour incendie
+```
+
+### Ce que ça entraîne, et qu'il faut traiter
+
+- **Le diff devient cumulatif.** Une proposition montre l'écart entre la mémoire
+  et l'ensemble de ce qu'elle porte, pas la dernière modification.
+- **Deux branches qui touchent le même sujet.** Le conflit se **dit** avant la
+  fusion — jamais résolu en silence. Le mécanisme existe déjà pour les domiciles
+  de noms (`services/memoire-domiciles.js`) ; c'est la même discipline.
+- **La variante alimente une branche.** « Ajouter cet essai à la proposition
+  ouverte » est la sortie qui manquait à l'écran de variante.
+- **Une branche est visible de l'équipe**, contrairement aux conversations avec
+  le copilote qui restent privées, sans exception.
+- **Une branche vieillit.** Une proposition ouverte depuis trois semaines sur une
+  mémoire qui a bougé doit le dire — `laMemoireABouge` sait déjà répondre à cette
+  question pour une variante.
+
+---
+
+## 18. Le titre et le corps d'une proposition
+
+### Le défaut, mesurable
+
+Vingt-cinq propositions intitulées « Fondations superficielles — dimensionnement »
+ou « Incendie — étude du 6 septembre 2026 ». Six mois plus tard, la liste ne dit
+plus rien, et retrouver *la* proposition qui a descendu les massifs demande de
+les ouvrir une à une.
+
+### Ce qu'un modèle fait ici, et ce qu'il ne fait pas
+
+Il reçoit le **diff** — ce qui change, de quelle valeur à quelle valeur, dans
+quelle zone — et il écrit un titre et un résumé. Trois garde-fous, les mêmes que
+partout :
+
+- **il ne produit aucune valeur.** Il redit ce que le diff contient ; un chiffre
+  qui viendrait de lui serait indiscernable des autres à l'écran ;
+- **il est éditable avant l'envoi**, et le titre proposé est marqué comme
+  proposé ;
+- **il tourne au serveur**, jamais dans le navigateur.
+
+Le titre qu'on veut : *« Massifs du bâtiment A descendus à 0,66 m après relevé
+d'altitude »*. Pas *« Fondations superficielles — dimensionnement »*.
+
+---
+
+## 19. La localisation et les zones se changent par proposition
+
+Aujourd'hui, la localisation du projet et son découpage en zones se changent
+**hors mémoire**. Deux conséquences, et la seconde est pire :
+
+- on perd le **qui, quand, pourquoi** sur la donnée la plus structurante du
+  projet ;
+- **rien ne se recalcule**, alors que changer la commune change la neige, le
+  vent, le gel et la zone sismique — donc les fondations et le spectre.
+
+Les deux deviennent des affirmations du socle, et se changent comme tout le
+reste : par une proposition. Une zone **retirée** est déjà traitée
+([§ 13](#13-retirer-ce-quune-ancienne-version-dutilitaire-a-versé)) : ce qui ne
+valait que pour elle quitte le présent, avec son motif.
+
+---
+
+## 20. Neige, vent et gel aux standards, puis le spectre
+
+L'utilitaire « Neige, Vent & Gel » est antérieur aux standards actuels — entrées
+déclarées, sorties déclarées, appel à un agent-D, rejeu. Il se découpe en
+**deux** :
+
+- **un agent-D neige et vent** — même carte, même saisie : la commune ;
+- **un agent-D gel** — département et altitude. La déduction existe déjà
+  (`deduction_profondeur_hors_gel_altitude_V1`) ; elle doit devenir une fonction
+  native déclarée comme les autres, avec son `lit`, son `rend` et sa `structure`.
+
+Une **localisation** se saisit pour calculer. Les calculs restent au serveur,
+sans exception.
+
+Le **spectre** suit, aux mêmes standards. Il lit la zone sismique, la classe de
+sol et la catégorie d'importance — trois champs que la déclaration des fondations
+nomme déjà — voir [`variante-lecture.md`](variante-lecture.md).
+
+---
+
+## 21. La cascade parallèle, la démonstration
+
+```
+Localisation du projet
+ ├── Altitude ──────► Profondeur hors gel ──────► Fondations
+ └── Zone sismique ─► Spectre
+```
+
+Une seule valeur changée, deux chaînes qui partent, quatre utilitaires rejoués.
+C'est la démonstration que le produit existe.
+
+**Ce qui manque techniquement est petit et précis :** l'enchaînement livré est
+une **file**, et il faut un **arbre**. Le composant sait dessiner une suite de
+boîtes reliées ; il lui faut le **rang** de propagation, pas seulement l'ordre du
+rejeu. Les arêtes existent déjà (`lecturesDeLaRegle`, `sortiesDeLaFonction`, le
+`lit` de chaque utilitaire) ; il ne manque que le trait qui fourche.
+
+---
+
+## 22. Le cerveau, requalifié
+
+Le cerveau a bien sa place dans la Mémoire, mais il est mal nommé dans les têtes :
+ce n'est pas une vue de la mémoire, c'est **le cerveau du projet — mémoire plus
+raisonnements**. Il prendra tout son sens quand les décisions et les
+raisonnements y seront ([§ 15](#15-ce-quest-une-décision),
+[§ 16](#16-ce-quest-un-raisonnement)) : une décision y sera un nœud d'un genre
+nouveau, celui où la chaîne s'arrête et où quelqu'un a tranché.
+
+Deux manques, et ils vont ensemble :
+
+- **il ignore le filtre.** La barre latérale filtre la liste, pas le dessin. On
+  doit pouvoir ne voir que les raisonnements, que les contraintes, que le domaine
+  incendie ;
+- **il n'y a pas de bascule.** La même sélection doit se lire en tableau ou se
+  voir en cerveau — le tableau pour lire, le cerveau pour voir.
+
+**Un seul état de filtrage, deux rendus.** Deux filtres finiraient par diverger
+(règle 4), et l'on croirait voir la même chose sans la voir.
+
+---
+
+## 23. Incendie habitation, finir
+
+Reprendre l'utilitaire pour régler les détails et compléter les manques. Sans
+dépendance avec le reste du plan : il se glisse entre deux étapes.
+
+À faire d'abord, quand on l'ouvrira : lister ce qui manque, précisément, plutôt
+que de le reprendre au fil de l'eau. Un manque nommé se corrige ; un manque
+ressenti se repousse.
