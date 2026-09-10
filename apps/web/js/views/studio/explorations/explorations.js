@@ -42,7 +42,9 @@ import { registerProjectPrimaryScrollSource } from "../../project-shell-chrome.j
 import { store } from "../../../store.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 import { PROJECT_TAB_IDS } from "../../../constants.js";
-import { renderEcranDeVariante, varianteEnJson, ETAPE } from "../../memoire/ecran-variante.js";
+import { renderEcranDeVariante, varianteEnJson, ETAPE, SAISIE_DE_LA_VARIANTE } from "../../memoire/ecran-variante.js";
+import { brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
+import { valeurDeLaColonne } from "../../../services/adresse-saisie.js";
 import { ouvrirLEtudeDImpact } from "../../ui/fenetre-impact.js";
 import { ouvrirLAudit } from "../../ui/fenetre-audit.js";
 import { essayerLaVariante } from "../../../services/variante-en-cours.js";
@@ -297,6 +299,37 @@ function lireLaMemoireAvecLaVariante() {
   if (projet) window.location.hash = `#project/${projet}/${PROJECT_TAB_IDS.MEMOIRE}`;
 }
 
+/**
+ * Le champ d'adresse, quand ce qu'on essaie est une colonne de la localisation.
+ *
+ * Ce qu'il rend ne devient pas quatre substitutions : **une seule**, celle de la
+ * colonne choisie à gauche. Les autres colonnes de la localisation restent ce
+ * que le projet dit, et le rejeu ne porte qu'une valeur par identifiant.
+ *
+ * Rien n'est écrit : la variante est une seconde lecture, et elle meurt au
+ * rechargement comme le reste de cet écran.
+ */
+function brancherLAdresseDeLaVariante(root) {
+  const cache = root.querySelector("[data-variante-valeur][data-variante-colonne]");
+  if (!cache) return;
+
+  brancherLaSaisieDAdresse(root, {
+    nom: SAISIE_DE_LA_VARIANTE,
+    quandChoisie: (localisation) => {
+      const essaye = valeurDeLaColonne(localisation, cache.getAttribute("data-variante-colonne") || "");
+      cache.value = essaye;
+      // Redessiner dit ce qui a été retenu de l'adresse : sans cela on choisit
+      // dans la liste et rien ne bouge à l'écran, ce qui se lit comme une panne.
+      etatDeLaVariante = { ...etatDeLaVariante, saisie: essaye, echec: "" };
+      dessinerLaVariante(root);
+    },
+    quandEchoue: (motif) => {
+      etatDeLaVariante = { ...etatDeLaVariante, echec: motif };
+      dessinerLaVariante(root);
+    }
+  });
+}
+
 /** Les gestes de l'écran de variante. */
 function brancherLEcranDeVariante(root) {
   for (const bouton of root.querySelectorAll("[data-variante-choisir]")) {
@@ -333,6 +366,8 @@ function brancherLEcranDeVariante(root) {
   root.querySelector("[data-variante-valeur]")?.addEventListener("keydown", (evenement) => {
     if (evenement.key === "Enter") { evenement.preventDefault(); void calculerLaVariante(root); }
   });
+
+  brancherLAdresseDeLaVariante(root);
 
   // L'unité du projet s'écrit à mesure qu'on tape le nombre : « 8 » devient
   // « 8 m », « 80 » devient « 80 m ». Le champ ne peut donc jamais porter une

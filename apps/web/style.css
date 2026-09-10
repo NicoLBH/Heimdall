@@ -15434,10 +15434,21 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
    elle venait jusqu'ici en silence du formulaire du projet. */
 .climat-localisation{ display:flex; flex-direction:column; gap:8px; }
 .climat-localisation__quoi{ margin:0; font-size:12px; line-height:1.5; }
-.climat-localisation__champ{ display:flex; flex-direction:column; gap:4px; font-size:12px; }
-.climat-localisation__champ > span{ color:var(--muted); }
-.climat-localisation__champ i{ font-style:normal; opacity:.7; }
-.climat-localisation__champ input{ width:100%; }
+/* Ce que l'adresse a résolu : quatre valeurs qui **se lisent**. Elles se
+   tapaient, et taper un code INSEE de mémoire, c'est calculer la neige d'une
+   commune homonyme. */
+.climat-localisation__resolu{
+  display:grid; grid-template-columns:auto minmax(0,1fr);
+  gap:2px 12px; margin:0; font-size:12px;
+}
+.climat-localisation__resolu dt{ color:var(--muted); }
+.climat-localisation__resolu dd{ margin:0; font-weight:600; }
+/* L'attente se dit : sans elle, choisir une adresse laisse l'écran immobile le
+   temps de trois appels, et l'on reclique. */
+.climat-localisation__attente{
+  display:flex; align-items:center; gap:8px;
+  margin:0; font-size:12px; color:var(--muted);
+}
 /* Ce qui bloque le calcul se dit à côté du champ, pas dans une erreur du
    serveur : « code_insee is required » n'est une phrase pour personne. */
 .climat-localisation__manque{
@@ -15447,6 +15458,26 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   background:var(--attention-fond, rgba(210,153,34,.1));
   font-size:12px; line-height:1.5;
 }
+
+/* ── Le champ d'adresse, partagé ──────────────────────────────────────────
+   Un seul champ, trois écrans : Paramètres > Localisation, l'atelier climatique
+   et la variante. Il portait son habillage dans les Paramètres ; le reste tient
+   en trois règles, parce que l'essentiel — `gh-editable-field--autocomplete`,
+   `gh-autocomplete` — existait déjà. Voir `views/ui/saisie-adresse.js`. */
+
+.saisie-adresse{ display:flex; flex-direction:column; gap:4px; }
+.saisie-adresse__label{ font-size:12px; color:var(--muted); }
+.saisie-adresse__aide{ font-size:11px; color:var(--muted); line-height:1.5; }
+/* La liste se pose **au-dessus** de ce qui suit. Sans cela, les propositions
+   passent derrière la carte de l'atelier climatique, et l'on choisit à
+   l'aveugle. */
+.saisie-adresse .gh-autocomplete{ z-index:30; }
+
+/* Dans la variante, le champ remplace un `input` : il en prend la place et la
+   phrase qui l'accompagne. */
+.variante-saisie__champ--adresse{ display:flex; flex-direction:column; gap:4px; }
+.variante-saisie__champ--adresse > span{ color:var(--muted); }
+.variante-saisie__essaye{ color:var(--accent, var(--link, inherit)); }
 
 /* ── Propositions ─────────────────────────────────────────────────────────
    Un changement du corpus soumis à jugement. L'écran reprend la liste de pull
@@ -21693,34 +21724,31 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .variante-saisie__champ .gh-input{ width:100%; }
 .variante-saisie__champ input[disabled]{ color:var(--muted); }
 .variante-saisie__fleche{ padding-bottom:9px; color:var(--muted); line-height:0; }
+/* Les deux colonnes s'alignent alors **par le haut**. Le bloc d'adresse porte
+   une phrase de trois lignes ; aligné par le bas, il faisait flotter la valeur
+   d'aujourd'hui au milieu du vide et l'on cherchait à quoi elle répondait. */
+.variante-saisie--adresse{ align-items:flex-start; }
+.variante-saisie--adresse .variante-saisie__fleche{ padding-bottom:0; padding-top:30px; }
 
 /* Trois rangs, trois formes. Les confondre serait la seule faute grave. */
-/* Le tableau des résultats à gauche, la chaîne à droite. Deux colonnes parce
-   qu'on les lit ensemble : le tableau dit ce qui a changé, la chaîne dit
-   pourquoi ça s'est enchaîné. L'une sous l'autre, on n'en regarderait qu'une. */
-.variante-resultat__deux{
-  display:grid;
-  grid-template-columns:minmax(0, 1fr) minmax(240px, 320px);
-  gap:16px;
-  align-items:start;
-}
-/* Sous 900 px, la chaîne repasse dessous : deux colonnes de 300 px ne se lisent
-   ni l'une ni l'autre. */
-@media (max-width: 900px){
-  .variante-resultat__deux{ grid-template-columns:minmax(0, 1fr); }
-}
+/* La chaîne **au-dessus** du tableau, sur toute la largeur, et à l'horizontale.
+
+   Elle a vécu en colonne étroite à droite, et deux choses l'ont condamnée : on
+   lisait deux enchaînements de deux façons dans la même application — celui du
+   détail d'une action court à l'horizontale —, et une bande de 300 px cassait
+   « Résultat du calcul des fondations superficielles » en trois lignes.
+
+   Au-dessus, parce que c'est ce qu'on lit d'abord : la chaîne dit pourquoi les
+   valeurs ont bougé, le tableau dit de combien. */
 .variante-chaine{
   display:flex; flex-direction:column; gap:8px;
   padding:12px; border:1px solid var(--border); border-radius:var(--radius);
   background:var(--bg);
-  max-height:52vh; overflow:auto;
+  margin-bottom:12px;
 }
-/* Dans deux colonnes, une ligne se lit sur deux rangs : le sujet, puis ce qu'il
-   devient. Côte à côte, la phrase d'une fonction native — « 12 massifs, 10,54 m3
-   de béton, assise mini 0,66 m » — écrase le sujet à trois caractères de large et
-   vient se lire par-dessus. */
-.variante-resultat__deux .variante-ligne{ grid-template-columns:minmax(0, 1fr); }
-.variante-resultat__deux .variante-ligne__valeurs{ justify-content:flex-start; }
+/* À l'horizontale, le dessin déborde plutôt qu'il ne se replie : une chaîne de
+   six étapes tassée en six colonnes de 90 px ne se lit pas. */
+.variante-chaine .run-graph__canvas{ overflow-x:auto; }
 
 .variante-chaine h5{
   display:flex; align-items:center; gap:6px;

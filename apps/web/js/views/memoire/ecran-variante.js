@@ -45,6 +45,8 @@ import { differencesDuTableau, resumeParColonne, structureDuTableau } from "../.
 import { colonneNommee, sensDeLaValeur, pireEcart, margeDeclaree } from "../../services/tableau-structure.js";
 import { enchainementDeLaVariante } from "../../services/variante-enchainement.js";
 import { renderEnchainement, SENS } from "../ui/enchainement.js";
+import { renderSaisieAdresse } from "../ui/saisie-adresse.js";
+import { colonneDeLaLocalisation } from "../../services/adresse-saisie.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -53,6 +55,9 @@ export const ETAPE = { CHOIX: "choix", SAISIE: "saisie", ATTENTE: "attente", RES
 
 /** L'accord d'un mot avec son nombre. Pas de « 1 recalculées » à l'écran. */
 const accorde = (compte, singulier, pluriel) => (compte > 1 ? pluriel : singulier);
+
+/** Le nom du champ d'adresse, quand la variante porte sur une localisation. */
+export const SAISIE_DE_LA_VARIANTE = "variante";
 
 
 /**
@@ -483,6 +488,46 @@ function renderQuelleValeur(valeurs, { cherche = "", choisie = null } = {}) {
   `;
 }
 
+/**
+ * Le champ « dans la variante » quand ce qu'on essaie est une localisation.
+ *
+ * On tape **une adresse** ; le service rend la commune, son code INSEE, son code
+ * postal et ses coordonnées ; et l'on ne substitue que la **colonne choisie** —
+ * celle sur laquelle on a cliqué à gauche. Substituer les quatre d'un coup
+ * ferait une variante que personne n'a demandée, et le mécanisme de rejeu ne
+ * porte qu'une valeur par identifiant.
+ *
+ * La valeur substituée reste dans un champ `data-variante-valeur`, comme
+ * ailleurs : c'est ce que le bouton « Calculer » lit, et lui donner un second
+ * chemin de lecture serait une deuxième vérité (règle 4).
+ */
+function renderSaisieAdresseDeVariante(choisie, { colonne = "", saisie = "", calcule = false } = {}) {
+  return `
+    <div class="fichiers-saisie__champ variante-saisie__champ variante-saisie__champ--adresse">
+      <span>dans la variante</span>
+      ${renderSaisieAdresse({
+        nom: SAISIE_DE_LA_VARIANTE,
+        label: "",
+        valeur: "",
+        placeholder: "Ex. 12 avenue de la Gare, Annecy",
+        desactive: calcule
+      })}
+      <input type="hidden" data-variante-valeur value="${escapeHtml(saisie)}"
+        data-variante-colonne="${escapeHtml(colonne)}">
+      <small>
+        Choisissez une adresse : c'est <b>${escapeHtml(choisie.sujet)}</b> qu'elle remplacera —
+        ${
+          // Ce qu'on essaie, écrit noir sur blanc. Sans cette ligne, on choisit
+          // une adresse et l'on ne voit pas ce qui en a été retenu.
+          texte(saisie)
+            ? `aujourd'hui <b>${escapeHtml(choisie.valeur || "—")}</b>, essayé <b class="variante-saisie__essaye">${escapeHtml(saisie)}</b>.`
+            : `les autres colonnes de la localisation ne bougent pas.`
+        }
+      </small>
+    </div>
+  `;
+}
+
 /** La colonne de droite : l'ancienne valeur, la nouvelle, et le bouton. */
 function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETAPE.CHOIX } = {}) {
   if (!choisie) {
@@ -499,6 +544,9 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
   // serait un autre métier — kN et tonnes, mètres et centimètres —, et une table
   // de conversion est une seconde vérité qui divergera.
   const unite = uniteImposee(choisie.valeur);
+  // Vide dès que ce n'est pas une colonne de la localisation, c'est-à-dire
+  // presque toujours : le champ ordinaire reste le champ ordinaire.
+  const colonne = colonneDeLaLocalisation(choisie);
 
   return `
     <section class="variante-colonne">
@@ -508,28 +556,39 @@ function renderTesterUneVariante(choisie, { saisie = "", echec = "", etape = ETA
         et on ressort — la mémoire du projet ne bouge pas d'un octet.
       </p>
 
-      <div class="variante-saisie">
+      <div class="variante-saisie${colonne ? " variante-saisie--adresse" : ""}">
         <label class="fichiers-saisie__champ variante-saisie__champ">
           <span>${escapeHtml(choisie.sujet)}, aujourd'hui</span>
           <input type="text" class="gh-input" value="${escapeHtml(choisie.valeur)}" readonly disabled>
           <small>${escapeHtml((choisie.zones ?? []).length ? choisie.zones.join(", ") : TOUTES_ZONES)}</small>
         </label>
         <span class="variante-saisie__fleche">${svgIcon("arrow-right", { className: "octicon" })}</span>
-        <label class="fichiers-saisie__champ variante-saisie__champ">
-          <span>dans la variante</span>
-          <input type="text" class="gh-input" data-variante-valeur value="${escapeHtml(saisie)}"
-            data-variante-unite="${escapeHtml(unite)}"
-            placeholder="${escapeHtml(choisie.valeur || "la valeur essayée")}" autocomplete="off"
-            ${calcule ? "disabled" : ""}>
-          <small>${
-            // L'unité ne se tape pas, elle s'écrit toute seule : on la voit
-            // pendant qu'on frappe, seul moment où elle peut encore corriger
-            // une intention. Voir `services/saisie-unite.js`.
-            unite
-              ? `Seul le nombre se tape : l'unité du projet, <b>${escapeHtml(unite)}</b>, s'écrit avec.`
-              : "Écrite comme le projet l'écrit : c'est ainsi que les règles la reliront."
-          }</small>
-        </label>
+        ${
+          // Une localisation ne se tape pas colonne par colonne. Elle se verse
+          // comme un tableau d'une seule ligne — commune, code INSEE, code
+          // postal, adresse —, si bien que l'écran en offre quatre entrées ; et
+          // taper « 05023 » de mémoire, c'est essayer la neige d'une commune
+          // homonyme. On donne donc **le champ d'adresse**, celui des Paramètres
+          // et de l'atelier climatique, et l'on n'en substitue que la colonne
+          // choisie. Voir `services/adresse-saisie.js`.
+          colonne
+            ? renderSaisieAdresseDeVariante(choisie, { colonne, saisie, calcule })
+            : `<label class="fichiers-saisie__champ variante-saisie__champ">
+                <span>dans la variante</span>
+                <input type="text" class="gh-input" data-variante-valeur value="${escapeHtml(saisie)}"
+                  data-variante-unite="${escapeHtml(unite)}"
+                  placeholder="${escapeHtml(choisie.valeur || "la valeur essayée")}" autocomplete="off"
+                  ${calcule ? "disabled" : ""}>
+                <small>${
+                  // L'unité ne se tape pas, elle s'écrit toute seule : on la voit
+                  // pendant qu'on frappe, seul moment où elle peut encore corriger
+                  // une intention. Voir `services/saisie-unite.js`.
+                  unite
+                    ? `Seul le nombre se tape : l'unité du projet, <b>${escapeHtml(unite)}</b>, s'écrit avec.`
+                    : "Écrite comme le projet l'écrit : c'est ainsi que les règles la reliront."
+                }</small>
+              </label>`
+        }
       </div>
 
       ${echec ? `<p class="fichiers-saisie__echec">${escapeHtml(echec)}</p>` : ""}
@@ -667,20 +726,25 @@ function renderResultat(etat) {
       </header>
 
       ${
-        // La chaîne, à droite du tableau : c'est elle qui dit que la troisième
-        // ligne découle de la deuxième, et c'est la seule chose que cet écran a
-        // de plus qu'un tableur. Le même dessin que « le chemin de cette
-        // exécution », tourné d'un quart de tour. Voir `ui/enchainement.js`.
+        // La chaîne **au-dessus** du tableau, et à l'horizontale : c'est elle qui
+        // dit que la troisième ligne découle de la deuxième, et c'est la seule
+        // chose que cet écran a de plus qu'un tableur. On la lit donc avant les
+        // valeurs, pas à côté.
+        //
+        // Le même dessin, dans le même sens, que « le chemin de cette exécution »
+        // dans le détail d'une action. Tourné d'un quart de tour, il obligeait à
+        // lire deux enchaînements de deux façons dans la même application — et il
+        // occupait une bande étroite où les longs libellés se cassaient en trois.
+        // Voir `ui/enchainement.js`.
         etapes.length
-          ? `<div class="variante-resultat__deux">
-              <div class="variante-rangs">${rangs}</div>
-              <aside class="variante-chaine">
-                <h5>${svgIcon("git-branch", { className: "octicon" })} Ce qui a suivi</h5>
-                ${renderEnchainement(etapes, { sens: SENS.VERTICAL })}
-              </aside>
-            </div>`
-          : `<div class="variante-rangs">${rangs}</div>`
+          ? `<aside class="variante-chaine">
+              <h5>${svgIcon("git-branch", { className: "octicon" })} Ce qui a suivi</h5>
+              ${renderEnchainement(etapes, { sens: SENS.HORIZONTAL })}
+            </aside>`
+          : ""
       }
+
+      <div class="variante-rangs">${rangs}</div>
 
       <footer class="variante-resultat__pied">
         <button type="button" class="gh-btn" data-variante-abandonner>Abandonner</button>
