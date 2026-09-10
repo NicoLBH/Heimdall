@@ -2311,7 +2311,30 @@ rien d'autre n'est recréé.
 
 Les deux écrans qui la portent ont suivi la même règle : la coquille se dessine
 une fois, et les zones qui changent se repeignent l'une après l'autre autour
-d'une carte qui, elle, ne bouge pas de son conteneur.
+d'une carte qui, elle, ne bouge pas de son conteneur. Réattacher **le même
+nœud** ne suffit pas non plus : la carte n'est rattachée que si elle ne l'est
+pas déjà, parce qu'un `appendChild` sur un enfant qu'on a déjà revient à le
+retirer puis à le remettre.
+
+### Une carte qu'on ne voyait pas, et un marqueur qu'on ne pouvait pas poser
+
+Trois défauts sont sortis du même changement, et tous les trois se voyaient dès
+l'ouverture de l'agent-d climatique.
+
+| ce qu'on voyait | pourquoi |
+| --- | --- |
+| pas de carte du tout | la localisation d'un projet enregistré **avant** la ligne à six colonnes n'a pas de coordonnées, et la carte n'avait rien à centrer |
+| deux marqueurs superposés | la vue était demandée en mode `place`, qui plante le marqueur de Google au point demandé — le sien, plus le nôtre |
+| l'écran noir après un glissement | l'écran se redessinait entièrement, ce qui détachait la carte |
+
+Le premier a demandé un appel de plus : le **centre de la commune**, d'après son
+code INSEE. C'est un endroit d'où regarder, et rien d'autre — aucun marqueur ne
+s'y pose, parce que le centre d'une commune n'est pas le projet (règle 5).
+
+Ce qui a fait apparaître le quatrième : sans marqueur, « tirez le marqueur » est
+une consigne qu'on ne peut pas suivre. Un **clic pose le premier**, et la
+consigne le dit ; une fois posé, il se déplace, et un clic ailleurs ne le
+téléporte plus par mégarde.
 
 ### La commune, résolue depuis un point
 

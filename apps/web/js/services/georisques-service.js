@@ -373,6 +373,44 @@ export async function resolveFrenchAddress(query = "") {
 }
 
 /**
+ * Le centre d'une commune, d'après son code INSEE.
+ *
+ * ## À quoi il sert
+ *
+ * À **regarder** une commune dont on n'a pas le point. Un projet enregistré
+ * avant que la localisation ne porte ses coordonnées n'a qu'une adresse et un
+ * code INSEE ; la carte n'avait alors rien à centrer, et l'écran restait noir —
+ * alors qu'on sait parfaitement où est la commune.
+ *
+ * ## Ce qu'il n'est pas
+ *
+ * Ce n'est **pas** le projet. Le centre d'une commune est un point de
+ * commodité — souvent le chef-lieu, parfois un champ —, et l'écrire comme
+ * localisation ferait entrer en mémoire un endroit que personne n'a désigné
+ * (règle 5). Il sert à poser le regard, et le marqueur reste absent tant que
+ * quelqu'un n'a pas dit où était le terrain.
+ *
+ * @returns {Promise<{latitude: number, longitude: number}|null>}
+ */
+export async function centreDeLaCommune(codeInsee = "") {
+  const code = safeString(codeInsee);
+  if (!code) return null;
+
+  try {
+    const url = `${COMMUNES_API_URL}/${encodeURIComponent(code)}?fields=centre&format=json`;
+    const commune = await fetchJson(url);
+    const coords = toCoordsFromGeometry(commune?.centre);
+    return Number.isFinite(coords?.lat) && Number.isFinite(coords?.lon)
+      ? { latitude: coords.lat, longitude: coords.lon }
+      : null;
+  } catch {
+    // Une carte qu'on ne sait pas centrer n'est pas une panne : l'écran s'en
+    // passe, et le reste du calcul ne dépend pas d'elle.
+    return null;
+  }
+}
+
+/**
  * La commune d'un point, à l'envers : des coordonnées vers un code INSEE.
  *
  * ## Pourquoi il fallait ce sens-là

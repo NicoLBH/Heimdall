@@ -66,7 +66,9 @@ import { lignesVersables, mesure } from "../../../services/climat-versement.js";
 import { fetchGoogleMapsPlaceEmbedUrl } from "../../../services/google-maps-embed-service.js";
 import { renderSaisieAdresse, brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
 import { adresseEnUneLigne, localisationCalculable, localisationDeLAdresse, nombreOuRien } from "../../../services/adresse-saisie.js";
-import { fetchFrenchAltitude, resolveFrenchCoordinates } from "../../../services/georisques-service.js";
+import {
+  fetchFrenchAltitude, resolveFrenchCoordinates, centreDeLaCommune
+} from "../../../services/georisques-service.js";
 import { creerLaCarteAPointer, brancherLaCarteAPointer, majCarteAPointer } from "../../ui/carte-a-pointer.js";
 import { ZOOM_COMMUNE, ZOOM_PARCELLE, zoomBorne } from "../../../services/carte-pointee.js";
 import { pointDit } from "../../../services/localisation-versement.js";
@@ -201,7 +203,7 @@ export async function renderSolidityClimate(root, { force = false } = {}) {
   if (!force && root.dataset.solidityClimateMounted === "true") return;
   root.dataset.solidityClimateMounted = "true";
 
-  await hydrateState();
+  await hydrateState(root);
   render(root);
 
 
@@ -358,7 +360,7 @@ async function memoireDuProjet() {
   }
 }
 
-async function hydrateState() {
+async function hydrateState(root) {
   state.loading = true;
   state.error = "";
   try {
@@ -373,7 +375,10 @@ async function hydrateState() {
     // serait parti sur celle-là. Voir `services/localisation-du-projet.js`.
     state.location = localisationDeLaMemoire(await memoireDuProjet()) ?? getEffectiveProjectLocation();
     state.pointe = null;
-    recentrer(state.location, ZOOM_PARCELLE);
+    // Le projet quand il a un point ; sa commune sinon. L'écran restait noir
+    // pour toute localisation enregistrée avant que la ligne ne porte ses
+    // coordonnées — c'est-à-dire pour tous les projets d'avant.
+    if (!recentrer(state.location, ZOOM_PARCELLE)) void regarderLaCommune(root, state.location);
 
     const rows = await Promise.all(TOOL_KEYS.map((toolKey) => getLastStudioToolResult({ projectId: state.projectId, toolKey })));
     state.results = Object.fromEntries(rows.map((row, index) => [TOOL_KEYS[index], row]));
@@ -447,14 +452,46 @@ async function prendreLaLocalisation(root, localisation, { zoom = null } = {}) {
   render(root);
 }
 
-/** Poser la carte sur une localisation, sans toucher au projet. */
+/**
+ * Poser la carte sur une localisation, sans toucher au projet.
+ *
+ * Rend `false` quand la localisation n'a pas de point : l'appelant sait alors
+ * qu'il n'y a rien à regarder, et peut aller chercher la commune.
+ */
 function recentrer(localisation, zoom = null) {
   const latitude = nombreOuRien(localisation?.latitude);
   const longitude = nombreOuRien(localisation?.longitude);
-  if (latitude === null || longitude === null) return;
+  if (latitude === null || longitude === null) return false;
 
   state.centre = { latitude, longitude };
   if (zoom !== null) state.zoom = zoomBorne(zoom);
+  return true;
+}
+
+/**
+ * Regarder la commune, quand le projet n'a pas de point.
+ *
+ * Une localisation enregistrée avant que la ligne ne porte ses coordonnées n'a
+ * qu'une adresse et un code INSEE. La carte n'avait alors rien à centrer et
+ * l'écran restait noir — alors qu'on sait très bien où est la commune, et que
+ * c'est de là qu'on part pour aller reconnaître le terrain.
+ *
+ * Le centre d'une commune n'est **pas** le projet : aucun marqueur ne s'y pose,
+ * et rien n'entre nulle part. C'est un endroit d'où regarder (règle 5).
+ */
+async function regarderLaCommune(root, localisation, zoom = ZOOM_COMMUNE) {
+  // Déjà quelque part : une seconde venue sur l'écran n'a rien à redemander.
+  if (state.centre) return;
+
+  const point = await centreDeLaCommune(localisation?.codeInsee);
+  if (!point) return;
+
+  // Quelqu'un a pu poser un point ou choisir une adresse pendant l'attente : la
+  // commune arrive alors trop tard, et recentrer ferait sauter la carte.
+  if (state.centre) return;
+
+  recentrer(point, zoom);
+  render(root);
 }
 
 /**
@@ -503,8 +540,31 @@ async function releverLAltitude({ latitude, longitude } = {}) {
   }
 }
 
+/**
+ * L'écran, redessiné — **sauf la carte**.
+ *
+ * La coquille se pose une fois : elle porte le cadre, la couche de la carte, et
+ * les trois zones qui changent. Réécrire tout l'écran détachait la carte de son
+ * conteneur, et un navigateur qui réinsère une vue satellite la **recharge
+ * depuis zéro** : l'image disparaissait, l'écran devenait noir, et il fallait
+ * attendre. On la rattachait bien après, mais le mal était fait — c'est le
+ * détachement lui-même qui coûte, pas l'oubli.
+ */
 function render(root) {
-  const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
+  poserLaCoquille(root);
+  repeindre(root);
+}
+
+/**
+ * Le cadre, posé une fois par montage.
+ *
+ * `data-climat-coquille` dit qu'elle est là. Une nouvelle venue sur l'écran rend
+ * une racine vide — le marqueur disparaît avec elle —, et la carte se refait
+ * alors pour se rebrancher sur **cette** racine-ci : celle d'avant n'existe plus,
+ * et ses gestes ne mèneraient nulle part.
+ */
+function poserLaCoquille(root) {
+  if (root.dataset.climatCoquille === "posee" && root.querySelector("[data-solidity-climate-map]")) return;
 
   root.innerHTML = `
     <section class="settings-section is-active" data-solidity-tool-card="climate">
@@ -513,50 +573,75 @@ function render(root) {
           <div>
             <span class="settings-card__head-title">
               <h4>Zones et charges climatiques</h4>
-              <div class="studio-tool-card__actions">
-                ${renderTransformer({
-                  id: "solidityToolTransform-climate",
-                  disabled: !hasResult || state.transforming,
-                  ouvertes: branchesOuvertes(() => render(root))
-                })}
-                ${
-                  // Le bouton n'existe que pour le point posé sur la carte. Une
-                  // adresse choisie recalcule d'elle-même ; un point, on le
-                  // repose trois fois avant de reconnaître la parcelle, et c'est
-                  // ce bouton qui dit « c'est bien ici ».
-                  state.pointe
-                    ? renderGhActionButton({
-                        id: "solidityToolCalculate-climate",
-                        label: state.loading ? "Calcul en cours…" : "Calculer ici",
-                        tone: "primary", size: "md", mainAction: "",
-                        disabled: Boolean(state.loading) || state.pointeEnCours || !localisationCalculable(state.pointe)
-                      })
-                    : ""
-                }
-              </div>
+              <div class="studio-tool-card__actions" data-climat-actions></div>
             </span>
           </div>
         </div>
         <div class="settings-card__body studio-tool-card__body">
-          ${state.error ? `<p class="gh-text-muted" style="color:var(--danger);">${escapeHtml(state.error)}</p>` : ""}
-          ${renderPropositionOuverte({
-            projet: String(store.currentProjectId || "").trim(),
-            proposition: state.propositionOuverte
-          })}
+          <div data-climat-bandeau></div>
           <div data-solidity-climate-map class="studio-tool-map-layer"></div>
-          <div class="studio-tool-overlay-grid" style="display:grid;grid-template-columns:300px minmax(0px, 1fr);gap:16px;align-items:start;">
-            ${renderCards()}
-          </div>
+          <div class="studio-tool-overlay-grid" style="display:grid;grid-template-columns:300px minmax(0px, 1fr);gap:16px;align-items:start;"
+            data-climat-cartes></div>
         </div>
       </div>
     </section>
   `;
-  brancherLaSaisie(root);
+  root.dataset.climatCoquille = "posee";
+
+  // La carte appartenait à la racine d'avant : ses gestes rafraîchissaient un
+  // écran qui n'est plus affiché.
+  state.carte = null;
+}
+
+/** Les trois zones qui changent, repeintes l'une après l'autre. */
+function repeindre(root) {
+  const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
+
+  const actions = root.querySelector("[data-climat-actions]");
+  if (actions) {
+    actions.innerHTML = `
+      ${renderTransformer({
+        id: "solidityToolTransform-climate",
+        disabled: !hasResult || state.transforming,
+        ouvertes: branchesOuvertes(() => render(root))
+      })}
+      ${
+        // Le bouton n'existe que pour le point posé sur la carte. Une adresse
+        // choisie recalcule d'elle-même ; un point, on le repose trois fois
+        // avant de reconnaître la parcelle, et c'est ce bouton qui dit
+        // « c'est bien ici ».
+        state.pointe
+          ? renderGhActionButton({
+              id: "solidityToolCalculate-climate",
+              label: state.loading ? "Calcul en cours…" : "Calculer ici",
+              tone: "primary", size: "md", mainAction: "",
+              disabled: Boolean(state.loading) || state.pointeEnCours || !localisationCalculable(state.pointe)
+            })
+          : ""
+      }
+    `;
+    actions.querySelector('[data-action-id="solidityToolCalculate-climate"]')
+      ?.addEventListener("click", () => { void prendreLaLocalisation(root, state.pointe, { zoom: ZOOM_PARCELLE }); });
+  }
+
+  const bandeau = root.querySelector("[data-climat-bandeau]");
+  if (bandeau) {
+    bandeau.innerHTML = `
+      ${state.error ? `<p class="gh-text-muted" style="color:var(--danger);">${escapeHtml(state.error)}</p>` : ""}
+      ${renderPropositionOuverte({
+        projet: String(store.currentProjectId || "").trim(),
+        proposition: state.propositionOuverte
+      })}
+    `;
+  }
+
+  const cartes = root.querySelector("[data-climat-cartes]");
+  if (cartes) {
+    cartes.innerHTML = renderCards();
+    brancherLaSaisie(cartes, root);
+  }
+
   poserLaCarte(root);
-
-  root.querySelector('[data-action-id="solidityToolCalculate-climate"]')
-    ?.addEventListener("click", () => { void prendreLaLocalisation(root, state.pointe, { zoom: ZOOM_PARCELLE }); });
-
   void refreshMapCard(root);
 }
 
@@ -581,7 +666,12 @@ function poserLaCarte(root) {
     });
   }
 
-  root.querySelector("[data-solidity-climate-map]")?.appendChild(state.carte);
+  // Rattachée **seulement si elle ne l'est pas déjà** : réinsérer un nœud qu'on
+  // possède déjà revient à le retirer puis à le remettre, et une vue satellite
+  // qu'on remet se recharge.
+  const couche = root.querySelector("[data-solidity-climate-map]");
+  if (couche && state.carte.parentNode !== couche) couche.appendChild(state.carte);
+
   majCarteAPointer(state.carte, {
     centre: state.centre, point: leMarqueur(), zoom: state.zoom, embedUrl: state.mapUrl
   });
@@ -724,8 +814,16 @@ function valeurLue(location, champ) {
  * « Calculer » a disparu — il ne faisait que répéter ce que le choix disait
  * déjà, en ajoutant un geste par essai à un écran fait pour essayer.
  */
-function brancherLaSaisie(root) {
-  brancherLaSaisieDAdresse(root, {
+/**
+ * Le champ d'adresse et le bouton de reprise, branchés sur la zone repeinte.
+ *
+ * Deux racines, et c'est voulu : `zone` est le morceau qu'on vient de réécrire,
+ * `root` est l'écran entier — celui qu'on redessine et sur lequel la carte est
+ * posée. Brancher sur l'écran entier chercherait les champs dans un HTML qui
+ * n'existe plus.
+ */
+function brancherLaSaisie(zone, root) {
+  brancherLaSaisieDAdresse(zone, {
     nom: SAISIE_DU_CLIMAT,
     // Le zoom d'arrivée : le bourg quand on a tapé une commune sans numéro, la
     // parcelle quand l'adresse en portait un. Chercher son terrain à l'échelle
@@ -744,7 +842,7 @@ function brancherLaSaisie(root) {
     }
   });
 
-  root.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
+  zone.querySelector("[data-climat-reprendre]")?.addEventListener("click", () => {
     // Relue, jamais reprise d'un cache : c'est le geste qui dit « remets-moi ce
     // que le projet tient pour vrai », et une photo d'il y a dix minutes n'est
     // pas cela.

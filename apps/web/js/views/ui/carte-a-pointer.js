@@ -123,8 +123,7 @@ export function creerLaCarteAPointer({ nom, hauteur = "420px" } = {}) {
       <!-- La phrase dans un span : sans lui, chaque nœud devient un élément de
            la boîte flexible, et « Tirez le marqueur » se retrouve dans sa propre
            colonne au milieu du reste. -->
-      <span><b>Tirez le marqueur</b> jusqu'au terrain. Glissez ailleurs pour déplacer la carte,
-      la roulette pour zoomer.</span>
+      <span data-carte-consigne></span>
     </p>
   `;
 
@@ -178,7 +177,20 @@ export function majCarteAPointer(carte, { centre = null, point = null, zoom = 14
     const plus = bouton.getAttribute("data-carte-zoom") === "+";
     bouton.disabled = plus ? niveau >= ZOOM_MAX : niveau <= ZOOM_MIN;
   }
+
+  // La consigne dit le geste **qui existe**. Sans marqueur, « tirez le
+  // marqueur » demande de tirer quelque chose qu'on ne voit nulle part.
+  const consigne = carte.querySelector("[data-carte-consigne]");
+  if (consigne) consigne.innerHTML = decalage ? CONSIGNE.tirer : CONSIGNE.poser;
 }
+
+/** Ce que la carte demande, selon qu'un marqueur y est posé ou non. */
+const CONSIGNE = {
+  poser: "<b>Cliquez sur le terrain</b> pour poser le projet. Glissez pour déplacer la carte, "
+    + "la roulette pour zoomer.",
+  tirer: "<b>Tirez le marqueur</b> jusqu'au terrain. Glissez ailleurs pour déplacer la carte, "
+    + "la roulette pour zoomer."
+};
 
 /**
  * Les gestes de la carte, branchés **une fois** sur son élément.
@@ -280,9 +292,19 @@ export function brancherLaCarteAPointer(carte, { etat, quandDeplacee, quandPoint
     depart = null;
     relacher();
 
-    if (!glisse) return;
+    const { centre, zoom, point } = ou();
 
-    const { centre, zoom } = ou();
+    // **Un clic pose le premier marqueur.** Tant qu'il n'y en a aucun, il n'y a
+    // rien à tirer : la consigne le dit, et sans ce clic un projet sans point
+    // n'aurait aucun moyen d'en recevoir un. Une fois posé, il se déplace — un
+    // clic ailleurs ne le téléporte pas par mégarde.
+    if (!glisse) {
+      if (point) return;
+      const pose = pointADistance(centre, { dx: vise.dx, dy: vise.dy, zoom });
+      if (pose) quandPointee?.(pose);
+      return;
+    }
+
     if (marqueur) {
       const pose = pointADistance(centre, { dx: vise.dx, dy: vise.dy, zoom });
       if (pose) quandPointee?.(pose);
