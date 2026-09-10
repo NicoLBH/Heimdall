@@ -47,6 +47,7 @@
 
 import { agentByReference, utilitaireByReference } from "../utilitaires/catalogue.js";
 import { cleDuSujet } from "./memoire-identifiants.js";
+import { ICONE_DE_LA_DECISION } from "./assertion-taxonomy.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -176,15 +177,43 @@ export function enchainementDeLaVariante(rendu = null, depart = null) {
   }
 
   const aRevoir = rendu.aRevoir ?? [];
-  if (aRevoir.length) {
+
+  // Un choix humain a **sa propre étape**, jamais un compte. C'est là que la
+  // chaîne bute : elle avance, elle arrive sur un arbitrage que rien ne
+  // détermine, et elle s'arrête en disant qui doit répondre. Le fondre dans
+  // « 3 à revérifier » perdrait exactement ce pour quoi la décision a été
+  // enregistrée — et la chaîne se lirait comme si elle s'était arrêtée toute
+  // seule.
+  //
+  // Au rang du tronc : une décision ne découle pas d'une branche en
+  // particulier, elle barre le chemin.
+  for (const ligne of aRevoir) {
+    if (!ligne?.decision) continue;
+
+    etapes.push({
+      id: `decision:${texte(ligne?.assertion?.id) || texte(ligne?.sujet)}`,
+      rang: RANG_DU_TRONC,
+      label: texte(ligne.decision.question) || texte(ligne.sujet),
+      detail: texte(ligne.decision.phrase),
+      tone: TON.DOUTE,
+      icon: ICONE_DE_LA_DECISION,
+      entrees: [texte(ligne.sujet)].filter(Boolean)
+    });
+  }
+
+  // Ce qui reste : les doutes ordinaires, ceux qui n'ont personne à qui
+  // s'adresser. Les choix humains viennent d'en sortir, et les recompter ici
+  // les ferait lire deux fois.
+  const doutes = aRevoir.filter((ligne) => !ligne?.decision);
+  if (doutes.length) {
     etapes.push({
       id: "a-revoir",
       rang: RANG_DU_TRONC,
-      label: `${aRevoir.length} à revérifier`,
+      label: `${doutes.length} à revérifier`,
       detail: "reposent sur ce qui vient de bouger, et nous ne savons pas les rejouer",
       tone: TON.DOUTE,
       icon: "alert",
-      entrees: aRevoir.map((ligne) => texte(ligne?.sujet)).filter(Boolean)
+      entrees: doutes.map((ligne) => texte(ligne?.sujet)).filter(Boolean)
     });
   }
 

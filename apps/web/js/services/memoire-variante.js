@@ -62,6 +62,7 @@ import {
   champsAvecCle, valeurAuChemin, idDuChamp, champDeLIdentifiant, memoireAvecLesChamps
 } from "./tableau-structure.js";
 import { dependancesDeLaMemoire } from "./memoire-raisonnement.js";
+import { questionPoseeALaDecision, MOTIF_DECISION } from "./decision-remise-en-question.js";
 import { dependancesDesApplications } from "./memoire-applications.js";
 import { rejouerLesRegles } from "./memoire-rejeu.js";
 import { natureDuNoeud, sortiesDesRegles, NOEUD } from "./memoire-plan.js";
@@ -459,16 +460,30 @@ export function consequencesDeLaVariante({
     })
     .map((assertion) => {
       const id = idDe(assertion);
+
+      // Un choix humain ne se rejoue pas : il se **redemande**, à qui l'a fait.
+      // C'est le point dur de tout ce mécanisme, et c'est là que « à revérifier »
+      // cesse d'être un doute général pour devenir une question à quelqu'un de
+      // nommé. Voir `decision-remise-en-question.js`.
+      const choix = questionPoseeALaDecision(assertion, depart);
+
       return {
         assertion,
         sujet: texte(assertion?.payload?.subject) || texte(assertion?.statement),
         valeur: texte(assertion?.payload?.value),
-        motif: sansFondement.has(id)
+        // Ce que la décision demande, si c'en est une. `null` partout ailleurs :
+        // un doute ordinaire n'a personne à qui s'adresser.
+        decision: choix,
+        motif: choix
+          ? MOTIF_DECISION
+          : sansFondement.has(id)
           ? "sans-objet"
           : refusees.some((autre) => idDe(autre.assertion) === id)
             ? "utilitaire"
             : "en-decoule",
-        pourquoi: sansFondement.has(id)
+        pourquoi: choix
+          ? choix.phrase
+          : sansFondement.has(id)
           ? "la règle qui la concluait ne s'applique plus, et elle n'a rien à dire à la place"
           : refusees.some((autre) => idDe(autre.assertion) === id)
             ? phraseDuRefus(refusees.find((autre) => idDe(autre.assertion) === id)?.refus)

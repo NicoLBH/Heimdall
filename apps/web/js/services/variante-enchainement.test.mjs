@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { enchainementDeLaVariante, TON } from "./variante-enchainement.js";
+import { ICONE_DE_LA_DECISION } from "./assertion-taxonomy.js";
 
 const DEPART = { sujet: "Altitude du site", valeur: "13,22 m", essaye: "800 m" };
 
@@ -177,4 +178,52 @@ test("la localisation est la tête de la cascade", () => {
   }), { sujet: "Localisation du projet", valeur: "Annecy", essaye: "Briançon" });
 
   assert.deepEqual(etapes.map((etape) => etape.rang), [0, 1, 1, 1, 2]);
+});
+
+/* ── Là où la chaîne bute ────────────────────────────────────────────────── */
+
+test("un choix humain a son étape, pas une place dans un compte", () => {
+  // C'est là que la chaîne s'arrête : elle avance, elle arrive sur un arbitrage
+  // que rien ne détermine, et elle doit dire qui doit répondre. Le fondre dans
+  // « 3 à revérifier » perdrait ce pour quoi la décision a été enregistrée.
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1")],
+    aRevoir: [
+      { sujet: "H0 retenu pour le département", assertion: { id: "d1" },
+        decision: { question: "Quelle cote dans la fourchette ?", phrase: "Le 12 mars, Marie D. a retenu 0,50 m." } },
+      { sujet: "Note de calcul" }
+    ]
+  }), DEPART);
+
+  const choix = etapes.find((etape) => etape.id === "decision:d1");
+  assert.equal(choix.label, "Quelle cote dans la fourchette ?");
+  assert.equal(choix.detail, "Le 12 mars, Marie D. a retenu 0,50 m.");
+  // La même icône que partout ailleurs pour une décision : le rail de la
+  // mémoire la pose déjà, et deux dessins pour une chose n'en font pas deux.
+  assert.equal(choix.icon, ICONE_DE_LA_DECISION);
+  assert.equal(choix.tone, TON.DOUTE);
+});
+
+test("les choix humains sortis du compte n'y sont pas recomptés", () => {
+  // Sinon la même décision se lirait deux fois : une fois comme question, une
+  // fois comme unité d'un doute général.
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1")],
+    aRevoir: [
+      { sujet: "H0 retenu", assertion: { id: "d1" }, decision: { question: "Q", phrase: "P" } },
+      { sujet: "Note de calcul" }
+    ]
+  }), DEPART);
+
+  assert.equal(etapes.find((etape) => etape.id === "a-revoir").label, "1 à revérifier");
+});
+
+test("sans aucun choix humain, le compte reste ce qu'il était", () => {
+  const etapes = enchainementDeLaVariante(rendu({
+    recalculees: [recalculee("Profondeur hors gel", "deduction_profondeur_hors_gel_altitude_V1")],
+    aRevoir: [{ sujet: "Note de calcul" }, { sujet: "Ancrage" }]
+  }), DEPART);
+
+  assert.equal(etapes.find((etape) => etape.id === "a-revoir").label, "2 à revérifier");
+  assert.equal(etapes.some((etape) => etape.id.startsWith("decision:")), false);
 });

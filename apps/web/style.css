@@ -21780,6 +21780,29 @@ button.memoire-ligne__caret:hover{ background:rgba(110,118,129,.16); color:var(-
 .variante-ligne__reserve--levee{ color:var(--success); }
 .variante-ligne--suspecte .variante-ligne__valeurs .variante-ligne__egal{ color:#d29922; font-style:normal; }
 
+/* Un choix humain remis en question. Il ne se rejoue pas : il se redemande, à
+   quelqu'un de nommé. La ligne est donc plus haute que ses voisines, et en
+   colonne plutôt qu'en grille : elle porte une question, pas une paire de
+   valeurs. Le liseré à gauche la distingue d'un doute technique sans crier —
+   ce n'est pas une panne, c'est une question. */
+.variante-ligne--decision{
+  display:flex; flex-direction:column; gap:6px;
+  padding:10px 12px; border-left:2px solid #d29922;
+  background:rgba(210,153,34,.06); border-radius:0 6px 6px 0;
+}
+.variante-ligne--decision .variante-ligne__sujet{
+  display:flex; align-items:center; gap:6px; color:var(--text); font-weight:600;
+}
+.variante-decision__phrase{ margin:0; color:var(--text); font-size:13px; line-height:1.55; }
+/* Les écartés, tels qu'ils étaient. C'est la réponse à « qu'avait-on
+   envisagé ? », et sans eux la question se poserait à l'aveugle. */
+.variante-decision__ecartes{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.variante-decision__ecartes li{ color:var(--muted); font-size:12px; line-height:1.5; }
+.variante-decision__ecartes b{ color:var(--text); font-weight:500; text-decoration:line-through; }
+.variante-decision__lacune,
+.variante-decision__motif{ margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.variante-decision__motif{ font-style:italic; }
+
 /* Le tableau d'une fonction native, replié sous la ligne qui le résume.
 
    Douze massifs et leurs cotes n'ont pas à recouvrir les trois valeurs qui

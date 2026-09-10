@@ -67,7 +67,18 @@ export function provenanceRetenue(provenance) {
   const quoi = texte(provenance.quoi);
   if (!PROVENANCES.includes(type) || !quoi) return null;
 
-  return { type, quoi };
+  // Qui, et quand. Le langage sait les écrire depuis toujours — `décision
+  // humaine assumée (…, par: X, le: d)` — et rien ne les lui donnait : ils
+  // étaient perdus ici, à deux lignes de la base. Sans eux, une valeur tranchée
+  // à la main se relit six mois plus tard comme un fait établi, et surtout on
+  // ne peut plus demander à personne si son choix tient encore.
+  //
+  // Facultatifs, et l'absence ne se comble pas : une provenance sans nom reste
+  // une provenance, et inventer un auteur serait pire que n'en nommer aucun.
+  const par = texte(provenance.par);
+  const le = texte(provenance.le);
+
+  return { type, quoi, ...(par ? { par } : {}), ...(le ? { le } : {}) };
 }
 
 /**
