@@ -18,6 +18,8 @@ import {
 // à la main, avec deux branches — commune, code postal — qu'aucun champ
 // n'appelait plus, pendant que deux autres écrans en avaient chacun une copie.
 import { renderSaisieAdresse, brancherLaSaisieDAdresse } from "../ui/saisie-adresse.js";
+import { avertirAvantDeProposer, renderPropositionOuverte } from "../ui/avertissement-proposition.js";
+import { branchesOuvertes, rafraichirLesBranches } from "../../services/branches-ouvertes.js";
 import { localisationDeLAdresse, nombreOuRien } from "../../services/adresse-saisie.js";
 import { persistCurrentProjectState } from "../../services/project-state-storage.js";
 import { saveProjectLocationToSupabase, loadProjectLocationFromSupabase } from "../../services/project-location-supabase.js";
@@ -61,11 +63,24 @@ const SAISIE_DU_PROJET = "projet";
  * ## Et ce qui se passe maintenant
  *
  * L'enregistrement de l'écran reste ce qu'il est : il range l'adresse dans la
- * fiche du projet, ce qui dessine la carte et pré-remplit les utilitaires. Le
- * **geste de mémoire** est distinct et explicite — un bouton —, parce qu'une
- * proposition qui s'ouvrirait à chaque frappe ne se relirait jamais.
+ * fiche du projet, ce qui dessine la carte et pré-remplit les utilitaires.
+ *
+ * Le **geste de mémoire** part maintenant de « Valider », par une fenêtre qui
+ * prévient — voir `views/ui/avertissement-proposition.js`. Il partait d'un
+ * second bouton, et c'était une demi-mesure : on validait une adresse, on
+ * quittait l'écran, et la mémoire n'avait rien appris parce que personne
+ * n'avait vu le second bouton. La fenêtre dit ce qui va être proposé, rappelle
+ * que rien n'entre avant la fusion, et laisse **annuler**.
+ *
+ * Le bouton reste, pour le cas où l'adresse était déjà bonne et qu'on veut la
+ * proposer sans y toucher.
+ *
+ * @param {object} [options]
+ * @param {boolean} [options.avertir] poser la fenêtre d'abord — vrai depuis
+ *   « Valider », où l'on n'a pas demandé de proposition ; le bouton, lui, l'a
+ *   déjà dite par son libellé.
  */
-async function proposerLaLocalisation() {
+async function proposerLaLocalisation({ avertir = false } = {}) {
   const uiState = ensureLocalisationUiState();
   if (uiState.locationProposalInProgress) return;
 
@@ -90,6 +105,20 @@ async function proposerLaLocalisation() {
 
   const lignes = [ou, altitudeVersable(localisation, { ou: ECRAN })].filter(Boolean);
 
+  // Prévenir, et demander où. `null` : on renonce, et la fiche garde ce qu'on
+  // vient d'y ranger — c'est la carte et les utilitaires, pas la mémoire.
+  const vers = avertir
+    ? await avertirAvantDeProposer({
+        quoi: "La localisation du projet a changé. Elle entre dans la mémoire par une "
+          + "proposition : c'est d'elle que se déduisent la neige, le vent, le gel et la "
+          + "sismicité, et il faut pouvoir relire laquelle valait quand un calcul a été fait.",
+        affirmations: lignes,
+        memoire: await memoirePourLAvertissement(),
+        branches: branchesOuvertes()
+      })
+    : { propositionId: "" };
+  if (!vers) return;
+
   uiState.locationProposalInProgress = true;
   uiState.locationProposalNotice = "";
   rerenderProjectParametres();
@@ -101,6 +130,7 @@ async function proposerLaLocalisation() {
     const { preparerUneProposition } = await import("../../services/atelier-proposition.js");
     const rendu = await preparerUneProposition({
       projectId,
+      propositionId: vers.propositionId,
       titre: `Localisation du projet — ${String(store.projectForm.city || "").trim() || "commune inconnue"}`,
       intro: "Où le projet se trouve, et à quelle altitude. Tout ce que le site impose en "
         + "découle : les zonages neige et vent, la cote hors gel, la zone de sismicité — donc "
@@ -111,14 +141,42 @@ async function proposerLaLocalisation() {
     });
     if (!rendu.ok) throw new Error(rendu.raison);
 
-    store.pendingPropositionId = rendu.proposition.id;
-    const projet = String(store.currentProjectId || "").trim();
-    if (projet) window.location.hash = `#project/${projet}/propositions`;
+    // **On reste ici.** L'écran partait sur Propositions > détail, ce qui faisait
+    // perdre le fil : on venait de corriger une adresse, on voulait vérifier le
+    // découpage juste à côté, et l'on se retrouvait ailleurs. Le lien est offert.
+    uiState.locationProposition = {
+      id: rendu.proposition.id,
+      numero: rendu.proposition.number ?? null,
+      titre: rendu.proposition.title ?? "",
+      tranches: rendu.tranches ?? []
+    };
+    // La liste des propositions ouvertes vient de changer, et c'est la même
+    // lecture qui repose le compteur de la barre d'onglets.
+    void rafraichirLesBranches();
   } catch (error) {
     uiState.locationProposalNotice = error instanceof Error ? error.message : String(error);
   } finally {
     uiState.locationProposalInProgress = false;
     rerenderProjectParametres();
+  }
+}
+
+/**
+ * Ce que la mémoire du projet dit aujourd'hui, pour la fenêtre d'avertissement.
+ *
+ * `null` quand on n'a pas pu la lire : la fenêtre l'écrit plutôt que d'afficher
+ * « rien aujourd'hui » sur deux lignes qui existent peut-être (règle 5).
+ */
+async function memoirePourLAvertissement() {
+  try {
+    const [{ resolveCurrentBackendProjectId: resoudre }, { listProjectAssertions }] = await Promise.all([
+      import("../../services/project-supabase-sync.js"),
+      import("../../services/project-memory-supabase.js")
+    ]);
+    const projectId = await resoudre();
+    return projectId ? await listProjectAssertions(projectId) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -1004,7 +1062,14 @@ async function refreshLocationDerivedData({ runEnrichment = false, triggerType =
     await runProjectBaseDataEnrichment({ triggerType, triggerLabel, force: true });
   }
 
-  const codeInsee = String(store.projectForm?.georisques?.commune?.codeInsee || "").trim() || null;
+  // Géorisques d'abord — c'est lui qui a résolu la commune —, puis celui que
+  // l'adresse a rendu. Sans le second, un projet dont l'enrichissement n'a pas
+  // encore tourné **perdait** son code INSEE à l'enregistrement : la fiche
+  // repartait de la commune Géorisques, qui était vide, et « Proposer à la
+  // mémoire » refusait ensuite une localisation qu'on venait de choisir.
+  const codeInsee = String(
+    store.projectForm?.georisques?.commune?.codeInsee || store.projectForm?.codeInsee || ""
+  ).trim() || null;
   const projectId = String(store.currentProjectId || "").trim();
 
   console.info("[project-location] save.start", {
@@ -1229,6 +1294,10 @@ export function renderLocalisationParametresContent() {
         body: `${parametresUiState.locationProposalNotice
           ? `<div class="settings-inline-notice">${escapeHtml(parametresUiState.locationProposalNotice)}</div>`
           : ""}
+        ${renderPropositionOuverte({
+          projet: String(store.currentProjectId || "").trim(),
+          proposition: parametresUiState.locationProposition
+        })}
         <div class="col-span-2">
           <div class="form-row form-row--settings">
             ${renderSaisieAdresse({
@@ -1274,7 +1343,10 @@ export function bindLocalisationParametresSection(root) {
   // l'adresse dans la fiche du projet ; ce bouton-ci la propose, et quelqu'un
   // signe. Une proposition qui s'ouvrirait à chaque frappe ne se relirait jamais.
   document.querySelector("[data-localisation-proposer]")?.addEventListener("click", () => {
-    void proposerLaLocalisation();
+    // Le bouton dit déjà ce qu'il fait — « Proposer à la mémoire » —, et la
+    // fenêtre lui sert quand même : c'est elle qui montre ce qui bouge et qui
+    // demande dans quelle proposition porter le lot.
+    void proposerLaLocalisation({ avertir: true });
   });
   const uiState = ensureLocalisationUiState();
   const projectId = String(store.currentProjectId || "").trim();
@@ -1365,6 +1437,13 @@ export function bindLocalisationParametresSection(root) {
               longitude: store.projectForm.longitude
             });
           }
+
+          // La fiche est à jour ; la **mémoire**, elle, n'a encore rien appris.
+          // C'est ici que la fenêtre le dit et propose de porter le changement.
+          // Sans elle, on validait une adresse et l'on quittait l'écran en
+          // croyant avoir enregistré — le second bouton restait à cliquer, et
+          // personne ne le voyait.
+          void proposerLaLocalisation({ avertir: true });
           break;
         }
       }

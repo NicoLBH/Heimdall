@@ -32,11 +32,23 @@
  * Elle apparaît avec le titre d'origine, et se met à jour quand la rédaction
  * arrive. Attendre pour tout montrer d'un coup laisserait un écran figé après
  * un clic — et l'on ne saurait pas si le clic a porté.
+ *
+ * ## La description s'écrit en Markdown, comme celle d'un sujet
+ *
+ * C'était une `<textarea>` nue, et la description d'une proposition finit dans
+ * le même endroit que celle d'un sujet : un fil qu'on relit. Y écrire un tableau
+ * ou une liste à puces donnait du texte brut d'un côté et de la mise en page de
+ * l'autre, pour la même application.
+ *
+ * Elle emploie donc le même champ — onglets Écrire / Aperçu, barre de mise en
+ * forme, même moteur de rendu. Le câblage vit dans `ui/redaction-markdown.js` :
+ * les briques étaient déjà partagées, c'est le branchement qui était recopié.
  */
 
 import { escapeHtml } from "../../utils/escape-html.js";
 import { svgIcon } from "../../ui/icons.js";
 import { faitsDuDiff, meriteUneRedaction } from "../../services/titre-de-proposition.js";
+import { dessinerRedaction, brancherRedaction } from "./redaction-markdown.js";
 
 const texte = (valeur) => String(valeur ?? "").trim();
 
@@ -97,7 +109,10 @@ async function diffDuLot({ projectId, affirmations, zones }) {
   });
 }
 
-function renderFenetre({ titre, resume, etat }) {
+/** La clé du champ rédigé, ici. Une fenêtre à la fois, un seul champ. */
+const REDACTION = "propositionDescription";
+
+function renderFenetre({ titre, resume, etat, apercu = false }) {
   return `
     <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Titre de la proposition">
       <div class="fichiers-saisie__boite titre-propose">
@@ -115,11 +130,13 @@ function renderFenetre({ titre, resume, etat }) {
             maxlength="120" autocomplete="off">
         </label>
 
-        <label class="titre-propose__champ">
-          <span>Résumé <i>facultatif</i></span>
-          <textarea class="gh-input titre-propose__resume" data-titre-resume rows="4"
-            maxlength="600">${escapeHtml(resume)}</textarea>
-        </label>
+        <div class="titre-propose__champ titre-propose__champ--redige">
+          <span>Description <i>facultative, en Markdown</i></span>
+          ${dessinerRedaction({
+            cle: REDACTION, texte: resume, apercu,
+            placeholder: "Ce que cette proposition change, et pourquoi. Markdown accepté."
+          })}
+        </div>
 
         <footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn" data-titre-annuler>Annuler</button>
@@ -158,13 +175,25 @@ export async function demanderLeTitre({
 
   const titreDOrigine = texte(secours) || "Proposition depuis l'Atelier";
 
+  /**
+   * Ce qu'on a saisi, hors du DOM.
+   *
+   * Le champ rédigé se **redessine** quand on bascule vers l'aperçu : garder le
+   * texte dans la `<textarea>` seule le perdrait à chaque aller-retour. `repris`
+   * dit que quelqu'un a écrit — le modèle, qui arrive après, n'écrase alors rien.
+   */
+  const brouillon = {
+    titre: titreDOrigine, titreRepris: false,
+    description: "", descriptionReprise: false, apercu: false, etat: DIT.ecrit
+  };
+
   return new Promise((resoudre) => {
     const hote = document.createElement("div");
-    hote.innerHTML = renderFenetre({ titre: titreDOrigine, resume: "", etat: DIT.ecrit });
     document.body.appendChild(hote);
     questionOuverte = hote;
 
     const fermer = (reponse) => {
+      document.removeEventListener("keydown", auClavier);
       hote.remove();
       questionOuverte = null;
       resoudre(reponse);
@@ -172,33 +201,49 @@ export async function demanderLeTitre({
 
     // Échap renonce. Une fenêtre modale dont on ne connaît qu'un seul moyen de
     // sortie se referme mal quand ce moyen défaille.
-    const auClavier = (evenement) => {
-      if (evenement.key !== "Escape") return;
-      document.removeEventListener("keydown", auClavier);
-      fermer(null);
-    };
+    function auClavier(evenement) {
+      if (evenement.key === "Escape") fermer(null);
+    }
     document.addEventListener("keydown", auClavier);
 
-    for (const bouton of hote.querySelectorAll("[data-titre-annuler]")) {
-      bouton.addEventListener("click", () => {
-        document.removeEventListener("keydown", auClavier);
-        fermer(null);
+    const dessiner = () => {
+      hote.innerHTML = renderFenetre({
+        titre: brouillon.titre, resume: brouillon.description,
+        etat: brouillon.etat, apercu: brouillon.apercu
       });
-    }
 
-    for (const bouton of hote.querySelectorAll("[data-titre-valider]")) {
-      bouton.addEventListener("click", () => {
-        document.removeEventListener("keydown", auClavier);
+      hote.querySelector("[data-titre-valeur]")?.addEventListener("input", (evenement) => {
+        brouillon.titre = evenement.target.value;
+        brouillon.titreRepris = true;
+      });
+
+      for (const bouton of hote.querySelectorAll("[data-titre-annuler]")) {
+        bouton.addEventListener("click", () => fermer(null));
+      }
+
+      hote.querySelector("[data-titre-valider]")?.addEventListener("click", () => {
         fermer({
           // Un titre effacé n'est pas un titre vide : c'est celui d'origine, qui
           // vaut toujours mieux qu'une proposition sans nom dans la liste.
-          titre: texte(hote.querySelector("[data-titre-valeur]")?.value) || titreDOrigine,
-          description: texte(hote.querySelector("[data-titre-resume]")?.value)
+          titre: texte(brouillon.titre) || titreDOrigine,
+          description: texte(brouillon.description)
         });
       });
-    }
 
-    void remplir(hote, { projectId, affirmations, zones });
+      brancherRedaction(hote, {
+        onTexte: (_cle, dit) => {
+          brouillon.description = dit;
+          brouillon.descriptionReprise = true;
+        },
+        onOnglet: (_cle, apercu) => {
+          brouillon.apercu = apercu;
+          dessiner();
+        }
+      });
+    };
+
+    dessiner();
+    void remplir(hote, brouillon, dessiner, { projectId, affirmations, zones });
   });
 }
 
@@ -207,9 +252,13 @@ export async function demanderLeTitre({
  *
  * Ce qu'on a saisi entre-temps n'est jamais écrasé : quelqu'un qui a commencé à
  * taper son titre a déjà répondu à la question, et le modèle arrive trop tard.
+ * C'est `titreRepris` / `descriptionReprise` qui le disent — et non la
+ * comparaison avec la valeur par défaut du champ, qui ne survit pas au premier
+ * aller-retour vers l'aperçu.
  */
-async function remplir(hote, { projectId, affirmations, zones }) {
+async function remplir(hote, brouillon, dessiner, { projectId, affirmations, zones }) {
   const dire = (mot) => {
+    brouillon.etat = mot;
     const ou = hote.querySelector("[data-titre-etat]");
     if (ou) ou.textContent = mot;
   };
@@ -239,11 +288,13 @@ async function remplir(hote, { projectId, affirmations, zones }) {
     return;
   }
 
-  const champ = hote.querySelector("[data-titre-valeur]");
-  const resume = hote.querySelector("[data-titre-resume]");
-
   // Ne rien écraser de ce qui a été tapé.
-  if (champ && champ.value === champ.defaultValue) champ.value = rendu.titre;
-  if (resume && !texte(resume.value)) resume.value = rendu.resume;
-  dire(DIT.propose);
+  if (!brouillon.titreRepris) brouillon.titre = texte(rendu.titre) || brouillon.titre;
+  if (!brouillon.descriptionReprise) brouillon.description = texte(rendu.resume);
+  brouillon.etat = DIT.propose;
+
+  // Redessiner : le champ rédigé porte son texte dans son HTML, et poser la
+  // valeur sur la `<textarea>` seule laisserait l'aperçu montrer le texte
+  // d'avant.
+  dessiner();
 }

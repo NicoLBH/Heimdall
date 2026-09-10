@@ -20,7 +20,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE, RESERVES } from "./reserves.js";
 import { lecturesDeclarees, reservesConservees, entreesDe, mesureEcrite } from "./lecture-fait.js";
-import { SUJET_ALTITUDE, SUJET_H0, SUJET_LOCALISATION } from "./agents-climatiques.js";
+import { SUJET_ALTITUDE, SUJET_H0, LIT_LA_LOCALISATION } from "./agents-climatiques.js";
 
 export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
   nom: "deduction_profondeur_hors_gel_altitude",
@@ -51,8 +51,11 @@ export const DEDUCTION_PROFONDEUR_HORS_GEL_ALTITUDE_V1 = {
    */
   lit: [
     {
-      sujet: SUJET_LOCALISATION,
-      entree: "code_insee",
+      // La déclaration partagée — c'est elle qui porte `champ: "codeInsee"`, la
+      // colonne par laquelle la localisation entre dans un calcul. La recopier
+      // ici l'aurait fait diverger : elle l'avait déjà fait, et le rejeu
+      // envoyait l'adresse dans le champ du code INSEE.
+      ...LIT_LA_LOCALISATION,
       lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
     },
     { sujet: SUJET_H0, lire: (fait) => fait?.fact_value?.h0_selected_m },

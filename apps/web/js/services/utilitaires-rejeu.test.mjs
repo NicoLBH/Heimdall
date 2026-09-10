@@ -311,3 +311,94 @@ test("l'appel d'un agent n'est pas une valeur : il ne se reprend pas deux fois",
   });
   assert.deepEqual(reprises, []);
 });
+
+/* ── Une colonne qui ne décide de rien ───────────────────────────────────── */
+
+/**
+ * La localisation se verse comme **un tableau d'une ligne à quatre colonnes**.
+ * Le rejeu ne lisait pas laquelle entre dans un calcul : il envoyait la valeur
+ * de la colonne variée dans le champ du code INSEE, quel que soit ce qu'on
+ * variait. Faire varier l'adresse envoyait donc « Place de la Gare 74400
+ * Chamonix » dans `code_insee`, le serveur répondait 400, et l'écran affichait
+ * « l'outil n'a pas répondu » — on cherchait une panne de réseau là où il n'y
+ * avait qu'une colonne qui ne décide de rien.
+ */
+const localisation = () => ({
+  id: "loc", kind: "base-datum", subject_key: "localisation-du-projet",
+  nature: "donnee-de-base", status: "assumed", superseded_by: null, decided_at: at,
+  statement: "Localisation du projet",
+  payload: {
+    subject: "Localisation du projet", value: "Commune (00000, INSEE 00000)",
+    tableau: [{ commune: "Commune", codeInsee: "00000", codePostal: "00000", adresse: "1 rue" }]
+  }
+});
+
+const zonages = () => [
+  localisation(),
+  deduite({ id: "snow", sujet: "Zone de neige", valeur: "A1",
+    utilitaire: "deduction_zone_neige_commune_V1",
+    lectures: [["Localisation du projet", "00000"]] }),
+  deduite({ id: "wind", sujet: "Zone de vent", valeur: "3",
+    utilitaire: "deduction_zone_vent_commune_V1",
+    lectures: [["Localisation du projet", "00000"]] })
+];
+
+test("varier le code INSEE rejoue les zonages avec lui", () => {
+  const reprises = contraintesAReprendre({
+    enVigueur: zonages(), substitutions: new Map([["loc#codeInsee", "11111"]])
+  });
+  assert.deepEqual(reprises.map((reprise) => reprise.champs), [{ code_insee: "11111" }, { code_insee: "11111" }]);
+  assert.deepEqual(reprises.map((reprise) => reprise.refus), ["", ""]);
+});
+
+test("varier l'adresse ne leur envoie pas l'adresse dans le champ du code INSEE", () => {
+  // C'est le cœur du défaut : le champ était rempli **quand même**, et l'appel
+  // partait. Ce qu'on veut est un refus nommé, pas un 400.
+  const reprises = contraintesAReprendre({
+    enVigueur: zonages(), substitutions: new Map([["loc#adresse", "1 rue Neuve, Ailleurs"]])
+  });
+
+  for (const reprise of reprises) {
+    assert.deepEqual(reprise.champs, {}, "aucun champ ne doit être rempli depuis une autre colonne");
+    assert.equal(reprise.refus, REFUS.AUTRE_COLONNE);
+  }
+  assert.match(phraseDuRefus(REFUS.AUTRE_COLONNE), /une autre de ses colonnes/);
+});
+
+test("le nom de la commune non plus : deux communes peuvent le partager", () => {
+  const reprises = contraintesAReprendre({
+    enVigueur: zonages(), substitutions: new Map([["loc#commune", "Homonyme"]])
+  });
+  assert.deepEqual(reprises.map((reprise) => reprise.refus), [REFUS.AUTRE_COLONNE, REFUS.AUTRE_COLONNE]);
+});
+
+test("varier le sujet entier reste possible : la colonne n'est alors pas dite", () => {
+  // Les substitutions d'avant les champs — et celles d'un sujet qui n'est pas
+  // un tableau — passent toujours par ce chemin.
+  const reprises = contraintesAReprendre({
+    enVigueur: zonages(), substitutions: new Map([["loc", "11111"]])
+  });
+  assert.deepEqual(reprises.map((reprise) => reprise.champs), [{ code_insee: "11111" }, { code_insee: "11111" }]);
+});
+
+test("les trois déductions climatiques déclarent la même colonne d'entrée", () => {
+  // Elles la recopiaient chacune de leur côté, sans elle. Le jour où l'une
+  // repart de son côté, ce test tombe — plutôt qu'un 400 en production.
+  const memes = [
+    "deduction_zone_neige_commune_V1",
+    "deduction_zone_vent_commune_V1",
+    "deduction_profondeur_hors_gel_altitude_V1"
+  ];
+
+  for (const utilitaire of memes) {
+    const reprises = contraintesAReprendre({
+      enVigueur: [
+        localisation(),
+        deduite({ id: "x", sujet: "Sortie", valeur: "v", utilitaire,
+          lectures: [["Localisation du projet", "00000"]] })
+      ],
+      substitutions: new Map([["loc#adresse", "1 rue Neuve"]])
+    });
+    assert.equal(reprises[0]?.refus, REFUS.AUTRE_COLONNE, `${utilitaire} lit encore l'adresse`);
+  }
+});

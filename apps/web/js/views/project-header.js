@@ -163,6 +163,32 @@ function getTabHref(projectId, tabId) {
   return `#project/${projectId}/${tabId}`;
 }
 
+/**
+ * Redessiner la barre d'onglets là où elle est, sans changer de page.
+ *
+ * ## Pourquoi il a fallu l'écrire
+ *
+ * Le compteur « Propositions » se rafraîchissait par un effet de bord : les
+ * écrans qui ouvraient une proposition **allaient** ensuite sur l'onglet
+ * Propositions, et c'est cet écran-là qui posait le compte. Depuis que ces
+ * gestes **restent sur l'écran d'origine** — on perdait sinon le fil de ce
+ * qu'on était en train de régler —, plus personne ne le pose : on ouvrait une
+ * proposition et la barre continuait d'en annoncer trois.
+ *
+ * Le remplacement est franc : la navigation des onglets est branchée sur le
+ * document, pas sur ces nœuds-ci, et rien ne se perd à les redessiner.
+ */
+export function rafraichirLesOngletsDuProjet() {
+  const hote = document.querySelector(".project-context-header");
+  if (!hote) return;
+
+  const projectId = String(hote.getAttribute("data-project-id") || "");
+  const actif = String(hote.querySelector('.project-tabs a.active')?.dataset.projectTabId || "");
+  if (!projectId) return;
+
+  hote.outerHTML = renderProjectHeader(projectId, actif);
+}
+
 export function renderProjectHeader(projectId, activeTab) {
   syncProjectSubjectCountersFromSupabase().catch(() => undefined);
   const counters = getProjectTabCounters();
