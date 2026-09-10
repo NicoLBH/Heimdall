@@ -66,6 +66,7 @@ import { copierDansLePressePapiers } from "../../ui/bouton-copier.js";
 import { fichierDeLEtude, fichierDesRegles } from "../../../services/incendie-en-texte.js";
 import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
 import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
+import { demanderLeTitre } from "../../ui/titre-de-la-proposition.js";
 import { zoneChoices, ZONE_TOUT_LOUVRAGE } from "../../../services/project-zones.js";
 import { DOMAIN, NATURE } from "../../../services/assertion-taxonomy.js";
 import { store } from "../../../store.js";
@@ -912,6 +913,15 @@ async function proposerDepuisLEtude(root, propositionId = "") {
   const zones = await demanderLesZones({ projectId: projetEnBase, assertions: etat.affirmations });
   if (zones === null) return;
 
+  const titreDOrigine = `Incendie — ${nomDeLEtudeCourante()}`;
+
+  // Comment elle s'appellera, demandé dans le geste. Rien à demander quand on
+  // enrichit une branche : elle a déjà son nom.
+  const nom = propositionId ? null : await demanderLeTitre({
+    projectId: projetEnBase, affirmations, zones, secours: titreDOrigine
+  });
+  if (!propositionId && nom === null) return;
+
   etat.versementEnCours = true;
   etat.versementDit = "Préparation de la proposition…";
   dessiner(root);
@@ -919,8 +929,11 @@ async function proposerDepuisLEtude(root, propositionId = "") {
   const rendu = await preparerUneProposition({
     projectId: projetEnBase,
     propositionId,
-    titre: `Incendie — ${nomDeLEtudeCourante()}`,
-    intro: "Conclusions de l'étude incendie, telles que le référentiel les a établies.",
+    titre: nom?.titre || titreDOrigine,
+    // Le résumé écrit devient l'introduction : la description garde ensuite la
+    // liste des valeurs, qui n'a pas à disparaître parce qu'on a une phrase.
+    intro: nom?.description
+      || "Conclusions de l'étude incendie, telles que le référentiel les a établies.",
     source: etat.vue?.texteDeReference?.source || "arrêté du 31 janvier 1986 modifié",
     affirmations,
     zones

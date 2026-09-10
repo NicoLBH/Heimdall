@@ -30,6 +30,7 @@ import {
 import { renderSvgLineChart, getNiceChartTicks } from "../../../utils/svg-line-chart.js";
 import { renderTransformer, TRANSFORMER, brancheDeLAction } from "../../ui/transformer.js";
 import { branchesOuvertes, oublierLesBranches } from "../../../services/branches-ouvertes.js";
+import { demanderLeTitre } from "../../ui/titre-de-la-proposition.js";
 import { lignesVersables, ligneDuSpectre } from "../../../services/spectre-versement.js";
 import { resolveCurrentBackendProjectId } from "../../../services/project-supabase-sync.js";
 
@@ -87,6 +88,17 @@ async function proposerLeSpectre(propositionId = "") {
   const zones = await demanderLesZones({ projectId });
   if (zones === null) return;
 
+  const titreDOrigine = `Spectre élastique de calcul — zone ${
+    String(form.zoneSismique || "").trim() || "inconnue"}, sol ${
+    String(form.soilClass || "").trim() || "—"}`;
+
+  // Comment elle s'appellera, demandé dans le geste. Rien à demander quand on
+  // enrichit une branche : elle a déjà son nom.
+  const nom = propositionId ? null : await demanderLeTitre({
+    projectId, affirmations: lignes, zones, secours: titreDOrigine
+  });
+  if (!propositionId && nom === null) return;
+
   preparation = true;
   rerenderProjectSeismic();
 
@@ -94,8 +106,11 @@ async function proposerLeSpectre(propositionId = "") {
   const rendu = await preparerUneProposition({
     projectId,
     propositionId,
-    titre: `Spectre élastique de calcul — zone ${String(form.zoneSismique || "").trim() || "inconnue"}, sol ${String(form.soilClass || "").trim() || "—"}`,
-    intro: "Les choix parasismiques du projet, l'appel qui en découle, et le spectre qu'il rend. "
+    titre: nom?.titre || titreDOrigine,
+    // Le résumé écrit devient l'introduction : la description garde ensuite la
+    // liste des valeurs, qui n'a pas à disparaître parce qu'on a une phrase.
+    intro: nom?.description
+      || "Les choix parasismiques du projet, l'appel qui en découle, et le spectre qu'il rend. "
       + "Les entrées entrent avec le reste : c'est ce qui permettra de tout refaire le jour où "
       + "la zone de sismicité change.",
     source: lignes.find((ligne) => ligne.source)?.source || "",

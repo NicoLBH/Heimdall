@@ -48,6 +48,58 @@ async function fichiersDe(dossier, filtre = () => true) {
   return trouves;
 }
 
+/**
+ * Les consignes qui ne doivent pas quitter le serveur.
+ *
+ * Une consigne dit ce qu'on demande à un modèle, ce qu'on lui interdit, et par
+ * quels exemples on le corrige. La publier, c'est publier la méthode — et
+ * donner de quoi la contourner à qui sait lire un bundle.
+ *
+ * **La note de dépôt n'est pas dans cette liste, et c'est délibéré :** son plan
+ * est écrit dans `apps/web/js/services/deposit-note.js`, dupliqué à la main dans
+ * la fonction, et un test compare les deux. C'était le choix d'alors. Les
+ * consignes écrites depuis restent au serveur, et celle-ci vérifie qu'elles y
+ * restent.
+ */
+const CONSIGNES_DU_SERVEUR = ["generate-proposition-title"];
+
+/** Les phrases d'une consigne, telles qu'elles sont écrites dans la fonction. */
+function phrasesDeLaConsigne(source) {
+  const bloc = source.match(/const CONSIGNE = \[([\s\S]*?)\]\.join/);
+  if (!bloc) return [];
+
+  return [...bloc[1].matchAll(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g)]
+    .map((trouve) => (trouve[1] ?? trouve[2] ?? "").trim())
+    // Les lignes courtes se retrouveraient par hasard dans du code sans rapport.
+    // Ce qu'on cherche est une phrase, pas un mot.
+    .filter((phrase) => phrase.length >= 40);
+}
+
+test("aucune consigne donnée à un modèle n'est servie par le site", async () => {
+  const servis = await fichiersDe(webDir, (f) => f.endsWith(".js") || f.endsWith(".mjs"));
+  const sources = new Map();
+  for (const fichier of servis) sources.set(fichier, await readFile(fichier, "utf8"));
+
+  for (const nom of CONSIGNES_DU_SERVEUR) {
+    const fonction = path.join(rootDir, "supabase", "functions", nom, "index.ts");
+    const phrases = phrasesDeLaConsigne(await readFile(fonction, "utf8"));
+
+    // Une consigne qu'on ne sait plus lire ne prouve rien, et un test qui passe
+    // sans rien vérifier est pire qu'un test absent.
+    assert.ok(phrases.length >= 3, `la consigne de ${nom} n'a pas été retrouvée dans sa fonction`);
+
+    for (const [fichier, source] of sources) {
+      for (const phrase of phrases) {
+        assert.ok(
+          !source.includes(phrase),
+          `${path.relative(rootDir, fichier)} porte une phrase de la consigne de ${nom} : `
+            + `elle serait lisible avec F12 — « ${phrase.slice(0, 60)}… »`
+        );
+      }
+    }
+  }
+});
+
 test("aucun module d'orchestration n'est servi par le site", async () => {
   const interdits = new Map();
   for (const nom of SECRETS) {
