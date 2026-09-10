@@ -76,14 +76,25 @@ function renderListeDesValeurs(valeurs, { cherche = false } = {}) {
   }</p>`;
 }
 
-function renderChoix(valeurs, couverture) {
+function renderChoix(valeurs, couverture, { dansUnPanneau = false } = {}) {
   return `
-    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Étude d'impact">
+    <div class="fichiers-saisie${dansUnPanneau ? " fichiers-saisie--panneau" : ""}"${
+      // Dans un panneau, ce n'est plus une fenêtre : ni `dialog`, ni `modal`.
+      // Le dire quand même ferait annoncer par les lecteurs d'écran une boîte
+      // qu'on ne peut pas fermer.
+      dansUnPanneau ? "" : ` role="dialog" aria-modal="true"`
+    } aria-label="Étude d'impact">
       <div class="fichiers-saisie__boite impact-boite">
         <header class="fichiers-saisie__tete">
           <b>${svgIcon("beaker", { className: "octicon" })} Qu'est-ce qui repose sur cette valeur ?</b>
-          <button type="button" class="fichiers-saisie__fermer" data-impact-fermer
-            aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
+          ${
+            // Pas de croix dans un panneau : il n'y a rien à fermer, et un
+            // bouton qui ne fait rien coûte plus cher que son absence.
+            dansUnPanneau
+              ? ""
+              : `<button type="button" class="fichiers-saisie__fermer" data-impact-fermer
+                   aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>`
+          }
         </header>
 
         <p class="variante-lead">
@@ -98,9 +109,9 @@ function renderChoix(valeurs, couverture) {
 
         <div class="impact-liste" data-impact-liste>${renderListeDesValeurs(valeurs)}</div>
 
-        <footer class="fichiers-saisie__pied">
+        ${dansUnPanneau ? "" : `<footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn" data-impact-fermer>Fermer</button>
-        </footer>
+        </footer>`}
       </div>
     </div>
   `;
@@ -148,14 +159,20 @@ function renderStrate(rang, ids, { parId, emplois }) {
   `;
 }
 
-function renderImpact(valeur, rendu, { parId, emplois }) {
+function renderImpact(valeur, rendu, { parId, emplois, dansUnPanneau = false }) {
   return `
-    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Étude d'impact">
+    <div class="fichiers-saisie${dansUnPanneau ? " fichiers-saisie--panneau" : ""}"${
+      dansUnPanneau ? "" : ` role="dialog" aria-modal="true"`
+    } aria-label="Étude d'impact">
       <div class="fichiers-saisie__boite impact-boite impact-boite--large">
         <header class="fichiers-saisie__tete">
           <b>${svgIcon("beaker", { className: "octicon" })} ${escapeHtml(valeur.titre)}</b>
-          <button type="button" class="fichiers-saisie__fermer" data-impact-fermer
-            aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
+          ${
+            dansUnPanneau
+              ? ""
+              : `<button type="button" class="fichiers-saisie__fermer" data-impact-fermer
+                   aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>`
+          }
         </header>
 
         <p class="variante-lead">
@@ -184,7 +201,7 @@ function renderImpact(valeur, rendu, { parId, emplois }) {
 
         <footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn" data-impact-retour>Choisir une autre valeur</button>
-          <button type="button" class="gh-btn gh-btn--primary" data-impact-fermer>Fermer</button>
+          ${dansUnPanneau ? "" : `<button type="button" class="gh-btn gh-btn--primary" data-impact-fermer>Fermer</button>`}
         </footer>
       </div>
     </div>
@@ -202,13 +219,23 @@ let ouverte = null;
  * @param {object[]|null} options.applications les lectures enregistrées, ou
  *   `null` si elles n'ont pas pu être lues
  * @param {string} [options.depart] l'affirmation à interroger d'emblée
+ * @param {HTMLElement|null} [options.hote] où l'afficher. Sans lui, une fenêtre
+ *   par-dessus la page ; avec lui, **dans** un panneau de l'Atelier, sans
+ *   superposition, sans échappement et sans bouton pour fermer ce qui ne se
+ *   ferme pas. Le même écran, à deux endroits — le dessiner deux fois ferait
+ *   deux études d'impact qui divergeraient (règle 4).
  */
-export function ouvrirLEtudeDImpact({ assertions = [], applications = null, depart = "" } = {}) {
+export function ouvrirLEtudeDImpact({ assertions = [], applications = null, depart = "", hote: accueil = null } = {}) {
+  const dansUnPanneau = Boolean(accueil);
+
   // Une fenêtre dont l'hôte a quitté le document est fermée, quoi qu'en dise le
   // verrou : sans cette ligne, un rendu qui balaie la page laisse le verrou posé
-  // et l'écran ne se rouvre plus jamais.
-  if (ouverte && !ouverte.isConnected) ouverte = null;
-  if (ouverte) return;
+  // et l'écran ne se rouvre plus jamais. Le verrou ne concerne que la fenêtre :
+  // un panneau est déjà unique par construction.
+  if (!dansUnPanneau) {
+    if (ouverte && !ouverte.isConnected) ouverte = null;
+    if (ouverte) return;
+  }
 
   const lectures = Array.isArray(applications) ? applications : [];
   const emplois = emploisParAffirmation(lectures);
@@ -216,11 +243,15 @@ export function ouvrirLEtudeDImpact({ assertions = [], applications = null, depa
   const valeurs = valeursInterrogeables(assertions, emplois);
   const parId = new Map((Array.isArray(assertions) ? assertions : []).map((a) => [texte(a?.id), a]));
 
-  const hote = document.createElement("div");
-  document.body.appendChild(hote);
-  ouverte = hote;
+  let hote = accueil;
+  if (!dansUnPanneau) {
+    hote = document.createElement("div");
+    document.body.appendChild(hote);
+    ouverte = hote;
+  }
 
   const fermer = () => {
+    if (dansUnPanneau) return;
     document.removeEventListener("keydown", auClavier);
     hote.remove();
     ouverte = null;
@@ -229,21 +260,21 @@ export function ouvrirLEtudeDImpact({ assertions = [], applications = null, depa
   const auClavier = (evenement) => {
     if (evenement.key === "Escape") fermer();
   };
-  document.addEventListener("keydown", auClavier);
+  if (!dansUnPanneau) document.addEventListener("keydown", auClavier);
 
   /** Ce que la recherche retient : le titre, et rien d'autre — c'est lui qu'on lit. */
   const retenues = (cherche) =>
     cherche ? valeurs.filter((valeur) => valeur.titre.toLowerCase().includes(cherche)) : valeurs;
 
   const montrerLeChoix = (filtre = "") => {
-    hote.innerHTML = renderChoix(retenues(filtre.trim().toLowerCase()), couverture);
+    hote.innerHTML = renderChoix(retenues(filtre.trim().toLowerCase()), couverture, { dansUnPanneau });
     brancherLeChoix(filtre);
   };
 
   const montrerLImpact = (id) => {
     const valeur = valeurs.find((entree) => entree.id === id);
     if (!valeur) return;
-    hote.innerHTML = renderImpact(valeur, impactDe(id, lectures), { parId, emplois });
+    hote.innerHTML = renderImpact(valeur, impactDe(id, lectures), { parId, emplois, dansUnPanneau });
     brancherCommun();
     for (const bouton of hote.querySelectorAll("[data-impact-retour]")) {
       bouton.addEventListener("click", () => montrerLeChoix());

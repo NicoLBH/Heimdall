@@ -43,7 +43,7 @@ pas après.
 
 | # | Étape | Ce qu'elle débloque | Section |
 |---|---|---|---|
-| 1 | Les explorations passent dans l'Atelier | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
+| 1 | Les explorations passent dans l'Atelier — *fait* | le parcours entier se lit d'un coup | [§ 14](#14-les-explorations-passent-dans-latelier) |
 | 2 | Décisions et Raisonnements entrent dans la barre latérale — vides, et qui disent pourquoi | l'intention devient visible, la lacune aussi | [§ 15](#15-ce-quest-une-décision) |
 | 3 | Neige, vent et gel aux standards, puis le spectre | la chaîne climatique devient rejouable | [§ 20](#20-neige-vent-et-gel-aux-standards-puis-le-spectre) |
 | 4 | La localisation et les zones se changent par proposition | la tête de la cascade existe, et se trace | [§ 19](#19-la-localisation-et-les-zones-se-changent-par-proposition) |
@@ -868,6 +868,9 @@ Ce qui reste :
 
 ## 14. Les explorations passent dans l'Atelier
 
+**État :** fait. Les trois explorations vivent dans l'Atelier, sous « Explorations », entre le
+Copilote et la Solidité. Le cerveau est resté dans la Mémoire, sous un bouton simple.
+
 **Décision : on revient sur une décision.** La variante avait été mise dans
 l'onglet Mémoire. C'était une erreur, et elle se nomme : **une variante est une
 exploration, pas une mémoire**. On essaie, on ajuste, on recommence — puis on en
@@ -912,11 +915,36 @@ des lectures.
 ### Ce qu'il faut surveiller
 
 - La variante en cours vit en portée de module et **meurt au rechargement**
-  (`services/variante-en-cours.js`). Le bandeau qui la signale doit continuer de
+  (`services/variante-en-cours.js`). Le bandeau qui la signale continue de
   s'afficher **dans la Mémoire** quand on y retourne : c'est là qu'on lit sous
-  variante, même si c'est dans l'Atelier qu'on la fabrique.
-- L'entrée « Tester » de la Mémoire disparaît ; ce qui la remplace est un renvoi
-  vers l'Atelier, pas un doublon.
+  variante, même si c'est dans l'Atelier qu'on la fabrique. « Lire la mémoire
+  avec cette variante » pose donc la variante, puis change d'onglet.
+- L'entrée « Tester » de la Mémoire a disparu : ses trois premiers items sont
+  partis, et un menu déroulant à une seule entrée n'est plus un menu. Le cerveau
+  est devenu un bouton simple, et il n'y a pas de doublon.
+
+### Comment c'est fait
+
+- `services/usages-du-rejeu.js` — la liste des quatre usages porte désormais
+  `ou` : `OU.ATELIER` ou `OU.MEMOIRE`. Les deux écrans lisent la même liste
+  plutôt que d'en tenir chacun la sienne (règle 4). Le module a quitté `views/ui`
+  pour `services` : il ne dessinait plus rien.
+- `views/studio/explorations/explorations.js` — l'hôte des trois écrans dans
+  l'Atelier, avec **une seule** lecture de la mémoire pour les trois : trois
+  lectures donneraient trois états, et on comparerait un impact mesuré sur l'un à
+  une variante calculée sur l'autre.
+- Les deux fenêtres — impact, audit — acceptent un `hote` et se dessinent alors
+  sans voile, sans rôle de dialogue et sans croix de fermeture. Ce sont les mêmes
+  fenêtres : les recopier en panneaux en aurait fait deux qui divergent.
+- Les explorations ne se dessinent **qu'à la visite** : elles lisent la mémoire,
+  et l'étude d'impact pose le curseur dans son champ de recherche — dessinées au
+  montage, elles voleraient le clavier au Copilote.
+
+### Ce qui reste ouvert
+
+- L'écran de variante n'accueille toujours qu'**une** valeur essayée à la fois.
+  Le déplacement ne change rien à cela, et l'essai de plusieurs valeurs reste
+  à faire.
 
 ---
 

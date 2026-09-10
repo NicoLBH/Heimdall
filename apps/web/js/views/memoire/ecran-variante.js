@@ -683,6 +683,13 @@ export function varianteEnJson(etat = {}) {
 /**
  * L'écran entier.
  *
+ * **Pas de bandeau de tête.** Il en portait un — « Variante · Essayer une
+ * valeur » et le bouton d'export — du temps où l'écran occupait toute la page de
+ * la Mémoire et devait se nommer lui-même. Il vit maintenant dans un panneau de
+ * l'Atelier, qui porte déjà son titre, sa phrase et ses actions : le redire ici
+ * afficherait « variante » trois fois en trois centimètres, et deux boutons
+ * « Exporter » côte à côte se liraient comme deux exports différents.
+ *
  * @param {{valeurs: object[], etape: string, choisie: object|null,
  *          saisie: string, echec: string, cherche: string, rendu: object|null}} etat
  */
@@ -691,19 +698,6 @@ export function renderEcranDeVariante(etat = {}) {
 
   return `
     <div class="variante-ecran">
-      <header class="variante-ecran__tete">
-        <span class="variante-ecran__marque">
-          ${svgIcon("beaker", { className: "octicon" })} Variante
-        </span>
-        <span class="variante-ecran__titre">${
-          choisie
-            ? `${escapeHtml(choisie.sujet)} — ce que le projet dirait`
-            : "Essayer une valeur, sans rien écrire"
-        }</span>
-        <button type="button" class="gh-btn variante-ecran__exporter" data-variante-exporter>
-          ${svgIcon("download", { className: "octicon" })} Exporter
-        </button>
-      </header>
 
       <div class="variante-ecran__rang variante-ecran__rang--haut">
         ${renderQuelleValeur(valeurs, { cherche, choisie })}

@@ -254,15 +254,26 @@ function renderAngleMort(audit) {
   `;
 }
 
-function renderAudit(audit) {
+function renderAudit(audit, { dansUnPanneau = false } = {}) {
   return `
-    <div class="fichiers-saisie" role="dialog" aria-modal="true" aria-label="Audit de la mémoire">
+    <div class="fichiers-saisie${dansUnPanneau ? " fichiers-saisie--panneau" : ""}"${
+      // Dans un panneau, ce n'est plus une fenêtre : ni `dialog`, ni `modal`.
+      dansUnPanneau ? "" : ` role="dialog" aria-modal="true"`
+    } aria-label="Audit de la mémoire">
       <div class="fichiers-saisie__boite audit-boite">
-        <header class="fichiers-saisie__tete">
-          <b>${svgIcon("beaker", { className: "octicon" })} Auditer la mémoire</b>
-          <button type="button" class="fichiers-saisie__fermer" data-audit-fermer
-            aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
-        </header>
+        ${
+          // Dans un panneau, le titre est déjà celui du panneau : le répéter ici
+          // ferait « Auditer la mémoire » deux fois à trois centimètres d'écart,
+          // et l'écran se lirait comme s'il contenait deux choses. Pas de croix
+          // non plus : il n'y a rien à fermer.
+          dansUnPanneau
+            ? ""
+            : `<header class="fichiers-saisie__tete">
+                <b>${svgIcon("beaker", { className: "octicon" })} Auditer la mémoire</b>
+                <button type="button" class="fichiers-saisie__fermer" data-audit-fermer
+                  aria-label="Fermer">${svgIcon("x", { className: "octicon" })}</button>
+              </header>`
+        }
 
         <p class="variante-lead">
           Chaque règle a été rejouée sur ce que la mémoire dit <b>aujourd'hui</b>, et sa
@@ -285,9 +296,9 @@ function renderAudit(audit) {
             : renderPerimees(audit.perimees)
         }
 
-        <footer class="fichiers-saisie__pied">
+        ${dansUnPanneau ? "" : `<footer class="fichiers-saisie__pied">
           <button type="button" class="gh-btn gh-btn--primary" data-audit-fermer>Fermer</button>
-        </footer>
+        </footer>`}
       </div>
     </div>
   `;
@@ -296,20 +307,37 @@ function renderAudit(audit) {
 /** Une seule fenêtre à la fois : deux superposées ne se distinguent pas. */
 let ouverte = null;
 
-/** Ouvrir l'audit sur cette mémoire. */
-export function ouvrirLAudit({ assertions = [] } = {}) {
+/**
+ * Ouvrir l'audit sur cette mémoire.
+ *
+ * @param {object} options
+ * @param {object[]} options.assertions la mémoire lue
+ * @param {HTMLElement|null} [options.hote] où l'afficher. Sans lui, une fenêtre
+ *   par-dessus la page ; avec lui, **dans** un panneau de l'Atelier. Le même
+ *   écran, à deux endroits — le dessiner deux fois ferait deux audits qui
+ *   divergeraient (règle 4).
+ */
+export function ouvrirLAudit({ assertions = [], hote: accueil = null } = {}) {
+  const dansUnPanneau = Boolean(accueil);
+
   // Une fenêtre dont l'hôte a quitté le document est fermée, quoi qu'en dise le
   // verrou : sans cette ligne, un rendu qui balaie la page laisse le verrou posé
-  // et l'écran ne se rouvre plus jamais.
-  if (ouverte && !ouverte.isConnected) ouverte = null;
-  if (ouverte) return;
+  // et l'écran ne se rouvre plus jamais. Le verrou ne concerne que la fenêtre :
+  // un panneau est déjà unique par construction.
+  if (!dansUnPanneau) {
+    if (ouverte && !ouverte.isConnected) ouverte = null;
+    if (ouverte) return;
+  }
 
-  const hote = document.createElement("div");
-  hote.innerHTML = renderAudit(auditerLaMemoire(assertions));
-  document.body.appendChild(hote);
-  ouverte = hote;
+  const hote = accueil ?? document.createElement("div");
+  hote.innerHTML = renderAudit(auditerLaMemoire(assertions), { dansUnPanneau });
+  if (!dansUnPanneau) {
+    document.body.appendChild(hote);
+    ouverte = hote;
+  }
 
   const fermer = () => {
+    if (dansUnPanneau) return;
     document.removeEventListener("keydown", auClavier);
     hote.remove();
     ouverte = null;
@@ -318,7 +346,7 @@ export function ouvrirLAudit({ assertions = [] } = {}) {
   const auClavier = (evenement) => {
     if (evenement.key === "Escape") fermer();
   };
-  document.addEventListener("keydown", auClavier);
+  if (!dansUnPanneau) document.addEventListener("keydown", auClavier);
 
   for (const bouton of hote.querySelectorAll("[data-audit-fermer]")) {
     bouton.addEventListener("click", fermer);

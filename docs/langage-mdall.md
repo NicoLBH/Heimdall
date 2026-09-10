@@ -979,7 +979,8 @@ Le seul vrai danger d'une variante est **d'oublier qu'on y est**.
 | `apps/web/js/services/variante-en-cours.js` | la variante essayée — en portée de module, jamais rangée nulle part |
 | `apps/web/js/views/memoire/ecran-variante.js` | l'écran : ce qu'on essaie et ce que cela change, ensemble |
 | `apps/web/js/views/ui/bandeau-variante.js` | le bandeau qui dit qu'on ne lit pas la mémoire du projet |
-| `apps/web/js/views/ui/bouton-tester.js` | les trois usages du moteur de rejeu, et l'étape où chacun s'allume |
+| `apps/web/js/services/usages-du-rejeu.js` | les quatre usages du moteur de rejeu, où chacun vit, et l'étape où il s'allume |
+| `apps/web/js/views/studio/explorations/explorations.js` | les trois explorations de l'Atelier : variante, étude d'impact, audit |
 | `apps/web/js/services/memoire-applications.js` | ce qu'une règle a lu, avec son rang et sa zone — une ligne par lecture |
 | `apps/web/js/services/memoire-applications-supabase.js` | enregistre les lectures au versement, et reconstruit celles d'avant |
 | `apps/web/js/views/ui/fenetre-impact.js` | ce qui repose sur une valeur, rangé par distance |
