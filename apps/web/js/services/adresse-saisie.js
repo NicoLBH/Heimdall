@@ -159,6 +159,17 @@ export function colonneDeLaLocalisation(valeur = null) {
 }
 
 /**
+ * Vrai quand c'est **la localisation** qu'on s'apprête à faire varier.
+ *
+ * La ligne entière comme l'une de ses colonnes : depuis que la localisation se
+ * propose d'un bloc, c'est la ligne qu'on choisit — mais le test reste vrai des
+ * deux, parce que d'anciennes variantes exportées portent encore une colonne.
+ */
+export function estLaLocalisation(valeur = null) {
+  return texte(valeur?.assertion?.payload?.subject) === SUJET_LOCALISATION;
+}
+
+/**
  * Ce qu'une adresse choisie substitue à une localisation : **la ligne entière**.
  *
  * ## Pourquoi la ligne, et non la colonne

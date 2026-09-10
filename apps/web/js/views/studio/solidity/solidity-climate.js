@@ -102,6 +102,8 @@ const state = {
   centre: null, zoom: ZOOM_COMMUNE,
   /** Le point posé, tant qu'on n'a pas cliqué « Calculer ». */
   pointe: null, pointeEnCours: false,
+  /** Vrai le temps d'un geste sur la carte : l'écran ne se redessine pas. */
+  geste: false, renduEnRetard: false,
   results: {}, mapUrl: "", mapLoading: false, mapCle: "",
   /** Ce que la dernière adresse choisie n'a pas donné, s'il y a lieu. */
   saisieEchec: "",
@@ -457,6 +459,10 @@ async function poserLeProjet(root, point) {
   state.pointe = point;
   state.pointeEnCours = true;
   state.saisieEchec = "";
+  // La carte se recentre sur ce qu'on vient de poser. Sans cela, on pose un
+  // point au bord du cadre, on ne voit plus l'ancien, et l'on ne comprend pas ce
+  // qui remplace quoi.
+  recentrer(point);
   render(root);
 
   try {
@@ -484,6 +490,13 @@ async function releverLAltitude({ latitude, longitude } = {}) {
 }
 
 function render(root) {
+  // Pas pendant un geste sur la carte. Redessiner remplacerait le voile, et le
+  // glissement mourrait sur un nœud détaché : la carte resterait immobile sous
+  // le doigt sans qu'on sache pourquoi. Une lecture différée — les propositions
+  // ouvertes, une vue satellite qui arrive — suffit à le provoquer.
+  if (state.geste) { state.renduEnRetard = true; return; }
+  state.renduEnRetard = false;
+
   const hasResult = TOOL_KEYS.some((toolKey) => Boolean(state.results?.[toolKey]?.result_payload));
 
   root.innerHTML = `
@@ -527,9 +540,12 @@ function render(root) {
             ${renderCarteAPointer({
               nom: CARTE_DU_CLIMAT,
               centre: state.centre,
-              // Le point posé s'il y en a un, celui du projet sinon : c'est le
-              // marqueur rouge, et il ne suit pas la carte quand on la déplace.
-              point: state.pointe ?? pointDuProjet(),
+              // Le point qu'on vient de poser en rouge ; celui d'où l'on part en
+              // bleu, plus petit. Deux rouges de la même taille et l'on ne sait
+              // plus lequel est le projet — ni qu'il reste « Calculer ici » à
+              // cliquer.
+              point: pointPose() ?? pointDuProjet(),
+              pointAncien: pointPose() ? pointDuProjet() : null,
               zoom: state.zoom,
               embedUrl: state.mapUrl,
               chargement: state.mapLoading,
@@ -550,6 +566,11 @@ function render(root) {
     // Une fonction, et non l'état capturé : l'écran redessine, et un objet pris
     // à la liaison porterait le centre d'il y a trois déplacements.
     etat: () => ({ centre: state.centre, point: state.pointe, zoom: state.zoom }),
+    quandGeste: (enCours) => {
+      state.geste = enCours;
+      // Ce qu'on a refusé de dessiner pendant le geste se rattrape à sa fin.
+      if (!enCours && state.renduEnRetard) render(root);
+    },
     quandDeplacee: (centre) => { state.centre = centre; render(root); },
     quandZoomee: (zoom) => { state.zoom = zoom; render(root); },
     quandPointee: (point) => { void poserLeProjet(root, point); }
@@ -563,8 +584,17 @@ function render(root) {
 
 /** Le point du projet, quand sa localisation en porte un. */
 function pointDuProjet() {
-  const latitude = nombreOuRien(state.location?.latitude);
-  const longitude = nombreOuRien(state.location?.longitude);
+  return pointDe(state.location);
+}
+
+/** Le point qu'on vient de poser, tant que « Calculer ici » ne l'a pas retenu. */
+function pointPose() {
+  return pointDe(state.pointe);
+}
+
+function pointDe(localisation) {
+  const latitude = nombreOuRien(localisation?.latitude);
+  const longitude = nombreOuRien(localisation?.longitude);
   return latitude === null || longitude === null ? null : { latitude, longitude };
 }
 

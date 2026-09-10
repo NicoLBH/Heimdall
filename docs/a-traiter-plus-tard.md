@@ -2158,6 +2158,35 @@ lecteur. Deux copies subsistent, et aucune n'a été retirée dans cette étape 
 | `projectForm.communeCp` | la fiche du projet | une chaîne « Annecy 74000 » qui redit `city` + `postalCode`, dérivée à deux endroits et **reparsée** à un troisième. Six lecteurs, dont le contexte du copilote et le lanceur d'analyses : la retirer se fait, mais pas au milieu d'une étape qui touche déjà au rejeu |
 | les zonages en `site-constraint` | la mémoire | c'est le bouton « Verser les contraintes du site » de [§ 24](#24-verser-les-contraintes-du-site), qui écrit **directement**. Le doublon est celui des zonages, pas celui de la localisation, et il a son étape |
 
+### Trois corrections d'usage
+
+**La carte suit le doigt.** Le fond et les marqueurs sont déplacés en bloc
+pendant qu'on tire ; le viseur ne bouge pas — il marque le centre de l'écran,
+pas un endroit. Un défaut s'est révélé en le branchant : **un rendu au milieu
+d'un glissement tue le geste**, parce qu'il remplace le voile et que la capture
+du pointeur meurt sur un nœud détaché. Une lecture différée qui rappelle son
+écran — les propositions ouvertes, une vue satellite qui arrive — suffisait à le
+provoquer. La carte prévient donc son écran par `quandGeste`, et l'écran ne
+redessine pas tant qu'un geste dure.
+
+**Deux marqueurs ne se ressemblent plus.** Celui d'où l'on part passe en bleu,
+plus petit, translucide ; celui qu'on vient de poser prend le rouge et la
+taille. La carte se recentre dessus, et la consigne change de sens et de couleur
+— « Nouvel endroit posé. Cliquez sur *Calculer ici* pour actualiser les
+valeurs ». Deux rouges de la même taille sur une carte non centrée, avec une
+consigne qui décrivait un geste déjà fait : on ne comprenait pas qu'il en
+restait un.
+
+**La localisation est *une* valeur dans la variante.** Elle s'y proposait en six
+— commune, code INSEE, code postal, adresse, latitude, longitude — dont cinq
+n'ont aucun sens seules. La structure déclare maintenant `enBloc`, et un tableau
+dont toutes les colonnes le disent se propose comme une seule valeur qui se
+remplace d'un coup. La déclaration voyage avec la ligne versée : l'écran n'a
+aucun nom de sujet à connaître.
+
+Le champ de la variante est alors le même que celui des Paramètres : une saisie
+d'adresse, et le lien bleu vers la recherche approfondie — carte comprise.
+
 ### Ce qui reste
 
 1. **`communeCp` disparaît.** Les six lecteurs prennent `city` et `postalCode`,
@@ -2169,8 +2198,12 @@ lecteur. Deux copies subsistent, et aucune n'a été retirée dans cette étape 
 3. **`H0 retenu pour le département` ne se rejoue pas.** Il est rangé « à
    revérifier » alors que `agent_d_profondeur_hors_gel_V1` le pose, et sa lecture
    est citée avec une valeur vide.
-4. **La carte ne glisse pas sous le doigt.** Elle se repose au relâchement —
-   l'`iframe` se recharge à chaque changement de centre, et un rechargement par
-   pixel donnerait un clignotement continu. Le voile suit le doigt pendant qu'on
-   tire, ce qui rend le geste lisible ; une vraie carte à tuiles ferait mieux, au
-   prix d'une bibliothèque et d'un second fond de carte.
+4. **La carte se repose au relâchement.** Elle suit le doigt pendant qu'on tire
+   — c'est un déplacement de ce qui est déjà chargé, et les bords découvrent du
+   vide —, puis la vue est redemandée : une `iframe` se recharge à chaque
+   changement de centre, et un rechargement par pixel donnerait un clignotement
+   continu. Une vraie carte à tuiles ferait mieux, au prix d'une bibliothèque et
+   d'un second fond de carte à côté de celui qu'on emploie partout.
+5. **`enBloc` n'a qu'un usage.** La localisation. Le mécanisme est général — il
+   se lit sur la structure, sans nom de sujet —, mais tant qu'un seul tableau le
+   déclare, on ne sait pas s'il tiendra pour un autre.

@@ -15479,11 +15479,16 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
    toujours, parce que « Modifier » ne redessine pas l'écran — il pose une
    classe —, et le redessiner d'ici sortirait du mode qu'on vient d'y entrer. */
 .settings-lien-approfondi{ display:none; margin:0 0 6px; }
+/* Dans la variante, il n'y a pas de mode « modifier » : on est déjà en train de
+   choisir. Le lien s'y montre toujours. */
+.settings-lien-approfondi--variante{ display:flex; justify-content:flex-start; margin:0; }
 .col-span-2:has(.gh-editable-field.is-editing) > .settings-lien-approfondi{
   display:flex; justify-content:flex-end;
 }
+/* Le libellé dans un span : sans lui, l'icône et le texte sont deux éléments de
+   la boîte flexible, et le texte se replie en colonne sous l'icône. */
 .gh-lien{
-  display:inline-flex; align-items:center; gap:6px;
+  display:inline-flex; align-items:flex-start; gap:6px; text-align:left;
   padding:0; border:0; background:none;
   color:var(--link, #4493f8); font: inherit; font-size:12px;
   cursor:pointer;
@@ -15526,16 +15531,22 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   position:absolute; inset:0; z-index:2;
   cursor:grab; touch-action:none;
 }
-.carte-pointee__voile.est-tiree{ cursor:grabbing; }
-/* Le voile suit le doigt pendant qu'on tire ; la carte, elle, se repose au
-   relâchement — une `iframe` se recharge à chaque changement de centre, et un
-   rechargement par pixel donnerait un clignotement continu. */
-.carte-pointee__voile.est-tiree .carte-pointee__marqueur{
-  transform:translate(
-    calc(-50% + var(--carte-glissement-x, 0px)),
-    calc(-100% + var(--carte-glissement-y, 0px))
-  ) !important;
+.carte-pointee.est-tiree .carte-pointee__voile{ cursor:grabbing; }
+/* La vue satellite et les marqueurs suivent le doigt, **en bloc**. C'est un
+   déplacement de ce qui est déjà chargé : les bords découvrent du vide, et
+   c'est visible. La vue se repose au relâchement — une `iframe` se recharge à
+   chaque changement de centre, et un rechargement par pixel donnerait un
+   clignotement continu.
+
+   Le viseur, lui, ne bouge jamais : il marque le centre de l'écran, pas un
+   endroit. Le faire glisser avec le reste ferait perdre où l'on va poser. */
+.carte-pointee.est-tiree .carte-pointee__fond,
+.carte-pointee.est-tiree .carte-pointee__pins{
+  transform:translate(var(--carte-glissement-x, 0px), var(--carte-glissement-y, 0px));
 }
+.carte-pointee__fond,
+.carte-pointee__pins{ will-change:transform; }
+.carte-pointee__pins{ position:absolute; inset:0; pointer-events:none; }
 
 .carte-pointee__viseur,
 .carte-pointee__marqueur{
@@ -15546,6 +15557,7 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   transform:translate(-50%, -50%);
   color:#fff; opacity:.85;
   filter:drop-shadow(0 0 2px rgba(0,0,0,.9));
+  z-index:2;
 }
 /* Rouge, et posé par la pointe : un marqueur centré sur son milieu montre le
    projet vingt mètres au nord de là où il est. */
@@ -15553,9 +15565,14 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   transform:translate(-50%, -100%);
   color:#e5534b;
   filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));
+  transition:color .15s ease, opacity .15s ease;
 }
-.carte-pointee__marqueur .octicon{ width:28px; height:28px; }
-.carte-pointee__marqueur--centre{ transform:translate(-50%, -100%); }
+.carte-pointee__marqueur .octicon{ width:30px; height:30px; transition:width .15s ease, height .15s ease; }
+/* Deux marqueurs rouges de la même taille, et l'on ne sait plus lequel est le
+   projet. Celui d'avant passe en bleu, plus petit, translucide : on voit d'un
+   coup d'œil ce qui remplace quoi — et qu'il reste un geste à faire. */
+.carte-pointee__marqueur--ancien{ color:#4493f8; opacity:.55; }
+.carte-pointee__marqueur--ancien .octicon{ width:20px; height:20px; }
 
 .carte-pointee__zoom{
   position:absolute; z-index:3; top:12px; right:12px;
@@ -15576,6 +15593,13 @@ body.route--project .project-collaborator-create__body .project-collaborators-mo
   font-size:12px; line-height:1.4;
 }
 .carte-pointee__mode .octicon{ flex:0 0 auto; }
+/* Une consigne qui a changé de sens change de couleur : « il reste un geste à
+   faire » ne se lit pas comme « voici comment faire ». */
+.carte-pointee__mode--attente{
+  background:#d29922; color:#14171c; font-weight:600;
+}
+.carte-pointee__mode--attente b{ color:inherit; }
+.carte-pointee__mode--attente .octicon{ color:#14171c; }
 .carte-pointee__poser{
   position:absolute; z-index:3; left:50%; bottom:14px;
   transform:translateX(-50%);

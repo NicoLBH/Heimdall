@@ -594,3 +594,70 @@ test("un tableau sans différence ne résume rien", () => {
   assert.deepEqual(resumeParColonne([]), []);
   assert.deepEqual(resumeParColonne([{ nom: "A", connue: true, cellules: [] }]), []);
 });
+
+/* ── Un tableau qui se fait varier d'un bloc ─────────────────────────────── */
+
+/**
+ * La localisation a six colonnes, et personne ne veut « faire varier une
+ * latitude » : on veut déplacer le projet. L'écran offrait six choix dont cinq
+ * n'ont aucun sens seuls — un code INSEE sans sa commune, une longitude sans sa
+ * latitude — et changer l'un sans les autres décrit un endroit qui n'existe pas.
+ */
+const EN_BLOC = [
+  { nom: "commune", cle: "commune", type: "texte", enBloc: true },
+  { nom: "code INSEE", cle: "codeInsee", type: "texte", enBloc: true }
+];
+
+const enBlocVerse = {
+  id: "loc", kind: "base-datum", subject_key: "un-endroit", nature: "donnee-de-base",
+  status: "assumed", superseded_by: null, decided_at: "2026-01-10T09:00:00Z",
+  statement: "Un endroit", payload: {
+    subject: "Un endroit", value: "Commune (INSEE 00000)",
+    tableau: [{ commune: "Commune", codeInsee: "00000" }],
+    structure: EN_BLOC
+  }
+};
+
+const aPart = {
+  ...enBlocVerse, id: "sol", subject_key: "un-tableau",
+  payload: {
+    ...enBlocVerse.payload, subject: "Un tableau", value: "2 lignes",
+    // Les mêmes colonnes, **sans** `enBloc` : chacune est un fait indépendant.
+    structure: EN_BLOC.map(({ enBloc, ...reste }) => { void enBloc; return reste; })
+  }
+};
+
+test("un tableau qui varie en bloc se propose aussi comme une seule valeur", () => {
+  const offertes = valeursSubstituables([enBlocVerse]);
+
+  const ligne = offertes.find((entree) => entree.enBloc);
+  assert.ok(ligne, "la ligne entière doit se proposer");
+  assert.equal(ligne.id, "loc", "elle porte l'identifiant de l'affirmation, sans colonne");
+  assert.equal(ligne.sujet, "Un endroit");
+  assert.equal(ligne.valeur, "Commune (INSEE 00000)");
+
+  // Les colonnes restent dans la liste : ce sont **elles** qu'on substitue,
+  // toutes ensemble, et le rejeu refuserait un identifiant qu'il n'a pas
+  // proposé. C'est l'écran qui les replie.
+  assert.deepEqual(ligne.colonnes, ["loc#commune", "loc#codeInsee"]);
+  assert.equal(offertes.filter((entree) => entree.champ).length, 2);
+});
+
+test("un tableau ordinaire ne propose que ses colonnes", () => {
+  // Une seule colonne qui ne dirait pas `enBloc` suffit : c'est alors un fait
+  // indépendant, et le tableau se choisit colonne par colonne.
+  const offertes = valeursSubstituables([aPart]);
+  assert.equal(offertes.filter((entree) => entree.enBloc).length, 0);
+  assert.equal(offertes.length, 2);
+});
+
+test("varier la ligne entière, c'est varier toutes ses colonnes", () => {
+  // Six substitutions d'un coup : c'est un endroit qui en remplace un autre.
+  const rendu = consequencesDeLaVariante({
+    assertions: [enBlocVerse],
+    substitutions: new Map([["loc#commune", "Ailleurs"], ["loc#codeInsee", "11111"]])
+  });
+
+  assert.equal(rendu.ok, true);
+  assert.deepEqual(rendu.depart.map((entree) => entree.vers), ["Ailleurs", "11111"]);
+});

@@ -44,7 +44,8 @@ import { resolveCurrentBackendProjectId } from "../../../services/project-supaba
 import { PROJECT_TAB_IDS } from "../../../constants.js";
 import { renderEcranDeVariante, varianteEnJson, ETAPE, SAISIE_DE_LA_VARIANTE } from "../../memoire/ecran-variante.js";
 import { brancherLaSaisieDAdresse } from "../../ui/saisie-adresse.js";
-import { substitutionsDeLaLocalisation, colonneDeLaLocalisation } from "../../../services/adresse-saisie.js";
+import { substitutionsDeLaLocalisation, adresseEnUneLigne } from "../../../services/adresse-saisie.js";
+import { ligneDeLaLocalisation, phraseDeLaLocalisation } from "../../../services/localisation-versement.js";
 import { STRUCTURE_DE_LA_LOCALISATION } from "../../../utilitaires/agents-climatiques.js";
 import { ouvrirLEtudeDImpact } from "../../ui/fenetre-impact.js";
 import { ouvrirLAudit } from "../../ui/fenetre-audit.js";
@@ -343,40 +344,84 @@ function brancherLAdresseDeLaVariante(root) {
         ligne: choisie?.assertion?.payload?.tableau?.[0] ?? null,
         offertes
       });
-
-      if (!substitutions.length) {
-        etatDeLaVariante = {
-          ...etatDeLaVariante, portees: [], saisie: "",
-          echec: "C'est déjà là que le projet se trouve : il n'y a pas de variante."
-        };
-        dessinerLaVariante(root);
-        return;
-      }
-
-      // La colonne choisie à gauche reste celle qu'on affiche dans le champ
-      // caché : c'est elle que l'en-tête du résultat nomme.
-      const colonne = texte(cache.getAttribute("data-variante-colonne"));
-      cache.value = substitutions.find((entree) => entree.colonne === colonne)?.valeur ?? "";
-
-      etatDeLaVariante = {
-        ...etatDeLaVariante,
-        substitutions,
-        portees: substitutions.map((entree) => ({
-          nom: nomDeLaColonne(entree.colonne),
-          valeur: entree.valeur
-        })),
-        saisie: cache.value,
-        echec: ""
-      };
-      // Redessiner dit ce qui a été retenu de l'adresse : sans cela on choisit
-      // dans la liste et rien ne bouge à l'écran, ce qui se lit comme une panne.
-      dessinerLaVariante(root);
+      appliquerLaLocalisation(root, substitutions, localisation);
     },
     quandEchoue: (motif) => {
       etatDeLaVariante = { ...etatDeLaVariante, echec: motif };
       dessinerLaVariante(root);
     }
   });
+
+  // La recherche approfondie : le champ ne suffit pas quand le projet n'a pas
+  // d'adresse. C'est la **même** fenêtre que dans Paramètres > Localisation.
+  root.querySelector("[data-variante-carte]")?.addEventListener("click", () => {
+    void (async () => {
+      const choisie = etatDeLaVariante?.choisie;
+      const { chercherUneLocalisation } = await import("../../ui/recherche-de-localisation.js");
+      const retenue = await chercherUneLocalisation({
+        depart: departDeLaLocalisation(choisie)
+      });
+      if (!retenue) return;
+
+      const porteuse = champDeLIdentifiant(texte(choisie?.id)).id;
+      const offertes = (etatDeLaVariante?.valeurs ?? [])
+        .map((valeur) => texte(valeur.id))
+        .filter((id) => champDeLIdentifiant(id).id === porteuse);
+
+      appliquerLaLocalisation(root, substitutionsDeLaLocalisation(retenue, {
+        id: porteuse,
+        ligne: choisie?.assertion?.payload?.tableau?.[0] ?? null,
+        offertes
+      }), retenue);
+    })();
+  });
+}
+
+/** Là où le projet se trouve aujourd'hui, pour que la fenêtre en parte. */
+function departDeLaLocalisation(choisie) {
+  const ligne = choisie?.assertion?.payload?.tableau?.[0] ?? null;
+  if (!ligne) return null;
+  return {
+    address: ligne.adresse, city: ligne.commune,
+    postalCode: ligne.codePostal, codeInsee: ligne.codeInsee,
+    latitude: ligne.latitude, longitude: ligne.longitude
+  };
+}
+
+/**
+ * Poser ce qu'une localisation choisie remplace.
+ *
+ * Un seul chemin pour les deux façons de la choisir — le champ d'adresse et la
+ * fenêtre de recherche : deux auraient fini par ne pas substituer les mêmes
+ * colonnes.
+ */
+function appliquerLaLocalisation(root, substitutions, localisation) {
+  const cache = root.querySelector("[data-variante-valeur][data-variante-colonne]");
+
+  if (!substitutions.length) {
+    etatDeLaVariante = {
+      ...etatDeLaVariante, substitutions: [], portees: [], saisie: "",
+      echec: "C'est déjà là que le projet se trouve : il n'y a pas de variante."
+    };
+    dessinerLaVariante(root);
+    return;
+  }
+
+  const dite = phraseDeLaLocalisation(ligneDeLaLocalisation(localisation))
+    || adresseEnUneLigne(localisation);
+  if (cache) cache.value = dite;
+
+  etatDeLaVariante = {
+    ...etatDeLaVariante,
+    substitutions,
+    portees: substitutions.map((entree) => ({
+      nom: nomDeLaColonne(entree.colonne),
+      valeur: entree.valeur
+    })),
+    saisie: dite,
+    echec: ""
+  };
+  dessinerLaVariante(root);
 }
 
 /** Le nom déclaré d'une colonne de la localisation, ou sa clé à défaut. */
