@@ -514,7 +514,7 @@ function renderLacunes(cerveau) {
  * Les compteurs, eux, **passent** dans le rail quand il est ouvert : les répéter
  * en deux endroits ferait deux vérités à tenir d'accord.
  */
-function renderCadre(cerveau, isoles, signales) {
+function renderCadre(cerveau, isoles, signales, selection = "") {
   const { cycles } = cerveau;
 
   // Le rail est le **frère** de la colonne du dessin, pas son voisin sous la
@@ -524,6 +524,23 @@ function renderCadre(cerveau, isoles, signales) {
     <div class="cerveau cerveau--rail" role="dialog" aria-modal="true" aria-label="Le cerveau du projet">
       <aside class="cerveau__rail" data-cerveau-panneau>
         <span class="cerveau__compte" data-cerveau-resume>${renderResume(cerveau)}</span>
+        ${
+          // Ce qu'on regarde, quand on ne regarde pas tout.
+          //
+          // Le cerveau recevait la mémoire entière pendant que le tableau juste
+          // derrière n'en montrait que douze lignes. Il montre maintenant la
+          // **même sélection** — et il faut le dire, sinon un dessin de douze
+          // nœuds ferait croire à un projet de douze affirmations, et l'on
+          // chercherait longtemps ce qui manque (règle 5).
+          texte(selection)
+            ? `<p class="cerveau__selection">
+                ${svgIcon("search", { className: "octicon" })}
+                <span>Vous ne voyez que <b>${escapeHtml(texte(selection))}</b>. Le reste du projet
+                est là, hors de ce dessin — il se change dans la liste, jamais ici : le filtre
+                est le même des deux côtés.</span>
+              </p>`
+            : ""
+        }
 
         ${renderBarre(isoles)}
 
@@ -1855,10 +1872,12 @@ let ouverte = null;
  * Ouvrir le cerveau du projet.
  *
  * @param {object} options
- * @param {object[]} options.assertions la mémoire lue
+ * @param {object[]} options.assertions **la sélection**, filtrée comme le tableau
  * @param {object[]|null} [options.applications] les lectures enregistrées
+ * @param {string} [options.selection] ce que la requête retient, en toutes
+ *   lettres — vide quand on regarde tout
  */
-export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
+export function ouvrirLeCerveau({ assertions = [], applications = null, selection = "" } = {}) {
   // Une fenêtre dont l'hôte a quitté le document est fermée, quoi qu'en dise le
   // verrou : sans cette ligne, un rendu qui balaie la page laisse le verrou posé
   // et l'écran ne se rouvre plus jamais.
@@ -1867,8 +1886,15 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
 
   let cerveau = cerveauDuProjet(assertions, applications, { avecLesFonctions: true });
   if (!cerveau.noeuds.length) {
+    // Deux vides, et ils ne se disent pas pareil. « Ce projet ne porte aucune
+    // affirmation » était vrai tant que le cerveau recevait tout ; il montre
+    // maintenant la sélection, et la même phrase deviendrait un mensonge dès
+    // qu'un filtre est posé — on chercherait le défaut dans le projet plutôt
+    // que dans la requête.
     if (typeof window !== "undefined" && typeof window.alert === "function") {
-      window.alert("Ce projet ne porte encore aucune affirmation : il n'y a pas de raisonnement à montrer.");
+      window.alert(texte(selection)
+        ? `Rien à dessiner : aucune affirmation ne répond à ${texte(selection)}.`
+        : "Ce projet ne porte encore aucune affirmation : il n'y a pas de raisonnement à montrer.");
     }
     return;
   }
@@ -1877,7 +1903,7 @@ export function ouvrirLeCerveau({ assertions = [], applications = null } = {}) {
   const signales = signauxDeLAudit(assertions);
 
   const hote = document.createElement("div");
-  hote.innerHTML = renderCadre(cerveau, isoles.size, [...signales.keys()].length);
+  hote.innerHTML = renderCadre(cerveau, isoles.size, [...signales.keys()].length, selection);
   document.body.appendChild(hote);
   ouverte = hote;
 

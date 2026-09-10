@@ -40,6 +40,7 @@ import {
   zonesOf
 } from "../services/project-zones.js";
 import {
+  describeFilters,
   dropOtherTokens,
   onlyFilters,
   parseQuery,
@@ -123,6 +124,7 @@ import {
 import { bindSideResizer } from "./ui/side-resizer.js";
 import { renderBandeauVariante, brancherLeBandeauVariante } from "./ui/bandeau-variante.js";
 import { ouvrirLeCerveau } from "./ui/cerveau-du-projet.js";
+import { selectionDeLaMemoire, laRequeteRestreint } from "../services/memoire-selection.js";
 import { ouvrirLePlanDeRecalcul } from "./ui/fenetre-plan.js";
 import { planDeRecalcul } from "../services/memoire-plan.js";
 import { OU, estServi, libelleDeLUsage, usagesDe } from "../services/usages-du-rejeu.js";
@@ -280,8 +282,6 @@ const view = {
   pending: false,
   /** Sous une variante : vrai quand on ne montre que ce que la variante touche. */
   varianteSeulement: false,
-  /** La lecture ouverte : tout, hypothèses, contraintes, constats en cours. */
-  reader: READER.ALL,
   /** Le formulaire d'hypothèse, quand il est ouvert. */
   declaring: false,
   navCollapsed: repliRetenu(),
@@ -1565,17 +1565,27 @@ export function renderMemoryHead(resume, { busy = false } = {}) {
 }
 
 /**
- * Le cerveau du projet, en un bouton.
+ * Deux rendus de la même sélection : la liste, et le cerveau.
  *
- * C'était un item d'un menu à quatre entrées : essayer une variante, auditer la
- * mémoire, mesurer un impact, voir le cerveau. Les trois premiers ont déménagé
- * dans l'Atelier — ils préparent une proposition —, et un menu déroulant à une
- * seule entrée n'est plus un menu : c'est un bouton, avec un clic de trop.
+ * ## Pourquoi une bascule, et non un bouton de plus
  *
- * Il se lit dans `services/usages-du-rejeu.js` plutôt que d'être écrit ici : la
- * liste des usages dit déjà lequel vit dans la Mémoire, et le récrire ferait
- * deux vérités à tenir (règle 4). Un usage que le moteur ne sert pas encore
- * s'éteint et dit son étape, plutôt que de promettre ce qu'il ne fait pas.
+ * C'était un bouton isolé, à côté d'Exporter et de Verser — c'est-à-dire au
+ * milieu des **outils**. Or le cerveau n'est pas un outil : c'est l'autre façon
+ * de regarder ce que la liste montre déjà. La liste pour lire, le cerveau pour
+ * voir.
+ *
+ * Le dire par la forme du contrôle plutôt que par une phrase : deux moitiés
+ * accolées, celle qu'on regarde marquée. Un bouton l'aurait fait lire comme une
+ * action de plus, et l'on n'aurait pas su que le dessin obéit au même filtre.
+ *
+ * **La liste est toujours celle qu'on regarde** : le cerveau s'ouvre par-dessus
+ * et se referme sur elle. La marque le dit, plutôt que de prétendre à un
+ * troisième écran qui n'existe pas.
+ *
+ * L'usage se lit dans `services/usages-du-rejeu.js` plutôt que d'être écrit
+ * ici : la liste des usages dit déjà lequel vit dans la Mémoire, et le récrire
+ * ferait deux vérités à tenir (règle 4). Un usage que le moteur ne sert pas
+ * encore s'éteint et dit son étape, plutôt que de promettre ce qu'il ne fait pas.
  */
 function renderBoutonCerveau(busy = false) {
   const usage = usagesDe(OU.MEMOIRE)[0];
@@ -1583,10 +1593,16 @@ function renderBoutonCerveau(busy = false) {
 
   const servi = estServi(usage);
   return `
-    <button type="button" class="gh-btn" data-memoire-cerveau
-      title="${escapeHtml(usage.quoi)}" ${busy || !servi ? "disabled" : ""}>
-      ${svgIcon("memoire-vive", { className: "octicon" })} ${escapeHtml(libelleDeLUsage(usage))}
-    </button>
+    <span class="memory-bascule" role="group" aria-label="Comment regarder cette sélection">
+      <button type="button" class="memory-bascule__part is-active" aria-pressed="true"
+        title="Ce que vous regardez : la sélection, ligne par ligne." disabled>
+        ${svgIcon("table", { className: "octicon" })} Liste
+      </button>
+      <button type="button" class="memory-bascule__part" data-memoire-cerveau aria-pressed="false"
+        title="${escapeHtml(usage.quoi)}" ${busy || !servi ? "disabled" : ""}>
+        ${svgIcon("memoire-vive", { className: "octicon" })} ${escapeHtml(libelleDeLUsage(usage))}
+      </button>
+    </span>
   `;
 }
 
@@ -2066,33 +2082,31 @@ async function markAsReviewed(root, assertionId) {
  * endroits qui filtrent finissent toujours par filtrer différemment.
  */
 function lignesVisibles() {
-  const { filters, text } = parseQuery(view.query, MEMORY_FIELDS);
-
-  // Les constats en cours ne se disent pas par une nature : c'est un constat
-  // qu'aucune levée n'a fermé. Ce filtre-là s'applique donc à part.
-  const departFin = filters.ouverts === "oui"
-    ? readerRows(view.assertions ?? [], READER.FINDINGS)
-    : (view.assertions ?? []);
-
-  const filtrees = filterByTaxonomy(
-    searchAssertions(departFin, {
-      query: text,
-      kind: filters.provenance ?? "",
-      status: ETAT_VERS_STATUT[filters.etat] ?? "",
-      includeSuperseded: filters.remplacees === "oui"
-    }),
-    { nature: filters.nature ?? "", domain: filters.domaine ?? "" }
-  );
-
-  // « À revérifier » se coche par-dessus les autres filtres : c'est une urgence,
-  // pas une catégorie.
-  const retenues = view.pending ? pendingReviews(filtrees) : filtrees;
+  const retenues = selectionMemoire(view.assertions ?? []);
 
   // Sous une variante, ne garder que ce qu'elle touche. « Relue » en fait
   // partie : savoir qu'une valeur a été rejouée sans bouger est le contraire de
   // ne rien savoir d'elle.
   if (!varianteEnCours() || !view.varianteSeulement) return retenues;
   return retenues.filter((assertion) => Boolean(assertion?.variante?.effet));
+}
+
+/**
+ * La sélection, telle que la requête la définit — sans le calque d'une variante.
+ *
+ * Deux appelants, et c'est tout l'objet de `memoire-selection.js` : le tableau,
+ * qui lit une mémoire avec calque, et le cerveau, qui lit la mémoire réelle.
+ * Chacun passe la sienne ; le filtrage, lui, est le même.
+ */
+function selectionMemoire(assertions) {
+  return selectionDeLaMemoire(assertions, {
+    query: view.query,
+    champs: MEMORY_FIELDS,
+    etats: ETAT_VERS_STATUT,
+    chercher: searchAssertions,
+    aRevoir: pendingReviews,
+    pending: view.pending
+  });
 }
 
 function renderContent(root) {
@@ -3263,12 +3277,43 @@ function brancherLeFiltreDeVariante(root) {
  * `docs/a-traiter-plus-tard.md`, § 14, et `services/usages-du-rejeu.js`.
  */
 function brancherLeCerveau(root) {
-  // Le cerveau montre la forme du raisonnement du projet, pas celle d'une
-  // lecture qu'on essaie : la mémoire **en base**, jamais le calque d'une
-  // variante — dessiner un raisonnement qu'on sait faux ne dirait rien de vrai.
   root.querySelector("[data-memoire-cerveau]")?.addEventListener("click", () => {
-    ouvrirLeCerveau({ assertions: view.memoire ?? [], applications: view.applications });
+    // **La même sélection que le tableau.** Le cerveau recevait la mémoire
+    // entière pendant que la liste juste derrière n'en montrait que douze
+    // lignes : deux rendus, deux contenus, et rien pour dire lequel disait vrai.
+    //
+    // Le calque d'une variante reste dehors, lui, et c'est délibéré : le cerveau
+    // montre la forme du raisonnement du projet, pas celle d'une lecture qu'on
+    // essaie — dessiner un raisonnement qu'on sait faux ne dirait rien de vrai.
+    // C'est pour cela qu'on filtre `view.memoire` et non `view.assertions`.
+    ouvrirLeCerveau({
+      assertions: selectionMemoire(view.memoire ?? []),
+      applications: view.applications,
+      // Ce qu'on regarde, en toutes lettres. Un cerveau de douze nœuds sans
+      // prévenir qu'un filtre est posé ferait croire à un projet de douze
+      // affirmations, et l'on chercherait longtemps ce qui manque (règle 5).
+      selection: descriptionDeLaSelection()
+    });
   });
+}
+
+/**
+ * Ce que la requête retient, en une phrase — ou `""` quand elle ne retient rien.
+ *
+ * Les mêmes mots que la barre de recherche : elle nomme déjà chaque filtre, et
+ * une deuxième façon de les dire finirait par ne plus dire la même chose.
+ */
+function descriptionDeLaSelection() {
+  if (!laRequeteRestreint(view.query, MEMORY_FIELDS)) return "";
+
+  const dits = describeFilters(view.query, MEMORY_FIELDS)
+    .map((filtre) => `${filtre.label} : ${filtre.valueLabel}`);
+
+  const { text } = parseQuery(view.query, MEMORY_FIELDS);
+  if (String(text ?? "").trim()) dits.push(`« ${String(text).trim()} »`);
+  if (view.pending) dits.push("à revérifier");
+
+  return dits.join(" · ");
 }
 
 /**
