@@ -545,6 +545,73 @@ export async function fetchFrenchAltitude({ longitude = null, latitude = null } 
   };
 }
 
+/**
+ * Les deux jeux qu'on **conserve**, redemandés pour un code INSEE et un point.
+ *
+ * ## Pourquoi une seconde interrogation, plus courte
+ *
+ * `fetchGeorisquesForCommune` sert l'écran : quinze jeux, pour regarder. Le
+ * rejeu n'en a besoin que de deux — ceux dont la maille correspond à ce qu'on
+ * affirme —, et redemander les treize autres ferait treize allers-retours pour
+ * rien à chaque variante essayée.
+ *
+ * ## Pourquoi le code INSEE, et non la commune et son code postal
+ *
+ * Parce qu'on l'a. Une variante de localisation porte le code INSEE de la
+ * commune essayée ; repasser par « nom + code postal » demanderait de résoudre
+ * une commune qui est déjà résolue, et deux communes homonymes rendraient un
+ * jour la mauvaise.
+ *
+ * Le point, lui, peut manquer : un projet sans coordonnées garde sa zone
+ * sismique — elle est communale — et n'a pas d'exposition argileuse, parce
+ * qu'on ne sait pas où il est dans sa commune (règle 5). L'appelant demande
+ * alors le seul jeu qu'il peut demander, et ce qui manque se dit au lieu de
+ * partir au large du golfe de Guinée.
+ *
+ * @returns {Promise<object>} la même forme que `fetchGeorisquesForCommune`, si
+ *   bien que `contextFactsFromGeorisques` la lit sans rien savoir d'ici
+ */
+export async function fetchGeorisquesRetenus({
+  jeux = [], codeInsee = "", commune = "", latitude = null, longitude = null
+} = {}) {
+  const voulus = new Set((Array.isArray(jeux) ? jeux : []).map(safeString).filter(Boolean));
+  const code = safeString(codeInsee);
+  const lat = toNumber(latitude);
+  const lon = toNumber(longitude);
+
+  const demandes = GEORISQUES_COMMUNE_ENDPOINTS.filter((endpoint) => voulus.has(endpoint.key));
+  if (!demandes.length) throw new Error("Aucun jeu Géorisques demandé.");
+
+  // Ce qu'il faut pour demander, et qui n'est pas le même selon la maille : le
+  // zonage sismique se lit par la commune, l'aléa argileux par le point.
+  if (demandes.some((endpoint) => endpoint.queryMode !== "latlonOnly") && !code) {
+    throw new Error("Le code INSEE de la commune est requis.");
+  }
+  if (demandes.some((endpoint) => endpoint.queryMode === "latlonOnly")
+    && !(Number.isFinite(lat) && Number.isFinite(lon))) {
+    throw new Error("Coordonnées latitude / longitude requises pour cet aléa.");
+  }
+
+  const datasets = await Promise.all(demandes.map((endpoint) => fetchFirstAvailableEndpoint({
+    codeInsee: code,
+    lat: Number.isFinite(lat) ? lat : null,
+    lon: Number.isFinite(lon) ? lon : null,
+    radius: GEORISQUES_POINT_RADIUS_METERS
+  }, endpoint)));
+
+  return {
+    query: { codeInsee: code },
+    commune: {
+      codeInsee: code,
+      name: safeString(commune),
+      lat: Number.isFinite(lat) ? lat : null,
+      lon: Number.isFinite(lon) ? lon : null
+    },
+    requestedAt: new Date().toISOString(),
+    datasets
+  };
+}
+
 export async function fetchGeorisquesForCommune({ city = "", postalCode = "", latitude = null, longitude = null } = {}) {
   const commune = await resolveCommune(city, postalCode);
 

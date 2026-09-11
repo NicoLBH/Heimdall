@@ -297,9 +297,23 @@ function colonneRetenue(proposees, declaree) {
  *
  * Pure : elle ne parle à personne. C'est elle qui décide ce qui est concerné, et
  * `rejouerLesUtilitaires` ne fait qu'exécuter ce qu'elle a décidé.
+ *
+ * ## Ce qui vaut aujourd'hui, et rien d'autre
+ *
+ * Une affirmation **remplacée** est de l'histoire : elle a été corrigée, et
+ * c'est celle qui l'a corrigée qui vaut. Elle restait pourtant dans le lot à
+ * reprendre, si bien qu'une variante de localisation rejouait la zone de neige
+ * une fois par version qu'elle avait eue — quatre appels, quatre lignes à
+ * l'écran, trois qui ne décrivaient plus le projet. `fonctionsAReprendre`
+ * filtrait déjà ; ici, non, et l'écart ne se voyait pas tant qu'un sujet
+ * n'avait pas été corrigé deux fois.
  */
 export function contraintesAReprendre({ enVigueur = [], substitutions = new Map() } = {}) {
   const voulues = substitutions instanceof Map ? substitutions : new Map(Object.entries(substitutions ?? {}));
+  const toutes = (Array.isArray(enVigueur) ? enVigueur : []).filter((a) => !texte(a?.superseded_by));
+  // La résolution des identifiants, elle, lit **tout** : une variante peut
+  // désigner une ligne que la mémoire a depuis remplacée, et refuser de la
+  // reconnaître ne la rendrait pas moins variée.
   const parId = new Map((Array.isArray(enVigueur) ? enVigueur : []).map((a) => [texte(a?.id), a]));
 
   // Les sujets variés, par clé : c'est par le sujet que les utilitaires déclarent,
@@ -309,7 +323,7 @@ export function contraintesAReprendre({ enVigueur = [], substitutions = new Map(
 
   const reprises = [];
 
-  for (const assertion of Array.isArray(enVigueur) ? enVigueur : []) {
+  for (const assertion of toutes) {
     if (!estDeduite(assertion)) continue;
 
     // Concernée : elle déclare lire l'un des sujets qu'on fait varier.
@@ -324,6 +338,12 @@ export function contraintesAReprendre({ enVigueur = [], substitutions = new Map(
       sujet: texte(assertion?.payload?.subject) || texte(assertion?.statement),
       utilitaire: texte(assertion?.payload?.utilitaire),
       outil: texte(outil?.rejeu?.outil),
+      // Qui répond. Les zonages climatiques ont leurs tables au serveur ; la
+      // zone sismique et les argiles, chez Géorisques. Sans ce mot, tout partait
+      // vers l'outil climatique, qui aurait cherché la sismicité dans la table
+      // de la neige. `climat` par défaut : c'est ce que les déclarations
+      // d'avant voulaient dire sans le dire.
+      service: texte(outil?.rejeu?.service) || SERVICE_PAR_DEFAUT,
       champs,
       refus: refus || (texte(outil?.rejeu?.outil) ? "" : REFUS.SANS_REJEU)
     });
@@ -470,6 +490,123 @@ const REPRISES = {
  * deux. Le tableau voyage avec : c'est lui qu'un écran montrera, et le
  * recomposer plus tard demanderait de refaire l'appel.
  */
+/**
+ * Le service qui répond quand un utilitaire ne dit pas lequel.
+ *
+ * Les trois zonages climatiques ont été les premiers, et leur `rejeu` ne nomme
+ * que l'outil. Le défaut garde leur sens sans qu'on ait à les modifier.
+ */
+export const SERVICE_PAR_DEFAUT = "climat";
+
+/**
+ * Qui sait refaire un appel, et comment.
+ *
+ * ## Pourquoi un registre, maintenant
+ *
+ * Il n'y avait qu'un seul répondant : l'outil climatique du serveur, appelé en
+ * dur. Tant qu'on ne rejouait que la neige, le vent et le gel, c'était juste.
+ * La zone de sismicité et l'aléa argileux viennent de **Géorisques**, et leur
+ * donner le même chemin aurait cherché la sismicité dans la table de la neige.
+ *
+ * Chaque entrée rend une **fonction d'appel** — `ouvrir` prépare ce qui se
+ * partage entre deux reprises du même service (le dernier appel, une
+ * consultation), puis chaque reprise passe par elle. Rendre `null` signifie
+ * « ce service n'est pas joignable ici » : les reprises qui en dépendent le
+ * disent, et les autres continuent.
+ *
+ * Ce que la fonction rend :
+ *
+ * - `{ fait }` → le fait de contexte, que l'utilitaire relira par `deduire` ;
+ * - `{ refus }` → un motif nommé, quand l'appel ne peut pas se faire.
+ */
+const SERVICES = {
+  climat: {
+    async ouvrir({ projectId, appeler, dernierAppel }) {
+      const outils = await import("./studio-tools-service.js").catch(() => null);
+      const demander = appeler ?? outils?.resolveStudioClimateTool;
+      const relire = dernierAppel ?? outils?.getLastStudioToolResult;
+      if (typeof demander !== "function" || typeof relire !== "function") return null;
+
+      // Le dernier appel de chaque outil, une fois pour toutes : deux
+      // contraintes du même outil ne le redemandent pas deux fois.
+      const appels = new Map();
+      const appelDe = async (outil) => {
+        if (!appels.has(outil)) {
+          appels.set(outil, await relire({ projectId, toolKey: outil }).catch(() => null));
+        }
+        return appels.get(outil);
+      };
+
+      return async (reprise) => {
+        const precedent = await appelDe(reprise.outil);
+        const adresse = precedent?.input_payload;
+        if (!adresse || typeof adresse !== "object") return { refus: REFUS.SANS_APPEL };
+
+        // Le même appel que la dernière fois, avec la valeur essayée à la
+        // place. Et `dryRun` : rien n'entre nulle part.
+        const reponse = await demander({
+          projectId,
+          toolKey: reprise.outil,
+          location: { ...adresse, ...reprise.champs },
+          dryRun: true
+        });
+        return { fait: reponse?.context_fact ?? null };
+      };
+    }
+  },
+
+  georisques: {
+    /**
+     * L'interrogation Géorisques, refaite au nouvel endroit.
+     *
+     * Elle ne relit pas d'appel précédent : ce qu'il faut demander tient dans
+     * la localisation essayée — un code INSEE pour le zonage sismique, un point
+     * pour l'aléa argileux —, et l'utilitaire l'a déjà mis dans `champs`.
+     */
+    async ouvrir({ interroger }) {
+      const service = await import("./georisques-service.js").catch(() => null);
+      const demander = interroger ?? service?.fetchGeorisquesRetenus;
+      if (typeof demander !== "function") return null;
+
+      const { contextFactsFromGeorisques } = await import("./georisques-context-facts.js");
+
+      // Une consultation par endroit : les deux aléas sortent du même appel, et
+      // le redemander pour le second serait deux allers-retours pour un geste.
+      const consultations = new Map();
+
+      return async (reprise) => {
+        const jeu = JEUX_GEORISQUES[texte(reprise.outil)];
+        if (!jeu) return { refus: REFUS.SANS_REJEU };
+
+        const codeInsee = texte(reprise.champs?.code_insee);
+        const latitude = reprise.champs?.latitude ?? null;
+        const longitude = reprise.champs?.longitude ?? null;
+
+        const cle = `${jeu.cle}|${codeInsee}|${latitude}|${longitude}`;
+        if (!consultations.has(cle)) {
+          consultations.set(cle, demander({ jeux: [jeu.cle], codeInsee, latitude, longitude }));
+        }
+
+        const reponse = await consultations.get(cle);
+        const conserves = contextFactsFromGeorisques(reponse);
+        const trouve = conserves.find((fait) => texte(fait?.factKey) === jeu.fait);
+        // Géorisques a répondu, mais pas ce qu'on garde : l'aléa n'est pas
+        // cartographié là, ou la réponse ne porte pas la colonne attendue. Ce
+        // n'est pas une panne, et `deduire` n'en tirerait rien de toute façon.
+        if (!trouve) return { fait: null };
+
+        return { fait: { fact_key: trouve.factKey, fact_value: trouve.factValue } };
+      };
+    }
+  }
+};
+
+/** Ce que chaque outil Géorisques demande, et sous quelle clé il revient. */
+const JEUX_GEORISQUES = {
+  seismic: { cle: "zonage_sismique", fait: "seismic_zone" },
+  argiles: { cle: "retrait_gonflement_argiles", fait: "argiles" }
+};
+
 export async function repriseDeLaFonction(reprise, { assertions = [], appeler = null } = {}) {
   const branche = REPRISES[texte(reprise?.outil)];
   if (!branche) return null;
@@ -579,13 +716,14 @@ async function reprendreLesFonctions({ enVigueur = [], substitutions = new Map()
  * @param {string} options.projectId
  * @param {object[]} options.enVigueur la mémoire qui vaut aujourd'hui
  * @param {Map<string, string>} options.substitutions affirmation → valeur essayée
- * @param {Function} [options.appeler] injecté par les tests ; sinon l'outil réel
+ * @param {Function} [options.appeler] injecté par les tests ; sinon l'outil climatique réel
  * @param {Function} [options.dernierAppel] injecté par les tests ; sinon la base
+ * @param {Function} [options.interroger] injecté par les tests ; sinon Géorisques
  * @returns {Promise<{recalculees: object[], refusees: object[]}>}
  */
 export async function rejouerLesUtilitaires({
   projectId = "", enVigueur: memoire = [], substitutions = new Map(),
-  appeler = null, dernierAppel = null, calculer = null
+  appeler = null, dernierAppel = null, calculer = null, interroger = null
 } = {}) {
   // Les champs essayés à l'intérieur d'un tableau entrent **ici**, une fois, au
   // seuil du rejeu. Une fonction native relit ensuite le tableau du projet par
@@ -622,28 +760,23 @@ export async function rejouerLesUtilitaires({
     return { recalculees: seules.recalculees, refusees: seules.refusees };
   }
 
-  const outils = await import("./studio-tools-service.js").catch(() => null);
-  const demander = appeler ?? outils?.resolveStudioClimateTool;
-  const relire = dernierAppel ?? outils?.getLastStudioToolResult;
-  if (typeof demander !== "function" || typeof relire !== "function") {
-    // Les utilitaires sont injoignables ; les fonctions natives, elles, ne
-    // dépendent pas du même outil et peuvent encore se reprendre sur les seules
-    // valeurs essayées.
-    const seules = await suite([]);
-    return {
-      recalculees: seules.recalculees,
-      refusees: [...seules.refusees, ...reprises.map((r) => ({ ...r, refus: REFUS.INJOIGNABLE }))]
-    };
-  }
-
-  // Le dernier appel de chaque outil, une fois pour toutes : deux contraintes du
-  // même outil ne le redemandent pas deux fois.
-  const appels = new Map();
-  const appelDe = async (outil) => {
-    if (!appels.has(outil)) {
-      appels.set(outil, await relire({ projectId, toolKey: outil }).catch(() => null));
+  /**
+   * Les services ouverts **à la demande**, et une seule fois chacun.
+   *
+   * Une variante qui ne touche que le climat n'importe pas Géorisques, et
+   * réciproquement. Un service qui ne s'ouvre pas rend `null` : les reprises
+   * qui en dépendent se disent injoignables, les autres continuent — une
+   * variante partielle qui se dit partielle vaut mieux qu'un échec.
+   */
+  const ouverts = new Map();
+  const serviceDe = async (nom) => {
+    if (!ouverts.has(nom)) {
+      const branche = SERVICES[nom];
+      ouverts.set(nom, branche
+        ? await branche.ouvrir({ projectId, appeler, dernierAppel, interroger }).catch(() => null)
+        : null);
     }
-    return appels.get(outil);
+    return ouverts.get(nom);
   };
 
   const recalculees = [];
@@ -652,24 +785,17 @@ export async function rejouerLesUtilitaires({
   for (const reprise of reprises) {
     if (reprise.refus) { refusees.push(reprise); continue; }
 
-    const precedent = await appelDe(reprise.outil);
-    const adresse = precedent?.input_payload;
-    if (!adresse || typeof adresse !== "object") {
-      refusees.push({ ...reprise, refus: REFUS.SANS_APPEL });
+    const appelerLeService = await serviceDe(texte(reprise.service) || SERVICE_PAR_DEFAUT);
+    if (typeof appelerLeService !== "function") {
+      refusees.push({ ...reprise, refus: REFUS.INJOIGNABLE });
       continue;
     }
 
     try {
-      // Le même appel que la dernière fois, avec la valeur essayée à la place. Et
-      // `dryRun` : rien n'entre nulle part.
-      const reponse = await demander({
-        projectId,
-        toolKey: reprise.outil,
-        location: { ...adresse, ...reprise.champs },
-        dryRun: true
-      });
+      const rendu = await appelerLeService(reprise);
+      if (rendu?.refus) { refusees.push({ ...reprise, refus: rendu.refus }); continue; }
 
-      const relue = relectureDuFait(reprise, reponse?.context_fact ?? null);
+      const relue = relectureDuFait(reprise, rendu?.fait ?? null);
       if (relue) recalculees.push(relue);
       else refusees.push({ ...reprise, refus: REFUS.INJOIGNABLE });
     } catch {

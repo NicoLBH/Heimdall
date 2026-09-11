@@ -39,6 +39,7 @@ import { DIMENSIONNEMENT_FONDATIONS_SUPERFICIELLES_V1 } from "./dimensionnement_
 import { PRODUIT } from "./vocabulaire.js";
 import { AGENTS_CLIMATIQUES } from "./agents-climatiques.js";
 import { AGENT_D_SPECTRE_ELASTIQUE_EC8_V1 } from "./agent-spectre.js";
+import { AGENTS_RISQUES_NATURELS } from "./agent-risques-naturels.js";
 import { cleDuSujet } from "../services/memoire-identifiants.js";
 
 export { PRODUIT };
@@ -130,7 +131,13 @@ export function declarationDuSujet(sujet = "") {
  * les confondre reviendrait soit à perdre l'appel — c'est ce qui se passait —,
  * soit à ne plus pouvoir monter la version d'un seul zonage.
  */
-export const AGENTS = [...AGENTS_CLIMATIQUES, AGENT_D_SPECTRE_ELASTIQUE_EC8_V1];
+// L'ordre est celui de la chaîne : le site d'abord — climat, puis risques —,
+// et le spectre en dernier, parce qu'il lit ce que les autres ont posé.
+export const AGENTS = [
+  ...AGENTS_CLIMATIQUES,
+  ...AGENTS_RISQUES_NATURELS,
+  AGENT_D_SPECTRE_ELASTIQUE_EC8_V1
+];
 
 /** Un agent par sa référence complète, ou `null`. Rien n'est approché. */
 export function agentByReference(reference = "") {
