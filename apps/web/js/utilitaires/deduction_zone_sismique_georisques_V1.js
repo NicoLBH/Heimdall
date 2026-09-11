@@ -56,10 +56,12 @@ export const DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1 = {
    * hors de la chaîne, sans un mot — comme si rien n'en dépendait. Or tout en
    * dépend : c'est la commune, et rien d'autre, qui décide de la zone.
    *
-   * Elle ne sait pas se rejouer pour autant : sa valeur vient de Géorisques, et
-   * il n'y a pas de `rejeu` à déclarer ici. Elle apparaîtra donc à revérifier,
-   * en disant pourquoi. C'est la règle 5 : ne pas savoir rejouer n'autorise pas
-   * à prétendre que rien ne dépend de la commune.
+   * **Et elle sait maintenant se rejouer.** Elle ne le savait pas : sa valeur
+   * vient de Géorisques, et rien ne disait comment la redemander. Elle
+   * apparaissait « à revérifier », ce qui était vrai et inutile — la chaîne
+   * localisation → zone → spectre s'arrêtait sur son premier maillon. Le
+   * `rejeu` ci-dessous nomme l'interrogation à refaire ; c'est le service qui
+   * la fait, et `deduire` la relit, comme au versement.
    *
    * **La déclaration partagée**, et non sa copie. Elle la recopiait, et la copie
    * avait perdu `champ: "codeInsee"` : quand la localisation varie par ses
@@ -74,6 +76,14 @@ export const DEDUCTION_ZONE_SISMIQUE_GEORISQUES_V1 = {
       lire: (fait) => fait?.fact_value?.inputs?.code_insee ?? fait?.fact_value?.codeInsee
     }
   ],
+
+  /**
+   * Comment cet appel se refait : la même interrogation Géorisques, au nouveau
+   * code INSEE. `service` dit **qui** répond — les zonages climatiques ont
+   * leurs tables au serveur, celui-ci a Géorisques —, et sans lui le rejeu
+   * aurait redemandé la zone sismique à la table de la neige.
+   */
+  rejeu: { outil: "seismic", service: "georisques" },
 
   deduire(fait = {}) {
     const valeurConservee = String(fait?.fact_value?.value ?? "").trim();

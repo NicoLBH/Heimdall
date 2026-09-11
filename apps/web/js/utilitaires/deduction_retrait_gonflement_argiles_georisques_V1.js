@@ -22,6 +22,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
 import { PRODUIT } from "./vocabulaire.js";
 import { RESERVE } from "./reserves.js";
 import { lignesDe } from "./lecture-tabulaire.js";
+import { LIT_LE_POINT } from "./agent-risques-naturels.js";
 
 const COLONNE_ALEA = /(alea|exposition|niveau|classe|potentiel)/i;
 
@@ -57,6 +58,27 @@ export const DEDUCTION_RETRAIT_GONFLEMENT_ARGILES_GEORISQUES_V1 = {
   sujet: "Retrait-gonflement des argiles",
   domaine: DOMAIN.SOL,
   cleDonnee: "argiles",
+
+  /**
+   * Ce qu'elle lit du projet : **le point**, et non la commune.
+   *
+   * Elle ne déclarait rien. Déplacer le projet — même de cent mètres, même sans
+   * changer de commune — la laissait donc en place, sans un mot, comme si
+   * l'aléa argileux ne dépendait pas de l'endroit. C'est pourtant le seul des
+   * deux jeux qu'on conserve qui se lise au mètre près.
+   *
+   * La déclaration est partagée avec l'agent qui la pose : la recopier ici
+   * l'aurait fait diverger, et c'est ainsi que la zone sismique avait perdu sa
+   * colonne (règle 4).
+   */
+  lit: LIT_LE_POINT,
+
+  /**
+   * Comme la zone sismique : la même interrogation Géorisques, au nouveau
+   * point. Un projet sans coordonnées n'en a pas, et le rejeu le dira plutôt
+   * que d'interroger le large du golfe de Guinée.
+   */
+  rejeu: { outil: "argiles", service: "georisques" },
 
   deduire(fait = {}) {
     const conserve = niveauReconnu(fait?.fact_value?.niveau);

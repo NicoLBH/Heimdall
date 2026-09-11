@@ -392,6 +392,36 @@ test("varier le sujet entier reste possible : la colonne n'est alors pas dite", 
  * disait « celle qu'on fait varier n'entre pas dans son calcul » alors qu'on
  * venait de changer de commune.
  */
+/**
+ * Une affirmation **remplacée** est de l'histoire.
+ *
+ * Le projet avait corrigé sa zone de neige deux fois : trois versions de la même
+ * ligne vivaient dans la mémoire, deux d'entre elles remplacées. Le rejeu les
+ * reprenait toutes les trois — trois appels au serveur, trois lignes « Zone de
+ * neige A1 → E » à l'écran, dont deux décrivaient un projet qui n'existe plus.
+ * `fonctionsAReprendre` filtrait déjà ; celle-ci, non.
+ */
+test("une affirmation remplacée ne se rejoue pas", () => {
+  const remplacee = deduite({ id: "neige-v1", sujet: "Zone de neige", valeur: "A2",
+    utilitaire: "deduction_zone_neige_commune_V1",
+    lectures: [["Localisation du projet", "00000"]] });
+  remplacee.superseded_by = "neige-v2";
+
+  const enVigueur = [
+    localisation(),
+    remplacee,
+    deduite({ id: "neige-v2", sujet: "Zone de neige", valeur: "A1",
+      utilitaire: "deduction_zone_neige_commune_V1",
+      lectures: [["Localisation du projet", "00000"]] })
+  ];
+
+  const reprises = contraintesAReprendre({
+    enVigueur, substitutions: new Map([["loc#codeInsee", "11111"]])
+  });
+
+  assert.deepEqual(reprises.map((reprise) => reprise.assertion.id), ["neige-v2"]);
+});
+
 test("la ligne entière varie : chaque utilitaire y prend la colonne qu'il lit", () => {
   const reprises = contraintesAReprendre({
     enVigueur: zonages(),
@@ -479,4 +509,175 @@ test("la ligne entière : chacune reçoit le code INSEE, jamais le nom de la com
     });
     assert.equal(reprises[0]?.champs?.code_insee, "11111", `${utilitaire} n'a pas reçu le code INSEE`);
   }
+});
+
+/* ── La chaîne sismique : la commune, la zone, le spectre ────────────────── */
+
+/**
+ * La démonstration en entier, et la raison d'être de l'agent-D des risques
+ * naturels.
+ *
+ * **Je déplace le projet, sa zone de sismicité change, son spectre change.**
+ * Le spectre déclarait lire la zone depuis le premier jour ; la zone, elle, ne
+ * savait pas se rejouer — « son calcul reste au serveur » —, et la chaîne
+ * s'arrêtait sur son premier maillon. Ces trois tests la parcourent.
+ */
+const sismique = (valeur) => ({
+  id: "seismic", kind: "site-constraint", subject_key: "site:seismic_zone",
+  nature: "contrainte", status: "assumed", superseded_by: null, decided_at: at,
+  statement: `Zone de sismicité : ${valeur}`,
+  payload: {
+    subject: "Zone de sismicité", value: valeur, derived: true,
+    utilitaire: "deduction_zone_sismique_georisques_V1",
+    lectures: [{ sujet: "Localisation du projet", valeur: "00000" }]
+  }
+});
+
+/**
+ * Le spectre, versé comme il l'est vraiment : **deux lignes**.
+ *
+ * L'appel — la fonction, qui porte l'agent, ce qu'il lit et ce qu'il écrit — et
+ * la sortie, qui porte la courbe. C'est la première que la variante reprend, et
+ * c'est la seconde qu'elle remplace.
+ */
+const appelDuSpectre = () => ({
+  id: "appel-spectre", kind: "rule", subject_key: "agent-spectre",
+  nature: null, status: "assumed", superseded_by: null, decided_at: at,
+  statement: "Spectre élastique d'après la zone, le sol et l'importance",
+  payload: {
+    subject: "Spectre élastique d'après la zone, le sol et l'importance",
+    value: "Spectre élastique de calcul",
+    utilitaire: "agent_d_spectre_elastique_ec8_V1",
+    agent: {
+      genre: "agent-D",
+      utilitaire: "agent_d_spectre_elastique_ec8",
+      version: "V1",
+      lit: ["Zone de sismicité", "Classe de sol EC8", "Catégorie d'importance de l'ouvrage",
+        "Amortissement visqueux"],
+      ecrit: [{ sujet: "Spectre élastique de calcul" }]
+    }
+  }
+});
+
+const spectre = () => ({
+  id: "spectre", kind: "base-datum", subject_key: "spectre-elastique-de-calcul",
+  nature: "contrainte", status: "assumed", superseded_by: null, decided_at: at,
+  statement: "Spectre élastique de calcul",
+  payload: {
+    subject: "Spectre élastique de calcul", value: "ag 0,40 m/s²",
+    utilitaire: "agent_d_spectre_elastique_ec8_V1",
+    tableau: [{ agr: 0.4, gammaI: 1, ag: 0.4, eta: 1, S: 1, TB: 0.03, TC: 0.2, TD: 2.5 }]
+  }
+});
+
+/** Géorisques, joué : chaque commune a sa zone, et l'appel dit ce qu'il demande. */
+const georisques = (zones, journal = []) => async ({ jeux, codeInsee, latitude, longitude }) => {
+  journal.push({ jeux, codeInsee, latitude, longitude });
+  const zone = zones[String(codeInsee)];
+  if (!zone) throw new Error(`commune inconnue : ${codeInsee}`);
+  return {
+    commune: { codeInsee, name: "", lat: latitude, lon: longitude },
+    requestedAt: at,
+    datasets: [{ key: "zonage_sismique", status: "success", url: "https://…", data: [{ zone_sismicite: zone }] }]
+  };
+};
+
+test("changer de commune rejoue la zone de sismicité chez Géorisques", async () => {
+  const journal = [];
+  const rendu = await rejouerLesUtilitaires({
+    projectId: "p1",
+    enVigueur: [localisation(), sismique("1 — Très faible")],
+    substitutions: new Map([["loc#codeInsee", "11111"], ["loc#commune", "Ailleurs"]]),
+    interroger: georisques({ "11111": "4 - Moyenne" }, journal)
+  });
+
+  // Le jeu demandé est celui du zonage sismique, et lui seul : redemander les
+  // quatorze autres ferait quatorze allers-retours pour rien.
+  assert.deepEqual(journal.map((appel) => [appel.jeux, appel.codeInsee]), [[["zonage_sismique"], "11111"]]);
+  assert.deepEqual(rendu.recalculees.map((l) => [l.sujet, l.avant, l.apres]), [
+    ["Zone de sismicité", "1 — Très faible", "4"]
+  ]);
+  assert.deepEqual(rendu.refusees, []);
+});
+
+test("la zone qui change entraîne le spectre", async () => {
+  // Le maillon suivant, et celui qu'on ne pouvait pas atteindre : le spectre se
+  // reprend avec ce que les utilitaires viennent d'établir, pas avec la seule
+  // valeur essayée. La localisation ne l'atteint donc que **par** la zone.
+  const appelsDuSpectre = [];
+  const calculer = (entrees) => {
+    appelsDuSpectre.push(entrees);
+    const agr = { "1": 0.4, "4": 1.6 }[String(entrees.zoneSismique).trim()] ?? 0;
+    return { agr, gammaI: 1, ag: agr, eta: 1, S: 1, TB: 0.03, TC: 0.2, TD: 2.5 };
+  };
+
+  const rendu = await rejouerLesUtilitaires({
+    projectId: "p1",
+    enVigueur: [localisation(), sismique("1"), appelDuSpectre(), spectre()],
+    substitutions: new Map([["loc#codeInsee", "11111"]]),
+    interroger: georisques({ "11111": "4 - Moyenne" }),
+    calculer
+  });
+
+  // Le spectre a bien reçu la zone **recalculée**, et non celle de la mémoire.
+  assert.deepEqual(appelsDuSpectre.map((entrees) => entrees.zoneSismique), ["4"]);
+  assert.deepEqual(rendu.recalculees.map((l) => l.sujet), ["Zone de sismicité", "Spectre élastique de calcul"]);
+  assert.equal(rendu.recalculees[1].valeurABouge, true);
+});
+
+test("un projet sans point garde sa zone sismique et n'invente pas son aléa argileux", () => {
+  // Les deux aléas ne se lisent pas à la même maille : le zonage sismique est
+  // communal par décret, l'aléa argileux se lit au mètre. Une localisation sans
+  // coordonnées a donc l'un et pas l'autre — et le dire vaut mieux que de
+  // demander l'aléa d'un point qu'on ne connaît pas (règle 5).
+  const argiles = {
+    id: "rga", kind: "site-constraint", subject_key: "site:argiles",
+    nature: "contrainte", status: "assumed", superseded_by: null, decided_at: at,
+    statement: "Retrait-gonflement des argiles : Moyen",
+    payload: {
+      subject: "Retrait-gonflement des argiles", value: "Moyen", derived: true,
+      utilitaire: "deduction_retrait_gonflement_argiles_georisques_V1",
+      lectures: [{ sujet: "Localisation du projet", valeur: "" }]
+    }
+  };
+
+  const reprises = contraintesAReprendre({
+    enVigueur: [localisation(), sismique("1"), argiles],
+    substitutions: new Map([["loc#codeInsee", "11111"], ["loc#commune", "Ailleurs"]])
+  });
+
+  const parSujet = Object.fromEntries(reprises.map((r) => [r.sujet, r]));
+  assert.equal(parSujet["Zone de sismicité"].refus, "");
+  assert.deepEqual(parSujet["Zone de sismicité"].champs, { code_insee: "11111" });
+
+  // L'aléa argileux lit la même ligne, mais par ses coordonnées : il est
+  // concerné et se refuse **en le disant**. Le taire laisserait croire que rien
+  // ne dépend du point, et le rejouer demanderait un aléa à un endroit inconnu.
+  assert.equal(parSujet["Retrait-gonflement des argiles"].refus, REFUS.AUTRE_COLONNE);
+  assert.deepEqual(parSujet["Retrait-gonflement des argiles"].champs, {});
+});
+
+test("déplacer le point rejoue l'aléa argileux, et lui seul", () => {
+  const argiles = {
+    id: "rga", kind: "site-constraint", subject_key: "site:argiles",
+    nature: "contrainte", status: "assumed", superseded_by: null, decided_at: at,
+    statement: "Retrait-gonflement des argiles : Moyen",
+    payload: {
+      subject: "Retrait-gonflement des argiles", value: "Moyen", derived: true,
+      utilitaire: "deduction_retrait_gonflement_argiles_georisques_V1",
+      lectures: [{ sujet: "Localisation du projet", valeur: "" }]
+    }
+  };
+
+  // Cent mètres plus loin, dans la même commune : le zonage sismique n'a pas
+  // bougé — il est communal —, l'aléa argileux peut avoir changé.
+  const reprises = contraintesAReprendre({
+    enVigueur: [localisation(), sismique("1"), argiles],
+    substitutions: new Map([["loc#latitude", "45.900000"], ["loc#longitude", "6.130000"]])
+  });
+
+  assert.deepEqual(reprises.map((r) => [r.sujet, r.champs, r.refus]), [
+    ["Zone de sismicité", {}, REFUS.AUTRE_COLONNE],
+    ["Retrait-gonflement des argiles", { latitude: 45.9, longitude: 6.13 }, ""]
+  ]);
 });

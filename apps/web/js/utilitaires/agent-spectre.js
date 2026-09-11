@@ -40,6 +40,10 @@
  */
 
 import { DOMAIN } from "../services/assertion-taxonomy.js";
+// La zone n'est pas à lui : c'est l'agent des risques naturels qui la pose, et
+// c'est là qu'elle se nomme. Elle se redisait ici, et deux écritures d'un même
+// nom finissent par ne plus désigner la même chose (règle 10).
+import { SUJET_ZONE_SISMIQUE } from "./agent-risques-naturels.js";
 
 /**
  * Ce que le projet est du point de vue du séisme, et qui commande le spectre.
@@ -49,7 +53,7 @@ import { DOMAIN } from "../services/assertion-taxonomy.js";
  * qu'elle est lue et non versée ici : deux écrans qui poseraient le même sujet
  * en feraient deux valeurs concurrentes.
  */
-export const SUJET_ZONE_SISMIQUE = "Zone de sismicité";
+export { SUJET_ZONE_SISMIQUE };
 export const SUJET_CLASSE_DE_SOL = "Classe de sol EC8";
 export const SUJET_CATEGORIE_IMPORTANCE = "Catégorie d'importance de l'ouvrage";
 export const SUJET_AMORTISSEMENT = "Amortissement visqueux";

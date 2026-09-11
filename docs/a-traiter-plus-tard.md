@@ -2436,3 +2436,77 @@ le code INSEE quand la ligne entière varie.
    comme elle entraîne les zonages.
 3. **La zone de sismicité ne se rejoue toujours pas** : son calcul reste chez
    Géorisques, et elle le dit. C'est la règle 5, pas un défaut.
+
+## 31. La chaîne sismique, et trois versions d'une même ligne
+
+Deux choses dans ce tour : un rejeu qui comptait l'histoire pour du présent, et
+la moitié manquante d'une démonstration.
+
+### Rejouer ce qui vaut, et non ce qui a valu
+
+« Profondeur hors gel, zone de neige et zone de vent se rejouent 4 fois. »
+Elles ne se rejouaient pas quatre fois : **quatre lignes différentes se
+rejouaient une fois chacune**, et trois d'entre elles ne décrivaient plus le
+projet.
+
+Le projet avait corrigé sa localisation trois fois. Chaque correction avait
+remplacé la zone de neige, et les trois versions vivaient dans la mémoire —
+c'est voulu, c'est ce qui permet de lire « le projet a cru A2 pendant six
+mois ». Mais deux d'entre elles portaient `superseded_by`, et
+`contraintesAReprendre` ne le regardait pas. `fonctionsAReprendre` le regardait
+depuis toujours ; l'écart ne se voyait pas tant qu'un sujet n'avait pas été
+corrigé deux fois.
+
+Treize reprises sont redevenues sept.
+
+### Ce qui reste double, et pourquoi
+
+Sur ces sept, il y a encore **deux lignes par sujet** : une `base-datum` versée
+par proposition, une `site-constraint` versée par l'ancien chemin automatique.
+Ce n'est pas un défaut du rejeu — les deux existent vraiment dans la mémoire, et
+les cacher à l'écran ferait mentir la variante sur ce que le projet porte. C'est
+le doublon de [§ 24](#24-verser-les-contraintes-du-site), et il se règle en
+cessant de verser le second, pas en le masquant.
+
+### La zone de sismicité savait tout, sauf revenir
+
+Le spectre déclare lire la zone de sismicité depuis le premier jour, et sait se
+rejouer sans réseau. La zone, elle, répondait « cet utilitaire ne sait pas se
+rejouer : son calcul reste au serveur ». Vrai, et inutile : la chaîne
+**localisation → zone → spectre** s'arrêtait sur son premier maillon, alors que
+c'est elle qui porte la démonstration entière — déplacer un projet change tout
+ce qui se dimensionne au séisme.
+
+Il manquait trois choses :
+
+| ce qui manquait | ce qui a été fait |
+| --- | --- |
+| personne ne déclarait ces deux aléas | `utilitaires/agent-risques-naturels.js`, l'agent-D RNT |
+| le rejeu ne savait parler qu'à l'outil climatique | un registre de services, `climat` par défaut, `georisques` en second |
+| l'aléa argileux ne déclarait **rien** | il lit le point du projet, et le dit |
+
+### Deux mailles, et c'est tout le sujet
+
+Le zonage sismique est **communal** par décret ; l'aléa argileux se lit **au
+point**. Ce sont donc deux lectures de la même ligne de localisation, par des
+colonnes différentes — le code INSEE d'un côté, les coordonnées de l'autre.
+
+La conséquence se vérifie : déplacer un projet de cent mètres dans sa commune
+rejoue l'aléa argileux et **refuse** la zone sismique, en disant que la colonne
+variée n'entre pas dans son calcul. Changer de commune fait l'inverse. C'est
+exactement ce que `champ` sert à dire, et ce qui permet à un projet sans
+coordonnées d'avoir sa zone sismique sans qu'on lui invente une exposition
+argileuse (règle 5).
+
+### Ce qui reste
+
+1. **L'écran RNT verse encore directement.** Il interroge Géorisques et écrit
+   ses faits de contexte sans passer par une proposition, ce qui est le chemin
+   que `docs/fondamentaux.md` interdit (règle 1) et la source du doublon du
+   § 24. L'agent est déclaré ; l'écran, lui, n'a pas encore été refait à la
+   manière de « Neige, Vent & Gel ».
+2. **L'interrogation Géorisques reste au navigateur.** C'est ce que l'écran fait
+   déjà, et le service est public — aucune clé à protéger. Le jour où elle passe
+   au serveur, seule l'entrée `georisques` du registre change.
+3. **L'altitude ne suit toujours pas la commune**, comme au
+   [§ 30](#30-quatre-colonnes-qui-varient-une-seule-quon-gardait).
